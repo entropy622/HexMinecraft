@@ -1,12 +1,29 @@
 import './style.css';
 import * as THREE from 'three';
-import {World,BLOCKS,ITEMS,HOTBAR,RECIPES,SAVE_KEY,axialToWorld,worldToAxial,hexDistance,key,hash,craft,canCraft,validateSave,WORLD_RADIUS} from './core.js';
-import {Graphics,createCreature} from './graphics.js';
+import {
+  World,
+  BLOCKS,
+  ITEMS,
+  HOTBAR,
+  RECIPES,
+  SAVE_KEY,
+  axialToWorld,
+  worldToAxial,
+  hexDistance,
+  key,
+  hash,
+  craft,
+  canCraft,
+  validateSave,
+  WORLD_RADIUS,
+} from './core.js';
+import { Graphics, createCreature } from './graphics.js';
 
-const $=s=>document.querySelector(s);
-const icon=id=>`<span class="block-icon" style="--block:${ITEMS[id]?.color||'#d5b778'}"></span>`;
-const isTouch=matchMedia('(pointer:coarse)').matches;
-$('#app').innerHTML=`
+const $ = (s) => document.querySelector(s);
+const icon = (id) =>
+  `<span class="block-icon" style="--block:${ITEMS[id]?.color || '#d5b778'}"></span>`;
+const isTouch = matchMedia('(pointer:coarse)').matches;
+$('#app').innerHTML = `
  <canvas id="world" aria-label="六野三维世界"></canvas>
  <div id="loading"><span class="brand-icon"></span><span>正在生长一座六边形岛屿</span></div>
  <section id="landing">
@@ -32,123 +49,1396 @@ $('#app').innerHTML=`
 `;
 
 let graphics;
-try{graphics=new Graphics($('#world'));}catch(error){$('#loading').innerHTML='<h2>世界还没能打开</h2><p>请使用支持 WebGL 的现代浏览器，并启用硬件加速。</p>';throw error;}
-const camera=graphics.camera;
-let world=new World(624),inventory={},tool=0,creative=false,hotbar=[...HOTBAR],selected=0,activated=[],health=20,hunger=20,time=105;
-let crops=new Map(),chests=new Map(),furnaceJobs=new Map(),creatures=[],hasGame=false,playing=false,overlay=null,fromMenu=false;
-let yaw=0,pitch=0,vy=0,grounded=false,target=null,mining=0,miningKey='',leftDown=false,keys=new Set(),selectedRecipe=0,attackCooldown=0,damageCooldown=0;
-let saveTimer=0,hudTimer=0,mapTimer=0,toastTimer=0,sensitivity=1,sound=true,audio=null,stationKey=null,moved=0,simulationAccumulator=0;
-const spawn=new THREE.Vector3();
+try {
+  graphics = new Graphics($('#world'));
+} catch (error) {
+  $('#loading').innerHTML =
+    '<h2>世界还没能打开</h2><p>请使用支持 WebGL 的现代浏览器，并启用硬件加速。</p>';
+  throw error;
+}
+const camera = graphics.camera;
+let world = new World(624),
+  inventory = {},
+  tool = 0,
+  creative = false,
+  hotbar = [...HOTBAR],
+  selected = 0,
+  activated = [],
+  health = 20,
+  hunger = 20,
+  time = 105;
+let crops = new Map(),
+  chests = new Map(),
+  furnaceJobs = new Map(),
+  creatures = [],
+  hasGame = false,
+  playing = false,
+  overlay = null,
+  fromMenu = false;
+let yaw = 0,
+  pitch = 0,
+  vy = 0,
+  grounded = false,
+  target = null,
+  mining = 0,
+  miningKey = '',
+  leftDown = false,
+  keys = new Set(),
+  selectedRecipe = 0,
+  attackCooldown = 0,
+  damageCooldown = 0;
+let saveTimer = 0,
+  hudTimer = 0,
+  mapTimer = 0,
+  toastTimer = 0,
+  sensitivity = 1,
+  sound = true,
+  audio = null,
+  stationKey = null,
+  moved = 0,
+  simulationAccumulator = 0;
+const spawn = new THREE.Vector3();
+let respawnPoint = null;
 graphics.build(world);
 
-function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),3200);}
-function beep(freq=300,duration=.06,type='sine',volume=.035){if(!sound)return;try{audio??=new(window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume();const osc=audio.createOscillator(),gain=audio.createGain();osc.type=type;osc.frequency.setValueAtTime(freq,audio.currentTime);osc.frequency.exponentialRampToValueAtTime(freq*.55,audio.currentTime+duration);gain.gain.setValueAtTime(volume,audio.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);osc.connect(gain).connect(audio.destination);osc.start();osc.stop(audio.currentTime+duration);}catch{/* Audio is optional. */}}
-function setSpawn(){const p=axialToWorld(0,0);spawn.set(p.x,Math.max(4,world.surface(0,0))+.03,p.z);}
-function playerFeet(){return camera.position.y-1.65;}
-function solidAt(x,y,z){const a=worldToAxial(x,z);return!!world.get(a.q,Math.floor(y),a.r);}
-function collides(x,feet,z){for(const[dx,dz]of [[0,0],[.24,0],[-.24,0],[0,.24],[0,-.24],[.17,.17],[-.17,-.17]])for(const dy of [.04,.85,1.57])if(solidAt(x+dx,feet+dy,z+dz))return true;return false;}
-function safeSpawn(){setSpawn();camera.position.copy(spawn);camera.position.y+=1.65;vy=0;grounded=false;for(let n=0;n<34&&collides(camera.position.x,playerFeet(),camera.position.z);n++)camera.position.y++;}
-function createMobs(){for(const m of creatures){graphics.scene.remove(m.mesh);m.mesh.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});}creatures=[];for(let i=0;i<15;i++){const q=Math.round(hash(i,52,0,world.seed)*42-21),r=Math.round(hash(i,78,0,world.seed)*36-18),h=world.surface(q,r);if(h<5||h>17)continue;const kind=i<10?'sheep':'crawler',p=axialToWorld(q,r),mesh=createCreature(kind);mesh.position.set(p.x,h,p.z);graphics.scene.add(mesh);creatures.push({kind,mesh,hp:kind==='sheep'?6:12,angle:hash(i,12)*6.28,think:0,hit:0});}}
-function startGame(mode=false,save=null){
- const seed=save?.seed??Number($('#seed').value||624);world=new World(seed);inventory={dirt:12,apple:3,seed:3};tool=0;hotbar=[...HOTBAR];selected=0;activated=[];health=20;hunger=20;time=105;creative=mode;crops=new Map();chests=new Map();furnaceJobs=new Map();
- if(save){world.applyEdits(save.edits);inventory={...save.inventory};tool=save.tool;creative=save.creative;activated=[...save.activated];health=save.health??20;hunger=save.hunger??20;time=save.time??105;hotbar=save.hotbar??[...HOTBAR];crops=new Map(save.crops||[]);chests=new Map(save.chests||[]);}
- graphics.build(world);createMobs();safeSpawn();yaw=-Math.PI/2;pitch=-.08;if(save){camera.position.fromArray(save.position);yaw=Number.isFinite(save.yaw)?save.yaw:yaw;pitch=Math.max(-1.5,Math.min(1.5,Number.isFinite(save.pitch)?save.pitch:pitch));if(collides(camera.position.x,playerFeet(),camera.position.z))safeSpawn();}
- for(const[k]of world.edits){const[q,y,r]=k.split(',').map(Number);graphics.updateLight(q,y,r);}for(const[k,t]of crops)graphics.crop(k,time-t);
- camera.rotation.set(pitch,yaw,0);hasGame=true;$('#landing').classList.add('hidden');$('#hud').classList.remove('hidden');$('#seed').value=world.seed;updateHUD();closeOverlay();toast(creative?'自由建造：无限方块 · 空格上升 · Shift 下降':'欢迎来到六野。走近右前方的树，长按左键采集。');saveGame();
+function toast(message) {
+  $('#toast').textContent = message;
+  $('#toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 3200);
 }
-function saveData(){const savedInventory={...inventory};for(const job of furnaceJobs.values())if(job.paid){savedInventory[job.input]=(savedInventory[job.input]||0)+1;savedInventory.coal=(savedInventory.coal||0)+1;}return{version:1,seed:world.seed,edits:[...world.edits],inventory:savedInventory,tool,creative,hotbar,position:camera.position.toArray(),yaw,pitch,activated,health,hunger,time,crops:[...crops],chests:[...chests]};}
-function saveGame(){if(!hasGame)return;try{localStorage.setItem(SAVE_KEY,JSON.stringify(saveData()));$('#continue').classList.remove('hidden');}catch{toast('本地存储不可用或已满，请在菜单导出存档。');}}
-function readSave(){try{const raw=localStorage.getItem(SAVE_KEY);return raw?validateSave(JSON.parse(raw)):null;}catch{toast('存档无法读取。可以导入备份，或创建新世界。');return null;}}
-function lock(){if(isTouch){playing=true;return;}try{const result=$('#world').requestPointerLock();result?.catch(()=>{playing=false;toast('点击画面以进入鼠标控制。');});}catch{toast('点击画面以进入鼠标控制。');}}
-function openOverlay(id){leftDown=false;keys.clear();mining=0;playing=false;overlay=id;document.exitPointerLock?.();document.querySelectorAll('.overlay').forEach(e=>e.classList.add('hidden'));$(id).classList.remove('hidden');if(id==='#craft-overlay')renderCraft();if(id==='#map-overlay')drawMap($('#world-map'),true);if(id==='#pause-overlay'){fromMenu=!hasGame;$('#resume').textContent=hasGame?'回到旷野':'回到首页';$('#mode-toggle').textContent=creative?'切换生存探索':'切换自由建造';$('#pause-title').textContent=hasGame?'旷野会等你。':'出发之前';$('#pause-description').textContent=hasGame?'旅途已暂歇。世界会记住你留下的每一块砖。':'六边形世界，熟悉的冒险。从一棵树开始，制造工具，点亮三座信标。';for(const id of ['export','mode-toggle','respawn','home'])$('#'+id).disabled=!hasGame;} }
-function closeOverlay(){document.querySelectorAll('.overlay').forEach(e=>e.classList.add('hidden'));overlay=null;if(hasGame){fromMenu=false;lock();}}
-function nearbyType(type,radius=5){const a=worldToAxial(camera.position.x,camera.position.z),y=Math.floor(playerFeet());for(let q=a.q-3;q<=a.q+3;q++)for(let r=a.r-3;r<=a.r+3;r++){const p=axialToWorld(q,r);if(Math.hypot(p.x-camera.position.x,p.z-camera.position.z)>radius)continue;for(let h=y-2;h<=y+2;h++)if(world.get(q,h,r)===type)return true;}return false;}
-function renderCraft(){const station=creative||nearbyType('workbench');$('#recipes').innerHTML=RECIPES.map((r,i)=>`<button class="recipe ${i===selectedRecipe?'active':''}" data-recipe="${i}">${icon(r.id)}<span>${ITEMS[r.id].name}<small>${r.station?'工作台配方':'随身合成'} · ×${r.count}</small></span></button>`).join('');const recipe=RECIPES[selectedRecipe];$('#recipe-title').textContent=recipe.title;$('#recipe-desc').textContent=recipe.desc;$('#pattern').innerHTML=recipe.pattern.map(id=>`<div class="hex-cell ${id&&(inventory[id]||0)<recipe.cost[id]&&!creative?'missing':''}" title="${id?ITEMS[id].name:'空位'}">${id?icon(id):''}</div>`).join('');$('#recipe-cost').innerHTML=Object.entries(recipe.cost).map(([id,n])=>`<span class="${(inventory[id]||0)<n&&!creative?'missing':''}">${ITEMS[id].name} ${creative?'∞':inventory[id]||0} / ${n}</span>`).join('');$('#craft-button').disabled=!creative&&!canCraft(recipe,inventory,tool,station);$('#craft-button').textContent=`合成 ${ITEMS[recipe.id].name} ×${recipe.count}`;$('#station-note').textContent=recipe.station&&!station?'需要在工作台 5 格范围内':recipe.requires>tool&&!creative?'需要先制作上一等级的镐':recipe.id.startsWith('pick')&&tool>=Number(recipe.id.slice(-1))?'已装备此等级或更好的工具':station?'六格环绕，一格居中。每次合成，都是新的可能。':'随身合成 · 制作工作台以解锁更多配方';
- $('#inventory').innerHTML=Object.entries(ITEMS).filter(([id])=>creative&&BLOCKS[id]&&id!=='bedrock'||(inventory[id]||0)>0).map(([id,item])=>`<button class="inv-item ${hotbar[selected]===id?'selected':''}" data-item="${id}" title="${BLOCKS[id]?'装入快捷栏 '+(selected+1):item.name}">${icon(id)}<span>${item.name}</span><b>${creative&&BLOCKS[id]?'∞':inventory[id]||0}</b></button>`).join('');
+function beep(freq = 300, duration = 0.06, type = 'sine', volume = 0.035) {
+  if (!sound) return;
+  try {
+    audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    const osc = audio.createOscillator(),
+      gain = audio.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audio.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(
+      freq * 0.55,
+      audio.currentTime + duration,
+    );
+    gain.gain.setValueAtTime(volume, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + duration);
+    osc.connect(gain).connect(audio.destination);
+    osc.start();
+    osc.stop(audio.currentTime + duration);
+  } catch {
+    /* Audio is optional. */
+  }
 }
-function doCraft(){const recipe=RECIPES[selectedRecipe];if(creative)inventory[recipe.id]=(inventory[recipe.id]||0)+recipe.count;else if(!craft(recipe,inventory,tool,nearbyType('workbench')))return;if(recipe.id.startsWith('pick'))tool=Math.max(tool,Number(recipe.id.slice(-1)));if(BLOCKS[recipe.id]&&!hotbar.includes(recipe.id))hotbar[selected]=recipe.id;beep(700,.16,'triangle');toast(`已制作 ${ITEMS[recipe.id].name} ×${recipe.count}`);renderCraft();updateHUD();saveGame();}
-function updateHUD(){
- $('#hotbar').innerHTML=hotbar.map((id,i)=>`<button class="slot ${i===selected?'active':''}" data-slot="${i}" aria-label="${i+1} ${ITEMS[id].name} ${creative?'无限':inventory[id]||0}"><span class="slot-inner">${icon(id)}</span><span class="num">${i+1}</span><span class="count">${creative?'∞':inventory[id]||0}</span></button>`).join('');
- $('#selected-name').textContent=ITEMS[hotbar[selected]].name;$('#health').textContent=creative?'◇ 自由建造':'♥'.repeat(Math.ceil(health/2))+'♡'.repeat(10-Math.ceil(health/2));$('#hunger').textContent=creative?'无限材料':`饱食 ${Math.ceil(hunger)} / 20`;$('#tool').textContent=tool?ITEMS['pick'+tool].name:'徒手';
- const a=worldToAxial(camera.position.x,camera.position.z),phase=time%600;$('#world-info').textContent=`第 ${Math.floor(time/600)+1} 天 / ${phase<270?'日光':phase<330?'黄昏':phase<570?'星夜':'黎明'} · ${creative?'创造':'生存'}`;$('#location').innerHTML=`翡翠群岛 · ${world.seed}<br>Q ${a.q} / R ${a.r} / Y ${Math.floor(playerFeet())}<br>${creative?'空格 ↑ · Shift ↓':'F 食用 · Shift 冲刺'}`;
- let title,desc;if(creative){title='让想象多长出两面';desc='B 打开材料库 · 无限材料与飞行。你也可以随时切回生存。';}else if(tool===0){title='01 / 从一棵树开始';desc='长按左键采集原木，按 B 合成木板与木镐。';}else if(tool===1){title='02 / 六向工坊';desc='制造并放置工作台，在附近合成石镐，开采萤晶和铁矿。';}else if(activated.length<3){title=`03 / 点亮失落的星光 · ${activated.length}/3`;desc='M 查看信标位置。每座需要 3 萤晶 + 6 岩石，靠近按 E 修复。';}else{title='群岛已苏醒';desc='三束星光重新相遇。继续耕作、探索，把这片旷野变成你的家。';}$('#quest-title').textContent=title;$('#quest-desc').textContent=desc;document.querySelectorAll('.beacon-dots span').forEach((e,i)=>e.classList.toggle('on',activated.includes(i)));
+function setSpawn() {
+  const p = axialToWorld(0, 0);
+  spawn.set(p.x, Math.max(4, world.surface(0, 0)) + 0.03, p.z);
 }
-function addItem(id,n=1){inventory[id]=Math.min(1000000,(inventory[id]||0)+n);updateHUD();}
-function mine(dt){
- if(!target?.type){mining=0;return;}const data=BLOCKS[target.type];if(data.hardness===Infinity){mining=0;return;}
- if(!creative&&(data.tool||0)>tool){mining=0;if(leftDown&&miningKey!==key(target.q,target.y,target.r)){toast(`开采${data.name}需要${ITEMS['pick'+data.tool].name}`);miningKey=key(target.q,target.y,target.r);}return;}
- const k=key(target.q,target.y,target.r);if(k!==miningKey){mining=0;miningKey=k;}mining+=dt*(creative?12:1+tool*.7);$('#mine-progress i').style.width=`${Math.min(100,mining/data.hardness*100)}%`;
- if(mining<data.hardness)return;const{q,y,r,type}=target;world.set(q,y,r,null);graphics.updateBlock(q,y,r);graphics.burst(q,y,r,data.color);beep(type==='stone'?180:260,.06,'triangle');
- if(!creative){addItem(data.drop||type);if(type==='leaves'){if(Math.random()<.3)addItem('apple');if(Math.random()<.45)addItem('seed');}if(type==='grass'&&Math.random()<.35)addItem('seed');hunger=Math.max(0,hunger-.022);}
- if(crops.has(k)){crops.delete(k);graphics.removeCrop(k);addItem('seed');}if(chests.has(k)){for(const[id,n]of Object.entries(chests.get(k)))addItem(id,n);chests.delete(k);}const job=furnaceJobs.get(k);if(job?.paid){addItem(job.input);addItem('coal');}furnaceJobs.delete(k);mining=0;target=null;
+function playerFeet() {
+  return camera.position.y - 1.65;
 }
-function place(){if(!playing||!target)return;const{q,y,r}=target.place,id=hotbar[selected];if(y<1||y>32||hexDistance(q,r)>WORLD_RADIUS+2){toast('已经到达这片群岛的建造边界。');return;}if(world.get(q,y,r))return;if(!creative&&(inventory[id]||0)<=0){toast(`背包里没有${ITEMS[id].name}，先采集或合成吧。`);return;}world.set(q,y,r,id,false);if(collides(camera.position.x,playerFeet(),camera.position.z)){world.set(q,y,r,null,false);toast('这里会挡住你，换个位置试试。');return;}world.set(q,y,r,id);if(!creative)inventory[id]--;graphics.updateBlock(q,y,r);if(id==='chest')chests.set(key(q,y,r),{});beep(350,.07,'triangle');updateHUD();}
-function nearestBeacon(){return world.beacons.find(b=>{const p=axialToWorld(b.q,b.r);return Math.hypot(camera.position.x-p.x,camera.position.z-p.z)<3.8&&Math.abs(playerFeet()-b.y)<3;});}
-function interact(){
- if(!playing)return;const b=nearestBeacon();if(b){if(activated.includes(b.index)){toast(`${b.name}正在守护这片土地。`);return;}if(!creative&&((inventory.crystal||0)<3||(inventory.stone||0)<6)){toast('修复信标需要 3 萤晶 + 6 岩石。萤晶藏在遗迹旁的岩层里。');return;}if(!creative){inventory.crystal-=3;inventory.stone-=6;}activated.push(b.index);beep(900,.6,'sine',.05);graphics.burst(b.q,b.y+1,b.r,'#abffe0');updateHUD();saveGame();if(activated.length===3){toast('三座信标已点亮。你让六野重新拥有了星光！');openOverlay('#station-overlay');$('#station-title').textContent='初光，终于回来了。';$('#station-content').innerHTML='<p>三座失落的信标再次照亮群岛。<br>这是旅途的一次抵达，也可以是新生活的开始。<br>造一座海边的小屋，种一片金色麦田，或在云端建城。<br><br>旷野的下一页，留给你。</p><button class="primary" data-close>继续我的世界 ↗</button>';}else toast(`${b.name}已点亮 · ${activated.length}/3`);return;}
- if(!target)return;const{q,y,r,type}=target,k=key(q,y,r);
- if(type==='workbench'){openOverlay('#craft-overlay');return;}
- if(type==='furnace'){stationKey=k;openOverlay('#station-overlay');renderFurnace();return;}
- if(type==='chest'){stationKey=k;openOverlay('#station-overlay');renderChest();return;}
- if(crops.has(k)){if(time-crops.get(k)<90){toast(`麦苗还在生长 · ${Math.min(99,Math.floor((time-crops.get(k))/90*100))}%`);return;}crops.delete(k);graphics.removeCrop(k);addItem('wheat',2);addItem('seed',2);beep(600,.12);toast('收获小麦 ×2、麦种 ×2');return;}
- if(['grass','dirt','farmland'].includes(type)){if(!creative&&!inventory.hoe){toast('先在蜂巢工坊制作锄头，再对土地按 E。');return;}if(type!=='farmland'){if(world.get(q,y+1,r)){toast('先清理土地上方的方块。');return;}world.set(q,y,r,'farmland');graphics.updateBlock(q,y,r);toast('土地已翻耕。再次按 E 播种。');return;}if(!creative&&(inventory.seed||0)<1){toast('需要麦种。采集树叶和草地可以找到种子。');return;}if(world.get(q,y+1,r))return;if(!creative)inventory.seed--;crops.set(k,time);graphics.crop(k,0);updateHUD();toast('已播种。约 90 秒后可按 E 收获小麦。');return;}
- openOverlay('#craft-overlay');
+function solidAt(x, y, z) {
+  const a = worldToAxial(x, z);
+  return !!world.get(a.q, Math.floor(y), a.r);
 }
-function renderFurnace(){const job=furnaceJobs.get(stationKey);$('#station-title').textContent='六棱熔炉';$('#station-content').innerHTML=`<p>一份煤燃烧八秒，熔炼一份铁矿，或烤熟一份生肉。<br>铁矿 ${inventory.iron||0} · 煤 ${inventory.coal||0} · 生肉 ${inventory.meat||0}<br>${job?`炉火正旺：${ITEMS[job.output].name}，剩余 ${Math.ceil(job.remaining)} 秒（关闭面板后继续）`:'加入原料，让炉火亮起来。'}</p><button class="primary" data-smelt="ingot" ${job||!creative&&(!(inventory.iron>0)||!(inventory.coal>0))?'disabled':''}>熔炼铁锭</button><button data-smelt="cooked" ${job||!creative&&(!(inventory.meat>0)||!(inventory.coal>0))?'disabled':''}>烤制肉排</button><p class="panel-note">完成后自动收入背包。离开游戏或拆除熔炉时，未完成的材料会退回。</p>`;}
-function smelt(output){if(furnaceJobs.has(stationKey))return;const input=output==='ingot'?'iron':'meat';if(!creative&&(!(inventory[input]>0)||!(inventory.coal>0)))return;if(!creative){inventory[input]--;inventory.coal--;}furnaceJobs.set(stationKey,{output,input,remaining:8,paid:!creative});beep(180,.2,'sawtooth',.015);renderFurnace();updateHUD();}
-function refundJobs(){for(const job of furnaceJobs.values())if(job.paid){inventory[job.input]=(inventory[job.input]||0)+1;inventory.coal=(inventory.coal||0)+1;}furnaceJobs.clear();}
-function renderChest(){const storage=chests.get(stationKey)||{};chests.set(stationKey,storage);$('#station-title').textContent='储物箱';$('#station-content').innerHTML=`<p>点击背包材料存入 10 个，点击箱内物品取出 10 个。</p><div class="section-label" style="margin-top:18px">背包 → 箱子</div><div class="inventory-grid">${Object.entries(inventory).filter(([id,n])=>n>0&&!['pick1','pick2','pick3','sword','hoe'].includes(id)).map(([id,n])=>`<button class="inv-item" data-store="${id}">${icon(id)}${ITEMS[id].name}<b>${n}</b></button>`).join('')||'<p>背包空空如也。</p>'}</div><div class="section-label" style="margin-top:18px">箱子 → 背包</div><div class="inventory-grid">${Object.entries(storage).filter(([,n])=>n>0).map(([id,n])=>`<button class="inv-item" data-take="${id}">${icon(id)}${ITEMS[id].name}<b>${n}</b></button>`).join('')||'<p>还没有存入物品。</p>'}</div>`;}
-function eat(){for(const[id,value]of [['cooked',9],['bread',7],['apple',4],['meat',2]])if((inventory[id]||0)>0){if(hunger>=20&&health>=20){toast('你已经吃饱了。');return;}inventory[id]--;hunger=Math.min(20,hunger+value);health=Math.min(20,health+value*.35);beep(440,.13,'triangle');toast(`吃了${ITEMS[id].name} · 饱食 +${value}`);updateHUD();return;}toast('没有食物了。树叶会掉落苹果，也可以种麦、狩猎。');}
-function hurt(amount){if(creative||damageCooldown>0)return;health=Math.max(0,health-amount);damageCooldown=.8;$('#damage').style.opacity='.6';setTimeout(()=>$('#damage').style.opacity='0',250);beep(110,.15,'sawtooth',.035);if(health<=0){safeSpawn();health=20;hunger=12;toast('你在出生点醒来。背包已保留，带点食物再出发吧。');saveGame();}updateHUD();}
-function updateMobs(dt){const night=time%600>310;for(let i=creatures.length-1;i>=0;i--){const m=creatures[i];m.hit=Math.max(0,m.hit-dt);m.mesh.visible=m.kind==='sheep'||night;if(!m.mesh.visible)continue;const p=m.mesh.position,dist=Math.hypot(p.x-camera.position.x,p.z-camera.position.z);m.think-=dt;if(m.kind==='crawler'&&dist<17){m.angle=Math.atan2(camera.position.x-p.x,camera.position.z-p.z);}else if(m.think<=0){m.think=2+Math.random()*4;m.angle+=(Math.random()-.5)*2.5;}const speed=m.kind==='crawler'?1.55:.45,dx=Math.sin(m.angle)*speed*dt,dz=Math.cos(m.angle)*speed*dt,a=worldToAxial(p.x+dx,p.z+dz),h=world.surface(a.q,a.r);if(h>3&&h<=p.y+1.1&&h>=p.y-2&&hexDistance(a.q,a.r)<30){p.x+=dx;p.z+=dz;p.y=THREE.MathUtils.lerp(p.y,h,Math.min(1,dt*8));}else m.angle+=Math.PI*.55;m.mesh.rotation.y=m.angle+Math.PI;m.mesh.children.slice(-4).forEach((leg,j)=>leg.rotation.x=Math.sin(time*6+j%2*Math.PI)*.2);if(m.kind==='crawler'&&dist<1.1&&Math.abs(p.y-playerFeet())<2)hurt(2);}}
-function attack(){if(attackCooldown>0)return false;graphics.ray.setFromCamera(new THREE.Vector2(),camera);const meshes=creatures.filter(m=>m.mesh.visible).map(m=>m.mesh),hit=graphics.ray.intersectObjects(meshes,true).find(h=>h.distance<3.5);if(!hit||target&&hit.distance>target.distance)return false;let obj=hit.object;while(obj.parent&&!meshes.includes(obj))obj=obj.parent;const mob=creatures.find(m=>m.mesh===obj);if(!mob)return false;attackCooldown=.45;mob.hp-=inventory.sword?7:tool?3:2;mob.angle=yaw;beep(140,.07,'triangle');const a=worldToAxial(mob.mesh.position.x,mob.mesh.position.z);graphics.burst(a.q,mob.mesh.position.y,a.r,mob.kind==='sheep'?'#ded1b0':'#7db4a4');if(mob.hp<=0){graphics.scene.remove(mob.mesh);mob.mesh.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});creatures.splice(creatures.indexOf(mob),1);addItem(mob.kind==='sheep'?'meat':'crystal',mob.kind==='sheep'?2:1);toast(mob.kind==='sheep'?'获得生肉 ×2 · 熔炉可以烤制':'夜行者消散了 · 萤晶 +1');}return true;}
-function movePlayer(dt){const swimming=playerFeet()<3.05,fly=creative;let forward=(keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0),side=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0);const norm=Math.hypot(forward,side);if(norm){forward/=norm;side/=norm;}const sprint=keys.has('ShiftLeft')&&hunger>2&&!fly,speed=fly?10:swimming?3:sprint?7:4.8;const dx=(-Math.sin(yaw)*forward+Math.cos(yaw)*side)*speed*dt,dz=(-Math.cos(yaw)*forward-Math.sin(yaw)*side)*speed*dt;moved=norm;
- if(fly){camera.position.x+=dx;camera.position.z+=dz;camera.position.y+=((keys.has('Space')?1:0)-(keys.has('ShiftLeft')?1:0))*speed*dt;camera.position.y=Math.max(2,Math.min(50,camera.position.y));vy=0;}
- else{const feet=playerFeet();if(!collides(camera.position.x+dx,feet,camera.position.z))camera.position.x+=dx;if(!collides(camera.position.x,feet,camera.position.z+dz))camera.position.z+=dz;
-  if(grounded&&keys.has('Space')){vy=8.5;grounded=false;beep(180,.04,'sine',.01);}if(swimming){vy=Math.max(-2,vy-dt*4);if(keys.has('Space'))vy=4;}else vy-=dt*24;
-  const dy=vy*dt,steps=Math.max(1,Math.ceil(Math.abs(dy)/.12));grounded=false;for(let i=0;i<steps;i++){const next=playerFeet()+dy/steps;if(collides(camera.position.x,next,camera.position.z)){if(vy<0){grounded=true;if(vy<-13)hurt(Math.floor((-vy-12)*.6));}vy=0;break;}camera.position.y+=dy/steps;}
-  if(swimming&&camera.position.y<3.1)hunger=Math.max(0,hunger-dt*.12);
-  hunger=Math.max(0,hunger-dt*(norm?(sprint?.024:.012):.003));if(hunger>14&&health<20)health=Math.min(20,health+dt*.14);if(hunger<=0)hurt(dt*2);
- }
- const a=worldToAxial(camera.position.x,camera.position.z);if(hexDistance(a.q,a.r)>WORLD_RADIUS+4){const p=axialToWorld(a.q,a.r),factor=(WORLD_RADIUS+3)/hexDistance(a.q,a.r);camera.position.x=p.x*factor;camera.position.z=p.z*factor;}if(camera.position.y<-3){safeSpawn();hurt(4);}$('#underwater').style.display=camera.position.y<3.1?'block':'none';camera.rotation.set(pitch,yaw,0);
+function collides(x, feet, z) {
+  for (const [dx, dz] of [
+    [0, 0],
+    [0.24, 0],
+    [-0.24, 0],
+    [0, 0.24],
+    [0, -0.24],
+    [0.17, 0.17],
+    [-0.17, -0.17],
+  ])
+    for (const dy of [0.04, 0.85, 1.57])
+      if (solidAt(x + dx, feet + dy, z + dz)) return true;
+  return false;
 }
-function drawMap(canvas,full=false){const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);ctx.fillStyle=full?'#173536':'#173c38';ctx.fillRect(0,0,w,h);const scale=full?5.65:1.75,cx=w/2,cy=h/2;for(const[k,height]of world.heights){const[q,r]=k.split(',').map(Number),p=axialToWorld(q,r);ctx.fillStyle=height<=3?'#427f83':height<=4?'#c5b47b':height>=12?'#a7ada0':height>=9?'#719270':'#4b7c60';ctx.beginPath();for(let i=0;i<6;i++){const angle=(i*60-30)*Math.PI/180;ctx.lineTo(cx+(p.x+Math.cos(angle)*.97)*scale,cy+(p.z+Math.sin(angle)*.97)*scale);}ctx.fill();}for(const b of world.beacons){const p=axialToWorld(b.q,b.r),x=cx+p.x*scale,y=cy+p.z*scale;ctx.fillStyle=activated.includes(b.index)?'#ffe0a0':'#e7eee1';ctx.font=`${full?23:15}px sans-serif`;ctx.textAlign='center';ctx.fillText(activated.includes(b.index)?'◆':'◇',x,y+5);if(full){ctx.font='12px sans-serif';ctx.fillStyle='#ecedcd';ctx.fillText(b.name,x,y+24);}}const x=cx+camera.position.x*scale,y=cy+camera.position.z*scale;ctx.save();ctx.translate(x,y);ctx.rotate(-yaw);ctx.fillStyle='#ffe1a3';ctx.strokeStyle='#183a33';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(5,6);ctx.lineTo(0,3);ctx.lineTo(-5,6);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();if(full){ctx.fillStyle='#b6c5ae';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText('N',cx,23);ctx.fillText(`种子 ${world.seed} · Q ${worldToAxial(camera.position.x,camera.position.z).q} / R ${worldToAxial(camera.position.x,camera.position.z).r}`,cx,h-18);}}
+function safeSpawn() {
+  setSpawn();
+  if (respawnPoint) spawn.fromArray(respawnPoint);
+  camera.position.copy(spawn);
+  camera.position.y += 1.65;
+  vy = 0;
+  grounded = false;
+  for (
+    let n = 0;
+    n < 34 && collides(camera.position.x, playerFeet(), camera.position.z);
+    n++
+  )
+    camera.position.y++;
+}
+function createMobs() {
+  for (const m of creatures) {
+    graphics.scene.remove(m.mesh);
+    m.mesh.traverse((o) => {
+      o.geometry?.dispose();
+      o.material?.dispose();
+    });
+  }
+  creatures = [];
+  for (let i = 0; i < 15; i++) {
+    const q = Math.round(hash(i, 52, 0, world.seed) * 42 - 21),
+      r = Math.round(hash(i, 78, 0, world.seed) * 36 - 18),
+      h = world.surface(q, r);
+    if (h < 5 || h > 17) continue;
+    const kind = i < 10 ? 'sheep' : 'crawler',
+      p = axialToWorld(q, r),
+      mesh = createCreature(kind);
+    mesh.position.set(p.x, h, p.z);
+    graphics.scene.add(mesh);
+    creatures.push({
+      kind,
+      mesh,
+      hp: kind === 'sheep' ? 6 : 12,
+      angle: hash(i, 12) * 6.28,
+      think: 0,
+      hit: 0,
+    });
+  }
+}
+function startGame(mode = false, save = null) {
+  const seed = save?.seed ?? Number($('#seed').value || 624);
+  world = new World(seed);
+  inventory = { dirt: 12, apple: 3, seed: 3 };
+  tool = 0;
+  hotbar = [...HOTBAR];
+  selected = 0;
+  activated = [];
+  health = 20;
+  hunger = 20;
+  time = 105;
+  creative = mode;
+  respawnPoint = null;
+  crops = new Map();
+  chests = new Map();
+  furnaceJobs = new Map();
+  if (save) {
+    world.applyEdits(save.edits);
+    inventory = { ...save.inventory };
+    tool = save.tool;
+    creative = save.creative;
+    activated = [...save.activated];
+    health = save.health ?? 20;
+    hunger = save.hunger ?? 20;
+    time = save.time ?? 105;
+    hotbar = save.hotbar ?? [...HOTBAR];
+    crops = new Map(save.crops || []);
+    chests = new Map(save.chests || []);
+    respawnPoint = save.respawn ?? null;
+  }
+  graphics.build(world);
+  createMobs();
+  safeSpawn();
+  yaw = -Math.PI / 2;
+  pitch = -0.08;
+  if (save) {
+    camera.position.fromArray(save.position);
+    yaw = Number.isFinite(save.yaw) ? save.yaw : yaw;
+    pitch = Math.max(
+      -1.5,
+      Math.min(1.5, Number.isFinite(save.pitch) ? save.pitch : pitch),
+    );
+    if (collides(camera.position.x, playerFeet(), camera.position.z))
+      safeSpawn();
+  }
+  for (const [k] of world.edits) {
+    const [q, y, r] = k.split(',').map(Number);
+    graphics.updateLight(q, y, r);
+  }
+  for (const [k, t] of crops) graphics.crop(k, time - t);
+  camera.rotation.set(pitch, yaw, 0);
+  hasGame = true;
+  $('#landing').classList.add('hidden');
+  $('#hud').classList.remove('hidden');
+  $('#seed').value = world.seed;
+  updateHUD();
+  closeOverlay();
+  toast(
+    creative
+      ? '自由建造：无限方块 · 空格上升 · Shift 下降'
+      : '欢迎来到六野。走近右前方的树，长按左键采集。',
+  );
+  saveGame();
+}
+function saveData() {
+  const savedInventory = { ...inventory };
+  for (const job of furnaceJobs.values())
+    if (job.paid) {
+      savedInventory[job.input] = (savedInventory[job.input] || 0) + 1;
+      savedInventory.coal = (savedInventory.coal || 0) + 1;
+    }
+  return {
+    version: 1,
+    seed: world.seed,
+    edits: [...world.edits],
+    inventory: savedInventory,
+    tool,
+    creative,
+    hotbar,
+    position: camera.position.toArray(),
+    yaw,
+    pitch,
+    activated,
+    health,
+    hunger,
+    time,
+    crops: [...crops],
+    chests: [...chests],
+    respawn: respawnPoint,
+  };
+}
+function saveGame() {
+  if (!hasGame) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData()));
+    $('#continue').classList.remove('hidden');
+  } catch {
+    toast('本地存储不可用或已满，请在菜单导出存档。');
+  }
+}
+function readSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? validateSave(JSON.parse(raw)) : null;
+  } catch {
+    toast('存档无法读取。可以导入备份，或创建新世界。');
+    return null;
+  }
+}
+function lock() {
+  if (isTouch) {
+    playing = true;
+    return;
+  }
+  try {
+    const result = $('#world').requestPointerLock();
+    result?.catch(() => {
+      playing = false;
+      toast('点击画面以进入鼠标控制。');
+    });
+  } catch {
+    toast('点击画面以进入鼠标控制。');
+  }
+}
+function openOverlay(id) {
+  leftDown = false;
+  keys.clear();
+  mining = 0;
+  playing = false;
+  overlay = id;
+  document.exitPointerLock?.();
+  document
+    .querySelectorAll('.overlay')
+    .forEach((e) => e.classList.add('hidden'));
+  $(id).classList.remove('hidden');
+  if (id === '#craft-overlay') renderCraft();
+  if (id === '#map-overlay') drawMap($('#world-map'), true);
+  if (id === '#pause-overlay') {
+    fromMenu = !hasGame;
+    $('#resume').textContent = hasGame ? '回到旷野' : '回到首页';
+    $('#mode-toggle').textContent = creative ? '切换生存探索' : '切换自由建造';
+    $('#pause-title').textContent = hasGame ? '旷野会等你。' : '出发之前';
+    $('#pause-description').textContent = hasGame
+      ? '旅途已暂歇。世界会记住你留下的每一块砖。'
+      : '六边形世界，熟悉的冒险。从一棵树开始，制造工具，点亮三座信标。';
+    for (const id of ['export', 'mode-toggle', 'respawn', 'home'])
+      $('#' + id).disabled = !hasGame;
+  }
+}
+function closeOverlay() {
+  document
+    .querySelectorAll('.overlay')
+    .forEach((e) => e.classList.add('hidden'));
+  overlay = null;
+  if (hasGame) {
+    fromMenu = false;
+    lock();
+  }
+}
+function nearbyType(type, radius = 5) {
+  const a = worldToAxial(camera.position.x, camera.position.z),
+    y = Math.floor(playerFeet());
+  for (let q = a.q - 3; q <= a.q + 3; q++)
+    for (let r = a.r - 3; r <= a.r + 3; r++) {
+      const p = axialToWorld(q, r);
+      if (Math.hypot(p.x - camera.position.x, p.z - camera.position.z) > radius)
+        continue;
+      for (let h = y - 2; h <= y + 2; h++)
+        if (world.get(q, h, r) === type) return true;
+    }
+  return false;
+}
+function renderCraft() {
+  const station = creative || nearbyType('workbench');
+  $('#recipes').innerHTML = RECIPES.map(
+    (r, i) =>
+      `<button class="recipe ${i === selectedRecipe ? 'active' : ''}" data-recipe="${i}">${icon(r.id)}<span>${ITEMS[r.id].name}<small>${r.station ? '工作台配方' : '随身合成'} · ×${r.count}</small></span></button>`,
+  ).join('');
+  const recipe = RECIPES[selectedRecipe];
+  $('#recipe-title').textContent = recipe.title;
+  $('#recipe-desc').textContent = recipe.desc;
+  $('#pattern').innerHTML = recipe.pattern
+    .map(
+      (id) =>
+        `<div class="hex-cell ${id && (inventory[id] || 0) < recipe.cost[id] && !creative ? 'missing' : ''}" title="${id ? ITEMS[id].name : '空位'}">${id ? icon(id) : ''}</div>`,
+    )
+    .join('');
+  $('#recipe-cost').innerHTML = Object.entries(recipe.cost)
+    .map(
+      ([id, n]) =>
+        `<span class="${(inventory[id] || 0) < n && !creative ? 'missing' : ''}">${ITEMS[id].name} ${creative ? '∞' : inventory[id] || 0} / ${n}</span>`,
+    )
+    .join('');
+  $('#craft-button').disabled =
+    !creative && !canCraft(recipe, inventory, tool, station);
+  $('#craft-button').textContent =
+    `合成 ${ITEMS[recipe.id].name} ×${recipe.count}`;
+  $('#station-note').textContent =
+    recipe.station && !station
+      ? '需要在工作台 5 格范围内'
+      : recipe.requires > tool && !creative
+        ? '需要先制作上一等级的镐'
+        : recipe.id.startsWith('pick') && tool >= Number(recipe.id.slice(-1))
+          ? '已装备此等级或更好的工具'
+          : station
+            ? '六格环绕，一格居中。每次合成，都是新的可能。'
+            : '随身合成 · 制作工作台以解锁更多配方';
+  $('#inventory').innerHTML = Object.entries(ITEMS)
+    .filter(
+      ([id]) =>
+        (creative && BLOCKS[id] && id !== 'bedrock') ||
+        (inventory[id] || 0) > 0,
+    )
+    .map(
+      ([id, item]) =>
+        `<button class="inv-item ${hotbar[selected] === id ? 'selected' : ''}" data-item="${id}" title="${BLOCKS[id] ? '装入快捷栏 ' + (selected + 1) : item.name}">${icon(id)}<span>${item.name}</span><b>${creative && BLOCKS[id] ? '∞' : inventory[id] || 0}</b></button>`,
+    )
+    .join('');
+}
+function doCraft() {
+  const recipe = RECIPES[selectedRecipe];
+  if (creative)
+    inventory[recipe.id] = (inventory[recipe.id] || 0) + recipe.count;
+  else if (!craft(recipe, inventory, tool, nearbyType('workbench'))) return;
+  if (recipe.id.startsWith('pick'))
+    tool = Math.max(tool, Number(recipe.id.slice(-1)));
+  if (BLOCKS[recipe.id] && !hotbar.includes(recipe.id))
+    hotbar[selected] = recipe.id;
+  beep(700, 0.16, 'triangle');
+  toast(`已制作 ${ITEMS[recipe.id].name} ×${recipe.count}`);
+  renderCraft();
+  updateHUD();
+  saveGame();
+}
+function updateHUD() {
+  $('#hotbar').innerHTML = hotbar
+    .map(
+      (id, i) =>
+        `<button class="slot ${i === selected ? 'active' : ''}" data-slot="${i}" aria-label="${i + 1} ${ITEMS[id].name} ${creative ? '无限' : inventory[id] || 0}"><span class="slot-inner">${icon(id)}</span><span class="num">${i + 1}</span><span class="count">${creative ? '∞' : inventory[id] || 0}</span></button>`,
+    )
+    .join('');
+  $('#selected-name').textContent = ITEMS[hotbar[selected]].name;
+  $('#health').textContent = creative
+    ? '◇ 自由建造'
+    : '♥'.repeat(Math.ceil(health / 2)) +
+      '♡'.repeat(10 - Math.ceil(health / 2));
+  $('#hunger').textContent = creative
+    ? '无限材料'
+    : `饱食 ${Math.ceil(hunger)} / 20`;
+  $('#tool').textContent = tool ? ITEMS['pick' + tool].name : '徒手';
+  const a = worldToAxial(camera.position.x, camera.position.z),
+    phase = time % 600;
+  $('#world-info').textContent =
+    `第 ${Math.floor(time / 600) + 1} 天 / ${phase < 270 ? '日光' : phase < 330 ? '黄昏' : phase < 570 ? '星夜' : '黎明'} · ${creative ? '创造' : '生存'}`;
+  $('#location').innerHTML =
+    `翡翠群岛 · ${world.seed}<br>Q ${a.q} / R ${a.r} / Y ${Math.floor(playerFeet())}<br>${creative ? '空格 ↑ · Shift ↓' : 'F 食用 · Shift 冲刺'}`;
+  let title, desc;
+  if (creative) {
+    title = '让想象多长出两面';
+    desc = 'B 打开材料库 · 无限材料与飞行。你也可以随时切回生存。';
+  } else if (tool === 0) {
+    title = '01 / 从一棵树开始';
+    desc = '长按左键采集原木，按 B 合成木板与木镐。';
+  } else if (tool === 1) {
+    title = '02 / 六向工坊';
+    desc = '制造并放置工作台，在附近合成石镐，开采萤晶和铁矿。';
+  } else if (activated.length < 3) {
+    title = `03 / 点亮失落的星光 · ${activated.length}/3`;
+    desc = 'M 查看信标位置。每座需要 3 萤晶 + 6 岩石，靠近按 E 修复。';
+  } else {
+    title = '群岛已苏醒';
+    desc = '三束星光重新相遇。继续耕作、探索，把这片旷野变成你的家。';
+  }
+  $('#quest-title').textContent = title;
+  $('#quest-desc').textContent = desc;
+  document
+    .querySelectorAll('.beacon-dots span')
+    .forEach((e, i) => e.classList.toggle('on', activated.includes(i)));
+}
+function addItem(id, n = 1) {
+  inventory[id] = Math.min(1000000, (inventory[id] || 0) + n);
+  updateHUD();
+}
+function mine(dt) {
+  if (!target?.type) {
+    mining = 0;
+    return;
+  }
+  const data = BLOCKS[target.type];
+  if (data.hardness === Infinity) {
+    mining = 0;
+    return;
+  }
+  if (!creative && (data.tool || 0) > tool) {
+    mining = 0;
+    if (leftDown && miningKey !== key(target.q, target.y, target.r)) {
+      toast(`开采${data.name}需要${ITEMS['pick' + data.tool].name}`);
+      miningKey = key(target.q, target.y, target.r);
+    }
+    return;
+  }
+  const k = key(target.q, target.y, target.r);
+  if (k !== miningKey) {
+    mining = 0;
+    miningKey = k;
+  }
+  mining += dt * (creative ? 12 : 1 + tool * 0.7);
+  $('#mine-progress i').style.width =
+    `${Math.min(100, (mining / data.hardness) * 100)}%`;
+  if (mining < data.hardness) return;
+  const { q, y, r, type } = target;
+  world.set(q, y, r, null);
+  graphics.updateBlock(q, y, r);
+  graphics.burst(q, y, r, data.color);
+  beep(type === 'stone' ? 180 : 260, 0.06, 'triangle');
+  if (!creative) {
+    addItem(data.drop || type);
+    if (type === 'leaves') {
+      if (Math.random() < 0.3) addItem('apple');
+      if (Math.random() < 0.45) addItem('seed');
+    }
+    if (type === 'grass' && Math.random() < 0.35) addItem('seed');
+    hunger = Math.max(0, hunger - 0.022);
+  }
+  if (crops.has(k)) {
+    crops.delete(k);
+    graphics.removeCrop(k);
+    addItem('seed');
+  }
+  if (chests.has(k)) {
+    for (const [id, n] of Object.entries(chests.get(k))) addItem(id, n);
+    chests.delete(k);
+  }
+  const job = furnaceJobs.get(k);
+  if (job?.paid) {
+    addItem(job.input);
+    addItem('coal');
+  }
+  furnaceJobs.delete(k);
+  mining = 0;
+  target = null;
+}
+function place() {
+  if (!playing || !target) return;
+  const { q, y, r } = target.place,
+    id = hotbar[selected];
+  if (y < 1 || y > 32 || hexDistance(q, r) > WORLD_RADIUS + 2) {
+    toast('已经到达这片群岛的建造边界。');
+    return;
+  }
+  if (world.get(q, y, r)) return;
+  if (!creative && (inventory[id] || 0) <= 0) {
+    toast(`背包里没有${ITEMS[id].name}，先采集或合成吧。`);
+    return;
+  }
+  world.set(q, y, r, id, false);
+  if (collides(camera.position.x, playerFeet(), camera.position.z)) {
+    world.set(q, y, r, null, false);
+    toast('这里会挡住你，换个位置试试。');
+    return;
+  }
+  world.set(q, y, r, id);
+  const cropBelow = key(q, y - 1, r);
+  if (crops.has(cropBelow)) {
+    crops.delete(cropBelow);
+    graphics.removeCrop(cropBelow);
+    if (!creative) inventory.seed = (inventory.seed || 0) + 1;
+  }
+  if (!creative) inventory[id]--;
+  graphics.updateBlock(q, y, r);
+  if (id === 'chest') chests.set(key(q, y, r), {});
+  beep(350, 0.07, 'triangle');
+  updateHUD();
+}
+function nearestBeacon() {
+  return world.beacons.find((b) => {
+    const p = axialToWorld(b.q, b.r);
+    return (
+      Math.hypot(camera.position.x - p.x, camera.position.z - p.z) < 3.8 &&
+      Math.abs(playerFeet() - b.y) < 3
+    );
+  });
+}
+function interact() {
+  if (!playing) return;
+  const b = nearestBeacon();
+  if (b) {
+    if (activated.includes(b.index)) {
+      toast(`${b.name}正在守护这片土地。`);
+      return;
+    }
+    if (
+      !creative &&
+      ((inventory.crystal || 0) < 3 || (inventory.stone || 0) < 6)
+    ) {
+      toast('修复信标需要 3 萤晶 + 6 岩石。萤晶藏在遗迹旁的岩层里。');
+      return;
+    }
+    if (!creative) {
+      inventory.crystal -= 3;
+      inventory.stone -= 6;
+    }
+    activated.push(b.index);
+    beep(900, 0.6, 'sine', 0.05);
+    graphics.burst(b.q, b.y + 1, b.r, '#abffe0');
+    updateHUD();
+    saveGame();
+    if (activated.length === 3) {
+      toast('三座信标已点亮。你让六野重新拥有了星光！');
+      openOverlay('#station-overlay');
+      $('#station-title').textContent = '初光，终于回来了。';
+      $('#station-content').innerHTML =
+        '<p>三座失落的信标再次照亮群岛。<br>这是旅途的一次抵达，也可以是新生活的开始。<br>造一座海边的小屋，种一片金色麦田，或在云端建城。<br><br>旷野的下一页，留给你。</p><button class="primary" data-close>继续我的世界 ↗</button>';
+    } else toast(`${b.name}已点亮 · ${activated.length}/3`);
+    return;
+  }
+  if (!target) return;
+  const { q, y, r, type } = target,
+    k = key(q, y, r);
+  if (type === 'bed') {
+    const p = axialToWorld(q, r);
+    respawnPoint = [p.x, y + 1.03, p.z];
+    if (time % 600 > 300) {
+      time = Math.floor(time / 600) * 600 + 675;
+      health = 20;
+      hunger = Math.max(4, hunger - 2);
+      toast('一觉醒来，天光正好。重生点已设在床边。');
+      beep(500, 0.4);
+    } else toast('重生点已设在这里。夜晚再来，可以睡到黎明。');
+    updateHUD();
+    saveGame();
+    return;
+  }
+  if (type === 'workbench') {
+    openOverlay('#craft-overlay');
+    return;
+  }
+  if (type === 'furnace') {
+    stationKey = k;
+    openOverlay('#station-overlay');
+    renderFurnace();
+    return;
+  }
+  if (type === 'chest') {
+    stationKey = k;
+    openOverlay('#station-overlay');
+    renderChest();
+    return;
+  }
+  if (crops.has(k)) {
+    if (time - crops.get(k) < 90) {
+      toast(
+        `麦苗还在生长 · ${Math.min(99, Math.floor(((time - crops.get(k)) / 90) * 100))}%`,
+      );
+      return;
+    }
+    crops.delete(k);
+    graphics.removeCrop(k);
+    addItem('wheat', 2);
+    addItem('seed', 2);
+    beep(600, 0.12);
+    toast('收获小麦 ×2、麦种 ×2');
+    return;
+  }
+  if (['grass', 'dirt', 'farmland'].includes(type)) {
+    if (!creative && !inventory.hoe) {
+      toast('先在蜂巢工坊制作锄头，再对土地按 E。');
+      return;
+    }
+    if (type !== 'farmland') {
+      if (world.get(q, y + 1, r)) {
+        toast('先清理土地上方的方块。');
+        return;
+      }
+      world.set(q, y, r, 'farmland');
+      graphics.updateBlock(q, y, r);
+      toast('土地已翻耕。再次按 E 播种。');
+      return;
+    }
+    if (!creative && (inventory.seed || 0) < 1) {
+      toast('需要麦种。采集树叶和草地可以找到种子。');
+      return;
+    }
+    if (world.get(q, y + 1, r)) return;
+    if (!creative) inventory.seed--;
+    crops.set(k, time);
+    graphics.crop(k, 0);
+    updateHUD();
+    toast('已播种。约 90 秒后可按 E 收获小麦。');
+    return;
+  }
+  openOverlay('#craft-overlay');
+}
+function renderFurnace() {
+  const job = furnaceJobs.get(stationKey);
+  $('#station-title').textContent = '六棱熔炉';
+  $('#station-content').innerHTML =
+    `<p>一份煤燃烧八秒，熔炼一份铁矿，或烤熟一份生肉。<br>铁矿 ${inventory.iron || 0} · 煤 ${inventory.coal || 0} · 生肉 ${inventory.meat || 0}<br>${job ? `炉火正旺：${ITEMS[job.output].name}，剩余 ${Math.ceil(job.remaining)} 秒（关闭面板后继续）` : '加入原料，让炉火亮起来。'}</p><button class="primary" data-smelt="ingot" ${job || (!creative && (!(inventory.iron > 0) || !(inventory.coal > 0))) ? 'disabled' : ''}>熔炼铁锭</button><button data-smelt="cooked" ${job || (!creative && (!(inventory.meat > 0) || !(inventory.coal > 0))) ? 'disabled' : ''}>烤制肉排</button><p class="panel-note">完成后自动收入背包。离开游戏或拆除熔炉时，未完成的材料会退回。</p>`;
+}
+function smelt(output) {
+  if (furnaceJobs.has(stationKey)) return;
+  const input = output === 'ingot' ? 'iron' : 'meat';
+  if (!creative && (!(inventory[input] > 0) || !(inventory.coal > 0))) return;
+  if (!creative) {
+    inventory[input]--;
+    inventory.coal--;
+  }
+  furnaceJobs.set(stationKey, { output, input, remaining: 8, paid: !creative });
+  beep(180, 0.2, 'sawtooth', 0.015);
+  renderFurnace();
+  updateHUD();
+}
+function refundJobs() {
+  for (const job of furnaceJobs.values())
+    if (job.paid) {
+      inventory[job.input] = (inventory[job.input] || 0) + 1;
+      inventory.coal = (inventory.coal || 0) + 1;
+    }
+  furnaceJobs.clear();
+}
+function renderChest() {
+  const storage = chests.get(stationKey) || {};
+  chests.set(stationKey, storage);
+  $('#station-title').textContent = '储物箱';
+  $('#station-content').innerHTML =
+    `<p>点击背包材料存入 10 个，点击箱内物品取出 10 个。</p><div class="section-label" style="margin-top:18px">背包 → 箱子</div><div class="inventory-grid">${
+      Object.entries(inventory)
+        .filter(
+          ([id, n]) =>
+            n > 0 && !['pick1', 'pick2', 'pick3', 'sword', 'hoe'].includes(id),
+        )
+        .map(
+          ([id, n]) =>
+            `<button class="inv-item" data-store="${id}">${icon(id)}${ITEMS[id].name}<b>${n}</b></button>`,
+        )
+        .join('') || '<p>背包空空如也。</p>'
+    }</div><div class="section-label" style="margin-top:18px">箱子 → 背包</div><div class="inventory-grid">${
+      Object.entries(storage)
+        .filter(([, n]) => n > 0)
+        .map(
+          ([id, n]) =>
+            `<button class="inv-item" data-take="${id}">${icon(id)}${ITEMS[id].name}<b>${n}</b></button>`,
+        )
+        .join('') || '<p>还没有存入物品。</p>'
+    }</div>`;
+}
+function eat() {
+  for (const [id, value] of [
+    ['cooked', 9],
+    ['bread', 7],
+    ['apple', 4],
+    ['meat', 2],
+  ])
+    if ((inventory[id] || 0) > 0) {
+      if (hunger >= 20 && health >= 20) {
+        toast('你已经吃饱了。');
+        return;
+      }
+      inventory[id]--;
+      hunger = Math.min(20, hunger + value);
+      health = Math.min(20, health + value * 0.35);
+      beep(440, 0.13, 'triangle');
+      toast(`吃了${ITEMS[id].name} · 饱食 +${value}`);
+      updateHUD();
+      return;
+    }
+  toast('没有食物了。树叶会掉落苹果，也可以种麦、狩猎。');
+}
+function hurt(amount) {
+  if (creative || damageCooldown > 0) return;
+  health = Math.max(0, health - amount);
+  damageCooldown = 0.8;
+  $('#damage').style.opacity = '.6';
+  setTimeout(() => ($('#damage').style.opacity = '0'), 250);
+  beep(110, 0.15, 'sawtooth', 0.035);
+  if (health <= 0) {
+    safeSpawn();
+    health = 20;
+    hunger = 12;
+    toast('你在出生点醒来。背包已保留，带点食物再出发吧。');
+    saveGame();
+  }
+  updateHUD();
+}
+function updateMobs(dt) {
+  const night = time % 600 > 310;
+  for (let i = creatures.length - 1; i >= 0; i--) {
+    const m = creatures[i];
+    m.hit = Math.max(0, m.hit - dt);
+    m.mesh.visible = m.kind === 'sheep' || night;
+    if (!m.mesh.visible) continue;
+    const p = m.mesh.position,
+      dist = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
+    m.think -= dt;
+    if (m.kind === 'crawler' && dist < 17) {
+      m.angle = Math.atan2(camera.position.x - p.x, camera.position.z - p.z);
+    } else if (m.think <= 0) {
+      m.think = 2 + Math.random() * 4;
+      m.angle += (Math.random() - 0.5) * 2.5;
+    }
+    const speed = m.kind === 'crawler' ? 1.55 : 0.45,
+      dx = Math.sin(m.angle) * speed * dt,
+      dz = Math.cos(m.angle) * speed * dt,
+      a = worldToAxial(p.x + dx, p.z + dz),
+      h = world.surface(a.q, a.r);
+    if (h > 3 && h <= p.y + 1.1 && h >= p.y - 2 && hexDistance(a.q, a.r) < 30) {
+      p.x += dx;
+      p.z += dz;
+      p.y = THREE.MathUtils.lerp(p.y, h, Math.min(1, dt * 8));
+    } else m.angle += Math.PI * 0.55;
+    m.mesh.rotation.y = m.angle + Math.PI;
+    m.mesh.children
+      .slice(-4)
+      .forEach(
+        (leg, j) =>
+          (leg.rotation.x = Math.sin(time * 6 + (j % 2) * Math.PI) * 0.2),
+      );
+    if (m.kind === 'crawler' && dist < 1.1 && Math.abs(p.y - playerFeet()) < 2)
+      hurt(2);
+  }
+}
+function attack() {
+  if (attackCooldown > 0) return false;
+  graphics.ray.setFromCamera(new THREE.Vector2(), camera);
+  const meshes = creatures.filter((m) => m.mesh.visible).map((m) => m.mesh),
+    hit = graphics.ray
+      .intersectObjects(meshes, true)
+      .find((h) => h.distance < 3.5);
+  if (!hit || (target && hit.distance > target.distance)) return false;
+  let obj = hit.object;
+  while (obj.parent && !meshes.includes(obj)) obj = obj.parent;
+  const mob = creatures.find((m) => m.mesh === obj);
+  if (!mob) return false;
+  attackCooldown = 0.45;
+  mob.hp -= inventory.sword ? 7 : tool ? 3 : 2;
+  mob.angle = yaw;
+  beep(140, 0.07, 'triangle');
+  const a = worldToAxial(mob.mesh.position.x, mob.mesh.position.z);
+  graphics.burst(
+    a.q,
+    mob.mesh.position.y,
+    a.r,
+    mob.kind === 'sheep' ? '#ded1b0' : '#7db4a4',
+  );
+  if (mob.hp <= 0) {
+    graphics.scene.remove(mob.mesh);
+    mob.mesh.traverse((o) => {
+      o.geometry?.dispose();
+      o.material?.dispose();
+    });
+    creatures.splice(creatures.indexOf(mob), 1);
+    addItem(
+      mob.kind === 'sheep' ? 'meat' : 'crystal',
+      mob.kind === 'sheep' ? 2 : 1,
+    );
+    if (mob.kind === 'sheep') addItem('wool', 3);
+    toast(
+      mob.kind === 'sheep'
+        ? '获得生肉 ×2、羊毛 ×3 · 可以做床了'
+        : '夜行者消散了 · 萤晶 +1',
+    );
+  }
+  return true;
+}
+function movePlayer(dt) {
+  const swimming = playerFeet() < 3.05,
+    fly = creative;
+  let forward = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0),
+    side = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+  const norm = Math.hypot(forward, side);
+  if (norm) {
+    forward /= norm;
+    side /= norm;
+  }
+  const sprint = keys.has('ShiftLeft') && hunger > 2 && !fly,
+    speed = fly ? 10 : swimming ? 3 : sprint ? 7 : 4.8;
+  const dx = (-Math.sin(yaw) * forward + Math.cos(yaw) * side) * speed * dt,
+    dz = (-Math.cos(yaw) * forward - Math.sin(yaw) * side) * speed * dt;
+  moved = norm;
+  if (fly) {
+    camera.position.x += dx;
+    camera.position.z += dz;
+    camera.position.y +=
+      ((keys.has('Space') ? 1 : 0) - (keys.has('ShiftLeft') ? 1 : 0)) *
+      speed *
+      dt;
+    camera.position.y = Math.max(2, Math.min(50, camera.position.y));
+    vy = 0;
+  } else {
+    const feet = playerFeet();
+    if (!collides(camera.position.x + dx, feet, camera.position.z))
+      camera.position.x += dx;
+    if (!collides(camera.position.x, feet, camera.position.z + dz))
+      camera.position.z += dz;
+    if (grounded && keys.has('Space')) {
+      vy = 8.5;
+      grounded = false;
+      beep(180, 0.04, 'sine', 0.01);
+    }
+    if (swimming) {
+      vy = Math.max(-2, vy - dt * 4);
+      if (keys.has('Space')) vy = 4;
+    } else vy -= dt * 24;
+    const dy = vy * dt,
+      steps = Math.max(1, Math.ceil(Math.abs(dy) / 0.12));
+    grounded = false;
+    for (let i = 0; i < steps; i++) {
+      const next = playerFeet() + dy / steps;
+      if (collides(camera.position.x, next, camera.position.z)) {
+        if (vy < 0) {
+          grounded = true;
+          if (vy < -13) hurt(Math.floor((-vy - 12) * 0.6));
+        }
+        vy = 0;
+        break;
+      }
+      camera.position.y += dy / steps;
+    }
+    if (swimming && camera.position.y < 3.1)
+      hunger = Math.max(0, hunger - dt * 0.12);
+    hunger = Math.max(
+      0,
+      hunger - dt * (norm ? (sprint ? 0.024 : 0.012) : 0.003),
+    );
+    if (hunger > 14 && health < 20) health = Math.min(20, health + dt * 0.14);
+    if (hunger <= 0) hurt(dt * 2);
+  }
+  const a = worldToAxial(camera.position.x, camera.position.z);
+  if (hexDistance(a.q, a.r) > WORLD_RADIUS + 4) {
+    const p = axialToWorld(a.q, a.r),
+      factor = (WORLD_RADIUS + 3) / hexDistance(a.q, a.r);
+    camera.position.x = p.x * factor;
+    camera.position.z = p.z * factor;
+  }
+  if (camera.position.y < -3) {
+    safeSpawn();
+    hurt(4);
+  }
+  $('#underwater').style.display = camera.position.y < 3.1 ? 'block' : 'none';
+  camera.rotation.set(pitch, yaw, 0);
+}
+function drawMap(canvas, full = false) {
+  const ctx = canvas.getContext('2d'),
+    w = canvas.width,
+    h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = full ? '#173536' : '#173c38';
+  ctx.fillRect(0, 0, w, h);
+  const scale = full ? 5.65 : 1.75,
+    cx = w / 2,
+    cy = h / 2;
+  for (const [k, height] of world.heights) {
+    const [q, r] = k.split(',').map(Number),
+      p = axialToWorld(q, r);
+    ctx.fillStyle =
+      height <= 3
+        ? '#427f83'
+        : height <= 4
+          ? '#c5b47b'
+          : height >= 12
+            ? '#a7ada0'
+            : height >= 9
+              ? '#719270'
+              : '#4b7c60';
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = ((i * 60 - 30) * Math.PI) / 180;
+      ctx.lineTo(
+        cx + (p.x + Math.cos(angle) * 0.97) * scale,
+        cy + (p.z + Math.sin(angle) * 0.97) * scale,
+      );
+    }
+    ctx.fill();
+  }
+  for (const b of world.beacons) {
+    const p = axialToWorld(b.q, b.r),
+      x = cx + p.x * scale,
+      y = cy + p.z * scale;
+    ctx.fillStyle = activated.includes(b.index) ? '#ffe0a0' : '#e7eee1';
+    ctx.font = `${full ? 23 : 15}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(activated.includes(b.index) ? '◆' : '◇', x, y + 5);
+    if (full) {
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#ecedcd';
+      ctx.fillText(b.name, x, y + 24);
+    }
+  }
+  const x = cx + camera.position.x * scale,
+    y = cy + camera.position.z * scale;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-yaw);
+  ctx.fillStyle = '#ffe1a3';
+  ctx.strokeStyle = '#183a33';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -8);
+  ctx.lineTo(5, 6);
+  ctx.lineTo(0, 3);
+  ctx.lineTo(-5, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+  if (full) {
+    ctx.fillStyle = '#b6c5ae';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', cx, 23);
+    ctx.fillText(
+      `种子 ${world.seed} · Q ${worldToAxial(camera.position.x, camera.position.z).q} / R ${worldToAxial(camera.position.x, camera.position.z).r}`,
+      cx,
+      h - 18,
+    );
+  }
+}
 
-$('#start').onclick=()=>{if(hasGame){creative=false;closeOverlay();return;}const existing=readSave();if(existing){startGame(false,existing);creative=false;updateHUD();saveGame();toast('已继续你的世界 · 生存模式');}else startGame(false);};
-$('#creative').onclick=()=>{const existing=hasGame?saveData():readSave();if(existing)existing.creative=true;startGame(true,existing);};
-$('#continue').onclick=()=>{const s=readSave();if(s)startGame(s.creative,s);};
-$('#menu-help').onclick=()=>openOverlay('#pause-overlay');$('#resume').onclick=()=>{if(fromMenu){document.querySelectorAll('.overlay').forEach(e=>e.classList.add('hidden'));overlay=null;}else closeOverlay();};
-$('#recipes').onclick=e=>{const b=e.target.closest('[data-recipe]');if(b){selectedRecipe=Number(b.dataset.recipe);renderCraft();}};$('#craft-button').onclick=doCraft;
-$('#inventory').onclick=e=>{const b=e.target.closest('[data-item]');if(b&&BLOCKS[b.dataset.item]){hotbar[selected]=b.dataset.item;updateHUD();renderCraft();beep(420,.03);}};
-$('#hotbar').onclick=e=>{const b=e.target.closest('[data-slot]');if(b){selected=Number(b.dataset.slot);updateHUD();}};
-document.addEventListener('click',e=>{if(e.target.closest('[data-close]'))closeOverlay();const sm=e.target.closest('[data-smelt]');if(sm)smelt(sm.dataset.smelt);const st=e.target.closest('[data-store]'),tk=e.target.closest('[data-take]');if(st||tk){const storage=chests.get(stationKey)||{},id=st?st.dataset.store:tk.dataset.take,from=st?inventory:storage,to=st?storage:inventory,n=Math.min(10,from[id]||0);from[id]=(from[id]||0)-n;to[id]=(to[id]||0)+n;chests.set(stationKey,storage);renderChest();updateHUD();}});
-$('#mode-toggle').onclick=()=>{creative=!creative;if(!creative&&collides(camera.position.x,playerFeet(),camera.position.z))safeSpawn();$('#mode-toggle').textContent=creative?'切换生存探索':'切换自由建造';updateHUD();saveGame();toast(creative?'已进入自由建造 · 无限材料与飞行':'已回到生存探索');};
-$('#respawn').onclick=()=>{safeSpawn();closeOverlay();toast('已回到出生点。');};
-$('#home').onclick=()=>{refundJobs();saveGame();document.exitPointerLock?.();playing=false;hasGame=false;overlay=null;document.querySelectorAll('.overlay').forEach(e=>e.classList.add('hidden'));$('#hud').classList.add('hidden');$('#landing').classList.remove('hidden');};
-$('#new-world').onclick=()=>{const seed=Number($('#seed').value);if(!Number.isInteger(seed)||seed<0||seed>999999){toast('种子请输入 0–999999 之间的整数。');return;}if(readSave()&&!confirm('创建新世界会替换当前自动存档。已导出备份，确定继续？'))return;startGame(false);};
-$('#export').onclick=()=>{refundJobs();const blob=new Blob([JSON.stringify(saveData(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`hexwild-${world.seed}-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('存档已导出。');};
-$('#import').onclick=()=>$('#save-file').click();$('#save-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>16e6)throw new Error('存档文件过大');const s=validateSave(JSON.parse(await file.text()));startGame(s.creative,s);toast('存档已载入。');}catch(err){toast('导入失败：'+err.message);}e.target.value='';};
-$('#sensitivity').oninput=e=>sensitivity=Number(e.target.value);$('#sound-toggle').onclick=()=>{sound=!sound;$('#sound-toggle').textContent=sound?'开启':'关闭';};
-document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement===$('#world')){playing=true;}else{playing=false;leftDown=false;keys.clear();if(hasGame&&!overlay)openOverlay('#pause-overlay');}});
-document.addEventListener('mousemove',e=>{if(!playing||isTouch)return;yaw-=e.movementX*.002*sensitivity;pitch=Math.max(-1.5,Math.min(1.5,pitch-e.movementY*.002*sensitivity));});
-$('#world').addEventListener('mousedown',e=>{if(!hasGame||overlay)return;if(!playing){lock();return;}if(e.button===0)leftDown=true;if(e.button===2)place();});document.addEventListener('mouseup',()=>{leftDown=false;mining=0;$('#mine-progress i').style.width='0';});document.addEventListener('contextmenu',e=>e.preventDefault());
-document.addEventListener('wheel',e=>{if(!playing)return;selected=(selected+(e.deltaY>0?1:8))%9;updateHUD();},{passive:true});
-document.addEventListener('keydown',e=>{if(e.target.matches('input'))return;if(['Space','Tab','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();if(e.repeat)return;if(overlay){if(['Escape','KeyB','Tab','KeyM'].includes(e.code))closeOverlay();return;}if(!hasGame)return;if(e.code==='Escape'){openOverlay('#pause-overlay');return;}if(e.code==='KeyB'||e.code==='Tab'){openOverlay('#craft-overlay');return;}if(e.code==='KeyM'){openOverlay('#map-overlay');return;}if(e.code==='KeyE'){interact();return;}if(e.code==='KeyF'){eat();return;}if(e.code.startsWith('Digit')&&Number(e.code.slice(5))>=1&&Number(e.code.slice(5))<=9){selected=Number(e.code.slice(5))-1;updateHUD();}keys.add(e.code);});
-document.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();leftDown=false;if(hasGame&&!overlay)openOverlay('#pause-overlay');});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){refundJobs();saveGame();if(hasGame&&!overlay)openOverlay('#pause-overlay');}});addEventListener('beforeunload',()=>{refundJobs();saveGame();});
-if(isTouch){let look=null;$('#world').addEventListener('pointerdown',e=>{if(playing){look={id:e.pointerId,x:e.clientX,y:e.clientY};$('#world').setPointerCapture(e.pointerId);}});$('#world').addEventListener('pointermove',e=>{if(!playing||!look||look.id!==e.pointerId)return;yaw-=(e.clientX-look.x)*.005*sensitivity;pitch=Math.max(-1.5,Math.min(1.5,pitch-(e.clientY-look.y)*.005*sensitivity));look.x=e.clientX;look.y=e.clientY;});$('#world').addEventListener('pointerup',()=>look=null);$('#world').style.touchAction='none';document.querySelectorAll('[data-key]').forEach(b=>{b.onpointerdown=e=>{keys.add(b.dataset.key);b.setPointerCapture(e.pointerId);};b.onpointerup=b.onpointercancel=()=>keys.delete(b.dataset.key);});document.querySelectorAll('[data-action]').forEach(b=>{b.onpointerdown=e=>{b.setPointerCapture(e.pointerId);const action=b.dataset.action;if(action==='mine')leftDown=true;else if(action==='place')place();else if(action==='interact')interact();else if(action==='eat')eat();else openOverlay(action==='craft'?'#craft-overlay':action==='map'?'#map-overlay':'#pause-overlay');};b.onpointerup=b.onpointercancel=()=>leftDown=false;});}else $('#mobile-controls').style.display='none';
+$('#start').onclick = () => {
+  if (hasGame) {
+    creative = false;
+    closeOverlay();
+    return;
+  }
+  const existing = readSave();
+  if (existing) {
+    startGame(false, existing);
+    creative = false;
+    updateHUD();
+    saveGame();
+    toast('已继续你的世界 · 生存模式');
+  } else startGame(false);
+};
+$('#creative').onclick = () => {
+  const existing = hasGame ? saveData() : readSave();
+  if (existing) existing.creative = true;
+  startGame(true, existing);
+};
+$('#continue').onclick = () => {
+  const s = readSave();
+  if (s) startGame(s.creative, s);
+};
+$('#menu-help').onclick = () => openOverlay('#pause-overlay');
+$('#resume').onclick = () => {
+  if (fromMenu) {
+    document
+      .querySelectorAll('.overlay')
+      .forEach((e) => e.classList.add('hidden'));
+    overlay = null;
+  } else closeOverlay();
+};
+$('#recipes').onclick = (e) => {
+  const b = e.target.closest('[data-recipe]');
+  if (b) {
+    selectedRecipe = Number(b.dataset.recipe);
+    renderCraft();
+  }
+};
+$('#craft-button').onclick = doCraft;
+$('#inventory').onclick = (e) => {
+  const b = e.target.closest('[data-item]');
+  if (b && BLOCKS[b.dataset.item]) {
+    hotbar[selected] = b.dataset.item;
+    updateHUD();
+    renderCraft();
+    beep(420, 0.03);
+  }
+};
+$('#hotbar').onclick = (e) => {
+  const b = e.target.closest('[data-slot]');
+  if (b) {
+    selected = Number(b.dataset.slot);
+    updateHUD();
+  }
+};
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) closeOverlay();
+  const sm = e.target.closest('[data-smelt]');
+  if (sm) smelt(sm.dataset.smelt);
+  const st = e.target.closest('[data-store]'),
+    tk = e.target.closest('[data-take]');
+  if (st || tk) {
+    const storage = chests.get(stationKey) || {},
+      id = st ? st.dataset.store : tk.dataset.take,
+      from = st ? inventory : storage,
+      to = st ? storage : inventory,
+      n = Math.min(10, from[id] || 0);
+    from[id] = (from[id] || 0) - n;
+    to[id] = (to[id] || 0) + n;
+    chests.set(stationKey, storage);
+    renderChest();
+    updateHUD();
+  }
+});
+$('#mode-toggle').onclick = () => {
+  creative = !creative;
+  if (!creative && collides(camera.position.x, playerFeet(), camera.position.z))
+    safeSpawn();
+  $('#mode-toggle').textContent = creative ? '切换生存探索' : '切换自由建造';
+  updateHUD();
+  saveGame();
+  toast(creative ? '已进入自由建造 · 无限材料与飞行' : '已回到生存探索');
+};
+$('#respawn').onclick = () => {
+  respawnPoint = null;
+  safeSpawn();
+  closeOverlay();
+  toast('已回到出生点。');
+};
+$('#home').onclick = () => {
+  refundJobs();
+  saveGame();
+  document.exitPointerLock?.();
+  playing = false;
+  hasGame = false;
+  overlay = null;
+  document
+    .querySelectorAll('.overlay')
+    .forEach((e) => e.classList.add('hidden'));
+  $('#hud').classList.add('hidden');
+  $('#landing').classList.remove('hidden');
+};
+$('#new-world').onclick = () => {
+  const seed = Number($('#seed').value);
+  if (!Number.isInteger(seed) || seed < 0 || seed > 999999) {
+    toast('种子请输入 0–999999 之间的整数。');
+    return;
+  }
+  if (
+    readSave() &&
+    !confirm('创建新世界会替换当前自动存档。已导出备份，确定继续？')
+  )
+    return;
+  startGame(false);
+};
+$('#export').onclick = () => {
+  refundJobs();
+  const blob = new Blob([JSON.stringify(saveData(), null, 2)], {
+      type: 'application/json',
+    }),
+    url = URL.createObjectURL(blob),
+    a = document.createElement('a');
+  a.href = url;
+  a.download = `hexwild-${world.seed}-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('存档已导出。');
+};
+$('#import').onclick = () => $('#save-file').click();
+$('#save-file').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 16e6) throw new Error('存档文件过大');
+    const s = validateSave(JSON.parse(await file.text()));
+    startGame(s.creative, s);
+    toast('存档已载入。');
+  } catch (err) {
+    toast('导入失败：' + err.message);
+  }
+  e.target.value = '';
+};
+$('#sensitivity').oninput = (e) => (sensitivity = Number(e.target.value));
+$('#sound-toggle').onclick = () => {
+  sound = !sound;
+  $('#sound-toggle').textContent = sound ? '开启' : '关闭';
+};
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === $('#world')) {
+    playing = true;
+  } else {
+    playing = false;
+    leftDown = false;
+    keys.clear();
+    if (hasGame && !overlay) openOverlay('#pause-overlay');
+  }
+});
+document.addEventListener('mousemove', (e) => {
+  if (!playing || isTouch) return;
+  yaw -= e.movementX * 0.002 * sensitivity;
+  pitch = Math.max(
+    -1.5,
+    Math.min(1.5, pitch - e.movementY * 0.002 * sensitivity),
+  );
+});
+$('#world').addEventListener('mousedown', (e) => {
+  if (!hasGame || overlay) return;
+  if (!playing) {
+    lock();
+    return;
+  }
+  if (e.button === 0) leftDown = true;
+  if (e.button === 2) place();
+});
+document.addEventListener('mouseup', () => {
+  leftDown = false;
+  mining = 0;
+  $('#mine-progress i').style.width = '0';
+});
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+document.addEventListener(
+  'wheel',
+  (e) => {
+    if (!playing) return;
+    selected = (selected + (e.deltaY > 0 ? 1 : 8)) % 9;
+    updateHUD();
+  },
+  { passive: true },
+);
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input')) return;
+  if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code))
+    e.preventDefault();
+  if (e.repeat) return;
+  if (overlay) {
+    if (['Escape', 'KeyB', 'Tab', 'KeyM'].includes(e.code)) closeOverlay();
+    return;
+  }
+  if (!hasGame) return;
+  if (e.code === 'Escape') {
+    openOverlay('#pause-overlay');
+    return;
+  }
+  if (e.code === 'KeyB' || e.code === 'Tab') {
+    openOverlay('#craft-overlay');
+    return;
+  }
+  if (e.code === 'KeyM') {
+    openOverlay('#map-overlay');
+    return;
+  }
+  if (e.code === 'KeyE') {
+    interact();
+    return;
+  }
+  if (e.code === 'KeyF') {
+    eat();
+    return;
+  }
+  if (
+    e.code.startsWith('Digit') &&
+    Number(e.code.slice(5)) >= 1 &&
+    Number(e.code.slice(5)) <= 9
+  ) {
+    selected = Number(e.code.slice(5)) - 1;
+    updateHUD();
+  }
+  keys.add(e.code);
+});
+document.addEventListener('keyup', (e) => keys.delete(e.code));
+window.addEventListener('blur', () => {
+  keys.clear();
+  leftDown = false;
+  if (hasGame && !overlay) openOverlay('#pause-overlay');
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    refundJobs();
+    saveGame();
+    if (hasGame && !overlay) openOverlay('#pause-overlay');
+  }
+});
+addEventListener('beforeunload', () => {
+  refundJobs();
+  saveGame();
+});
+if (isTouch) {
+  let look = null;
+  $('#world').addEventListener('pointerdown', (e) => {
+    if (playing) {
+      look = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      $('#world').setPointerCapture(e.pointerId);
+    }
+  });
+  $('#world').addEventListener('pointermove', (e) => {
+    if (!playing || !look || look.id !== e.pointerId) return;
+    yaw -= (e.clientX - look.x) * 0.005 * sensitivity;
+    pitch = Math.max(
+      -1.5,
+      Math.min(1.5, pitch - (e.clientY - look.y) * 0.005 * sensitivity),
+    );
+    look.x = e.clientX;
+    look.y = e.clientY;
+  });
+  $('#world').addEventListener('pointerup', () => (look = null));
+  $('#world').style.touchAction = 'none';
+  document.querySelectorAll('[data-key]').forEach((b) => {
+    b.onpointerdown = (e) => {
+      keys.add(b.dataset.key);
+      b.setPointerCapture(e.pointerId);
+    };
+    b.onpointerup = b.onpointercancel = () => keys.delete(b.dataset.key);
+  });
+  document.querySelectorAll('[data-action]').forEach((b) => {
+    b.onpointerdown = (e) => {
+      b.setPointerCapture(e.pointerId);
+      const action = b.dataset.action;
+      if (action === 'mine') leftDown = true;
+      else if (action === 'place') place();
+      else if (action === 'interact') interact();
+      else if (action === 'eat') eat();
+      else
+        openOverlay(
+          action === 'craft'
+            ? '#craft-overlay'
+            : action === 'map'
+              ? '#map-overlay'
+              : '#pause-overlay',
+        );
+    };
+    b.onpointerup = b.onpointercancel = () => (leftDown = false);
+  });
+} else $('#mobile-controls').style.display = 'none';
 
-let last=performance.now(),menuTime=0;
-function frame(now){requestAnimationFrame(frame);const dt=Math.min((now-last)/1000,.05);last=now;
- if(!hasGame){menuTime+=dt;const angle=.64+Math.sin(menuTime*.035)*.1;camera.position.set(Math.cos(angle)*47,29,Math.sin(angle)*47);camera.lookAt(-3,5,-5);graphics.outline.visible=false;graphics.frame(dt,105+menuTime,[],false,false,false);return;}
- if(playing&&!overlay){time+=dt;attackCooldown=Math.max(0,attackCooldown-dt);damageCooldown=Math.max(0,damageCooldown-dt);movePlayer(dt);target=graphics.target();if(leftDown){if(!attack())mine(dt);}else{mining=0;miningKey='';$('#mine-progress i').style.width='0';}const b=nearestBeacon();$('#target').classList.toggle('hidden',!target&&!b);$('#target').textContent=b?`${b.name} · E ${activated.includes(b.index)?'已点亮':'修复'}`:target?.type?`${BLOCKS[target.type].name}${['workbench','furnace','chest','farmland'].includes(target.type)?' · E 交互':''}`:'';updateMobs(dt);
-  simulationAccumulator+=dt;if(simulationAccumulator>.5){simulationAccumulator=0;for(const[k,t]of crops)graphics.crop(k,time-t);}
-  for(const[k,job]of furnaceJobs){job.remaining-=dt;if(job.remaining<=0){addItem(job.output);furnaceJobs.delete(k);toast(`${ITEMS[job.output].name}已完成，收入背包。`);beep(600,.2);}}
-  hudTimer+=dt;if(hudTimer>.5){hudTimer=0;updateHUD();}mapTimer+=dt;if(mapTimer>.3){mapTimer=0;drawMap($('#minimap'));}saveTimer+=dt;if(saveTimer>15){saveTimer=0;saveGame();}
- }
- graphics.frame(playing?dt:0,time,activated,playing,moved>0,leftDown);
+let last = performance.now(),
+  menuTime = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  if (!hasGame) {
+    menuTime += dt;
+    const angle = 0.64 + Math.sin(menuTime * 0.035) * 0.1;
+    camera.position.set(Math.cos(angle) * 47, 29, Math.sin(angle) * 47);
+    camera.lookAt(-3, 5, -5);
+    graphics.outline.visible = false;
+    graphics.frame(dt, 105 + menuTime, [], false, false, false);
+    return;
+  }
+  if (playing && !overlay) {
+    time += dt;
+    attackCooldown = Math.max(0, attackCooldown - dt);
+    damageCooldown = Math.max(0, damageCooldown - dt);
+    movePlayer(dt);
+    target = graphics.target();
+    if (leftDown) {
+      if (!attack()) mine(dt);
+    } else {
+      mining = 0;
+      miningKey = '';
+      $('#mine-progress i').style.width = '0';
+    }
+    const b = nearestBeacon();
+    $('#target').classList.toggle('hidden', !target && !b);
+    $('#target').textContent = b
+      ? `${b.name} · E ${activated.includes(b.index) ? '已点亮' : '修复'}`
+      : target?.type
+        ? `${BLOCKS[target.type].name}${['workbench', 'furnace', 'chest', 'farmland', 'bed'].includes(target.type) ? ' · E 交互' : ''}`
+        : '';
+    updateMobs(dt);
+    simulationAccumulator += dt;
+    if (simulationAccumulator > 0.5) {
+      simulationAccumulator = 0;
+      for (const [k, t] of crops) graphics.crop(k, time - t);
+    }
+    for (const [k, job] of furnaceJobs) {
+      job.remaining -= dt;
+      if (job.remaining <= 0) {
+        addItem(job.output);
+        furnaceJobs.delete(k);
+        toast(`${ITEMS[job.output].name}已完成，收入背包。`);
+        beep(600, 0.2);
+      }
+    }
+    hudTimer += dt;
+    if (hudTimer > 0.5) {
+      hudTimer = 0;
+      updateHUD();
+    }
+    mapTimer += dt;
+    if (mapTimer > 0.3) {
+      mapTimer = 0;
+      drawMap($('#minimap'));
+    }
+    saveTimer += dt;
+    if (saveTimer > 15) {
+      saveTimer = 0;
+      saveGame();
+    }
+  }
+  graphics.frame(
+    playing ? dt : 0,
+    time,
+    activated,
+    playing,
+    moved > 0,
+    leftDown,
+  );
 }
-if(readSave())$('#continue').classList.remove('hidden');$('#loading').classList.add('hidden');requestAnimationFrame(frame);
+if (readSave()) $('#continue').classList.remove('hidden');
+$('#loading').classList.add('hidden');
+requestAnimationFrame(frame);
 
 // A development-only fixture API makes gameplay regression checks deterministic.
-if(import.meta.env.DEV)window.__hexwild={get state(){return{world,inventory,tool,creative,activated,health,hunger,time,crops,chests,playing,target,position:camera.position.toArray(),hotbar};},start:startGame,save:saveGame,open:openOverlay,close:closeOverlay,craft:doCraft,interact,place,eat,step:dt=>{time+=dt;for(const[k,t]of crops)graphics.crop(k,time-t);},give:(id,n)=>{inventory[id]=n;updateHUD();},selectRecipe:i=>{selectedRecipe=i;renderCraft();},setTarget:t=>target=t,teleport:(q,y,r)=>{const p=axialToWorld(q,r);camera.position.set(p.x,y+1.65,p.z);vy=0;},setPlaying:v=>playing=v,setTool:t=>tool=t,damage:hurt,graphics};
+if (import.meta.env.DEV)
+  window.__hexwild = {
+    get state() {
+      return {
+        world,
+        inventory,
+        tool,
+        creative,
+        activated,
+        health,
+        hunger,
+        time,
+        crops,
+        chests,
+        playing,
+        target,
+        position: camera.position.toArray(),
+        hotbar,
+      };
+    },
+    start: startGame,
+    save: saveGame,
+    open: openOverlay,
+    close: closeOverlay,
+    craft: doCraft,
+    interact,
+    place,
+    eat,
+    step: (dt) => {
+      time += dt;
+      for (const [k, t] of crops) graphics.crop(k, time - t);
+    },
+    give: (id, n) => {
+      inventory[id] = n;
+      updateHUD();
+    },
+    selectRecipe: (i) => {
+      selectedRecipe = i;
+      renderCraft();
+    },
+    setTarget: (t) => (target = t),
+    teleport: (q, y, r) => {
+      const p = axialToWorld(q, r);
+      camera.position.set(p.x, y + 1.65, p.z);
+      vy = 0;
+    },
+    setPlaying: (v) => (playing = v),
+    setTool: (t) => (tool = t),
+    damage: hurt,
+    graphics,
+  };
