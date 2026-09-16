@@ -1315,7 +1315,9 @@ let last = performance.now(),
   menuTime = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min((now - last) / 1000, 0.05);
+  // Keep simulation time at wall-clock speed on slower GPUs. Collision uses
+  // smaller steps below so a long render frame cannot tunnel through terrain.
+  const dt = Math.min((now - last) / 1000, 0.25);
   last = now;
   if (!hasGame) {
     menuTime += dt;
@@ -1330,7 +1332,8 @@ function frame(now) {
     time += dt;
     attackCooldown = Math.max(0, attackCooldown - dt);
     damageCooldown = Math.max(0, damageCooldown - dt);
-    movePlayer(dt);
+    const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
+    for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
     target = graphics.target();
     if (leftDown) {
       if (!attack()) mine(dt);

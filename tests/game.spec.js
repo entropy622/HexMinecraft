@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+test.beforeEach(async ({ page }) => {
+  // Font CDN availability is unrelated to the game. Use its system fallback.
+  await page.route('https://fonts.googleapis.com/**', (route) => route.abort());
+});
 test('landing, survival movement, crafting, save round-trip and map', async ({
   page,
 }) => {
@@ -97,11 +101,16 @@ test('real ray mining, block placement, player collision and edit persistence', 
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
     .toBe('wood');
-  await page.mouse.down();
+  // Native headless pointer-lock mouse coordinates differ across platforms;
+  // dispatch input without changing the camera's verified aim.
+  await page.locator('#world').dispatchEvent('mousedown', { button: 0 });
   await expect
-    .poll(() => page.evaluate(() => window.__hexwild.state.inventory.wood || 0))
+    .poll(
+      () => page.evaluate(() => window.__hexwild.state.inventory.wood || 0),
+      { timeout: 15000 },
+    )
     .toBeGreaterThan(0);
-  await page.mouse.up();
+  await page.locator('#world').dispatchEvent('mouseup', { button: 0 });
   const result = await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
