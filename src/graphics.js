@@ -99,6 +99,45 @@ export class Graphics {
       this.clouds.add(cloud);
     }
     this.scene.add(this.clouds);
+    this.skyObjects = new THREE.Group();
+    this.sunDisk = new THREE.Mesh(
+      new THREE.CircleGeometry(4.5, 6),
+      new THREE.MeshBasicMaterial({ color: '#fff0bd', fog: false }),
+    );
+    this.moonDisk = new THREE.Mesh(
+      new THREE.CircleGeometry(3, 6),
+      new THREE.MeshBasicMaterial({ color: '#d0e5dd', fog: false }),
+    );
+    this.skyObjects.add(this.sunDisk, this.moonDisk);
+    const starPositions = [];
+    for (let i = 0; i < 350; i++) {
+      const angle = hash(i, 712) * Math.PI * 2;
+      const height = hash(i, 914) * 0.95 + 0.04;
+      const radius = Math.sqrt(1 - height * height) * 110;
+      starPositions.push(
+        Math.cos(angle) * radius,
+        height * 110,
+        Math.sin(angle) * radius,
+      );
+    }
+    const starGeometry = new THREE.BufferGeometry();
+    starGeometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(starPositions, 3),
+    );
+    this.stars = new THREE.Points(
+      starGeometry,
+      new THREE.PointsMaterial({
+        color: '#e9eed8',
+        size: 0.25,
+        transparent: true,
+        opacity: 0,
+        fog: false,
+        depthWrite: false,
+      }),
+    );
+    this.skyObjects.add(this.stars);
+    this.scene.add(this.skyObjects);
     this.decor = new THREE.Group();
     this.scene.add(this.decor);
     this.beaconMeshes = [];
@@ -486,6 +525,16 @@ export class Graphics {
       25,
     );
     this.clouds.position.x = Math.sin(time * 0.006) * 10;
+    this.skyObjects.position.copy(this.camera.position);
+    this.sunDisk.position.set(
+      Math.cos(phase * Math.PI * 2) * 78,
+      Math.sin(phase * Math.PI * 2) * 78,
+      -45,
+    );
+    this.moonDisk.position.copy(this.sunDisk.position).multiplyScalar(-1);
+    this.sunDisk.quaternion.copy(this.camera.quaternion);
+    this.moonDisk.quaternion.copy(this.camera.quaternion);
+    this.stars.material.opacity = Math.max(0, 1 - day * 2.5);
     this.water.position.y = 3.12 + Math.sin(time * 0.7) * 0.025;
     this.beaconMeshes.forEach((b, i) => {
       b.gem.rotation.y = time * 0.7;
