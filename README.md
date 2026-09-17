@@ -96,7 +96,7 @@ npm run preview
 
 ### GitHub Actions / Pages
 
-`main` 每次 push 执行锁文件安装、格式检查、单元测试、生产构建与 Chromium 交互测试，通过后部署 Pages。PR 只验证。测试截图作为 Actions artifact 保留七天。
+`main` 每次 push 执行锁文件安装、格式检查、单元测试与生产构建，通过后部署 Pages。PR 只验证。浏览器交互、着色器和截图检查在本地运行 `npm run test:e2e`，不在云端启动浏览器；截图保存在本地 `test-results/`。
 
 Pages 使用 GitHub Actions，产物目录为 `dist/`。Vite 使用相对路径，兼容 `/HexMinecraft/`，不需要后端或密钥。
 
