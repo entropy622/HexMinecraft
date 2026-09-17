@@ -50,7 +50,9 @@ test('landing, survival movement, crafting, save round-trip and map', async ({
   await page.screenshot({ path: 'test-results/map.png' });
   expect(errors).toEqual([]);
 });
-test('farming, food and beacon victory', async ({ page }) => {
+test('farming and food remain available without a quest line', async ({
+  page,
+}) => {
   await page.goto('/');
   await page.locator('#start').click();
   await page.evaluate(() => {
@@ -77,20 +79,8 @@ test('farming, food and beacon victory', async ({ page }) => {
   expect(
     await page.evaluate(() => window.__hexwild.state.inventory.bread),
   ).toBe(1);
-  await page.evaluate(() => {
-    const g = window.__hexwild;
-    g.give('crystal', 9);
-    g.give('stone', 18);
-    for (const b of g.state.world.beacons) {
-      g.teleport(b.q, b.y, b.r);
-      g.setPlaying(true);
-      g.interact();
-    }
-  });
-  expect(
-    await page.evaluate(() => window.__hexwild.state.activated.length),
-  ).toBe(3);
-  await expect(page.locator('#station-title')).toHaveText('初光，终于回来了。');
+  await expect(page.locator('#quest-title')).toHaveCount(0);
+  await expect(page.locator('#dimension-name')).toHaveText('主世界');
 });
 
 test('real ray mining, block placement, player collision and edit persistence', async ({
@@ -227,11 +217,11 @@ test('camp bed skips night and persists respawn point', async ({ page }) => {
     g.save();
     return {
       time: g.state.time,
-      save: JSON.parse(localStorage.getItem('hexwild-save-v1')),
+      save: JSON.parse(localStorage.getItem('hexwild-save-v2')),
     };
   });
   expect(result.time % 600).toBeLessThan(100);
-  expect(result.save.respawn).toHaveLength(3);
+  expect(result.save.dimensions.overworld.respawn).toHaveLength(3);
   expect(result.save.respawn[1]).toBe(11.03);
 });
 

@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 :root {
   font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
   color: #f3eedb;
@@ -1105,4 +1104,725 @@ button svg {
     transition: none !important;
     animation: none !important;
   }
+}
+/* v0.2 game interface: bevelled stone panels, compact HUD, tactile item slots. */
+:root {
+  --panel: #252c30f5;
+  --gold: #e5c67e;
+  --muted: #b8c0b2;
+  --dimension: #8dcc98;
+  font-family: 'Trebuchet MS', 'Microsoft YaHei', sans-serif;
+}
+button {
+  border: 2px solid #11191cbf;
+  box-shadow:
+    inset 0 2px #ffffff24,
+    inset 0 -3px #0005,
+    0 2px 0 #10181b;
+  background: #4c5556;
+  border-radius: 2px;
+  text-shadow: 0 1px 1px #0009;
+  transition:
+    filter 0.12s,
+    transform 0.12s;
+}
+button:hover {
+  background: #5d6966;
+  border-color: #f0d9a18a;
+  filter: brightness(1.13);
+}
+button:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px #0005,
+    inset 0 -1px #fff2;
+}
+button.primary {
+  background: #789259;
+  color: #fff4d4;
+  border-color: #27382b;
+  text-shadow: 0 2px #34442a;
+}
+button.primary:hover {
+  background: #8aa666;
+}
+button.secondary {
+  background: #666456;
+  color: #fff0d1;
+}
+.eyebrow {
+  letter-spacing: 2px;
+  font-size: 10px;
+  color: #c6bb99;
+}
+.panel {
+  border: 3px solid #75817a;
+  outline: 3px solid #172124;
+  box-shadow:
+    inset 0 0 0 2px #11191d,
+    0 22px 70px #08161c99;
+  background: linear-gradient(145deg, #30383bf7, #1f282bf7);
+}
+.panel-head {
+  background: #111d2155;
+  border-bottom: 2px solid #77806d55;
+}
+.panel-head h2 {
+  font-size: 25px;
+  font-weight: 700;
+  text-shadow: 2px 2px #080f13;
+  letter-spacing: 3px;
+}
+.overlay {
+  background: #07151b88;
+  backdrop-filter: blur(4px);
+}
+.overlay:not(.hidden) .panel {
+  animation: panel-open 0.16s ease-out;
+}
+.close {
+  background: #343d3f;
+  border: 2px solid #161f23;
+  box-shadow: inset 0 2px #ffffff1c;
+  font-size: 25px;
+}
+#landing {
+  background:
+    linear-gradient(0deg, #07151bcc, transparent 35%, #0610194a),
+    linear-gradient(90deg, #18282c55, #17262d22, #18282c55);
+  padding: 28px 4vw;
+}
+.intro {
+  text-align: center;
+  align-self: center;
+  max-width: 780px;
+  margin-top: 10px;
+}
+.intro h1 {
+  font-family: Impact, 'Arial Black', sans-serif;
+  font-size: clamp(78px, 10vw, 150px);
+  letter-spacing: 4px;
+  color: #e8e6d5;
+  line-height: 1;
+  text-shadow:
+    0 2px #fff8,
+    0 5px #98a399,
+    0 9px #63766d,
+    0 14px #253d36,
+    0 19px 0 #0e201a,
+    0 25px 24px #071815c0;
+  margin: 15px 0 26px;
+  transform: rotate(-2deg);
+}
+.intro .cn {
+  font-size: 23px;
+  letter-spacing: 18px;
+  color: #ffe0a2;
+  text-shadow: 2px 3px #182e25;
+  margin: 0 0 17px 17px;
+}
+.intro .desc {
+  font-size: 12px;
+  line-height: 1.9;
+  margin: auto;
+  max-width: 520px;
+  color: #eef0d8;
+  text-shadow: 0 2px 4px #061c22;
+}
+.intro .eyebrow {
+  color: #dfddbd;
+  font-size: 10px;
+  text-shadow: 1px 2px #182e25;
+}
+.menu-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  max-width: 360px;
+  margin: 22px auto 0;
+  gap: 9px;
+}
+.menu-actions button {
+  font-size: 13px;
+  letter-spacing: 2px;
+  padding: 13px 18px;
+  min-height: 46px;
+}
+.menu-actions .tertiary {
+  width: 100%;
+  font-size: 11px;
+  text-align: center;
+  background: #2a3638da;
+  padding: 9px;
+  color: #e5e5cf;
+  border: 2px solid #152327;
+  min-height: 35px;
+}
+.vista-label {
+  display: none;
+}
+.topline .brand {
+  font-size: 13px;
+}
+.edition {
+  letter-spacing: 1px;
+}
+.tags {
+  font-size: 10px;
+}
+.world-badge {
+  text-align: right;
+  padding: 10px 15px;
+  background: #142028c2;
+  border-right: 3px solid var(--dimension);
+  text-shadow: 1px 2px #0a171e;
+  min-width: 175px;
+}
+.world-badge > span {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--dimension);
+  display: block;
+}
+.world-badge strong {
+  display: block;
+  font-size: 14px;
+  margin: 4px 0;
+  font-weight: 600;
+}
+#compass {
+  font-family: monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #d8d6bd;
+  border-top: 1px solid #b7c8b536;
+  padding-top: 7px;
+}
+.wordmark {
+  font-family: Impact, 'Arial Black', sans-serif;
+  letter-spacing: 2px;
+  font-size: 19px;
+  text-shadow: 2px 2px #132a2d;
+}
+.world-info {
+  font-family: monospace;
+  letter-spacing: 0;
+}
+.bottom-hud {
+  bottom: 17px;
+}
+.vitals {
+  font-family: monospace;
+  font-size: 16px;
+  letter-spacing: 1px;
+  text-shadow: 2px 2px #132222;
+}
+.health {
+  color: #ed9683;
+}
+.tool {
+  letter-spacing: 0;
+  font-size: 10px;
+}
+.hunger {
+  font-size: 11px;
+  letter-spacing: 0;
+}
+#hotbar {
+  padding: 5px;
+  background: #101c23b8;
+  border: 2px solid #a2a18a80;
+  box-shadow:
+    0 3px #071a22,
+    inset 0 0 0 2px #172b31;
+  gap: 4px;
+}
+.slot {
+  width: 53px;
+  height: 53px;
+  clip-path: none;
+  border: 2px solid #0c1c24;
+  background: #68787775;
+  box-shadow:
+    inset 0 2px #0d202e80,
+    inset 0 -2px #8c9b8540;
+  overflow: visible;
+}
+.slot-inner {
+  clip-path: none;
+  inset: 0;
+  background: transparent;
+}
+.slot.active {
+  background: #737c6570;
+  transform: none;
+  outline: 2px solid #f3dd9e;
+  outline-offset: 1px;
+  box-shadow: inset 0 0 0 2px #c1b88360;
+}
+.slot.active .slot-inner {
+  background: transparent;
+}
+.slot .num {
+  top: 3px;
+  left: 4px;
+  color: #c5d5c0;
+  font-size: 9px;
+}
+.slot .count {
+  bottom: 3px;
+  right: 4px;
+  font: bold 12px monospace;
+  text-shadow: 2px 2px #081a24;
+}
+.slot .block-icon {
+  width: 31px;
+  height: 35px;
+  filter: drop-shadow(2px 3px 0 #07192080);
+}
+#selected-name {
+  font-size: 12px;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+  text-shadow: 2px 2px #091d23;
+}
+.controls-hint {
+  margin-top: 10px;
+  font-size: 9px;
+  gap: 12px;
+}
+.controls-hint kbd {
+  background: #12232c9a;
+  border-bottom: 1px solid #abc1af5a;
+  padding: 1px 4px;
+}
+#minimap {
+  width: 116px;
+  height: 130px;
+  bottom: 21px;
+}
+#target {
+  border: 1px solid #c5d1b343;
+  background: #162732d9;
+  padding: 7px 13px;
+  text-shadow: 1px 1px #000;
+}
+#crosshair {
+  width: 13px;
+  height: 15px;
+  background: transparent;
+  border: 2px solid #fff9;
+  filter: drop-shadow(1px 1px 0 #172b37);
+}
+#mine-progress {
+  width: 76px;
+  left: calc(50% - 38px);
+  height: 3px;
+  top: calc(50% + 19px);
+}
+#toast {
+  top: 12%;
+  border: 2px solid #acb39487;
+  background: #253630f2;
+  box-shadow: 0 3px 0 #122723;
+  font-size: 12px;
+}
+.recipe-sidebar {
+  border-right: 2px solid #75826b40;
+  background: #12212745;
+}
+#recipe-search {
+  width: calc(100% - 24px);
+  margin: 13px 12px 0;
+  padding: 9px 10px;
+  background: #101c20;
+  border: 2px solid #737f715a;
+  color: #f3ead0;
+  font-size: 11px;
+}
+.recipe-list {
+  border: 0;
+  max-height: 355px;
+  padding: 10px;
+}
+.recipe {
+  box-shadow: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0;
+  margin-bottom: 5px;
+  gap: 12px;
+  min-height: 45px;
+}
+.recipe.active {
+  background: #8ba17325;
+  border: 1px solid #cbd49490;
+}
+.recipe .block-icon {
+  filter: drop-shadow(2px 3px #0005);
+}
+.hex-cell {
+  background: #9b9e8475;
+}
+.hex-cell:before {
+  background: #36403d;
+}
+.hex-cell.missing:before {
+  background: #473937;
+}
+.craft-main h3 {
+  text-shadow: 2px 2px #122026;
+  font-weight: 700;
+}
+.craft-main p {
+  font-size: 11px;
+}
+.inventory-section {
+  background: #0f1e2540;
+  border-top: 2px solid #8e9c7a40;
+}
+.inventory-grid {
+  gap: 6px;
+}
+.inv-item {
+  min-width: 93px;
+  min-height: 43px;
+  padding: 7px;
+  background: #3e4b47;
+  border: 2px solid #14272c;
+  box-shadow:
+    inset 0 2px #788b7755,
+    inset 0 -2px #10232980;
+  font-size: 10px;
+}
+.inv-item.selected {
+  outline: 1px solid var(--gold);
+  border-color: #cbc299;
+}
+.inv-item .block-icon {
+  width: 22px;
+  height: 25px;
+}
+.section-label {
+  font-size: 11px;
+  color: #dbd6b8;
+  letter-spacing: 1px;
+}
+.pause-panel {
+  width: 490px;
+}
+.pause-panel h2 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-shadow: 2px 3px #122127;
+}
+.settings-row select {
+  font: inherit;
+  color: #e7e3cd;
+  background: #17292c;
+  border: 2px solid #6a7a69;
+  padding: 6px 13px;
+}
+.dimension-controls {
+  border-top: 1px solid #86917e44;
+  border-bottom: 1px solid #86917e44;
+  padding: 13px 0;
+  margin-bottom: 16px;
+  font-size: 11px;
+}
+.dimension-controls > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.dimension-controls button {
+  flex: 1;
+  padding: 9px 6px;
+  font-size: 11px;
+}
+.dimension-controls [data-dimension='nether'] {
+  color: #f3b594;
+}
+.dimension-controls [data-dimension='end'] {
+  color: #cdb7f3;
+}
+.help-grid {
+  gap: 8px;
+}
+#pickups {
+  position: fixed;
+  left: 25px;
+  bottom: 135px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.pickup {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #182a32db;
+  border-left: 3px solid #c8d598;
+  padding: 6px 12px;
+  font-size: 11px;
+  animation: pickup-in 2.4s both;
+}
+.pickup .block-icon {
+  width: 18px;
+  height: 21px;
+}
+.pickup b {
+  color: #efda9a;
+}
+#travel {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  background: radial-gradient(ellipse, #271b43aa, #151c38);
+  color: #f0deff;
+  font-size: 34px;
+  letter-spacing: 12px;
+  text-shadow: 0 0 30px #d6a0ff;
+}
+#travel.active {
+  animation: dimension-travel 0.9s both;
+}
+@keyframes panel-open {
+  from {
+    opacity: 0;
+    transform: translateY(9px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pickup-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  12%,
+  75% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+@keyframes dimension-travel {
+  0% {
+    opacity: 0.95;
+    transform: scale(1.1);
+  }
+  30% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+@media (max-width: 600px) {
+  #landing {
+    padding: 20px;
+  }
+  .intro {
+    max-width: 100%;
+    margin: 0;
+  }
+  .intro h1 {
+    font-size: 67px;
+    letter-spacing: 1px;
+    margin-bottom: 25px;
+    text-shadow:
+      0 3px #98a399,
+      0 6px #63766d,
+      0 10px #253d36,
+      0 14px #0e201a;
+  }
+  .intro .eyebrow {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .intro .cn {
+    font-size: 20px;
+    margin-bottom: 14px;
+  }
+  .intro .desc {
+    font-size: 11px;
+    max-width: 310px;
+  }
+  .menu-actions {
+    width: 270px;
+    max-width: 100%;
+    gap: 7px;
+    margin-top: 20px;
+  }
+  .menu-actions button {
+    min-height: 43px;
+    font-size: 12px;
+  }
+  .tags {
+    gap: 9px;
+    font-size: 8px;
+  }
+  .pill {
+    max-width: 150px;
+    font-size: 7px;
+  }
+  .world-badge {
+    min-width: 135px;
+    padding: 8px 10px;
+  }
+  .world-badge strong {
+    font-size: 12px;
+  }
+  .world-badge > span {
+    font-size: 9px;
+  }
+  #compass {
+    font-size: 9px;
+    letter-spacing: 2px;
+  }
+  .slot {
+    width: 34px;
+    height: 40px;
+    border-width: 1px;
+  }
+  .slot .block-icon {
+    width: 24px;
+    height: 27px;
+  }
+  #hotbar {
+    gap: 3px;
+    padding: 4px;
+  }
+  .slot .count {
+    font-size: 9px;
+    bottom: 2px;
+    right: 2px;
+  }
+  .slot .num {
+    font-size: 7px;
+    top: 2px;
+    left: 3px;
+  }
+  .bottom-hud {
+    bottom: 12px;
+  }
+  .vitals {
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+  .hunger {
+    font-size: 9px;
+  }
+  .craft-layout {
+    grid-template-columns: 110px 1fr;
+  }
+  #recipe-search {
+    width: calc(100% - 10px);
+    margin: 8px 5px 0;
+    padding: 6px 4px;
+    font-size: 9px;
+  }
+  .recipe-list {
+    padding: 5px;
+    max-height: 300px;
+  }
+  .recipe {
+    padding: 7px 3px;
+    gap: 5px;
+    font-size: 9px;
+  }
+  .recipe small {
+    display: none;
+  }
+  .craft-main {
+    padding: 17px 8px;
+  }
+  .craft-main h3 {
+    font-size: 15px;
+  }
+  .panel-head h2 {
+    font-size: 20px;
+  }
+  .inv-item {
+    min-width: 89px;
+    font-size: 9px;
+  }
+  .pause-panel {
+    padding: 20px;
+  }
+  .settings-row {
+    margin: 13px 0;
+  }
+  #toast {
+    top: 17%;
+    font-size: 10px;
+    padding: 9px 12px;
+  }
+  .pickup {
+    font-size: 9px;
+    padding: 5px 8px;
+  }
+  #pickups {
+    bottom: 95px;
+    left: 15px;
+  }
+  #mobile-controls button {
+    border-radius: 5px;
+    border: 2px solid #8895807a;
+    box-shadow:
+      inset 0 2px #fff2,
+      inset 0 -2px #0005;
+  }
+  #mobile-controls .mobile-top button {
+    width: 33px;
+    height: 33px;
+  }
+  #travel {
+    font-size: 25px;
+    letter-spacing: 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .pickup,
+  #travel {
+    animation: none !important;
+  }
+  .pickup {
+    opacity: 1;
+  }
+  #travel.active {
+    opacity: 0.7;
+  }
+}
+
+/* Item silhouettes retain material colors and stay legible at hotbar size. */
+.block-icon.item-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--block) 18%, #172424);
+  color: var(--block);
+  box-shadow: none;
+}
+.block-icon.item-symbol::after {
+  display: none;
+}
+.item-symbol svg {
+  width: 76%;
+  height: 76%;
+  filter: drop-shadow(0 1px 1px #0009);
 }

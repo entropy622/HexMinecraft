@@ -6,6 +6,7 @@ import {
   hash,
   worldToAxial,
 } from './core.js';
+import { DIMENSIONS, VIEW_RADIUS, WORLD_HEIGHT } from './world.js';
 const corners = Array.from({ length: 6 }, (_, i) => [
   Math.cos(((i * 60 - 30) * Math.PI) / 180),
   Math.sin(((i * 60 - 30) * Math.PI) / 180),
@@ -25,7 +26,7 @@ export class Graphics {
     this.renderer.toneMappingExposure = 1.15;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#b5d9cf');
-    this.scene.fog = new THREE.FogExp2('#b5d9cf', 0.012);
+    this.scene.fog = new THREE.Fog('#b5d9cf', 22, 44);
     this.camera = new THREE.PerspectiveCamera(
       72,
       innerWidth / innerHeight,
@@ -140,7 +141,6 @@ export class Graphics {
     this.scene.add(this.skyObjects);
     this.decor = new THREE.Group();
     this.scene.add(this.decor);
-    this.beaconMeshes = [];
     this.particles = [];
     this.cropMeshes = new Map();
     this.lights = new Map();
@@ -170,75 +170,197 @@ export class Graphics {
   chunkKey(q, r) {
     return `${Math.floor(q / 8)},${Math.floor(r / 8)}`;
   }
-  build(world) {
+  build(world, q = 0, r = 0) {
     this.world = world;
-    for (const m of this.chunks.values()) {
-      m.traverse((o) => o.geometry?.dispose());
-      this.terrain.remove(m);
+    for (const mesh of this.chunks.values()) {
+      mesh.traverse((o) => o.geometry?.dispose());
+      this.terrain.remove(mesh);
     }
     this.chunks.clear();
-    const keys = new Set();
-    for (const k of world.blocks.keys()) {
-      const [q, , r] = k.split(',').map(Number);
-      keys.add(this.chunkKey(q, r));
-    }
-    for (const k of keys) this.buildChunk(k);
+    this.queue = [];
+    this.streamCenter = null;
     for (const child of [...this.decor.children]) {
       child.traverse((o) => {
         o.geometry?.dispose();
-        if (o.material) {
-          for (const m of Array.isArray(o.material) ? o.material : [o.material])
-            m.dispose();
-        }
+        o.material?.dispose?.();
       });
       this.decor.remove(child);
     }
-    this.beaconMeshes = [];
+    for (const p of this.particles) {
+      this.scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+    }
+    this.particles = [];
     this.cropMeshes.clear();
     this.lights.clear();
-    for (const b of world.beacons) {
-      const p = axialToWorld(b.q, b.r),
-        g = new THREE.Group();
-      g.position.set(p.x, b.y, p.z);
-      const base = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.72, 0.86, 0.35, 6),
-        new THREE.MeshLambertMaterial({ color: '#c5b79a' }),
-      );
-      base.position.y = 0.175;
-      g.add(base);
-      const gem = new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.58),
-        new THREE.MeshStandardMaterial({
-          color: '#88c4bb',
-          emissive: '#28534e',
-          emissiveIntensity: 0.25,
-          roughness: 0.3,
-        }),
-      );
-      gem.position.y = 1.45;
-      g.add(gem);
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.95, 0.035, 4, 6),
-        new THREE.MeshBasicMaterial({ color: '#e0bf7c' }),
-      );
-      ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0.7;
-      g.add(ring);
-      const beam = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.22, 0.6, 55, 6, 1, true),
-        new THREE.MeshBasicMaterial({
-          color: '#a2f9d8',
-          transparent: true,
-          opacity: 0.14,
-          depthWrite: false,
-        }),
-      );
-      beam.position.y = 28;
-      beam.visible = false;
-      g.add(beam);
-      this.decor.add(g);
-      this.beaconMeshes.push({ g, gem, ring, beam });
+    this.portalMeshes = new Map();
+    this.sync(q, r, true);
+    const d = DIMENSIONS[world.dimension];
+    this.water.visible = d.liquid !== null;
+    this.water.material.color.set(d.liquidColor);
+    this.water.material.opacity = world.dimension === 'nether' ? 0.96 : 0.68;
+    this.clouds.visible = world.dimension === 'overworld';
+    this.skyObjects.visible = world.dimension !== 'nether';
+    this.sunDisk.visible = world.dimension === 'overworld';
+    this.moonDisk.visible = world.dimension === 'overworld';
+    this.scene.fog.near = world.dimension === 'nether' ? 15 : 22;
+    this.scene.fog.far = world.dimension === 'nether' ? 39 : 44;
+  }
+  sync(q, r, immediate = false) {
+    const cq = Math.floor(q / 8),
+      cr = Math.floor(r / 8),
+      center = cq + ',' + cr;
+    if (center !== this.streamCenter) {
+      this.streamCenter = center;
+      const wanted = new Set();
+      for (let dq = -VIEW_RADIUS; dq <= VIEW_RADIUS; dq++)
+        for (let dr = -VIEW_RADIUS; dr <= VIEW_RADIUS; dr++)
+          wanted.add(cq + dq + ',' + (cr + dr));
+      for (const [k, mesh] of this.chunks)
+        if (!wanted.has(k)) {
+          mesh.traverse((o) => o.geometry?.dispose());
+          this.terrain.remove(mesh);
+          this.chunks.delete(k);
+        }
+      this.queue = [...wanted]
+        .filter((k) => !this.chunks.has(k))
+        .sort((a, b) => {
+          const [x, z] = a.split(',').map(Number),
+            [u, v] = b.split(',').map(Number);
+          return Math.hypot(x - cq, z - cr) - Math.hypot(u - cq, v - cr);
+        });
+      for (const [k] of this.cropMeshes) {
+        const [x, , z] = k.split(',').map(Number);
+        if (!wanted.has(this.chunkKey(x, z))) this.removeCrop(k);
+      }
+      for (const [k, g] of this.lights) {
+        const [x, , z] = k.split(',').map(Number);
+        if (!wanted.has(this.chunkKey(x, z))) {
+          this.decor.remove(g);
+          this.lights.delete(k);
+        }
+      }
+      for (const [k, g] of this.portalMeshes) {
+        const [x, , z] = k.split(',').map(Number);
+        if (!wanted.has(this.chunkKey(x, z))) {
+          g.traverse((o) => {
+            o.geometry?.dispose();
+            o.material?.dispose();
+          });
+          this.decor.remove(g);
+          this.portalMeshes.delete(k);
+        }
+      }
+      for (const ck of wanted)
+        for (const [k, t] of this.world.editChunks.get(ck) || []) {
+          const [x, y, z] = k.split(',').map(Number);
+          if (t === 'lantern') this.updateLight(x, y, z);
+          if (t === 'portal' || t === 'endportal') this.portal(x, y, z, t);
+        }
     }
+    const count = immediate ? this.queue.length : 2;
+    for (let n = 0; n < count && this.queue.length; n++)
+      this.buildChunk(this.queue.shift());
+  }
+  portal(q, y, r, type) {
+    const k = q + ',' + y + ',' + r;
+    if (this.portalMeshes.has(k)) return;
+    const p = axialToWorld(q, r),
+      g = new THREE.Group(),
+      color = type === 'portal' ? '#c48aff' : '#86f6dd';
+    g.position.set(p.x, y, p.z);
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.66, 0.8, 0.18, 6),
+      new THREE.MeshLambertMaterial({ color: '#494257' }),
+    );
+    base.position.y = 0.09;
+    g.add(base);
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.96, 0.115, 4, 6),
+      new THREE.MeshLambertMaterial({ color: '#534965' }),
+    );
+    rim.rotation.y = Math.PI / 2;
+    rim.position.y = 1.15;
+    g.add(rim);
+    for (let i = 0; i < 2; i++) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.83 - i * 0.13, 0.025, 4, 6),
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.85 - i * 0.2,
+        }),
+      );
+      ring.rotation.y = Math.PI / 2;
+      ring.position.y = 1.15;
+      ring.userData.spin = i ? -0.7 : 0.7;
+      g.add(ring);
+    }
+    const surface = new THREE.Mesh(
+      new THREE.CircleGeometry(0.83, 6),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.33,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    surface.rotation.y = Math.PI / 2;
+    surface.position.y = 1.15;
+    surface.userData.shimmer = true;
+    g.add(surface);
+    g.traverse((o) => (o.userData.block = { q, y, r, type }));
+    this.decor.add(g);
+    this.portalMeshes.set(k, g);
+  }
+  swing() {
+    this.swingTime = 0.28;
+  }
+  setHeld(id, tool) {
+    const next = id + ':' + tool;
+    if (this.heldKey === next) return;
+    this.heldKey = next;
+    if (this.held) {
+      this.held.traverse((o) => {
+        o.geometry?.dispose();
+        o.material?.dispose();
+      });
+      this.hand.remove(this.held);
+    }
+    this.held = new THREE.Group();
+    const material = new THREE.MeshLambertMaterial({
+      color: BLOCKS[id]?.color || '#d4bd95',
+    });
+    const block = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 0.24, 6),
+      material,
+    );
+    block.position.set(0, 0.17, -0.36);
+    this.held.add(block);
+    if (tool) {
+      const pick = new THREE.Group(),
+        handle = new THREE.Mesh(
+          new THREE.BoxGeometry(0.055, 0.48, 0.055),
+          new THREE.MeshLambertMaterial({ color: '#886344' }),
+        ),
+        head = new THREE.Mesh(
+          new THREE.BoxGeometry(0.4, 0.08, 0.09),
+          new THREE.MeshLambertMaterial({
+            color: ['', '#bf9965', '#bac4bf', '#e2dccc', '#82deec'][tool],
+          }),
+        );
+      head.position.y = 0.23;
+      head.rotation.z = 0.13;
+      pick.add(handle, head);
+      pick.position.set(0, 0.22, -0.38);
+      pick.rotation.z = -0.35;
+      pick.visible = false;
+      this.held.add(pick);
+      this.heldPick = pick;
+    } else this.heldPick = null;
+    this.hand.add(this.held);
   }
   buildChunk(k) {
     const [cq, cr] = k.split(',').map(Number),
@@ -246,7 +368,8 @@ export class Graphics {
       colors = [],
       glassPositions = [],
       glassColors = [];
-    const world = this.world;
+    const world = this.world,
+      origin = axialToWorld(cq * 8, cr * 8);
     let transparent = false;
     const tri = (a, b, c, color) => {
       const pp = transparent ? glassPositions : positions,
@@ -256,17 +379,19 @@ export class Graphics {
     };
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++)
-        for (let y = 0; y <= 32; y++) {
+        for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
-          if (!type) continue;
+          if (!type || type === 'portal' || type === 'endportal') continue;
           transparent = type === 'glass';
           const data = BLOCKS[type],
-            p = axialToWorld(q, r),
+            absolute = axialToWorld(q, r),
+            p = { x: absolute.x - origin.x, z: absolute.z - origin.z },
             varn = 0.92 + hash(q, y, r) * 0.15,
             top = new THREE.Color(data.color).multiplyScalar(varn),
             side = new THREE.Color(data.side).multiplyScalar(varn);
           if (
             !world.get(q, y + 1, r) ||
+            BLOCKS[world.get(q, y + 1, r)]?.nonSolid ||
             (type !== 'glass' && world.get(q, y + 1, r) === 'glass')
           ) {
             for (let i = 0; i < 6; i++) {
@@ -289,6 +414,7 @@ export class Graphics {
           if (
             y > 0 &&
             (!world.get(q, y - 1, r) ||
+              BLOCKS[world.get(q, y - 1, r)]?.nonSolid ||
               (type !== 'glass' && world.get(q, y - 1, r) === 'glass'))
           )
             for (let i = 0; i < 6; i++)
@@ -305,7 +431,11 @@ export class Graphics {
           for (let i = 0; i < 6; i++) {
             const [dq, dr] = DIRECTIONS[i];
             const neighbor = world.get(q + dq, y, r + dr);
-            if (neighbor && (neighbor !== 'glass' || type === 'glass'))
+            if (
+              neighbor &&
+              !BLOCKS[neighbor]?.nonSolid &&
+              (neighbor !== 'glass' || type === 'glass')
+            )
               continue;
             const a = corners[i],
               b = corners[(i + 1) % 6],
@@ -393,6 +523,7 @@ export class Graphics {
       this.chunks.set(k, mesh);
     }
     mesh.geometry = geo;
+    mesh.position.set(origin.x, 0, origin.z);
     if (glassPositions.length) {
       const glassGeo = new THREE.BufferGeometry();
       glassGeo.setAttribute(
@@ -413,7 +544,19 @@ export class Graphics {
       this.chunkKey(q, r),
       ...DIRECTIONS.map(([a, b]) => this.chunkKey(q + a, r + b)),
     ]);
-    for (const k of keys) this.buildChunk(k);
+    for (const k of keys) if (this.chunks.has(k)) this.buildChunk(k);
+    const pk = q + ',' + y + ',' + r,
+      t = this.world.get(q, y, r);
+    if (this.portalMeshes.has(pk)) {
+      const g = this.portalMeshes.get(pk);
+      g.traverse((o) => {
+        o.geometry?.dispose();
+        o.material?.dispose();
+      });
+      this.decor.remove(g);
+      this.portalMeshes.delete(pk);
+    }
+    if (t === 'portal' || t === 'endportal') this.portal(q, y, r, t);
     this.updateLight(q, y, r);
   }
   updateLight(q, y, r) {
@@ -432,11 +575,27 @@ export class Graphics {
   }
   target() {
     this.ray.setFromCamera(new THREE.Vector2(), this.camera);
-    const hit = this.ray.intersectObjects(this.terrain.children, true)[0];
+    const hit = this.ray.intersectObjects(
+      [...this.terrain.children, ...this.portalMeshes.values()],
+      true,
+    )[0];
     if (!hit) {
       this.outline.visible = false;
       return null;
     }
+    const portal = hit.object.userData.block;
+    if (portal) {
+      const p = axialToWorld(portal.q, portal.r);
+      this.outline.position.set(p.x, portal.y + 1, p.z);
+      this.outline.scale.set(1, 2, 1);
+      this.outline.visible = true;
+      return {
+        ...portal,
+        place: { q: portal.q, y: portal.y + 2, r: portal.r },
+        distance: hit.distance,
+      };
+    }
+    this.outline.scale.set(1, 1, 1);
     const pt = hit.point.clone().addScaledVector(hit.face.normal, -0.035),
       a = worldToAxial(pt.x, pt.z),
       y = Math.floor(pt.y);
@@ -511,20 +670,36 @@ export class Graphics {
       this.cropMeshes.delete(k);
     }
   }
-  frame(dt, time, activated, playing, moving, mining) {
+  frame(dt, time, playing, moving, mining) {
     const phase = (time % 600) / 600,
       day = Math.max(0.08, Math.sin(phase * Math.PI * 2)),
-      sky = new THREE.Color('#122c47').lerp(new THREE.Color('#bbdccc'), day);
+      sky =
+        this.world?.dimension === 'overworld'
+          ? new THREE.Color('#122c47').lerp(new THREE.Color('#bbdccc'), day)
+          : new THREE.Color(
+              DIMENSIONS[this.world?.dimension || 'overworld'].fog,
+            );
     this.scene.background.copy(sky);
     this.scene.fog.color.copy(sky);
-    this.hemi.intensity = 0.45 + day * 1.7;
-    this.sun.intensity = 0.2 + day * 2.4;
+    this.hemi.intensity =
+      this.world?.dimension === 'overworld' ? 0.45 + day * 1.7 : 1.35;
+    this.hemi.color.set(
+      this.world?.dimension === 'nether'
+        ? '#fbb099'
+        : this.world?.dimension === 'end'
+          ? '#c9b5ec'
+          : '#d7f2ea',
+    );
+    this.sun.intensity =
+      this.world?.dimension === 'overworld' ? 0.2 + day * 2.4 : 0.5;
     this.sun.position.set(
       Math.cos(phase * Math.PI * 2) * 50,
       Math.sin(phase * Math.PI * 2) * 60,
       25,
     );
-    this.clouds.position.x = Math.sin(time * 0.006) * 10;
+    this.clouds.position.x =
+      this.camera.position.x + Math.sin(time * 0.006) * 10;
+    this.clouds.position.z = this.camera.position.z;
     this.skyObjects.position.copy(this.camera.position);
     this.sunDisk.position.set(
       Math.cos(phase * Math.PI * 2) * 78,
@@ -534,15 +709,25 @@ export class Graphics {
     this.moonDisk.position.copy(this.sunDisk.position).multiplyScalar(-1);
     this.sunDisk.quaternion.copy(this.camera.quaternion);
     this.moonDisk.quaternion.copy(this.camera.quaternion);
-    this.stars.material.opacity = Math.max(0, 1 - day * 2.5);
-    this.water.position.y = 3.12 + Math.sin(time * 0.7) * 0.025;
-    this.beaconMeshes.forEach((b, i) => {
-      b.gem.rotation.y = time * 0.7;
-      b.gem.position.y = 1.5 + Math.sin(time * 1.5 + i) * 0.15;
-      b.ring.rotation.z = time * 0.25;
-      b.beam.visible = activated.includes(i);
-      b.gem.material.emissiveIntensity = activated.includes(i) ? 2 : 0.25;
-    });
+    this.stars.material.opacity =
+      this.world?.dimension === 'end' ? 0.9 : Math.max(0, 1 - day * 2.5);
+    this.water.position.set(
+      this.camera.position.x,
+      (DIMENSIONS[this.world?.dimension || 'overworld'].liquid || 0) +
+        Math.sin(time * 0.7) * 0.025,
+      this.camera.position.z,
+    );
+    for (const g of this.portalMeshes?.values() || [])
+      for (const child of g.children) {
+        if (child.userData.spin) child.rotation.z = time * child.userData.spin;
+        if (child.userData.shimmer)
+          child.material.opacity = 0.28 + Math.sin(time * 2) * 0.1;
+      }
+    for (const g of this.cropMeshes.values())
+      g.children.forEach(
+        (blade, i) =>
+          (blade.rotation.z = Math.sin(time * 1.4 + g.position.x + i) * 0.07),
+      );
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= dt;
@@ -558,16 +743,35 @@ export class Graphics {
       }
     }
     this.hand.visible = playing;
-    this.hand.rotation.x = mining ? Math.sin(time * 25) * 0.5 : 0;
+    this.swingTime = Math.max(0, (this.swingTime || 0) - dt);
+    this.hand.rotation.x = mining
+      ? Math.sin(time * 22) * 0.55
+      : this.swingTime > 0
+        ? Math.sin((this.swingTime / 0.28) * Math.PI) * 0.7
+        : 0;
+    this.hand.rotation.z = moving ? Math.sin(time * 5.5) * 0.035 : 0;
+    if (this.held) {
+      this.held.children[0].visible = !mining || !this.heldPick;
+      if (this.heldPick) this.heldPick.visible = mining;
+    }
+    this.outline.material.opacity = mining
+      ? 0.65 + Math.sin(time * 22) * 0.3
+      : 0.8;
     this.hand.position.y = -0.32 + (moving ? Math.sin(time * 11) * 0.018 : 0);
     this.renderer.render(this.scene, this.camera);
   }
 }
-export function createCreature(kind) {
+export function createCreature(kind, dimension = 'overworld') {
   const group = new THREE.Group();
   const hostile = kind === 'crawler';
   const mat = new THREE.MeshLambertMaterial({
-      color: hostile ? '#719d96' : '#e7d8b7',
+      color: hostile
+        ? dimension === 'nether'
+          ? '#cd7953'
+          : dimension === 'end'
+            ? '#8674ae'
+            : '#719d96'
+        : '#e7d8b7',
     }),
     dark = new THREE.MeshLambertMaterial({
       color: hostile ? '#354e59' : '#8e7962',
