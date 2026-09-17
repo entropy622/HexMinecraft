@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createTextures } from './textures.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -11,6 +12,7 @@ const corners = Array.from({ length: 6 }, (_, i) => [
   Math.cos(((i * 60 - 30) * Math.PI) / 180),
   Math.sin(((i * 60 - 30) * Math.PI) / 180),
 ]);
+let sharedTextures;
 // Counter-clockwise axial neighbors correspond to the outward side normals.
 export class Graphics {
   constructor(canvas) {
@@ -23,7 +25,10 @@ export class Graphics {
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#b5d9cf');
     this.scene.fog = new THREE.Fog('#b5d9cf', 22, 44);
@@ -34,17 +39,40 @@ export class Graphics {
       220,
     );
     this.camera.rotation.order = 'YXZ';
-    this.hemi = new THREE.HemisphereLight('#d7f2ea', '#6b7650', 2.3);
+    this.hemi = new THREE.HemisphereLight('#d7f2ea', '#a8b7c5', 2.3);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight('#ffe3ad', 2.7);
     this.sun.position.set(30, 55, 20);
-    this.scene.add(this.sun);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(1024, 1024);
+    Object.assign(this.sun.shadow.camera, {
+      left: -24,
+      right: 24,
+      top: 24,
+      bottom: -24,
+      near: 1,
+      far: 150,
+    });
+    this.sun.shadow.normalBias = 0.06;
+    this.sun.shadow.bias = -0.0002;
+    this.scene.add(this.sun, this.sun.target);
+    this.textures = createTextures();
+    sharedTextures = this.textures;
     this.terrain = new THREE.Group();
     this.scene.add(this.terrain);
     this.chunks = new Map();
-    this.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.material = new THREE.MeshLambertMaterial({
+      vertexColors: true,
+      map: this.textures.atlas,
+    });
+    this.foliageMaterial = new THREE.MeshLambertMaterial({
+      map: this.textures.atlas,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    });
     this.glassMaterial = new THREE.MeshPhongMaterial({
       vertexColors: true,
+      map: this.textures.atlas,
       transparent: true,
       opacity: 0.38,
       shininess: 95,
@@ -58,35 +86,68 @@ export class Graphics {
         new THREE.CylinderGeometry(1.009, 1.009, 1.009, 6),
       ),
       new THREE.LineBasicMaterial({
-        color: '#fff1b4',
+        color: '#172019',
         transparent: true,
         opacity: 0.95,
       }),
     );
     this.outline.visible = false;
     this.scene.add(this.outline);
+    this.waterTexture = this.textures.single('water');
+    this.lavaTexture = this.textures.single('lava');
+    for (const t of [this.waterTexture, this.lavaTexture]) {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(175, 175);
+    }
     const waterMat = new THREE.MeshPhongMaterial({
-      color: '#59a9ae',
+      map: this.waterTexture,
+      color: '#ffffff',
       transparent: true,
       opacity: 0.68,
-      shininess: 85,
+      shininess: 25,
       depthWrite: false,
     });
     this.water = new THREE.Mesh(new THREE.PlaneGeometry(350, 350), waterMat);
     this.water.rotation.x = -Math.PI / 2;
     this.water.position.y = 3.15;
     this.scene.add(this.water);
+    this.sky = new THREE.Mesh(
+      new THREE.SphereGeometry(180, 24, 12),
+      new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        depthWrite: false,
+        uniforms: {
+          zenith: { value: new THREE.Color('#4b91df') },
+          horizon: { value: new THREE.Color('#c0d9ed') },
+        },
+        vertexShader:
+          'varying vec3 skyDirection; void main(){skyDirection=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+        fragmentShader: `
+          uniform vec3 zenith; uniform vec3 horizon;
+          varying vec3 skyDirection;
+          void main() {
+            float h = pow(max(normalize(skyDirection).y, 0.0), 0.65);
+            gl_FragColor = vec4(mix(horizon, zenith, h), 1.0);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }
+        `,
+      }),
+    );
+    this.sky.renderOrder = -10;
+    this.scene.add(this.sky);
     this.clouds = new THREE.Group();
     const cloudMat = new THREE.MeshLambertMaterial({
-      color: '#fff5d9',
+      color: '#ffffff',
+      fog: false,
       transparent: true,
-      opacity: 0.83,
+      opacity: 0.88,
     });
     for (let i = 0; i < 20; i++) {
       const cloud = new THREE.Group();
       for (let j = 0; j < 4; j++) {
         const m = new THREE.Mesh(
-          new THREE.CylinderGeometry(3 + (j % 2), 3 + (j % 2), 0.7, 6),
+          new THREE.BoxGeometry(7 + (j % 2) * 3, 1.2, 5 + (j % 2) * 3),
           cloudMat,
         );
         m.position.set(j * 3, Math.sin(j) * 0.4, (j % 2) * 2);
@@ -94,7 +155,7 @@ export class Graphics {
       }
       cloud.position.set(
         hash(i, 1) * 170 - 85,
-        29 + hash(i, 2) * 8,
+        42 + hash(i, 2) * 8,
         hash(i, 3) * 150 - 75,
       );
       this.clouds.add(cloud);
@@ -167,6 +228,18 @@ export class Graphics {
       this.renderer.setSize(innerWidth, innerHeight);
     });
   }
+  setQuality(value) {
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, value));
+    this.renderer.shadowMap.enabled = value >= 1;
+    this.renderer.shadowMap.needsUpdate = true;
+    this.scene.traverse((object) => {
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      for (const material of materials)
+        if (material) material.needsUpdate = true;
+    });
+  }
   chunkKey(q, r) {
     return `${Math.floor(q / 8)},${Math.floor(r / 8)}`;
   }
@@ -198,9 +271,18 @@ export class Graphics {
     this.sync(q, r, true);
     const d = DIMENSIONS[world.dimension];
     this.water.visible = d.liquid !== null;
-    this.water.material.color.set(d.liquidColor);
+    this.water.material.color.set('#ffffff');
+    this.water.material.map =
+      world.dimension === 'nether' ? this.lavaTexture : this.waterTexture;
+    this.water.material.emissive.set(
+      world.dimension === 'nether' ? '#b83308' : '#000000',
+    );
+    this.water.material.emissiveMap =
+      world.dimension === 'nether' ? this.lavaTexture : null;
+    this.water.material.needsUpdate = true;
     this.water.material.opacity = world.dimension === 'nether' ? 0.96 : 0.68;
     this.clouds.visible = world.dimension === 'overworld';
+    this.sky.visible = world.dimension === 'overworld';
     this.skyObjects.visible = world.dimension !== 'nether';
     this.sunDisk.visible = world.dimension === 'overworld';
     this.moonDisk.visible = world.dimension === 'overworld';
@@ -246,7 +328,9 @@ export class Graphics {
         if (!wanted.has(this.chunkKey(x, z))) {
           g.traverse((o) => {
             o.geometry?.dispose();
-            o.material?.dispose();
+            if (Array.isArray(o.material))
+              o.material.forEach((m) => m.dispose());
+            else o.material?.dispose();
           });
           this.decor.remove(g);
           this.portalMeshes.delete(k);
@@ -325,14 +409,18 @@ export class Graphics {
     if (this.held) {
       this.held.traverse((o) => {
         o.geometry?.dispose();
-        o.material?.dispose();
+        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+        else o.material?.dispose();
       });
       this.hand.remove(this.held);
     }
     this.held = new THREE.Group();
-    const material = new THREE.MeshLambertMaterial({
-      color: BLOCKS[id]?.color || '#d4bd95',
-    });
+    const material = ['side', 'top', 'top'].map(
+      (face) =>
+        new THREE.MeshLambertMaterial({
+          map: this.textures.single((BLOCKS[id] ? id : 'dirt') + ':' + face),
+        }),
+    );
     const block = new THREE.Mesh(
       new THREE.CylinderGeometry(0.18, 0.18, 0.24, 6),
       material,
@@ -364,152 +452,164 @@ export class Graphics {
   }
   buildChunk(k) {
     const [cq, cr] = k.split(',').map(Number),
-      positions = [],
-      colors = [],
-      glassPositions = [],
-      glassColors = [];
-    const world = this.world,
+      world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
-    let transparent = false;
-    const tri = (a, b, c, color) => {
-      const pp = transparent ? glassPositions : positions,
-        cc = transparent ? glassColors : colors;
-      pp.push(...a, ...b, ...c);
-      for (let i = 0; i < 3; i++) cc.push(color.r, color.g, color.b);
+    const solid = { p: [], c: [], uv: [] },
+      glass = { p: [], c: [], uv: [] },
+      plants = { p: [], c: [], uv: [] };
+    let out = solid;
+    const tri = (verts, uvs, tile, shade = 1, ao = [1, 1, 1]) => {
+      for (let i = 0; i < 3; i++) {
+        out.p.push(...verts[i]);
+        out.uv.push(...this.textures.uv(tile, ...uvs[i]));
+        out.c.push(shade * ao[i], shade * ao[i], shade * ao[i]);
+      }
+    };
+    const opaque = (q, y, r) => {
+      const t = world.get(q, y, r);
+      return t && t !== 'glass' && !BLOCKS[t]?.nonSolid;
     };
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++)
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
-          if (!type || type === 'portal' || type === 'endportal') continue;
-          transparent = type === 'glass';
-          const data = BLOCKS[type],
-            absolute = axialToWorld(q, r),
-            p = { x: absolute.x - origin.x, z: absolute.z - origin.z },
-            varn = 0.92 + hash(q, y, r) * 0.15,
-            top = new THREE.Color(data.color).multiplyScalar(varn),
-            side = new THREE.Color(data.side).multiplyScalar(varn);
-          if (
-            !world.get(q, y + 1, r) ||
-            BLOCKS[world.get(q, y + 1, r)]?.nonSolid ||
-            (type !== 'glass' && world.get(q, y + 1, r) === 'glass')
-          ) {
+          if (!type || BLOCKS[type].nonSolid) continue;
+          out = type === 'glass' ? glass : solid;
+          const abs = axialToWorld(q, r),
+            x = abs.x - origin.x,
+            z = abs.z - origin.z;
+          const visible = (q, y, r) =>
+            !opaque(q, y, r) &&
+            (type !== 'glass' || world.get(q, y, r) !== 'glass');
+          const tint = 0.94 + hash(q, y, r) * 0.06;
+          const capUV = (i) => [
+            (corners[i][0] + 1) / 2,
+            (corners[i][1] + 1) / 2,
+          ];
+          const cornerAO = (i, level) => {
+            const a = DIRECTIONS[i],
+              b = DIRECTIONS[(i + 5) % 6];
+            return (
+              1 -
+              0.18 *
+                (Number(!!opaque(q + a[0], level, r + a[1])) +
+                  Number(!!opaque(q + b[0], level, r + b[1])))
+            );
+          };
+          if (visible(q, y + 1, r))
             for (let i = 0; i < 6; i++) {
-              const a = corners[i],
-                b = corners[(i + 1) % 6],
-                a3 = [p.x + a[0], y + 1, p.z + a[1]],
-                b3 = [p.x + b[0], y + 1, p.z + b[1]],
-                ai = [p.x + a[0] * 0.94, y + 1.006, p.z + a[1] * 0.94],
-                bi = [p.x + b[0] * 0.94, y + 1.006, p.z + b[1] * 0.94];
+              const j = (i + 1) % 6,
+                a = corners[i],
+                b = corners[j];
               tri(
-                [p.x, y + 1.006, p.z],
-                bi,
-                ai,
-                top.clone().multiplyScalar(1 + (i % 2) * 0.018),
-              );
-              tri(ai, bi, b3, top.clone().multiplyScalar(0.86));
-              tri(ai, b3, a3, top.clone().multiplyScalar(0.86));
-            }
-          }
-          if (
-            y > 0 &&
-            (!world.get(q, y - 1, r) ||
-              BLOCKS[world.get(q, y - 1, r)]?.nonSolid ||
-              (type !== 'glass' && world.get(q, y - 1, r) === 'glass'))
-          )
-            for (let i = 0; i < 6; i++)
-              tri(
-                [p.x, y, p.z],
-                [p.x + corners[i][0], y, p.z + corners[i][1]],
                 [
-                  p.x + corners[(i + 1) % 6][0],
-                  y,
-                  p.z + corners[(i + 1) % 6][1],
+                  [x, y + 1, z],
+                  [x + b[0], y + 1, z + b[1]],
+                  [x + a[0], y + 1, z + a[1]],
                 ],
-                side,
+                [[0.5, 0.5], capUV(j), capUV(i)],
+                type + ':top',
+                tint,
+                [1, cornerAO(j, y + 1), cornerAO(i, y + 1)],
               );
+            }
+          if (y > 0 && visible(q, y - 1, r))
+            for (let i = 0; i < 6; i++) {
+              const j = (i + 1) % 6,
+                a = corners[i],
+                b = corners[j];
+              tri(
+                [
+                  [x, y, z],
+                  [x + a[0], y, z + a[1]],
+                  [x + b[0], y, z + b[1]],
+                ],
+                [[0.5, 0.5], capUV(i), capUV(j)],
+                type + ':top',
+                tint * 0.65,
+              );
+            }
           for (let i = 0; i < 6; i++) {
             const [dq, dr] = DIRECTIONS[i];
-            const neighbor = world.get(q + dq, y, r + dr);
-            if (
-              neighbor &&
-              !BLOCKS[neighbor]?.nonSolid &&
-              (neighbor !== 'glass' || type === 'glass')
-            )
-              continue;
-            const a = corners[i],
-              b = corners[(i + 1) % 6],
-              v0 = [p.x + a[0], y, p.z + a[1]],
-              v1 = [p.x + b[0], y, p.z + b[1]],
-              v2 = [p.x + b[0], y + 1, p.z + b[1]],
-              v3 = [p.x + a[0], y + 1, p.z + a[1]];
-            const c = side.clone().multiplyScalar(0.87 + i * 0.035);
-            tri(v0, v2, v1, c);
-            tri(v0, v3, v2, c);
-            if (type === 'grass') {
-              const ox = (dq + dr * 0.5) * 0.002,
-                oz = dr * 0.866 * 0.002,
-                l0 = [v0[0] + ox, y + 0.82, v0[2] + oz],
-                l1 = [v1[0] + ox, y + 0.82, v1[2] + oz],
-                t0 = [v3[0] + ox, y + 1, v3[2] + oz],
-                t1 = [v2[0] + ox, y + 1, v2[2] + oz];
-              tri(l0, t0, t1, top);
-              tri(l0, t1, l1, top);
-            }
-            if (
+            if (!visible(q + dq, y, r + dr)) continue;
+            const j = (i + 1) % 6,
+              a = corners[i],
+              b = corners[j],
+              v0 = [x + a[0], y, z + a[1]],
+              v1 = [x + b[0], y, z + b[1]],
+              v2 = [x + b[0], y + 1, z + b[1]],
+              v3 = [x + a[0], y + 1, z + a[1]];
+            const bottom = opaque(q + dq, y - 1, r + dr) ? 0.78 : 1;
+            const shade = tint * (0.82 + Math.cos((i * Math.PI) / 3) * 0.07);
+            tri(
+              [v0, v2, v1],
               [
-                'wood',
-                'planks',
-                'brick',
-                'workbench',
-                'chest',
-                'furnace',
-              ].includes(type)
-            ) {
-              const at = y + (type === 'wood' ? 0.22 : 0.48),
-                t = 0.035,
-                aa = [
-                  v0[0] * 0.999 + p.x * 0.001,
-                  at,
-                  v0[2] * 0.999 + p.z * 0.001,
-                ],
-                bb = [
-                  v1[0] * 0.999 + p.x * 0.001,
-                  at,
-                  v1[2] * 0.999 + p.z * 0.001,
-                ];
-              const offset = new THREE.Vector3(
-                dq + dr * 0.5,
-                0,
-                dr * 0.866,
-              ).multiplyScalar(0.005);
-              aa[0] += offset.x;
-              aa[2] += offset.z;
-              bb[0] += offset.x;
-              bb[2] += offset.z;
+                [0, 0],
+                [1, 1],
+                [1, 0],
+              ],
+              type + ':side',
+              shade,
+              [bottom, cornerAO(j, y + 1), bottom],
+            );
+            tri(
+              [v0, v3, v2],
+              [
+                [0, 0],
+                [0, 1],
+                [1, 1],
+              ],
+              type + ':side',
+              shade,
+              [bottom, cornerAO(i, y + 1), cornerAO(j, y + 1)],
+            );
+          }
+          if (
+            type === 'grass' &&
+            !world.get(q, y + 1, r) &&
+            hash(q, 71, r) > 0.65
+          ) {
+            out = plants;
+            const tile = hash(q, 92, r) > 0.9 ? 'flower' : 'tuft';
+            for (let i = 0; i < 3; i++) {
+              const angle = (i * Math.PI) / 3,
+                a = Math.cos(angle) * 0.5,
+                b = Math.sin(angle) * 0.5,
+                h = 0.45 + hash(q, 82, r) * 0.35;
+              const v0 = [x - a, y + 1, z - b],
+                v1 = [x + a, y + 1, z + b],
+                v2 = [x + a, y + 1 + h, z + b],
+                v3 = [x - a, y + 1 + h, z - b];
               tri(
-                aa,
-                [bb[0], at + t, bb[2]],
-                bb,
-                c.clone().multiplyScalar(0.6),
+                [v0, v1, v2],
+                [
+                  [0, 0],
+                  [1, 0],
+                  [1, 1],
+                ],
+                tile,
               );
               tri(
-                aa,
-                [aa[0], at + t, aa[2]],
-                [bb[0], at + t, bb[2]],
-                c.clone().multiplyScalar(0.6),
+                [v0, v2, v3],
+                [
+                  [0, 0],
+                  [1, 1],
+                  [0, 1],
+                ],
+                tile,
               );
             }
           }
         }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(positions, 3),
-    );
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geo.computeVertexNormals();
-    geo.computeBoundingSphere();
+    const geometry = (data) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(data.p, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(data.c, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(data.uv, 2));
+      g.computeVertexNormals();
+      g.computeBoundingSphere();
+      return g;
+    };
     let mesh = this.chunks.get(k);
     if (mesh) {
       mesh.geometry.dispose();
@@ -518,26 +618,24 @@ export class Graphics {
         mesh.remove(child);
       }
     } else {
-      mesh = new THREE.Mesh(geo, this.material);
+      mesh = new THREE.Mesh();
       this.terrain.add(mesh);
       this.chunks.set(k, mesh);
     }
-    mesh.geometry = geo;
+    mesh.geometry = geometry(solid);
+    mesh.material = this.material;
     mesh.position.set(origin.x, 0, origin.z);
-    if (glassPositions.length) {
-      const glassGeo = new THREE.BufferGeometry();
-      glassGeo.setAttribute(
-        'position',
-        new THREE.Float32BufferAttribute(glassPositions, 3),
-      );
-      glassGeo.setAttribute(
-        'color',
-        new THREE.Float32BufferAttribute(glassColors, 3),
-      );
-      glassGeo.computeVertexNormals();
-      glassGeo.computeBoundingSphere();
-      mesh.add(new THREE.Mesh(glassGeo, this.glassMaterial));
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    if (glass.p.length)
+      mesh.add(new THREE.Mesh(geometry(glass), this.glassMaterial));
+    if (plants.p.length) {
+      const foliage = new THREE.Mesh(geometry(plants), this.foliageMaterial);
+      foliage.raycast = () => {};
+      foliage.receiveShadow = true;
+      mesh.add(foliage);
     }
+    this.renderer.shadowMap.needsUpdate = true;
   }
   updateBlock(q, y, r) {
     const keys = new Set([
@@ -551,7 +649,8 @@ export class Graphics {
       const g = this.portalMeshes.get(pk);
       g.traverse((o) => {
         o.geometry?.dispose();
-        o.material?.dispose();
+        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+        else o.material?.dispose();
       });
       this.decor.remove(g);
       this.portalMeshes.delete(pk);
@@ -616,7 +715,7 @@ export class Graphics {
     const p = axialToWorld(q, r);
     for (let i = 0; i < 10; i++) {
       const mesh = new THREE.Mesh(
-        new THREE.TetrahedronGeometry(0.065 + Math.random() * 0.065),
+        new THREE.BoxGeometry(0.09, 0.09, 0.09),
         new THREE.MeshBasicMaterial({ color }),
       );
       mesh.position.set(p.x, y + 0.6, p.z);
@@ -675,28 +774,46 @@ export class Graphics {
       day = Math.max(0.08, Math.sin(phase * Math.PI * 2)),
       sky =
         this.world?.dimension === 'overworld'
-          ? new THREE.Color('#122c47').lerp(new THREE.Color('#bbdccc'), day)
+          ? new THREE.Color('#122c47').lerp(new THREE.Color('#79b6ee'), day)
           : new THREE.Color(
               DIMENSIONS[this.world?.dimension || 'overworld'].fog,
             );
-    this.scene.background.copy(sky);
-    this.scene.fog.color.copy(sky);
+    const horizon =
+      this.world?.dimension === 'overworld'
+        ? new THREE.Color('#132239').lerp(new THREE.Color('#c2dbee'), day)
+        : sky;
+    this.scene.background.copy(horizon);
+    this.scene.fog.color.copy(horizon);
+    this.sky.position.copy(this.camera.position);
+    this.sky.material.uniforms.zenith.value.copy(sky);
+    this.sky.material.uniforms.horizon.value.copy(horizon);
     this.hemi.intensity =
-      this.world?.dimension === 'overworld' ? 0.45 + day * 1.7 : 1.35;
+      this.world?.dimension === 'overworld' ? 0.5 + day * 1.1 : 1.15;
     this.hemi.color.set(
       this.world?.dimension === 'nether'
         ? '#fbb099'
         : this.world?.dimension === 'end'
           ? '#c9b5ec'
-          : '#d7f2ea',
+          : '#daeaff',
     );
     this.sun.intensity =
-      this.world?.dimension === 'overworld' ? 0.2 + day * 2.4 : 0.5;
+      this.world?.dimension === 'overworld' ? 0.25 + day * 2.0 : 0.5;
     this.sun.position.set(
-      Math.cos(phase * Math.PI * 2) * 50,
-      Math.sin(phase * Math.PI * 2) * 60,
-      25,
+      this.camera.position.x + Math.cos(phase * Math.PI * 2) * 50,
+      this.camera.position.y + Math.max(15, Math.sin(phase * Math.PI * 2) * 60),
+      this.camera.position.z + 25,
     );
+    this.sun.target.position.copy(this.camera.position);
+    this.shadowTimer = (this.shadowTimer || 0) - dt;
+    if (this.shadowTimer <= 0) {
+      this.renderer.shadowMap.needsUpdate = true;
+      this.shadowTimer = 0.25;
+    }
+    for (const t of [this.waterTexture, this.lavaTexture])
+      t.offset.set(
+        this.camera.position.x / 2 + time * 0.015,
+        -this.camera.position.z / 2 + time * 0.008,
+      );
     this.clouds.position.x =
       this.camera.position.x + Math.sin(time * 0.006) * 10;
     this.clouds.position.z = this.camera.position.z;
@@ -765,12 +882,21 @@ export function createCreature(kind, dimension = 'overworld') {
   const group = new THREE.Group();
   const hostile = kind === 'crawler';
   const mat = new THREE.MeshLambertMaterial({
+      map: sharedTextures?.single(
+        hostile
+          ? dimension === 'nether'
+            ? 'netherrack:side'
+            : dimension === 'end'
+              ? 'basalt:side'
+              : 'leaves:side'
+          : 'snow:top',
+      ),
       color: hostile
         ? dimension === 'nether'
-          ? '#cd7953'
+          ? '#ffe0bf'
           : dimension === 'end'
-            ? '#8674ae'
-            : '#719d96'
+            ? '#ccb4ed'
+            : '#c5dac1'
         : '#e7d8b7',
     }),
     dark = new THREE.MeshLambertMaterial({
@@ -811,5 +937,17 @@ export function createCreature(kind, dimension = 'overworld') {
       leg.position.set(x, 0.23, z);
       group.add(leg);
     }
+  const muzzle = new THREE.Mesh(
+    new THREE.BoxGeometry(0.24, 0.15, 0.12),
+    new THREE.MeshLambertMaterial({ color: hostile ? '#354038' : '#c4b4a0' }),
+  );
+  muzzle.position.set(0, 0.9, hostile ? -0.42 : -0.69);
+  group.add(muzzle);
+  group.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
   return group;
 }
