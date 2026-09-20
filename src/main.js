@@ -1,3 +1,5 @@
+import { features as villageFeatures, ROLES, trade } from './villages.js';
+import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
 import './style.css';
 import * as THREE from 'three';
@@ -33,7 +35,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.4 — LET IT FLOW</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.5 — NEIGHBORS IN THE WILD</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -45,13 +47,17 @@ $('#app').innerHTML = `
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <span class="tiny">/ 点击建筑材料或桶，装入当前快捷栏</span></div><div class="inventory-grid" id="inventory"></div><p class="panel-note">工具会自动装备 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换方块</p></div></div></section>
  <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">清晰</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
- <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门<br>地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
+ <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄<br>地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
 
-let graphics;
+let graphics,
+  villagers,
+  villagerTarget = null,
+  tradingWith = null;
 try {
   graphics = new Graphics($('#world'));
+  villagers = new Villagers(graphics.scene);
 } catch (error) {
   $('#loading').innerHTML =
     '<h2>世界还没能打开</h2><p>请使用支持 WebGL 的现代浏览器，并启用硬件加速。</p>';
@@ -212,6 +218,9 @@ function startGame(mode = false, save = null) {
     legacy: data.legacy,
     edits: data.edits,
     fluids: data.fluids,
+    villageExclusions: data.villageExclusions,
+    villageFeatures: data.villageFeatures,
+    villageTrades: data.villageTrades,
     load: false,
   });
   inventory = save ? { ...save.inventory } : { dirt: 12, apple: 3, seed: 3 };
@@ -271,6 +280,31 @@ function captureDimension() {
   };
 }
 function syncDecor() {
+  const a = worldToAxial(camera.position.x, camera.position.z);
+  villagers.sync(world, a.q, a.r);
+  for (const v of world.villages(a.q, a.r, 32)) {
+    const f = villageFeatures(v);
+    for (const p of f.crops) {
+      const k = key(p.q, p.y, p.r),
+        id = 'crop:' + k;
+      if (!world.loaded(p.q, p.r) || world.villageFeatures.has(id)) continue;
+      world.villageFeatures.add(id);
+      if (
+        world.get(p.q, p.y, p.r) === 'farmland' &&
+        !world.get(p.q, p.y + 1, p.r) &&
+        !crops.has(k)
+      )
+        crops.set(k, time - 95);
+    }
+    for (const p of f.chests) {
+      const k = key(p.q, p.y, p.r),
+        id = 'chest:' + k;
+      if (!world.loaded(p.q, p.r) || world.villageFeatures.has(id)) continue;
+      world.villageFeatures.add(id);
+      if (world.get(p.q, p.y, p.r) === 'chest' && !chests.has(k))
+        chests.set(k, { ...p.loot });
+    }
+  }
   for (const [k, t] of crops) {
     const [q, , r] = k.split(',').map(Number);
     if (world.loaded(q, r)) graphics.crop(k, time - t);
@@ -288,6 +322,9 @@ function travel(to) {
     legacy: data.legacy,
     edits: data.edits,
     fluids: data.fluids,
+    villageExclusions: data.villageExclusions,
+    villageFeatures: data.villageFeatures,
+    villageTrades: data.villageTrades,
     load: false,
   });
   crops = new Map(data.crops);
@@ -317,6 +354,8 @@ function travel(to) {
   camera.position.fromArray(destination);
   vy = 0;
   target = null;
+  villagerTarget = null;
+  tradingWith = null;
   leftDown = false;
   keys.clear();
   mining = 0;
@@ -554,7 +593,10 @@ function updateHUD() {
   $('#location').innerHTML =
     `${DIMENSIONS[dimension].name} · 种子 ${world.seed}<br>Q ${a.q} / R ${a.r} / Y ${Math.floor(playerFeet())}<br>${creative ? '空格 ↑ · Shift ↓' : 'F 食用 · Shift 冲刺'}`;
   $('#dimension-name').textContent = DIMENSIONS[dimension].name;
-  $('#biome-name').textContent = world.biome(a.q, a.r);
+  const settlement = world
+    .villages(a.q, a.r, 0)
+    .find((v) => hexDistance(a.q - v.q, a.r - v.r) <= 12);
+  $('#biome-name').textContent = settlement?.name || world.biome(a.q, a.r);
   $('#compass').textContent = [
     '北 N',
     '西北 NW',
@@ -581,7 +623,7 @@ function addItem(id, n = 1) {
   updateHUD();
 }
 function mine(dt) {
-  if (!target?.type || target.fluid) {
+  if (!target?.type || target.fluid || villagerTarget) {
     mining = 0;
     return;
   }
@@ -740,6 +782,12 @@ function place() {
 }
 function interact() {
   if (!playing) return;
+  if (villagerTarget) {
+    tradingWith = villagerTarget;
+    openOverlay('#station-overlay');
+    renderTrade();
+    return;
+  }
   if (useBucket()) return;
   if (!target) return;
   const { q, y, r, type } = target,
@@ -832,6 +880,53 @@ function interact() {
   }
   openOverlay('#craft-overlay');
 }
+function renderTrade() {
+  if (!tradingWith) return;
+  const n = tradingWith,
+    day = Math.floor(time / 600);
+  $('#station-title').textContent = n.village.name + ' · ' + ROLES[n.role].name;
+  const items = (obj) =>
+    Object.entries(obj)
+      .map(([id, count]) => icon(id) + ITEMS[id].name + ' ×' + count)
+      .join(' ');
+  $('#station-content').innerHTML =
+    `<p>绿宝石 ${inventory.emerald || 0} · 每项交易每天可进行 4 次。</p><div class="village-trades">${ROLES[
+      n.role
+    ].trades
+      .map((o, i) => {
+        const stock = world.villageTrades.get(n.id + '/' + i),
+          left = 4 - (stock?.day === day ? stock.used : 0),
+          available =
+            creative ||
+            (left > 0 &&
+              Object.entries(o.cost).every(
+                ([id, n]) => (inventory[id] || 0) >= n,
+              ));
+        return `<button data-trade="${i}" ${available ? '' : 'disabled'}>${items(o.cost)} <span>→</span> ${items(o.give)}<small>今日剩余 ${left}</small></button>`;
+      })
+      .join(
+        '',
+      )}</div><p class="panel-note">村民白天在村中活动，夜晚返回住处。收获农田、开采矿物或采集原木，都可以换取物资。</p>`;
+}
+$('#station-content').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-trade]');
+  if (!b || !tradingWith) return;
+  if (
+    trade(
+      world,
+      tradingWith,
+      Number(b.dataset.trade),
+      inventory,
+      time,
+      creative,
+    )
+  ) {
+    soundFX.play('craft');
+    updateHUD();
+    saveGame();
+    renderTrade();
+  }
+});
 function renderFurnace() {
   const job = furnaceJobs.get(stationKey);
   $('#station-title').textContent = '六棱熔炉';
@@ -1152,6 +1247,19 @@ function drawMap(canvas, full = false) {
       ctx.textAlign = 'center';
       ctx.fillText('◈', cx + p.x * scale, cy + p.z * scale);
     }
+  const at = worldToAxial(camera.position.x, camera.position.z);
+  for (const v of world.villages(at.q, at.r, full ? 65 : 35)) {
+    if (!world.loaded(v.q, v.r)) continue;
+    const p = axialToWorld(v.q, v.r);
+    ctx.fillStyle = '#ffe4a1';
+    ctx.font = full ? '16px sans-serif' : '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⌂', cx + p.x * scale, cy + p.z * scale);
+    if (full) {
+      ctx.font = '11px sans-serif';
+      ctx.fillText(v.name, cx + p.x * scale, cy + p.z * scale + 15);
+    }
+  }
   const x = cx + camera.position.x * scale,
     y = cy + camera.position.z * scale;
   ctx.save();
@@ -1560,6 +1668,16 @@ function frame(now) {
           ? ' · E 交互'
           : '')
       : '';
+    villagers.frame(dt, time, camera);
+    villagerTarget = villagers.target(camera, target?.distance ?? Infinity);
+    if (villagerTarget) {
+      $('#target').classList.remove('hidden');
+      $('#target').textContent =
+        villagerTarget.village.name +
+        ' · ' +
+        ROLES[villagerTarget.role].name +
+        ' · E 交易';
+    }
     updateMobs(dt);
     simulationAccumulator += dt;
     if (simulationAccumulator > 0.5) {
@@ -1670,6 +1788,7 @@ if (import.meta.env.DEV)
     setPlaying: (v) => (playing = v),
     setTool: (t) => (tool = t),
     damage: hurt,
+    villagers,
     graphics,
   };
 

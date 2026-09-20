@@ -123,6 +123,14 @@ export class Fluids {
                   level: 0,
                   falling: false,
                 });
+    for (const p of this.world.villageSources(cq, cr))
+      if (this.open(p.q, p.y, p.r))
+        cells.set(key(p.q, p.y, p.r), {
+          type: 'water',
+          source: true,
+          level: 0,
+          falling: false,
+        });
     for (const [k, f] of this.editChunks.get(ck) || []) {
       const [q, y, r] = k.split(',').map(Number);
       if (f && this.open(q, y, r)) cells.set(k, { ...f });

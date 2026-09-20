@@ -132,6 +132,7 @@ export const BLOCKS = {
 };
 export const ITEMS = {
   ...BLOCKS,
+  emerald: { name: '绿宝石', color: '#59d982' },
   bucket: { name: '铁桶', color: '#c8d1d5', bucket: 'empty' },
   waterBucket: { name: '水桶', color: '#62a6ee', bucket: 'water' },
   lavaBucket: { name: '岩浆桶', color: '#ff792b', bucket: 'lava' },

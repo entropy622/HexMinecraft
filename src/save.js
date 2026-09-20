@@ -117,6 +117,33 @@ export function validateSave(input) {
       (d.respawn && !position(d.respawn))
     )
       throw Error('维度位置无效');
+    for (const field of ['villageExclusions', 'villageFeatures'])
+      if (
+        d[field] !== undefined &&
+        (!Array.isArray(d[field]) ||
+          d[field].length > 200000 ||
+          d[field].some((x) => typeof x !== 'string' || x.length > 100))
+      )
+        throw Error('村庄数据无效');
+    if (
+      d.villageTrades !== undefined &&
+      (!Array.isArray(d.villageTrades) ||
+        d.villageTrades.length > 200000 ||
+        d.villageTrades.some(
+          (e) =>
+            !Array.isArray(e) ||
+            e.length !== 2 ||
+            typeof e[0] !== 'string' ||
+            e[0].length > 100 ||
+            !e[1] ||
+            !Number.isInteger(e[1].day) ||
+            e[1].day < 0 ||
+            !Number.isInteger(e[1].used) ||
+            e[1].used < 0 ||
+            e[1].used > 4,
+        ))
+    )
+      throw Error('交易记录无效');
     if (d.legacy !== undefined && typeof d.legacy !== 'boolean')
       throw Error('旧世界数据无效');
     if (

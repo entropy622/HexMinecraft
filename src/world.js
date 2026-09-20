@@ -1,3 +1,4 @@
+import { villagesNear, villageAt, stampVillage, features } from './villages.js';
 import { Fluids } from './fluids.js';
 import {
   World as LegacyWorld,
@@ -55,6 +56,9 @@ export class World {
     this.center = null;
     this.legacy = options.legacy ? new LegacyWorld(seed) : null;
     this.legacyMode = !!options.legacy;
+    this.villageExclusions = new Set(options.villageExclusions || []);
+    this.villageFeatures = new Set(options.villageFeatures || []);
+    this.villageTrades = new Map(options.villageTrades || []);
     this.maxY = WORLD_HEIGHT;
     this.beacons = [];
     this.fluids = new Fluids(this, options.fluids);
@@ -75,7 +79,24 @@ export class World {
     if (heat < 0.3) return '雪原';
     return wet > 0.53 ? '森林' : '青翠平原';
   }
+  villages(q, r, range = 32) {
+    return villagesNear(this, q, r, range);
+  }
+  villageSources(cq, cr) {
+    return this.villages(cq * 8 + 4, cr * 8 + 4, 8)
+      .flatMap((v) => features(v).water)
+      .filter((p) => Math.floor(p.q / 8) === cq && Math.floor(p.r / 8) === cr);
+  }
   terrainHeight(q, r) {
+    const h = this.naturalHeight(q, r);
+    const v = villageAt(this, q, r, 7);
+    if (!v) return h;
+    const d = hexDistance(q - v.q, r - v.r);
+    return d <= 12
+      ? v.h
+      : Math.round(v.h + (h - v.h) * Math.min(1, (d - 12) / 7));
+  }
+  naturalHeight(q, r) {
     if (this.legacy && hexDistance(q, r) <= 32)
       return this.legacy.terrainHeight(q, r);
     const n = noise(q * 0.055, r * 0.055, this.seed),
@@ -90,6 +111,7 @@ export class World {
     return Math.max(2, Math.floor(3 + n * 18 + detail * 3));
   }
   tree(q, r) {
+    if (villageAt(this, q, r, 3)) return false;
     if (this.dimension === 'end' || hexDistance(q, r) < 5)
       return q === 3 && r === 0 && this.dimension === 'overworld';
     const b = this.biome(q, r),
@@ -237,6 +259,8 @@ export class World {
                     );
             }
         }
+    for (const v of this.villages(cq * 8 + 4, cr * 8 + 4, 8))
+      stampVillage(this, v, cq, cr);
     for (const [k, t] of this.editChunks.get(ck) || []) {
       if (t) this.blocks.set(k, t);
       else this.blocks.delete(k);
@@ -295,6 +319,9 @@ export class World {
       edits: [...this.edits],
       legacy: this.legacyMode,
       fluids: this.fluids.serialize(),
+      villageExclusions: [...this.villageExclusions],
+      villageFeatures: [...this.villageFeatures],
+      villageTrades: [...this.villageTrades],
     };
   }
 }

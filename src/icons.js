@@ -37,6 +37,7 @@ import { ITEMS } from './core.js';
 
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
 const symbols = {
+  emerald: Gem,
   bucket: PaintBucket,
   waterBucket: PaintBucket,
   lavaBucket: PaintBucket,
