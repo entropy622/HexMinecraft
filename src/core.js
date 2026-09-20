@@ -132,6 +132,10 @@ export const BLOCKS = {
 };
 export const ITEMS = {
   ...BLOCKS,
+  bucket: { name: '铁桶', color: '#c8d1d5', bucket: 'empty' },
+  waterBucket: { name: '水桶', color: '#62a6ee', bucket: 'water' },
+  lavaBucket: { name: '岩浆桶', color: '#ff792b', bucket: 'lava' },
+  glowBucket: { name: '萤晶液桶', color: '#7ef8cb', bucket: 'glow' },
   wool: { name: '羊毛', color: '#ede1c7' },
   pick1: { name: '木镐', color: '#cba16a' },
   pick2: { name: '石镐', color: '#a9b8b3' },
@@ -149,6 +153,8 @@ export const ITEMS = {
   meat: { name: '生肉', color: '#cf9786' },
   cooked: { name: '烤肉', color: '#bd875d' },
 };
+export const canEquip = (id) =>
+  Object.hasOwn(BLOCKS, id) || (Object.hasOwn(ITEMS, id) && !!ITEMS[id].bucket);
 export const HOTBAR = [
   'dirt',
   'stone',
@@ -332,6 +338,26 @@ RECIPES.push(
     pattern: ['diamond', 'diamond', 'diamond', 'wood', null, 'wood', null],
     cost: { diamond: 3, wood: 2 },
     requires: 3,
+    station: true,
+  },
+);
+RECIPES.push(
+  {
+    id: 'bucket',
+    count: 1,
+    title: '携带一片水源',
+    desc: '右键或 E 对准液体源装桶，再对准地形倒出。流动液体不能装桶。',
+    pattern: ['ingot', null, 'ingot', null, 'ingot', null, null],
+    cost: { ingot: 3 },
+    station: true,
+  },
+  {
+    id: 'glowBucket',
+    count: 1,
+    title: '流淌的星光',
+    desc: '水桶融入萤晶，得到发光的萤晶液。与岩浆接触会凝成萤石。',
+    pattern: ['crystal', null, 'waterBucket', null, 'crystal', null, null],
+    cost: { waterBucket: 1, crystal: 2 },
     station: true,
   },
 );

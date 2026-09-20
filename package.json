@@ -1,13 +1,13 @@
 {
   "name": "hexwild",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/core.test.js tests/world.test.js",
+    "test": "node --test tests/core.test.js tests/world.test.js tests/fluids.test.js",
     "test:e2e": "playwright test",
     "check": "npm test && npm run build",
     "format": "prettier --write .",

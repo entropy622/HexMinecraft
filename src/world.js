@@ -1,3 +1,4 @@
+import { Fluids } from './fluids.js';
 import {
   World as LegacyWorld,
   BLOCKS,
@@ -56,6 +57,7 @@ export class World {
     this.legacyMode = !!options.legacy;
     this.maxY = WORLD_HEIGHT;
     this.beacons = [];
+    this.fluids = new Fluids(this, options.fluids);
     if (options.edits) this.applyEdits(options.edits);
     if (options.load !== false) this.ensureAround(0, 0);
   }
@@ -114,6 +116,7 @@ export class World {
       if (type) this.blocks.set(k, type);
       else this.blocks.delete(k);
     }
+    if (record && this.loaded(q, r)) this.fluids.changedBlock(q, y, r);
     if (record) {
       this.edits.set(k, type || null);
       const ck = chunkKey(q, r);
@@ -238,6 +241,7 @@ export class World {
       if (t) this.blocks.set(k, t);
       else this.blocks.delete(k);
     }
+    this.fluids.load(cq, cr);
   }
   ensureAround(q, r, radius = VIEW_RADIUS + 1) {
     const cq = Math.floor(q / 8),
@@ -256,6 +260,7 @@ export class World {
     return true;
   }
   unloadChunk(cq, cr) {
+    this.fluids.unload(cq, cr);
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
         this.heights.delete(`${q},${r}`);
@@ -264,6 +269,7 @@ export class World {
     this.chunks.delete(`${cq},${cr}`);
   }
   clearLoaded() {
+    this.fluids.clear();
     this.blocks.clear();
     this.heights.clear();
     this.chunks.clear();
@@ -285,6 +291,10 @@ export class World {
     }
   }
   serialize() {
-    return { edits: [...this.edits], legacy: this.legacyMode };
+    return {
+      edits: [...this.edits],
+      legacy: this.legacyMode,
+      fluids: this.fluids.serialize(),
+    };
   }
 }

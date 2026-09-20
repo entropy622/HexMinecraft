@@ -1,7 +1,9 @@
+import { LIQUIDS } from './fluids.js';
 import {
   ITEMS,
   BLOCKS,
   HOTBAR,
+  canEquip,
   validateSave as validateLegacy,
 } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
@@ -90,6 +92,27 @@ export function validateSave(input) {
     )
       throw Error('地形数据无效');
     if (
+      d.fluids !== undefined &&
+      (!Array.isArray(d.fluids) ||
+        d.fluids.length > 2e6 ||
+        d.fluids.some(
+          (e) =>
+            !Array.isArray(e) ||
+            e.length !== 2 ||
+            !cell(e[0]) ||
+            (e[1] !== null &&
+              (!e[1] ||
+                !Object.hasOwn(LIQUIDS, e[1].type) ||
+                typeof e[1].source !== 'boolean' ||
+                typeof e[1].falling !== 'boolean' ||
+                !Number.isInteger(e[1].level) ||
+                e[1].level < 0 ||
+                e[1].level > LIQUIDS[e[1].type].range ||
+                (e[1].source && (e[1].level !== 0 || e[1].falling)))),
+        ))
+    )
+      throw Error('液体数据无效');
+    if (
       (d.position && !position(d.position)) ||
       (d.respawn && !position(d.respawn))
     )
@@ -123,7 +146,7 @@ export function validateSave(input) {
     s.time < 0 ||
     !Array.isArray(s.hotbar) ||
     s.hotbar.length !== 9 ||
-    !s.hotbar.every((id) => Object.hasOwn(BLOCKS, id) && id !== 'bedrock')
+    !s.hotbar.every((id) => canEquip(id) && id !== 'bedrock')
   )
     throw Error('时间或快捷栏无效');
   return s;

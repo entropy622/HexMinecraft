@@ -1,7 +1,9 @@
+import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
 import { createTextures } from './textures.js';
 import {
   BLOCKS,
+  ITEMS,
   DIRECTIONS,
   axialToWorld,
   hash,
@@ -27,7 +29,7 @@ export class Graphics {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#b5d9cf');
@@ -58,6 +60,7 @@ export class Graphics {
     this.scene.add(this.sun, this.sun.target);
     this.textures = createTextures();
     sharedTextures = this.textures;
+    this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
     this.terrain = new THREE.Group();
     this.scene.add(this.terrain);
     this.chunks = new Map();
@@ -93,24 +96,6 @@ export class Graphics {
     );
     this.outline.visible = false;
     this.scene.add(this.outline);
-    this.waterTexture = this.textures.single('water');
-    this.lavaTexture = this.textures.single('lava');
-    for (const t of [this.waterTexture, this.lavaTexture]) {
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(175, 175);
-    }
-    const waterMat = new THREE.MeshPhongMaterial({
-      map: this.waterTexture,
-      color: '#ffffff',
-      transparent: true,
-      opacity: 0.68,
-      shininess: 25,
-      depthWrite: false,
-    });
-    this.water = new THREE.Mesh(new THREE.PlaneGeometry(350, 350), waterMat);
-    this.water.rotation.x = -Math.PI / 2;
-    this.water.position.y = 3.15;
-    this.scene.add(this.water);
     this.sky = new THREE.Mesh(
       new THREE.SphereGeometry(180, 24, 12),
       new THREE.ShaderMaterial({
@@ -245,6 +230,7 @@ export class Graphics {
   }
   build(world, q = 0, r = 0) {
     this.world = world;
+    this.fluidRenderer.clear();
     for (const mesh of this.chunks.values()) {
       mesh.traverse((o) => o.geometry?.dispose());
       this.terrain.remove(mesh);
@@ -269,18 +255,6 @@ export class Graphics {
     this.lights.clear();
     this.portalMeshes = new Map();
     this.sync(q, r, true);
-    const d = DIMENSIONS[world.dimension];
-    this.water.visible = d.liquid !== null;
-    this.water.material.color.set('#ffffff');
-    this.water.material.map =
-      world.dimension === 'nether' ? this.lavaTexture : this.waterTexture;
-    this.water.material.emissive.set(
-      world.dimension === 'nether' ? '#b83308' : '#000000',
-    );
-    this.water.material.emissiveMap =
-      world.dimension === 'nether' ? this.lavaTexture : null;
-    this.water.material.needsUpdate = true;
-    this.water.material.opacity = world.dimension === 'nether' ? 0.96 : 0.68;
     this.clouds.visible = world.dimension === 'overworld';
     this.sky.visible = world.dimension === 'overworld';
     this.skyObjects.visible = world.dimension !== 'nether';
@@ -427,6 +401,39 @@ export class Graphics {
     );
     block.position.set(0, 0.17, -0.36);
     this.held.add(block);
+    if (ITEMS[id]?.bucket) {
+      block.geometry.dispose();
+      for (const m of material) m.dispose();
+      block.geometry = new THREE.CylinderGeometry(0.19, 0.14, 0.26, 6, 1, true);
+      block.material = new THREE.MeshLambertMaterial({
+        color: '#a8b5bd',
+        side: THREE.DoubleSide,
+      });
+      const bottom = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.14, 0.025, 6),
+        new THREE.MeshLambertMaterial({ color: '#637781' }),
+      );
+      bottom.position.y = -0.12;
+      block.add(bottom);
+      const handle = new THREE.Mesh(
+        new THREE.TorusGeometry(0.16, 0.018, 4, 6, Math.PI),
+        new THREE.MeshLambertMaterial({ color: '#d8e2e4' }),
+      );
+      handle.position.y = 0.13;
+      block.add(handle);
+      if (ITEMS[id].bucket !== 'empty') {
+        const fill = new THREE.Mesh(
+          new THREE.CircleGeometry(0.175, 6),
+          new THREE.MeshBasicMaterial({
+            color: ITEMS[id].color,
+            side: THREE.DoubleSide,
+          }),
+        );
+        fill.rotation.x = -Math.PI / 2;
+        fill.position.y = 0.09;
+        block.add(fill);
+      }
+    }
     if (tool) {
       const pick = new THREE.Group(),
         handle = new THREE.Mesh(
@@ -672,15 +679,41 @@ export class Graphics {
       this.decor.add(light);
     }
   }
-  target() {
+  target(includeLiquids = false) {
     this.ray.setFromCamera(new THREE.Vector2(), this.camera);
     const hit = this.ray.intersectObjects(
-      [...this.terrain.children, ...this.portalMeshes.values()],
+      [
+        ...this.terrain.children,
+        ...this.portalMeshes.values(),
+        ...(includeLiquids ? this.fluidRenderer.group.children : []),
+      ],
       true,
     )[0];
     if (!hit) {
       this.outline.visible = false;
       return null;
+    }
+    if (hit.object.userData.liquid) {
+      const pt = hit.point.clone().addScaledVector(hit.face.normal, -0.02),
+        a = worldToAxial(pt.x, pt.z),
+        y = Math.floor(pt.y),
+        outside = hit.point.clone().addScaledVector(hit.face.normal, 0.05),
+        b = worldToAxial(outside.x, outside.z);
+      const f = this.world.fluids.get(a.q, y, a.r);
+      if (!f) return null;
+      const p = axialToWorld(a.q, a.r);
+      this.outline.position.set(p.x, y + 0.5, p.z);
+      this.outline.scale.set(1, 1, 1);
+      this.outline.visible = true;
+      return {
+        ...a,
+        y,
+        type: f.type,
+        fluid: true,
+        source: f.source,
+        place: { ...b, y: Math.floor(outside.y) },
+        distance: hit.distance,
+      };
     }
     const portal = hit.object.userData.block;
     if (portal) {
@@ -770,6 +803,8 @@ export class Graphics {
     }
   }
   frame(dt, time, playing, moving, mining) {
+    this.fluidRenderer.sync(this.world, new Set(this.chunks.keys()));
+    this.fluidRenderer.frame(time);
     const phase = (time % 600) / 600,
       day = Math.max(0.08, Math.sin(phase * Math.PI * 2)),
       sky =
@@ -809,11 +844,6 @@ export class Graphics {
       this.renderer.shadowMap.needsUpdate = true;
       this.shadowTimer = 0.25;
     }
-    for (const t of [this.waterTexture, this.lavaTexture])
-      t.offset.set(
-        this.camera.position.x / 2 + time * 0.015,
-        -this.camera.position.z / 2 + time * 0.008,
-      );
     this.clouds.position.x =
       this.camera.position.x + Math.sin(time * 0.006) * 10;
     this.clouds.position.z = this.camera.position.z;
@@ -828,12 +858,6 @@ export class Graphics {
     this.moonDisk.quaternion.copy(this.camera.quaternion);
     this.stars.material.opacity =
       this.world?.dimension === 'end' ? 0.9 : Math.max(0, 1 - day * 2.5);
-    this.water.position.set(
-      this.camera.position.x,
-      (DIMENSIONS[this.world?.dimension || 'overworld'].liquid || 0) +
-        Math.sin(time * 0.7) * 0.025,
-      this.camera.position.z,
-    );
     for (const g of this.portalMeshes?.values() || [])
       for (const child of g.children) {
         if (child.userData.spin) child.rotation.z = time * child.userData.spin;

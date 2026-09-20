@@ -1,7 +1,9 @@
+import { LIQUIDS, fluidHeight } from './fluids.js';
 import './style.css';
 import * as THREE from 'three';
 import {
   BLOCKS,
+  canEquip,
   ITEMS,
   HOTBAR,
   RECIPES,
@@ -31,7 +33,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.3 — A WORLD IN PIXELS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.4 — LET IT FLOW</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -41,7 +43,7 @@ $('#app').innerHTML = `
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="吃东西">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
- <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <span class="tiny">/ 点击建筑材料，装入当前快捷栏</span></div><div class="inventory-grid" id="inventory"></div><p class="panel-note">工具会自动装备 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换方块</p></div></div></section>
+ <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <span class="tiny">/ 点击建筑材料或桶，装入当前快捷栏</span></div><div class="inventory-grid" id="inventory"></div><p class="panel-note">工具会自动装备 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换方块</p></div></div></section>
  <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">清晰</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门<br>地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
@@ -209,6 +211,7 @@ function startGame(mode = false, save = null) {
   world = new World(seed, dimension, {
     legacy: data.legacy,
     edits: data.edits,
+    fluids: data.fluids,
     load: false,
   });
   inventory = save ? { ...save.inventory } : { dirt: 12, apple: 3, seed: 3 };
@@ -284,6 +287,7 @@ function travel(to) {
   world = new World(seed, to, {
     legacy: data.legacy,
     edits: data.edits,
+    fluids: data.fluids,
     load: false,
   });
   crops = new Map(data.crops);
@@ -486,12 +490,12 @@ function renderCraft() {
   $('#inventory').innerHTML = Object.entries(ITEMS)
     .filter(
       ([id]) =>
-        (creative && BLOCKS[id] && id !== 'bedrock') ||
+        (creative && canEquip(id) && id !== 'bedrock') ||
         (inventory[id] || 0) > 0,
     )
     .map(
       ([id, item]) =>
-        `<button class="inv-item ${hotbar[selected] === id ? 'selected' : ''}" data-item="${id}" title="${BLOCKS[id] ? '装入快捷栏 ' + (selected + 1) : item.name}">${icon(id)}<span>${item.name}</span><b>${creative && BLOCKS[id] ? '∞' : inventory[id] || 0}</b></button>`,
+        `<button class="inv-item ${hotbar[selected] === id ? 'selected' : ''}" data-item="${id}" title="${canEquip(id) ? '装入快捷栏 ' + (selected + 1) : item.name}">${icon(id)}<span>${item.name}</span><b>${creative && canEquip(id) ? '∞' : inventory[id] || 0}</b></button>`,
     )
     .join('');
 }
@@ -502,7 +506,7 @@ function doCraft() {
   else if (!craft(recipe, inventory, tool, nearbyType('workbench'))) return;
   if (recipe.id.startsWith('pick'))
     tool = Math.max(tool, Number(recipe.id.slice(-1)));
-  if (BLOCKS[recipe.id] && !hotbar.includes(recipe.id))
+  if (canEquip(recipe.id) && !hotbar.includes(recipe.id))
     hotbar[selected] = recipe.id;
   soundFX.play('craft');
   graphics.swing();
@@ -577,7 +581,7 @@ function addItem(id, n = 1) {
   updateHUD();
 }
 function mine(dt) {
-  if (!target?.type) {
+  if (!target?.type || target.fluid) {
     mining = 0;
     return;
   }
@@ -635,8 +639,74 @@ function mine(dt) {
   mining = 0;
   target = null;
 }
+function useBucket() {
+  const id = hotbar[selected],
+    kind = ITEMS[id]?.bucket;
+  if (!kind) return false;
+  if (!target) {
+    toast('对准液体源装桶，或对准方块倒出液体。');
+    return true;
+  }
+  if (!creative && (inventory[id] || 0) < 1) {
+    toast('背包里没有这个桶。');
+    return true;
+  }
+  let next;
+  if (kind === 'empty') {
+    if (!target.fluid) {
+      toast('空桶需要对准液体源。');
+      return true;
+    }
+    const type = world.fluids.scoop(target.q, target.y, target.r);
+    if (!type) {
+      toast('只能装取液体源，流动液体无法装桶。');
+      return true;
+    }
+    next = LIQUIDS[type].bucket;
+  } else {
+    const p = target.fluid && target.type !== kind ? target : target.place;
+    if (!p || !world.fluids.source(p.q, p.y, p.r, kind)) {
+      toast('这里无法倒出液体。');
+      return true;
+    }
+    next = 'bucket';
+  }
+  if (!creative) {
+    inventory[id]--;
+    inventory[next] = (inventory[next] || 0) + 1;
+    hotbar[selected] = next;
+  } else if (kind === 'empty') hotbar[selected] = next;
+  flushFluidChanges();
+  graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
+  soundFX.play('splash');
+  graphics.swing();
+  updateHUD();
+  saveGame();
+  return true;
+}
+function flushFluidChanges() {
+  const chunks = new Set();
+  for (const k of world.fluids.blockChanges) {
+    const [q, y, r] = k.split(',').map(Number);
+    chunks.add(graphics.chunkKey(q, r));
+    for (const [a, b] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [1, -1],
+      [-1, 1],
+    ])
+      chunks.add(graphics.chunkKey(q + a, r + b));
+    graphics.updateLight(q, y, r);
+  }
+  world.fluids.blockChanges.clear();
+  for (const k of chunks) if (graphics.chunks.has(k)) graphics.buildChunk(k);
+}
 function place() {
-  if (!playing || !target) return;
+  if (!playing) return;
+  if (useBucket()) return;
+  if (!target) return;
   const { q, y, r } = target.place,
     id = hotbar[selected];
   if (y < 1 || y >= WORLD_HEIGHT) {
@@ -670,6 +740,7 @@ function place() {
 }
 function interact() {
   if (!playing) return;
+  if (useBucket()) return;
   if (!target) return;
   const { q, y, r, type } = target,
     k = key(q, y, r);
@@ -941,8 +1012,15 @@ function attack() {
   return true;
 }
 function movePlayer(dt) {
-  const liquid = DIMENSIONS[dimension].liquid;
-  const swimming = liquid !== null && playerFeet() < liquid - 0.08,
+  const fluidAt = (height) => {
+    const a = worldToAxial(camera.position.x, camera.position.z),
+      y = Math.floor(height),
+      f = world.fluids.get(a.q, y, a.r);
+    return f && height < y + fluidHeight(f) ? f : null;
+  };
+  const feetFluid = fluidAt(playerFeet() + 0.12),
+    headFluid = fluidAt(camera.position.y);
+  const swimming = !!feetFluid,
     fly = creative;
   let forward = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0),
     side = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
@@ -952,7 +1030,13 @@ function movePlayer(dt) {
     side /= norm;
   }
   const sprint = keys.has('ShiftLeft') && hunger > 2 && !fly,
-    speed = fly ? 10 : swimming ? 3 : sprint ? 7 : 4.8;
+    speed = fly
+      ? 10
+      : swimming
+        ? LIQUIDS[feetFluid.type].speed
+        : sprint
+          ? 7
+          : 4.8;
   const dx = (-Math.sin(yaw) * forward + Math.cos(yaw) * side) * speed * dt,
     dz = (-Math.cos(yaw) * forward - Math.sin(yaw) * side) * speed * dt;
   moved = norm;
@@ -995,8 +1079,7 @@ function movePlayer(dt) {
       }
       camera.position.y += dy / steps;
     }
-    if (swimming && camera.position.y < liquid)
-      hunger = Math.max(0, hunger - dt * 0.12);
+    if (headFluid) hunger = Math.max(0, hunger - dt * 0.12);
     hunger = Math.max(
       0,
       hunger - dt * (norm ? (sprint ? 0.024 : 0.012) : 0.003),
@@ -1005,15 +1088,16 @@ function movePlayer(dt) {
     if (hunger <= 0) hurt(dt * 2);
   }
   const a = worldToAxial(camera.position.x, camera.position.z);
-  if (swimming && dimension === 'nether') hurt(4);
+  if (feetFluid && LIQUIDS[feetFluid.type].damage)
+    hurt(LIQUIDS[feetFluid.type].damage);
   if (camera.position.y < -12) {
     safeSpawn();
     hurt(6);
   }
-  $('#underwater').style.display =
-    liquid !== null && camera.position.y < liquid ? 'block' : 'none';
-  $('#underwater').style.background =
-    dimension === 'nether' ? '#ed5c2670' : '#238fa94a';
+  $('#underwater').style.display = headFluid ? 'block' : 'none';
+  $('#underwater').style.background = headFluid
+    ? LIQUIDS[headFluid.type].color + '70'
+    : '#238fa94a';
   if (norm && (grounded || swimming) && !fly) {
     footstepDistance += speed * dt;
     if (footstepDistance > 2.1) {
@@ -1141,7 +1225,7 @@ $('#recipes').onclick = (e) => {
 $('#craft-button').onclick = doCraft;
 $('#inventory').onclick = (e) => {
   const b = e.target.closest('[data-item]');
-  if (b && BLOCKS[b.dataset.item]) {
+  if (b && canEquip(b.dataset.item)) {
     hotbar[selected] = b.dataset.item;
     updateHUD();
     renderCraft();
@@ -1448,7 +1532,9 @@ function frame(now) {
     damageCooldown = Math.max(0, damageCooldown - dt);
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
     for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
-    target = graphics.target();
+    world.fluids.step(dt);
+    flushFluidChanges();
+    target = graphics.target(!!ITEMS[hotbar[selected]]?.bucket);
     if (leftDown) {
       if (!attack()) mine(dt);
     } else {
@@ -1458,7 +1544,10 @@ function frame(now) {
     }
     $('#target').classList.toggle('hidden', !target?.type);
     $('#target').textContent = target?.type
-      ? BLOCKS[target.type].name +
+      ? (target.fluid
+          ? LIQUIDS[target.type].name +
+            (target.source ? '源 · 右键/E 装桶' : '流 · 无法装桶')
+          : BLOCKS[target.type].name) +
         ([
           'workbench',
           'furnace',
@@ -1547,6 +1636,17 @@ if (import.meta.env.DEV)
     interact,
     place,
     eat,
+    fluidStep: (ticks = 1) => {
+      for (let i = 0; i < ticks; i++) world.fluids.step(0.12);
+      flushFluidChanges();
+      graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
+    },
+    selectItem: (id) => {
+      if (canEquip(id)) {
+        hotbar[selected] = id;
+        updateHUD();
+      }
+    },
     step: (dt) => {
       time += dt;
       for (const [k, t] of crops) graphics.crop(k, time - t);

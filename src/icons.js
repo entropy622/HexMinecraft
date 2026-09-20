@@ -31,11 +31,16 @@ import {
   CookingPot,
   Apple,
   Axe,
+  PaintBucket,
 } from 'lucide';
 import { ITEMS } from './core.js';
 
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
 const symbols = {
+  bucket: PaintBucket,
+  waterBucket: PaintBucket,
+  lavaBucket: PaintBucket,
+  glowBucket: PaintBucket,
   grass: Sprout,
   dirt: Layers,
   stone: Mountain,

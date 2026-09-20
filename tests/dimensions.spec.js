@@ -148,7 +148,11 @@ test('creative UI travels across all dimensions with separate edits, positions a
     await page.evaluate(() => window.__hexwild.state.world.get(2, 35, 0)),
   ).toBe('brick');
   expect(
-    await page.evaluate(() => window.__hexwild.graphics.water.visible),
+    await page.evaluate(() =>
+      [...window.__hexwild.state.world.fluids.chunks.values()].some(
+        (c) => c.size > 0,
+      ),
+    ),
   ).toBe(false);
   await page.evaluate(() => window.__hexwild.travel('nether'));
   expect(
