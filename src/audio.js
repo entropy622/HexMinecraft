@@ -175,6 +175,18 @@ export class GameAudio {
     } else if (event === 'hurt') {
       this.noise(0.15, 0.18, 900);
       this.tone(85, 0.2, 'sawtooth', 0.03);
+    } else if (event === 'ghastCharge') {
+      this.tone(180, 0.6, 'sine', 0.035);
+      this.tone(260, 0.5, 'triangle', 0.02, 0.1);
+    } else if (event === 'blazeCharge') {
+      this.noise(0.28, 0.08, 1250);
+      this.tone(330, 0.22, 'sawtooth', 0.018);
+    } else if (event === 'ghastFire' || event === 'blazeFire') {
+      this.noise(event === 'ghastFire' ? 0.4 : 0.12, 0.11, 850);
+      this.tone(event === 'ghastFire' ? 110 : 390, 0.15, 'triangle', 0.04);
+    } else if (event === 'fireballDeflect') {
+      this.noise(0.13, 0.12, 1750);
+      this.tone(720, 0.13, 'sine', 0.06);
     } else if (event === 'splash') this.noise(0.23, 0.18, 3000);
     else if (event === 'ambient') {
       this.tone(

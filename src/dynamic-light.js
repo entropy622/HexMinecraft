@@ -159,7 +159,7 @@ export class DynamicLight {
           voxelLightingChunk,
         );
     };
-    material.customProgramCacheKey = () => 'hex-dynamic-volume-v1';
+    material.customProgramCacheKey = () => 'hex-dynamic-volume-v2';
     material.needsUpdate = true;
   }
 }

@@ -77,6 +77,23 @@ runtime for inventory icons, held sprites and dropped items. These derived
 texture combinations retain CC BY-SA 3.0. The six-sided brewing stand, glass
 vials, bubbles and melon geometry are original; no upstream models are included.
 
+Version 0.30 adds six unmodified images from the same VoxeLibre revision:
+
+- `mcl_mobitems_ghast_tear.png`, `mcl_fire_fire_charge.png`,
+  `vl_mobitems_flaming_rod.png`, and `vl_mobitems_flaming_powder.png` use
+  the upstream general CC BY-SA 3.0 media terms.
+- **Exception to the base-texture license above:** `mobs_mc_ghast.png` and
+  `mobs_mc_ghast_firing.png` are distributed under **CC BY-SA 4.0**, following
+  the mob-media notice. The ghast artwork is based on Pixel Perfection by
+  XSSheep, with VoxeLibre modifications credited to MysticTempest. See the
+  preserved [mob-media attribution](VOXELIBRE-MOBS-MEDIA.md) and
+  https://creativecommons.org/licenses/by-sa/4.0/legalcode .
+
+Runtime ghast skin crops and UV views retain CC BY-SA 4.0. The hexagonal ghast,
+seven tentacles, blaze with three six-rod rings, flight/attack logic, fireball
+geometry, particle trails and synthesized sounds are original implementations.
+No upstream mob model, GPL source code, or sound recording is bundled.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

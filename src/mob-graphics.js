@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MOBS } from './mob-data.js';
+import { createNetherMob } from './nether-mob-graphics.js';
 
 export function createMob(kind, textures) {
+  if (MOBS[kind].flying) return createNetherMob(kind, textures);
   const def = MOBS[kind],
     group = new THREE.Group(),
     legs = [];
@@ -167,7 +169,11 @@ export function disposeMob(mesh) {
   const materials = new Set();
   mesh.traverse((o) => {
     o.geometry?.dispose();
-    if (o.material) materials.add(o.material);
+    if (o.material)
+      for (const material of Array.isArray(o.material)
+        ? o.material
+        : [o.material])
+        materials.add(material);
   });
   for (const material of materials) material.dispose();
   mesh.removeFromParent();

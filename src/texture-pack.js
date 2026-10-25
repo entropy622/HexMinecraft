@@ -56,6 +56,9 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  ghastTear: 'mcl_mobitems_ghast_tear',
+  blazeRod: 'vl_mobitems_flaming_rod',
+  ember: 'vl_mobitems_flaming_powder',
   glassBottle: 'mcl_potions_potion_bottle',
   netherWart: 'mcl_nether_nether_wart',
   redstone: 'redstone_redstone_dust',
@@ -150,6 +153,12 @@ export const itemTextures = {
 export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
+const mobTextures = [
+  'mobs_mc_ghast',
+  'mobs_mc_ghast_firing',
+  'mcl_fire_fire_charge',
+];
+export const mobImage = (name) => images.get(name);
 const plantTextures = {
   netherWart: [
     'mcl_nether_nether_wart_stage_0',
@@ -217,6 +226,7 @@ export async function loadTexturePack() {
     ...Object.values(blockTextures).flat(),
     ...Object.values(itemTextures),
     ...Object.values(plantTextures).flat(),
+    ...mobTextures,
     'mcl_core_grass_block_side_overlay',
     'mcl_bows_bow_0',
     'mcl_bows_bow_1',

@@ -93,6 +93,7 @@ import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack, textureURL } from './texture-pack.js';
 import { Equipment, miningStats } from './equipment.js';
 import { Projectiles } from './projectiles.js';
+import { Fireballs } from './fireballs.js';
 import { Fishing } from './fishing.js';
 import { Boats, BOAT_EYE } from './boats.js';
 import { Movement } from './movement.js';
@@ -111,7 +112,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.29 — FORGED BY HAND</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.30 — FIRE IN THE NETHER</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -143,6 +144,45 @@ try {
 const camera = graphics.camera;
 const motion = new Movement();
 const projectiles = new Projectiles(graphics.scene);
+const fireballs = new Fireballs(graphics.scene, {
+  sound: (kind) => soundFX.play(kind),
+  playerHit: (amount, source) => {
+    if (creative || survival.rank('fireResistance')) return 'immune';
+    const owner = survival,
+      result = hurt(amount, 'fireball', source);
+    const fluid = playerFluidAt(camera.position.y - 0.65);
+    if (
+      owner === survival &&
+      result !== 'blocked' &&
+      (!fluid || !LIQUIDS[fluid.type].coolant)
+    )
+      survival.burning = Math.max(survival.burning, 5);
+    return result;
+  },
+  hit: (mob, amount, direction, owned) => {
+    const a = worldToAxial(mob.mesh.position.x, mob.mesh.position.z);
+    graphics.burst(a.q, mob.mesh.position.y + 1, a.r, MOBS[mob.kind].color);
+    fauna.hit(mob, amount, direction, owned);
+  },
+  explode: (point, owned, excludeId) =>
+    explode(point, {
+      radius: 1.65,
+      damageRadius: 3.5,
+      damage: 8,
+      mobRadius: 3,
+      mobDamage: 8,
+      soft: true,
+      playerOwned: owned,
+      excludeMob: excludeId,
+      fire: true,
+      notice: false,
+    }),
+  spark: (point) => {
+    const a = worldToAxial(point.x, point.z);
+    graphics.burst(a.q, point.y, a.r, '#efb34c');
+  },
+  returned: () => toast('以牙还牙！恶魂被击回的火球击败了。'),
+});
 const drops = new ItemDrops(graphics.scene, graphics.textures);
 const experience = new Experience(graphics.scene, (levelUp) =>
   soundFX.play(levelUp ? 'levelUp' : 'xp'),
@@ -205,6 +245,10 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
   notice: toast,
   explode,
   fuse: () => beep(75, 0.3, 'sawtooth', 0.04),
+  fireball: (kind, from, to, id) => fireballs.shoot(kind, from, to, id),
+  mobSound: (kind, position) => {
+    if (position.distanceTo(camera.position) < 30) soundFX.play(kind);
+  },
   shoot: (from, to) => {
     const aim = to.clone().sub(from);
     const flight = aim.length() / 25;
@@ -720,6 +764,7 @@ function startGame(mode = false, save = null) {
   graphics.weatherEffects.thunderDelay = -1;
   bowCharge = 0;
   projectiles.clear();
+  fireballs.clear();
   selected = save?.selected ?? 0;
   selectedRecipe = 0;
   health = save?.health ?? 20;
@@ -859,6 +904,7 @@ function travel(to) {
   boatTarget = null;
   fishing.clear();
   projectiles.clear();
+  fireballs.clear();
   bowCharge = 0;
   captureDimension();
   boats.load();
@@ -2874,7 +2920,7 @@ function hurt(amount, cause = 'combat', source = null) {
   if (creative) return;
   let blocked = false;
   if (
-    ['combat', 'projectile', 'explosion'].includes(cause) &&
+    ['combat', 'projectile', 'fireball', 'explosion'].includes(cause) &&
     equipment.offhand &&
     combat.canBlock(camera.position, yaw, source)
   ) {
@@ -2895,7 +2941,9 @@ function hurt(amount, cause = 'combat', source = null) {
   if (damageCooldown > 0) return;
   stopEating();
   const enchantedProtection = equipment.enchantProtection();
-  if (['combat', 'projectile', 'explosion', 'burn'].includes(cause)) {
+  if (
+    ['combat', 'projectile', 'fireball', 'explosion', 'burn'].includes(cause)
+  ) {
     const protection = equipment.protection();
     for (const id of Object.values(equipment.armor))
       wearItem(id, Math.max(1, Math.ceil(amount / 4)), true);
@@ -3007,43 +3055,93 @@ function interactCreature() {
   return true;
 }
 
-function explode(center) {
+function explode(center, settings = {}) {
+  const radius = settings.radius ?? 2.7,
+    damageRadius = settings.damageRadius ?? 5,
+    damage = settings.damage ?? 14;
+  const blastOwner = survival;
   syncDecor();
   for (const b of [...boats.records])
-    if (Math.hypot(...b.position.map((n, i) => n - center.getComponent(i))) < 4)
-      boats.damage(b, 20);
+    if (
+      Math.hypot(...b.position.map((n, i) => n - center.getComponent(i))) <
+      radius + 1
+    )
+      boats.damage(b, settings.damage ?? 20);
   const origin = worldToAxial(center.x, center.z),
     changed = new Set();
   const distance = center.distanceTo(
     camera.position.clone().add(new THREE.Vector3(0, -0.8, 0)),
   );
-  if (distance < 5)
-    hurt(Math.max(1, 14 * (1 - distance / 5)), 'explosion', center);
+  if (
+    distance < damageRadius &&
+    (!settings.soft ||
+      fauna.visible(
+        center,
+        camera.position.clone().add(new THREE.Vector3(0, -0.65, 0)),
+      ))
+  ) {
+    const guarded =
+      equipment.offhand && combat.canBlock(camera.position, yaw, center);
+    hurt(
+      Math.max(1, damage * (1 - distance / damageRadius)),
+      'explosion',
+      center,
+    );
+    if (
+      settings.fire &&
+      blastOwner === survival &&
+      !creative &&
+      !guarded &&
+      !survival.rank('fireResistance') &&
+      distance < 2
+    )
+      survival.burning = Math.max(survival.burning, 4);
+  }
   for (const mob of [...creatures])
-    if (mob.mesh.position.distanceTo(center) < 4)
+    if (
+      mob.id !== settings.excludeMob &&
+      mob.mesh.position.distanceTo(center) < (settings.mobRadius ?? 4) &&
+      (!settings.soft ||
+        fauna.visible(
+          center,
+          mob.mesh.position
+            .clone()
+            .add(new THREE.Vector3(0, MOBS[mob.kind].height * 0.5, 0)),
+        ))
+    )
       fauna.hit(
         mob,
-        12,
+        settings.mobDamage ?? 12,
         mob.mesh.position.clone().sub(center).normalize(),
-        false,
+        !!settings.playerOwned,
       );
-  for (let dq = -2; dq <= 2; dq++)
-    for (let dr = -2; dr <= 2; dr++) {
+  const reach = Math.ceil(radius / 1.5);
+  for (let dq = -reach; dq <= reach; dq++)
+    for (let dr = -reach; dr <= reach; dr++) {
       const q = origin.q + dq,
         r = origin.r + dr,
         p = axialToWorld(q, r);
       for (
-        let y = Math.max(1, Math.floor(center.y) - 2);
-        y <= Math.min(63, Math.floor(center.y) + 2);
+        let y = Math.max(1, Math.floor(center.y - radius));
+        y <= Math.min(63, Math.ceil(center.y + radius));
         y++
       ) {
         if (
-          Math.hypot(p.x - center.x, y + 0.5 - center.y, p.z - center.z) > 2.7
+          Math.hypot(p.x - center.x, y + 0.5 - center.y, p.z - center.z) >
+          radius
         )
           continue;
         const type = world.get(q, y, r),
           k = key(q, y, r);
         if (!type || type === 'bedrock' || type === 'obsidian') continue;
+        if (
+          settings.soft &&
+          (BLOCKS[type].hardness > 1 ||
+            ['stone', 'basalt', 'netherbrick', 'brick', 'endstone'].includes(
+              type,
+            ))
+        )
+          continue;
         if (BLOCKS[type].shape) {
           removeBuilding(q, y, r, !creative && Math.random() < 0.6);
           continue;
@@ -3086,7 +3184,7 @@ function explode(center) {
   for (const k of changed) if (graphics.chunks.has(k)) graphics.buildChunk(k);
   graphics.burst(origin.q, center.y, origin.r, '#e3b567');
   soundFX.play('break', 'stone');
-  toast('轰！苦力怕炸开了周围的方块。');
+  if (settings.notice !== false) toast('轰！苦力怕炸开了周围的方块。');
   saveGame();
 }
 function attack() {
@@ -3095,6 +3193,20 @@ function attack() {
   const hit = graphics.ray
     .intersectObjects(meshes, true)
     .find((h) => h.distance < 3.5);
+  const incoming = fireballs.target(
+    camera,
+    Math.min(3.5, target?.distance ?? Infinity, hit?.distance ?? Infinity),
+  );
+  if (incoming) {
+    if (attackCooldown > 0) return true;
+    attackCooldown = attackPeriod = ITEMS[heldItem()]?.cooldown || 0.45;
+    if (!creative) survival.exhaust(0.1);
+    graphics.swing();
+    fireballs.reflect(incoming, camera.getWorldDirection(new THREE.Vector3()));
+    wearItem(heldItem(), 1);
+    toast('火球已击回！对准恶魂，让它尝尝自己的火球。');
+    return true;
+  }
   if (!hit || (target && hit.distance > target.distance)) return false;
   let obj = hit.object;
   while (obj.parent && !meshes.includes(obj)) obj = obj.parent;
@@ -4003,13 +4115,15 @@ function frame(now) {
         def.hp +
         (m.kind === 'creeper' && m.fuse > 0
           ? ' · 即将爆炸！'
-          : def.hostile
-            ? ''
-            : m.love > 0
-              ? ' · ♥ 寻找伙伴'
-              : m.kind === 'chicken' && m.eggs > 0
-                ? ' · E 收集鸡蛋 ×' + m.eggs
-                : ' · E 喂养 / 互动');
+          : def.flying && m.charge > 0
+            ? ' · 正在蓄力！'
+            : def.hostile
+              ? ''
+              : m.love > 0
+                ? ' · ♥ 寻找伙伴'
+                : m.kind === 'chicken' && m.eggs > 0
+                  ? ' · E 收集鸡蛋 ×' + m.eggs
+                  : ' · E 喂养 / 互动');
     }
     if (boatTarget && !creatureTarget && !villagerTarget) {
       $('#target').classList.remove('hidden');
@@ -4017,6 +4131,10 @@ function frame(now) {
         '橡木船 · ' +
         Math.ceil(boatTarget.boat.health) +
         '/20 · E 上船 · Ctrl+E 收回';
+    }
+    if (fireballs.target(camera, Math.min(4.5, target?.distance ?? Infinity))) {
+      $('#target').classList.remove('hidden');
+      $('#target').textContent = '恶魂火球 · 空手或近战装备左键击回';
     }
     updateMobs(dt);
     drops.update(dt, world, camera, collectDrop);
@@ -4030,6 +4148,7 @@ function frame(now) {
       () => addItem('arrow'),
       (amount, source) => hurt(amount, 'projectile', source),
     );
+    fireballs.update(dt, world, creatures, camera);
     $('#boat-status').classList.toggle('hidden', !boats.riding);
     if (boats.riding)
       $('#boat-status').textContent =

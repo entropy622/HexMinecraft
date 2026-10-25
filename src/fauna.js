@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { axialToWorld, worldToAxial, hash } from './core.js';
 import { MOBS, ANIMALS, HOSTILES } from './mob-data.js';
 import { createMob, disposeMob } from './mob-graphics.js';
+import { flyingClear, updateNetherFlier } from './nether-mobs.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
 export class Fauna {
@@ -211,13 +212,18 @@ export class Fauna {
     m.anger = 12;
     if (direction) {
       const p = m.mesh.position.clone().addScaledVector(direction, 0.5);
-      const y = this.floor(p.x, p.z, m.mesh.position.y, m.kind);
-      if (y !== null) m.mesh.position.set(p.x, y, p.z);
+      if (MOBS[m.kind].flying) {
+        if (flyingClear(this.world, p, m.kind)) m.mesh.position.copy(p);
+      } else {
+        const y = this.floor(p.x, p.z, m.mesh.position.y, m.kind);
+        if (y !== null) m.mesh.position.set(p.x, y, p.z);
+      }
     }
     if (m.hp > 0) return;
     if (loot && !m.baby) {
       this.callbacks.experience?.(
-        MOBS[m.kind].hostile ? 5 : 1 + Math.floor(Math.random() * 3),
+        MOBS[m.kind].experience ||
+          (MOBS[m.kind].hostile ? 5 : 1 + Math.floor(Math.random() * 3)),
         [m.mesh.position.x, m.mesh.position.y + 0.5, m.mesh.position.z],
       );
       const drops = { ...MOBS[m.kind].drops };
@@ -327,7 +333,9 @@ export class Fauna {
             ? ['zombie', 'skeleton', 'spider'][
                 Math.floor(hash(q, 17, r, world.seed) * 3)
               ]
-            : 'crawler';
+            : world.dimension === 'nether'
+              ? 'blaze'
+              : 'crawler';
         for (let attempt = 0; attempt < 8; attempt++) {
           const cell = axialToWorld(
             q + Math.round(Math.random() * 4 - 2),
@@ -360,9 +368,20 @@ export class Fauna {
         const kind =
           world.dimension === 'overworld'
             ? HOSTILES[Math.floor(Math.random() * HOSTILES.length)]
-            : 'crawler';
+            : world.dimension === 'nether' &&
+                Math.random() < 0.4 &&
+                this.active.filter((m) => m.kind === 'ghast').length < 2
+              ? 'ghast'
+              : 'crawler';
         const p = axialToWorld(q, r),
-          y = this.floor(p.x, p.z, world.terrainHeight(q, r), kind, 1);
+          y = MOBS[kind].flying
+            ? Math.min(42, world.terrainHeight(q, r) + 5 + Math.random() * 6)
+            : this.floor(p.x, p.z, world.terrainHeight(q, r), kind, 1);
+        if (
+          MOBS[kind].flying &&
+          !flyingClear(world, new THREE.Vector3(p.x, y, p.z), kind)
+        )
+          continue;
         if (y !== null && y > 5) {
           this.spawn(kind, [p.x, y, p.z]);
           break;
@@ -405,7 +424,7 @@ export class Fauna {
         m.sunCheck = 1;
       }
       const fluid = world.fluids.get(cell.q, Math.floor(p.y), cell.r);
-      if (fluid?.type === 'lava') {
+      if (fluid?.type === 'lava' && !def.fireImmune) {
         m.hp -= dt * 6;
         if (m.hp <= 0) {
           this.remove(m);
@@ -419,6 +438,10 @@ export class Fauna {
           this.remove(m);
           continue;
         }
+      }
+      if (def.flying) {
+        updateNetherFlier(this, m, dt, time, camera, creative);
+        continue;
       }
       const aggressive =
         def.hostile &&

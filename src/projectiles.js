@@ -147,12 +147,14 @@ export class Projectiles {
             .add(
               new THREE.Vector3(
                 0,
-                MOBS[mob.kind].height * (mob.baby ? 0.3 : 0.5),
+                (MOBS[mob.kind].hitHeight || MOBS[mob.kind].height * 0.5) *
+                  (mob.baby ? 0.6 : 1),
                 0,
               ),
             );
           sphere.radius =
-            (mob.kind === 'chicken' ? 0.32 : 0.6) * (mob.baby ? 0.55 : 1);
+            (MOBS[mob.kind].hitRadius ||
+              (mob.kind === 'chicken' ? 0.32 : 0.6)) * (mob.baby ? 0.55 : 1);
           if (ray.intersectSphere(sphere, point)) {
             const d = previous.distanceTo(point);
             if (d <= length && d < distance) {

@@ -4,10 +4,6 @@ export const visionUniforms = { nightVision: { value: 0 } };
 // Both static surfaces and moving models use the same response to voxel light.
 export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
   .replace(
-    'getPointLightInfo( pointLight, geometryPosition, directLight );',
-    'getPointLightInfo( pointLight, geometryPosition, directLight ); directLight.color = vec3(0.0);',
-  )
-  .replace(
     'getDirectionalLightInfo( directionalLight, directLight );',
     'getDirectionalLightInfo( directionalLight, directLight ); directLight.color *= smoothstep(0.45, 0.95, vSkylight);',
   )
@@ -21,7 +17,7 @@ export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
   );
 
 // Shared weather uniforms; terrain receives persistent voxel light instead of
-// unoccluded point lights selected by distance to the camera.
+// static point-light pools. Two short-range moving fireball lights supplement it.
 export function applySkylight(material, sharedUniforms) {
   material.userData.voxelLighting = 'surface';
   const uniforms = sharedUniforms || {
@@ -56,6 +52,6 @@ export function applySkylight(material, sharedUniforms) {
         #include <opaque_fragment>`,
         );
   };
-  material.customProgramCacheKey = () => 'hex-colored-voxel-wet-v3';
+  material.customProgramCacheKey = () => 'hex-colored-voxel-wet-v4';
   return uniforms;
 }

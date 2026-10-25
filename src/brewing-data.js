@@ -32,7 +32,7 @@ export const POTIONS = {
 };
 const families = [
   ['healing', '治疗', '#ec575f', 'glisteringMelon', 0, 0, true],
-  ['regeneration', '再生', '#e88bb4', 'crystal', 45, 120, true],
+  ['regeneration', '再生', '#e88bb4', 'ghastTear', 45, 120, true],
   ['speed', '迅捷', '#80bfdf', 'sugar', 180, 480, true],
   ['strength', '力量', '#c96658', 'ember', 180, 480, true],
   ['fireResistance', '抗火', '#e7a35a', 'magmaCream', 180, 480, false],
@@ -80,6 +80,8 @@ for (const [
     BREW_TRANSFORMS[id].glowDust = id + 'Strong';
   }
 }
+// Keep the hex-world crystal recipe alongside the familiar ghast-tear route.
+BREW_TRANSFORMS.awkwardPotion.crystal = 'regenerationPotion';
 export const brewResult = (bottle, ingredient) =>
   BREW_TRANSFORMS[bottle]?.[ingredient] || null;
 export const BREW_INGREDIENTS = [
@@ -138,6 +140,7 @@ export const BREW_ITEMS = {
   glassBottle: { name: '玻璃瓶', color: '#cfdfda', use: true },
   netherWart: { name: '下界疣', color: '#b4474e', use: true },
   blazeRod: { name: '烈焰棒', color: '#efb34a' },
+  ghastTear: { name: '恶魂之泪', color: '#e6ded1' },
   redstone: { name: '红石粉', color: '#cb514a' },
   glowDust: { name: '萤石粉', color: '#e4cd76' },
   slimeBall: { name: '黏液球', color: '#91b95e' },
@@ -186,7 +189,7 @@ export const BREW_RECIPES = [
     'brewingStand',
     1,
     [null, 'blazeRod', null, 'stone', null, 'stone', 'stone'],
-    '放入三瓶药水、一种原料与烈焰粉，自动酿造。烈焰棒可从余烬堡垒宝箱获得。',
+    '放入三瓶药水、一种原料与烈焰粉，自动酿造。烈焰棒来自烈焰人，也能在余烬堡垒宝箱找到。',
     true,
   ),
   recipe(
