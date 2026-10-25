@@ -1,6 +1,7 @@
 import { applySkylight } from './skylight.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
+import { buildingMesh } from './building-graphics.js';
 import { createPostprocessing } from './postprocessing.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
@@ -434,7 +435,7 @@ export class Graphics {
     this.held = new THREE.Group();
     this.hand.add(this.held);
     if (!id) return;
-    if (!BLOCKS[id] && !ITEMS[id]?.bucket) {
+    if ((!BLOCKS[id] || BLOCKS[id]?.shape) && !ITEMS[id]?.bucket) {
       const image = itemImage(id);
       if (image) {
         const map = new THREE.Texture(image);
@@ -529,6 +530,7 @@ export class Graphics {
       skylight = 1,
       rainExposure = 0;
     const roofs = new Map();
+    const shaped = [];
     const rainRoofs = new Map();
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -557,13 +559,17 @@ export class Graphics {
     };
     const opaque = (q, y, r) => {
       const t = world.get(q, y, r);
-      return t && t !== 'glass' && !BLOCKS[t]?.nonSolid;
+      return t && t !== 'glass' && !BLOCKS[t]?.nonSolid && !BLOCKS[t]?.shape;
     };
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++)
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
           if (!type) continue;
+          if (BLOCKS[type].shape) {
+            shaped.push([q, y, r]);
+            continue;
+          }
           skylight = Math.max(
             0.12,
             1 - Math.max(0, (roofs.get(q + ',' + r) || 0) - y) * 0.22,
@@ -781,6 +787,10 @@ export class Graphics {
     mesh.position.set(origin.x, 0, origin.z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    for (const [q, y, r] of shaped)
+      mesh.add(
+        buildingMesh(world, q, y, r, origin, this.textures, this.material),
+      );
     if (torches.p.length)
       mesh.add(new THREE.Mesh(geometry(torches), this.torchMaterial));
     if (glass.p.length)
@@ -858,6 +868,22 @@ export class Graphics {
         crop: plant.k,
         place: { q: plant.q, y: plant.y + 1, r: plant.r },
         distance: hit.distance,
+      };
+    }
+    if (hit.object.userData.shaped) {
+      const block = hit.object.userData.shaped,
+        p = axialToWorld(block.q, block.r);
+      const height = ['gate', 'fence'].includes(block.type) ? 1.5 : 1;
+      this.outline.position.set(p.x, block.y + height / 2, p.z);
+      this.outline.scale.set(1, height, 1);
+      this.outline.visible = true;
+      const normal = hit.face.normal,
+        outside = hit.point.clone().addScaledVector(normal, 0.04),
+        a = worldToAxial(outside.x, outside.z);
+      return {
+        ...block,
+        distance: hit.distance,
+        place: { ...a, y: Math.floor(outside.y) },
       };
     }
     if (hit.object.userData.liquid) {

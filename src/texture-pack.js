@@ -1,5 +1,10 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 export const blockTextures = {
+  door: ['default_wood', 'mcl_doors_door_wood_lower'],
+  doorTop: ['default_wood', 'mcl_doors_door_wood_upper'],
+  fence: ['default_wood'],
+  gate: ['default_wood'],
+  ladder: ['default_wood'],
   bookshelf: ['mcl_books_bookshelf_top', 'default_bookshelf'],
   deepslate: ['mcl_deepslate_top', 'mcl_deepslate'],
   gold: ['mcl_core_gold_ore'],
@@ -35,6 +40,10 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  door: 'doors_item_wood',
+  fence: 'mcl_fences_fence_oak',
+  gate: 'mcl_fences_fence_gate_oak',
+  ladder: 'default_ladder',
   sapling: 'default_sapling',
   carrot: 'farming_carrot',
   potato: 'farming_potato',

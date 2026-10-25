@@ -141,9 +141,7 @@ export function stampVillage(world, v, cq, cr) {
       y >= 64
     )
       return;
-    const k = key(q, y, r);
-    if (t) world.blocks.set(k, t);
-    else world.blocks.delete(k);
+    world.set(q, y, r, t, false);
   };
   for (let q = cq * 8; q < cq * 8 + 8; q++)
     for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -170,6 +168,11 @@ export function stampVillage(world, v, cq, cr) {
             DIRECTIONS[0],
           );
           const door = a === dir[0] * 2 && b === dir[1] * 2;
+          if (door)
+            world.naturalStates.set(key(q, v.h, r), {
+              facing: DIRECTIONS.indexOf(dir),
+              open: false,
+            });
           if (dist === 2)
             for (let y = 0; y < 3; y++)
               put(
@@ -177,7 +180,9 @@ export function stampVillage(world, v, cq, cr) {
                 v.h + y,
                 r,
                 door && y < 2
-                  ? null
+                  ? y === 0
+                    ? 'door'
+                    : 'doorTop'
                   : y === 1 && (a === 0 || b === 0)
                     ? 'glass'
                     : a === 0 || b === 0 || a + b === 0

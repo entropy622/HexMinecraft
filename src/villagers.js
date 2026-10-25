@@ -114,6 +114,11 @@ export class Villagers {
           a = worldToAxial(x, z),
           h = n.village.h;
         if (
+          this.world.get(a.q, h, a.r) === 'door' &&
+          !this.world.state(a.q, h, a.r).open
+        )
+          this.openDoor?.(a.q, h, a.r);
+        if (
           this.world.loaded(a.q, a.r) &&
           this.world.solid(a.q, h - 1, a.r) &&
           !this.world.solid(a.q, h, a.r) &&

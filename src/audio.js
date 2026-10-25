@@ -123,6 +123,9 @@ export class GameAudio {
     } else if (event === 'place') {
       this.noise(0.05, 0.13, 600);
       this.tone(230, 0.05, 'triangle', 0.08);
+    } else if (event === 'doorOpen' || event === 'doorClose') {
+      this.noise(0.09, 0.08, 480);
+      this.tone(event === 'doorOpen' ? 190 : 125, 0.12, 'triangle', 0.05);
     } else if (event === 'portal') {
       [130.81, 196, 261.63, 392].forEach((n, i) =>
         this.tone(n, 0.75, 'sine', 0.09, i * 0.09),

@@ -7,6 +7,7 @@ import './style.css';
 import * as THREE from 'three';
 import {
   BLOCKS,
+  DIRECTIONS,
   canEquip,
   ITEMS,
   HOTBAR,
@@ -24,6 +25,7 @@ import { ItemDrops } from './item-drops.js';
 import { Weather, WeatherColumns, WEATHER } from './weather.js';
 import { PLANTS, plantForItem } from './farming-data.js';
 import { plantingIssue, growthConditions, treePlan } from './farming.js';
+import { facingFromDirection, facingAngle } from './building-shapes.js';
 import { INVENTORY_SLOTS, usedSlots, roomFor, stackSize } from './inventory.js';
 import { MOBS } from './mob-data.js';
 import { Graphics } from './graphics.js';
@@ -49,7 +51,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.12 — ROOTS AND HARVESTS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.13 — HOMES AND HOMESTEADS</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -60,7 +62,7 @@ $('#app').innerHTML = `
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b> <span class="tiny">/ 点击选择；点击护甲穿戴；Shift 点击丢出一组</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><div class="pack-actions"><button id="drop-held">丢出手持物 ×1</button><button id="drop-mode" aria-pressed="false">点击丢弃：关</button></div><p class="panel-note">Q 丢出 1 件 / Ctrl+Q 丢出一组 · 靠近地面物品自动拾取 · 工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -168,8 +170,7 @@ function playerFeet() {
   return camera.position.y - 1.65;
 }
 function solidAt(x, y, z) {
-  const a = worldToAxial(x, z);
-  return world.solid(a.q, Math.floor(y), a.r);
+  return world.pointSolid(x, y, z);
 }
 function collides(x, feet, z) {
   for (const [dx, dz] of [
@@ -223,6 +224,7 @@ function startGame(mode = false, save = null) {
   };
   world = new World(seed, dimension, {
     edits: data.edits,
+    blockStates: data.blockStates,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
     villageFeatures: data.villageFeatures,
@@ -305,6 +307,7 @@ function captureDimension() {
   };
 }
 function syncDecor() {
+  maintainBuildings();
   const a = worldToAxial(camera.position.x, camera.position.z);
   villagers.sync(world, a.q, a.r);
   for (const v of world.villages(a.q, a.r, 32)) {
@@ -365,6 +368,7 @@ function travel(to) {
   const data = dimensionStates[to] || { edits: [], crops: [], chests: [] };
   world = new World(seed, to, {
     edits: data.edits,
+    blockStates: data.blockStates,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
     villageFeatures: data.villageFeatures,
@@ -875,6 +879,13 @@ function mine(dt) {
     `${Math.min(100, (mining / data.hardness) * 100)}%`;
   if (mining < data.hardness) return;
   const { q, y, r, type } = target;
+  if (BLOCKS[type].shape) {
+    removeBuilding(q, y, r, !creative);
+    wearItem(held);
+    mining = 0;
+    target = null;
+    return;
+  }
   if (type === 'chest') syncDecor();
   world.set(q, y, r, null);
   graphics.updateBlock(q, y, r);
@@ -979,6 +990,15 @@ function flushFluidChanges() {
 }
 function place() {
   if (!playing) return;
+  if (
+    target &&
+    ['door', 'doorTop', 'gate'].includes(target.type) &&
+    !keys.has('ControlLeft') &&
+    !keys.has('ControlRight')
+  ) {
+    toggleBuilding(target.q, target.y, target.r);
+    return;
+  }
   if (interactCreature() || drinkMilk() || useGoldenApple()) return;
   if (heldItem() === 'boneMeal' && target) {
     interact();
@@ -994,6 +1014,10 @@ function place() {
   }
   if (useBucket()) return;
   if (!target || !BLOCKS[hotbar[selected]]) return;
+  if (BLOCKS[hotbar[selected]].shape) {
+    placeBuilding(hotbar[selected], target.place);
+    return;
+  }
   const { q, y, r } = target.place,
     id = hotbar[selected];
   if (y < 1 || y >= WORLD_HEIGHT) {
@@ -1022,6 +1046,150 @@ function place() {
   soundFX.play('place', id);
   graphics.swing();
   updateHUD();
+}
+function fullSupport(q, y, r) {
+  const type = world.get(q, y, r);
+  return !!type && !BLOCKS[type].nonSolid && !BLOCKS[type].shape;
+}
+function placeBuilding(type, p) {
+  const { q, y, r } = p;
+  if (y < 1 || y >= 63 || (!creative && !(inventory[type] > 0))) return;
+  let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
+  if (type === 'door' && !fullSupport(q, y - 1, r)) {
+    toast('门需要放在实心地面上。');
+    return;
+  }
+  if (type === 'ladder') {
+    const matches = DIRECTIONS.map(([dq, dr], i) => ({
+      i,
+      q: q + dq,
+      r: r + dr,
+    })).filter((a) => fullSupport(a.q, y, a.r));
+    const back =
+      matches.find((a) => a.q === target.q && a.r === target.r) ||
+      matches.find((a) => a.i === facing) ||
+      matches[0];
+    if (!back) {
+      toast('梯子需要贴在实心墙面。');
+      return;
+    }
+    facing = back.i;
+  }
+  const cells =
+    type === 'door'
+      ? [
+          [q, y, r, 'door'],
+          [q, y + 1, r, 'doorTop'],
+        ]
+      : [[q, y, r, type]];
+  if (
+    cells.some(
+      ([a, b, c]) => world.get(a, b, c) || world.fluids.get(a, b, c),
+    ) ||
+    (['fence', 'gate'].includes(type) &&
+      (world.get(q, y + 1, r) || world.fluids.get(q, y + 1, r)))
+  ) {
+    toast('这里没有足够的建造空间。');
+    return;
+  }
+  for (const [a, b, c, t] of cells) world.set(a, b, c, t, false);
+  world.setState(q, y, r, { facing, open: false });
+  if (collides(camera.position.x, playerFeet(), camera.position.z)) {
+    for (const [a, b, c] of cells) world.set(a, b, c, null, false);
+    world.blockStates.delete(key(q, y, r));
+    toast('这里会挡住你，退开一点再放置。');
+    return;
+  }
+  for (const [a, b, c, t] of cells) world.set(a, b, c, t);
+  if (crops.has(key(q, y - 1, r))) harvestPlant(key(q, y - 1, r), true, 3);
+  if (!creative) inventory[type]--;
+  graphics.updateBlock(q, y, r);
+  graphics.swing();
+  soundFX.play('place', 'wood');
+  updateHUD();
+}
+function removeBuilding(q, y, r, drop = true) {
+  const original = world.get(q, y, r);
+  if (!BLOCKS[original]?.shape) return;
+  if (original === 'doorTop' && world.get(q, y - 1, r) === 'door') y--;
+  const type = world.get(q, y, r),
+    item = type === 'doorTop' ? 'door' : type;
+  world.set(q, y, r, null);
+  if (type === 'door' && world.get(q, y + 1, r) === 'doorTop')
+    world.set(q, y + 1, r, null);
+  graphics.updateBlock(q, y, r);
+  if (drop) dropAt(item, 1, q, y, r);
+  soundFX.play('break', 'wood');
+}
+function toggleBuilding(q, y, r, open = null) {
+  if (world.get(q, y, r) === 'doorTop') y--;
+  const old = world.state(q, y, r),
+    next = { ...old, open: open ?? !old.open };
+  if (next.open === old.open) return;
+  world.setState(q, y, r, next);
+  const center = axialToWorld(q, r);
+  const blocked =
+    collides(camera.position.x, playerFeet(), camera.position.z) ||
+    [...creatures, ...villagers.residents.values()].some(
+      (m) =>
+        Math.hypot(m.mesh.position.x - center.x, m.mesh.position.z - center.z) <
+          3 &&
+        [
+          [0, 0],
+          [0.25, 0],
+          [-0.25, 0],
+          [0, 0.25],
+          [0, -0.25],
+        ].some(([dx, dz]) =>
+          world.pointSolid(
+            m.mesh.position.x + dx,
+            m.mesh.position.y + 0.3,
+            m.mesh.position.z + dz,
+          ),
+        ),
+    );
+  if (blocked) {
+    world.setState(q, y, r, old);
+    toast('门口有人或动物，先让出空间。');
+    return;
+  }
+  graphics.updateBlock(q, y, r);
+  soundFX.play(next.open ? 'doorOpen' : 'doorClose', 'wood');
+}
+function maintainBuildings() {
+  for (const k of [...world.buildings]) {
+    const [q, y, r] = k.split(',').map(Number),
+      type = world.get(q, y, r);
+    if (
+      type === 'door' &&
+      (!fullSupport(q, y - 1, r) || world.get(q, y + 1, r) !== 'doorTop')
+    )
+      removeBuilding(q, y, r);
+    else if (type === 'doorTop' && world.get(q, y - 1, r) !== 'door')
+      removeBuilding(q, y, r);
+    else if (type === 'ladder') {
+      const [dq, dr] = DIRECTIONS[world.state(q, y, r).facing];
+      if (!world.loaded(q + dq, r + dr)) continue;
+      if (!fullSupport(q + dq, y, r + dr)) removeBuilding(q, y, r);
+    }
+  }
+}
+villagers.openDoor = (q, y, r) => toggleBuilding(q, y, r, true);
+function onLadder() {
+  const a = worldToAxial(camera.position.x, camera.position.z),
+    p = axialToWorld(a.q, a.r);
+  for (
+    let y = Math.floor(playerFeet());
+    y <= Math.floor(camera.position.y);
+    y++
+  ) {
+    if (world.get(a.q, y, a.r) !== 'ladder') continue;
+    const angle = facingAngle(world.state(a.q, y, r).facing);
+    const dx = camera.position.x - p.x,
+      dz = camera.position.z - p.z;
+    if (dx * Math.sin(angle) + dz * Math.cos(angle) > 0.25) return true;
+  }
+  return false;
 }
 function cropConditions(k, plant) {
   const [q, y, r] = k.split(',').map(Number);
@@ -1202,6 +1370,14 @@ function interact() {
   if (!target) return;
   const { q, y, r, type } = target,
     k = key(q, y, r);
+  if (['door', 'doorTop', 'gate'].includes(type)) {
+    toggleBuilding(q, y, r);
+    return;
+  }
+  if (type === 'ladder') {
+    toast('贴近梯子：W / 空格向上，Shift 向下，Ctrl 停住。');
+    return;
+  }
   if (type === 'portal' || type === 'endportal') {
     travel(
       dimension === 'overworld'
@@ -1549,6 +1725,10 @@ function explode(center) {
         const type = world.get(q, y, r),
           k = key(q, y, r);
         if (!type || type === 'bedrock' || type === 'obsidian') continue;
+        if (BLOCKS[type].shape) {
+          removeBuilding(q, y, r, !creative && Math.random() < 0.6);
+          continue;
+        }
         world.set(q, y, r, null);
         if (!creative && Math.random() < 0.6)
           dropAt(BLOCKS[type].drop || type, 1, q, y, r);
@@ -1664,7 +1844,8 @@ function movePlayer(dt) {
   const feetFluid = fluidAt(playerFeet() + 0.12),
     headFluid = fluidAt(camera.position.y);
   const swimming = !!feetFluid,
-    fly = creative;
+    fly = creative,
+    climbing = !creative && onLadder();
   let forward = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0),
     side = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
   const norm = Math.hypot(forward, side);
@@ -1721,12 +1902,24 @@ function movePlayer(dt) {
     )
       camera.position.z += dz;
     else motion.z = 0;
-    if (!swimming && motion.takeJump(keys.has('Space'), grounded)) {
+    if (
+      !swimming &&
+      !climbing &&
+      motion.takeJump(keys.has('Space'), grounded)
+    ) {
       vy = 8.5;
       grounded = false;
       beep(180, 0.04, 'sine', 0.01);
     }
-    if (swimming) {
+    if (climbing) {
+      vy = sneaking
+        ? 0
+        : keys.has('ShiftLeft') || keys.has('ShiftRight')
+          ? -2.8
+          : keys.has('KeyW') || keys.has('Space')
+            ? 3.2
+            : -1.2;
+    } else if (swimming) {
       vy = Math.max(-2, vy - dt * 4);
       if (keys.has('Space')) vy = 4;
     } else vy -= dt * DIMENSIONS[dimension].gravity;
@@ -2341,6 +2534,10 @@ function frame(now) {
           'portal',
           'endportal',
           'spawner',
+          'door',
+          'doorTop',
+          'gate',
+          'ladder',
         ].includes(target.type)
           ? ' · E 交互'
           : '')

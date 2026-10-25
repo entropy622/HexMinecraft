@@ -69,6 +69,11 @@ export function miningStats(block, held) {
     'chest',
     'crimsonwood',
     'bookshelf',
+    'door',
+    'doorTop',
+    'fence',
+    'gate',
+    'ladder',
   ].includes(block)
     ? 'axe'
     : ['grass', 'dirt', 'sand', 'snow', 'farmland', 'sandstone'].includes(block)

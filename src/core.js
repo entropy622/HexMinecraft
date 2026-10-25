@@ -5,6 +5,7 @@ import {
 } from './exploration-data.js';
 import { GEAR, GEAR_RECIPES } from './gear-data.js';
 import { FARM_BLOCKS, FARM_ITEMS, FARM_RECIPES } from './farming-data.js';
+import { BUILDING_BLOCKS, BUILDING_RECIPES } from './building-data.js';
 export const SQRT3 = Math.sqrt(3);
 export const DIRECTIONS = [
   [1, 0],
@@ -15,6 +16,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...BUILDING_BLOCKS,
   ...FARM_BLOCKS,
   ...EXPLORATION_BLOCKS,
   grass: {
@@ -183,7 +185,7 @@ export const ITEMS = {
   ...GEAR,
 };
 export const canEquip = (id) =>
-  Object.hasOwn(BLOCKS, id) ||
+  (Object.hasOwn(BLOCKS, id) && !BLOCKS[id].internal) ||
   (Object.hasOwn(ITEMS, id) &&
     (!!ITEMS[id].bucket || !!ITEMS[id].kind || !!ITEMS[id].use));
 export const HOTBAR = [
@@ -563,7 +565,12 @@ export class World {
     }
   }
 }
-RECIPES.push(...GEAR_RECIPES, ...EXPLORATION_RECIPES, ...FARM_RECIPES);
+RECIPES.push(
+  ...GEAR_RECIPES,
+  ...EXPLORATION_RECIPES,
+  ...FARM_RECIPES,
+  ...BUILDING_RECIPES,
+);
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (
     (!recipe.station || station) &&

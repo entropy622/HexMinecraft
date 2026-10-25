@@ -118,7 +118,7 @@ export class Fauna {
           break;
         }
         for (let h = 0; h < def.height; h += 0.35)
-          if (world.solid(a.q, Math.floor(floor + h), a.r)) {
+          if (world.pointSolid(x + dx, floor + h, z + dz)) {
             clear = false;
             break;
           }

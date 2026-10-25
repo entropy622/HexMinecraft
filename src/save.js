@@ -70,6 +70,23 @@ export function validateSave(s) {
       )
     )
       throw Error('地形数据无效');
+    if (
+      d.blockStates !== undefined &&
+      (!Array.isArray(d.blockStates) ||
+        d.blockStates.length > 2e6 ||
+        d.blockStates.some(
+          (e) =>
+            !Array.isArray(e) ||
+            e.length !== 2 ||
+            !cell(e[0]) ||
+            !e[1] ||
+            !Number.isInteger(e[1].facing) ||
+            e[1].facing < 0 ||
+            e[1].facing > 5 ||
+            typeof e[1].open !== 'boolean',
+        ))
+    )
+      throw Error('建筑朝向或开关状态无效');
     for (const field of ['structureFeatures', 'discoveredStructures']) {
       if (
         d[field] !== undefined &&

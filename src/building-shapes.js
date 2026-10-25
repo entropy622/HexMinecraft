@@ -1,0 +1,109 @@
+import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
+
+export function facingAngle(facing) {
+  const d = DIRECTIONS[facing] || DIRECTIONS[0],
+    p = axialToWorld(...d);
+  return Math.atan2(p.x, p.z);
+}
+export function facingFromDirection(x, z) {
+  let best = 0,
+    score = -Infinity;
+  DIRECTIONS.forEach((d, i) => {
+    const p = axialToWorld(...d),
+      dot = p.x * x + p.z * z;
+    if (dot > score) {
+      score = dot;
+      best = i;
+    }
+  });
+  return best;
+}
+export function buildingParts(world, q, y, r, collision = false) {
+  const type = world.get(q, y, r),
+    state = world.state(q, y, r);
+  const shape = BLOCKS[type]?.shape,
+    angle = facingAngle(state.facing);
+  const parts = [];
+  const add = (x, cy, z, w, h, d, turn = 0, tile = 'planks') => {
+    parts.push({
+      x: x * Math.cos(angle) + z * Math.sin(angle),
+      y: cy,
+      z: -x * Math.sin(angle) + z * Math.cos(angle),
+      w,
+      h,
+      d,
+      angle: angle + turn,
+      tile,
+    });
+  };
+  if (shape === 'door') {
+    add(
+      state.open ? -0.75 : 0,
+      0.5,
+      state.open ? 0.75 : 0,
+      1.5,
+      1,
+      0.12,
+      state.open ? -Math.PI / 2 : 0,
+      type,
+    );
+  } else if (shape === 'gate') {
+    add(-0.78, 0.75, 0, 0.16, 1.5, 0.18);
+    add(0.78, 0.75, 0, 0.16, 1.5, 0.18);
+    const x = state.open ? -0.69 : 0,
+      z = state.open ? 0.69 : 0,
+      turn = state.open ? -Math.PI / 2 : 0;
+    if (collision) add(x, 0.75, z, 1.38, 1.5, 0.15, turn);
+    else for (const h of [0.55, 1.13]) add(x, h, z, 1.38, 0.2, 0.14, turn);
+  } else if (shape === 'fence') {
+    // Fence parts use world axes so each arm follows an axial neighbor exactly.
+    parts.push({
+      x: 0,
+      y: 0.75,
+      z: 0,
+      w: 0.22,
+      h: 1.5,
+      d: 0.22,
+      angle: 0,
+      tile: 'planks',
+    });
+    DIRECTIONS.forEach(([dq, dr]) => {
+      const neighbor = world.get(q + dq, y, r + dr);
+      if (
+        !neighbor ||
+        BLOCKS[neighbor]?.nonSolid ||
+        neighbor === 'ladder' ||
+        neighbor === 'doorTop'
+      )
+        return;
+      const p = axialToWorld(dq, dr),
+        a = Math.atan2(p.x, p.z);
+      for (const h of collision ? [0.75] : [0.55, 1.13])
+        parts.push({
+          x: p.x / 4,
+          y: h,
+          z: p.z / 4,
+          w: 0.14,
+          h: collision ? 1.5 : 0.18,
+          d: Math.sqrt(3) / 2 + 0.04,
+          angle: a,
+          tile: 'planks',
+        });
+    });
+  } else if (shape === 'ladder' && !collision) {
+    for (const x of [-0.34, 0.34]) add(x, 0.5, 0.8, 0.1, 1, 0.1);
+    for (const h of [0.15, 0.38, 0.62, 0.85]) add(0, h, 0.77, 0.76, 0.08, 0.12);
+  }
+  return parts;
+}
+export function insidePart(x, y, z, part) {
+  const dx = x - part.x,
+    dz = z - part.z;
+  const px = dx * Math.cos(part.angle) - dz * Math.sin(part.angle);
+  const pz = dx * Math.sin(part.angle) + dz * Math.cos(part.angle);
+  return (
+    Math.abs(px) < part.w / 2 &&
+    Math.abs(y - part.y) < part.h / 2 &&
+    Math.abs(pz) < part.d / 2
+  );
+}

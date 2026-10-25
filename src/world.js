@@ -1,7 +1,17 @@
 import { structuresNear, stampStructure } from './structures.js';
 import { villagesNear, villageAt, stampVillage, features } from './villages.js';
 import { Fluids } from './fluids.js';
-import { BLOCKS, DIRECTIONS, noise, hash, hexDistance, key } from './core.js';
+import {
+  BLOCKS,
+  DIRECTIONS,
+  noise,
+  hash,
+  hexDistance,
+  key,
+  worldToAxial,
+  axialToWorld,
+} from './core.js';
+import { buildingParts, insidePart } from './building-shapes.js';
 
 export const CHUNK_SIZE = 8;
 export const WORLD_HEIGHT = 64;
@@ -48,6 +58,10 @@ export class World {
     this.editChunks = new Map();
     this.center = null;
     this.spawners = new Set();
+    this.buildings = new Set();
+    this.blockStates = new Map();
+    this.naturalStates = new Map();
+    this.shapeCache = new Map();
     this.structureFeatures = new Set(options.structureFeatures || []);
     this.discoveredStructures = new Set(options.discoveredStructures || []);
     this.villageExclusions = new Set(options.villageExclusions || []);
@@ -57,6 +71,7 @@ export class World {
     this.beacons = [];
     this.fluids = new Fluids(this, options.fluids);
     if (options.edits) this.applyEdits(options.edits);
+    this.blockStates = new Map(options.blockStates || []);
     if (options.load !== false) this.ensureAround(0, 0);
   }
   biome(q, r) {
@@ -127,11 +142,65 @@ export class World {
   }
   solid(q, y, r) {
     const t = this.get(q, y, r);
+    if (['door', 'doorTop', 'gate'].includes(t))
+      return !this.state(q, y, r).open;
+    const below = this.get(q, y - 1, r);
+    if (
+      below === 'fence' ||
+      (below === 'gate' && !this.state(q, y - 1, r).open)
+    )
+      return true;
     return !!t && !BLOCKS[t]?.nonSolid;
+  }
+  state(q, y, r) {
+    if (this.get(q, y, r) === 'doorTop') y--;
+    const k = key(q, y, r);
+    return (
+      this.blockStates.get(k) ||
+      this.naturalStates.get(k) || { facing: 0, open: false }
+    );
+  }
+  setState(q, y, r, state) {
+    if (this.get(q, y, r) === 'doorTop') y--;
+    this.blockStates.set(key(q, y, r), {
+      facing: state.facing,
+      open: state.open,
+    });
+    this.shapeCache.clear();
+  }
+  pointSolid(x, y, z) {
+    const cell = worldToAxial(x, z),
+      h = Math.floor(y),
+      type = this.get(cell.q, h, cell.r);
+    if (type && !BLOCKS[type].shape && !BLOCKS[type].nonSolid) return true;
+    // Open leaves and connecting rails can extend across a hex boundary.
+    for (const [dq, dr] of [[0, 0], ...DIRECTIONS])
+      for (const b of [h, h - 1]) {
+        const q = cell.q + dq,
+          r = cell.r + dr,
+          t = this.get(q, b, r);
+        if (!BLOCKS[t]?.shape || t === 'ladder') continue;
+        const k = key(q, b, r),
+          p = axialToWorld(q, r);
+        if (!this.shapeCache.has(k))
+          this.shapeCache.set(k, buildingParts(this, q, b, r, true));
+        if (
+          this.shapeCache
+            .get(k)
+            .some((part) => insidePart(x - p.x, y - b, z - p.z, part))
+        )
+          return true;
+      }
+    return false;
   }
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);
+    const previous = this.get(q, y, r);
+    this.shapeCache.clear();
+    if (record && previous !== type) this.blockStates.delete(k);
     if (this.loaded(q, r)) {
+      if (BLOCKS[type]?.shape) this.buildings.add(k);
+      else this.buildings.delete(k);
       if (type === 'spawner') this.spawners.add(k);
       else this.spawners.delete(k);
       if (type) this.blocks.set(k, type);
@@ -256,12 +325,15 @@ export class World {
     for (const s of this.structures(cq * 8 + 4, cr * 8 + 4, 8))
       stampStructure(this, s, cq, cr);
     for (const [k, t] of this.editChunks.get(ck) || []) {
+      if (BLOCKS[t]?.shape) this.buildings.add(k);
+      else this.buildings.delete(k);
       if (t === 'spawner') this.spawners.add(k);
       else this.spawners.delete(k);
       if (t) this.blocks.set(k, t);
       else this.blocks.delete(k);
     }
     this.fluids.load(cq, cr);
+    this.shapeCache.clear();
   }
   ensureAround(q, r, radius = VIEW_RADIUS + 1) {
     const cq = Math.floor(q / 8),
@@ -288,14 +360,20 @@ export class World {
           const k = key(q, y, r);
           this.blocks.delete(k);
           this.spawners.delete(k);
+          this.buildings.delete(k);
+          this.naturalStates.delete(k);
         }
       }
     this.chunks.delete(`${cq},${cr}`);
+    this.shapeCache.clear();
   }
   clearLoaded() {
     this.fluids.clear();
     this.blocks.clear();
     this.spawners.clear();
+    this.buildings.clear();
+    this.naturalStates.clear();
+    this.shapeCache.clear();
     this.heights.clear();
     this.chunks.clear();
     this.center = null;
@@ -318,6 +396,7 @@ export class World {
   serialize() {
     return {
       edits: [...this.edits],
+      blockStates: [...this.blockStates],
       structureFeatures: [...this.structureFeatures],
       discoveredStructures: [...this.discoveredStructures],
       fluids: this.fluids.serialize(),

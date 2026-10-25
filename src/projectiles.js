@@ -96,7 +96,7 @@ export class Projectiles {
           this.remove(arrow);
           break;
         }
-        if (world.solid(a.q, Math.floor(p.y), a.r)) {
+        if (world.pointSolid(p.x, p.y, p.z)) {
           arrow.mesh.position.copy(previous);
           arrow.stuck = true;
           break;

@@ -125,7 +125,7 @@ export class ItemDrops {
   }
   blocked(world, p) {
     const a = worldToAxial(p[0], p[2]);
-    return !world.loaded(a.q, a.r) || world.solid(a.q, Math.floor(p[1]), a.r);
+    return !world.loaded(a.q, a.r) || world.pointSolid(...p);
   }
   clearPath(world, from, to) {
     const steps = Math.ceil(Math.hypot(...from.map((v, i) => v - to[i])) / 0.2);
