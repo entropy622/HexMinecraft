@@ -13,7 +13,7 @@ import { newBrewing, tickBrewing, resetBrewing } from './brewing.js';
 import { brewingPanel, updateBrewingPanel } from './brewing-ui.js';
 import { FUELS, newFurnace, smeltingRecipe, tickFurnace } from './furnaces.js';
 import { furnacePanel, updateFurnacePanel } from './furnace-ui.js';
-import { newChest, depositChest, withdrawChest, sortChest } from './chests.js';
+import { newChest } from './chests.js';
 import { chestPanel } from './chest-ui.js';
 import { features as villageFeatures, ROLES, trade } from './villages.js';
 import { Villagers } from './villagers.js';
@@ -32,7 +32,6 @@ import {
   hexDistance,
   key,
   hash,
-  craft,
   canCraft,
 } from './core.js';
 import { Fauna } from './fauna.js';
@@ -41,14 +40,32 @@ import { Weather, WeatherColumns, WEATHER } from './weather.js';
 import { PLANTS, plantForItem } from './farming-data.js';
 import { plantingIssue, growthConditions, treePlan } from './farming.js';
 import { facingFromDirection, facingAngle } from './building-shapes.js';
-import { INVENTORY_SLOTS, usedSlots, roomFor, stackSize } from './inventory.js';
+import {
+  INVENTORY_SLOTS,
+  usedSlots,
+  roomFor,
+  stackSize,
+  PlayerInventory,
+  GEAR_SLOTS,
+  acceptsGear,
+  sameStack,
+} from './inventory.js';
+import { ContainerSession, moveSlot, takeSlot } from './container-actions.js';
+import { InventoryControls } from './inventory-controls.js';
+import {
+  playerSlots,
+  creativePalette,
+  inventoryHelp,
+  stackContent,
+  stackTitle,
+} from './inventory-ui.js';
 import { MOBS } from './mob-data.js';
 import { Graphics } from './graphics.js';
 import { HELD_LIGHTS } from './voxel-light.js';
 import { Survival, FOODS } from './survival.js';
 import { Combat } from './combat.js';
 import { Experience, xpForLevel } from './experience.js';
-import { enchantLabel, customName } from './enchanting-data.js';
+import { enchantLabel, customName, wearValue } from './enchanting-data.js';
 import { ANVILS, isSmithingStation } from './smithing-data.js';
 import { smithingPlan } from './smithing.js';
 import { smithingPanel, smithingPreview } from './smithing-ui.js';
@@ -58,8 +75,7 @@ import { enchantingPanel } from './enchanting-ui.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
 import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack, textureURL } from './texture-pack.js';
-import { Equipment, miningStats, transferWear } from './equipment.js';
-import { ARMOR_SLOTS } from './gear-data.js';
+import { Equipment, miningStats } from './equipment.js';
 import { Projectiles } from './projectiles.js';
 import { Fishing } from './fishing.js';
 import { Boats, BOAT_EYE } from './boats.js';
@@ -79,7 +95,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.26 — ADVENTURES IN A BOTTLE</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.27 — EVERY STACK HAS A PLACE</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -89,7 +105,7 @@ $('#app').innerHTML = `
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="按住食用或饮用">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="fire-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
- <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b> <span class="tiny">/ 点击选择；点击护甲/盾牌装备；Shift 点击丢出一组</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><div class="pack-actions"><button id="drop-held">丢出手持物 ×1</button><button id="drop-mode" aria-pressed="false">点击丢弃：关</button></div><p class="panel-note">Q 丢出 1 件 / Ctrl+Q 丢出一组 · 靠近地面物品自动拾取 · 工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · 鱼竿：右键/E 抛线与收杆，左键收起 · 按住 F 食用 · 盾牌：副手装备，按住 R 防御 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
+ <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b></div><div id="inventory"></div>${inventoryHelp}<div class="inventory-touch-modes" role="group" aria-label="触屏物品操作"><button data-inventory-mode="normal" aria-pressed="true">拿放</button><button data-inventory-mode="single" aria-pressed="false">分半 / 放 1 件</button><button data-inventory-mode="quick" aria-pressed="false">快速转移</button></div></div></div></section>
  <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 柔影与晨雾</option></select></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="antialias-toggle">边缘抗锯齿</label><input id="antialias-toggle" type="checkbox" checked></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加近景柔影、体积光束与抗锯齿，显卡开销较高；细节可单独调整。均衡与流畅使用轻量高度雾。画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>食用或饮用 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>R</kbd>按住举起副手盾牌</span><span><kbd>随身照明</kbd>手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
@@ -116,7 +132,6 @@ const experience = new Experience(graphics.scene, (levelUp) =>
   soundFX.play(levelUp ? 'levelUp' : 'xp'),
 );
 const enchantState = { id: null, index: 0, page: 0 };
-const brewState = { slot: 0, amount: 1 };
 const smithState = {
   id: null,
   index: 0,
@@ -175,7 +190,6 @@ let weather = new Weather();
 const weatherColumns = new WeatherColumns();
 let weatherGrowthTimer = 0;
 let lastDeath = null;
-let discardMode = false;
 const fauna = new Fauna(graphics.scene, graphics.textures, {
   damage: (amount, source) => hurt(amount, 'combat', source),
   drop: (id, n, position) => drops.spawn(id, n, position),
@@ -198,19 +212,19 @@ let survival = new Survival(),
 const foodInputs = new Set();
 const combat = new Combat();
 let attackPeriod = 0.45;
-const chestState = { amount: 'stack', page: 0, query: '' };
+
 let world = new World(624),
-  inventory = {},
+  pack = new PlayerInventory(),
+  inventory = pack.counts,
   tool = 0,
   creative = false,
-  hotbar = [...HOTBAR],
+  hotbar = pack.hotbar,
   selected = 0,
   health = 20,
   hunger = 20,
   time = 105;
 let crops = new Map(),
   chests = new Map(),
-  furnaceAmount = 8,
   creatures = fauna.active,
   hasGame = false,
   playing = false,
@@ -238,6 +252,32 @@ let saveTimer = 0,
   moved = 0,
   simulationAccumulator = 0;
 const spawn = new THREE.Vector3();
+equipment.bind(pack);
+const inventorySession = new ContainerSession(resolveInventorySlot);
+const inventoryControls = new InventoryControls(inventorySession, {
+  active: () =>
+    !!hasGame &&
+    (overlay === '#craft-overlay' ||
+      (overlay === '#station-overlay' &&
+        !!document.querySelector('#station-content [data-inv-slot]'))),
+  creative: () => creative,
+  visible: () => [
+    ...new Set(
+      [
+        ...document.querySelectorAll('.overlay:not(.hidden) [data-inv-slot]'),
+      ].map((b) => b.dataset.invSlot),
+    ),
+  ],
+  quickMove: quickMoveInventory,
+  swapHotbar,
+  drop: dropInventoryStack,
+  settle: settleInventoryCursor,
+  changed: () => {
+    updateHUD();
+    refreshInventoryPanel();
+    saveGame();
+  },
+});
 let respawnPoint = null;
 let dimension = 'overworld',
   dimensionStates = {},
@@ -253,6 +293,233 @@ function toast(message) {
   $('#toast').classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 3200);
+}
+
+function resolveInventorySlot(ref) {
+  if (typeof ref !== 'string') return null;
+  const [kind, name] = ref.split(':'),
+    index = Number(name);
+  if (kind === 'recipe' && name === 'output')
+    return {
+      get: () => {
+        const recipe = RECIPES[selectedRecipe];
+        if (
+          !creative &&
+          !canCraft(recipe, inventory, tool, nearbyType('workbench'))
+        )
+          return null;
+        return {
+          item: recipe.id,
+          count: recipe.count,
+          ...(ITEMS[recipe.id].durability
+            ? { wear: ITEMS[recipe.id].durability }
+            : {}),
+        };
+      },
+      set: () => {},
+      accepts: () => false,
+      output: true,
+      whole: true,
+      taken: () => {
+        const recipe = RECIPES[selectedRecipe];
+        if (!creative) {
+          for (const [id, n] of Object.entries(recipe.cost)) inventory[id] -= n;
+          for (const [id, n] of Object.entries(recipe.returns || {}))
+            inventory[id] = (inventory[id] || 0) + n;
+        }
+        soundFX.play('craft');
+      },
+    };
+  if (kind === 'pack' || kind === 'gear' || kind === 'box') {
+    const list =
+      kind === 'pack'
+        ? pack.slots
+        : kind === 'gear'
+          ? pack.gear
+          : currentChest();
+    if (!list || !Number.isInteger(index) || index < 0 || index >= list.length)
+      return null;
+    return {
+      get: () => list[index],
+      set: (s) => {
+        list[index] = s;
+      },
+      ...(kind === 'gear'
+        ? { accepts: (s) => acceptsGear(GEAR_SLOTS[index], s), limit: 1 }
+        : {}),
+    };
+  }
+  if (kind === 'furnace') {
+    const f = currentFurnace();
+    if (!f || !['input', 'fuel', 'output'].includes(name)) return null;
+    return {
+      get: () => f[name],
+      set: (s) => {
+        if (name === 'input' && f.input?.item !== s?.item) f.progress = 0;
+        f[name] = s;
+      },
+      accepts: (s) =>
+        name === 'input'
+          ? !!smeltingRecipe(s.item)
+          : name === 'fuel' && !!FUELS[s.item],
+      output: name === 'output',
+      taken: (s, n) => {
+        if (name !== 'output') return;
+        const share = (f.xp * n) / s.count;
+        f.xp = Math.max(0, f.xp - share);
+        awardXP(share, [
+          camera.position.x,
+          playerFeet() + 0.5,
+          camera.position.z,
+        ]);
+      },
+    };
+  }
+  if (kind === 'brew') {
+    const b = currentBrewing();
+    if (!b) return null;
+    if (['0', '1', '2'].includes(name))
+      return {
+        get: () =>
+          b.bottles[index] ? { item: b.bottles[index], count: 1 } : null,
+        set: (s) => {
+          if (b.bottles[index] !== (s?.item || null)) resetBrewing(b);
+          b.bottles[index] = s?.item || null;
+        },
+        accepts: (s) => Object.hasOwn(POTIONS, s.item),
+        limit: 1,
+      };
+    if (name === 'ingredient')
+      return {
+        get: () => b.ingredient,
+        set: (s) => {
+          if (b.ingredient?.item !== s?.item) resetBrewing(b);
+          b.ingredient = s;
+        },
+        accepts: (s) => BREW_INGREDIENTS.includes(s.item),
+      };
+    if (name === 'fuel')
+      return {
+        get: () => (b.fuelStock ? { item: 'ember', count: b.fuelStock } : null),
+        set: (s) => {
+          b.fuelStock = s?.count || 0;
+        },
+        accepts: (s) => s.item === 'ember',
+      };
+  }
+  return null;
+}
+const packRefs = (start = 0, end = INVENTORY_SLOTS) =>
+  Array.from({ length: end - start }, (_, i) => 'pack:' + (i + start));
+function quickMoveInventory(ref) {
+  if (ref === 'recipe:output') {
+    doCraft({ shiftKey: true });
+    return;
+  }
+  const source = resolveInventorySlot(ref),
+    stack = source?.get();
+  if (!stack) return;
+  let refs;
+  if (!ref.startsWith('pack:')) refs = [...packRefs(9), ...packRefs(0, 9)];
+  else if (overlay === '#station-overlay' && currentChest())
+    refs = currentChest().map((_, i) => 'box:' + i);
+  else if (overlay === '#station-overlay' && currentFurnace()) {
+    refs = smeltingRecipe(stack.item)
+      ? ['furnace:input']
+      : FUELS[stack.item]
+        ? ['furnace:fuel']
+        : [];
+  } else if (overlay === '#station-overlay' && currentBrewing()) {
+    refs =
+      stack.item === 'ember'
+        ? ['brew:fuel']
+        : POTIONS[stack.item]
+          ? ['brew:0', 'brew:1', 'brew:2']
+          : BREW_INGREDIENTS.includes(stack.item)
+            ? ['brew:ingredient']
+            : [];
+  } else {
+    const gear = GEAR_SLOTS.indexOf(
+      ITEMS[stack.item].offhand ? 'offhand' : ITEMS[stack.item].armorSlot,
+    );
+    if (gear >= 0 && !pack.gear[gear]) refs = ['gear:' + gear];
+  }
+  if (!refs?.length)
+    refs = Number(ref.split(':')[1]) < 9 ? packRefs(9) : packRefs(0, 9);
+  moveSlot(source, refs.map(resolveInventorySlot).filter(Boolean));
+}
+function swapHotbar(ref, index) {
+  const destination = 'pack:' + index;
+  if (inventorySession.swap(ref, destination)) return;
+  const source = resolveInventorySlot(ref),
+    out = source?.get();
+  if (!source?.output || !out) return;
+  const hot = resolveInventorySlot(destination),
+    old = hot.get();
+  if (sameStack(out, old)) {
+    if (!source.whole || stackSize(out.item) - old.count >= out.count)
+      moveSlot(source, [hot]);
+  } else if (old) {
+    const others = [...packRefs(9), ...packRefs(0, 9)]
+      .filter((r) => r !== destination)
+      .map(resolveInventorySlot);
+    const room = others.reduce((n, slot) => {
+      const s = slot.get();
+      return (
+        n +
+        (!s
+          ? stackSize(old.item)
+          : sameStack(s, old)
+            ? stackSize(old.item) - s.count
+            : 0)
+      );
+    }, 0);
+    if (room >= old.count) {
+      moveSlot(hot, others);
+      inventorySession.swap(ref, destination);
+    }
+  }
+}
+function refreshInventoryPanel() {
+  const panel = overlay && $(overlay + ' .panel'),
+    scroll = panel?.scrollTop;
+  const focus = document.activeElement?.dataset.invSlot;
+  if (overlay === '#craft-overlay') renderCraft();
+  else if (overlay === '#station-overlay') {
+    if (currentChest()) renderChest();
+    else if (currentFurnace()) renderFurnace();
+    else if (currentBrewing()) renderBrewing();
+  }
+  if (panel) panel.scrollTop = scroll;
+  if (focus)
+    document
+      .querySelector(`.overlay:not(.hidden) [data-inv-slot="${focus}"]`)
+      ?.focus({ preventScroll: true });
+}
+function dropInventoryStack(stack, thrown = true) {
+  const direction = camera.getWorldDirection(new THREE.Vector3());
+  const wear = ITEMS[stack.item]?.durability
+    ? { [stack.item]: [stack.wear ?? ITEMS[stack.item].durability] }
+    : {};
+  drops.spawn(
+    stack.item,
+    stack.count,
+    [
+      camera.position.x,
+      thrown ? camera.position.y - 0.2 : playerFeet() + 0.5,
+      camera.position.z,
+    ],
+    wear,
+    thrown ? [direction.x * 5, direction.y * 3 + 2, direction.z * 5] : null,
+  );
+}
+function settleInventoryCursor() {
+  inventoryControls?.cancel();
+  const remainder = inventorySession.returnCursor(
+    [...packRefs(9), ...packRefs(0, 9)].map(resolveInventorySlot),
+  );
+  if (remainder) dropInventoryStack(remainder);
+  inventoryControls?.refresh();
 }
 function beep(freq = 300, duration = 0.06, type = 'sine', volume = 0.035) {
   soundFX.tone(freq, duration, type, volume);
@@ -336,8 +603,27 @@ function startGame(mode = false, save = null) {
     discoveredStructures: data.discoveredStructures,
     load: false,
   });
-  inventory = save ? { ...save.inventory } : { dirt: 12, apple: 3, seed: 3 };
-  equipment = new Equipment(save?.equipment);
+  pack = new PlayerInventory(save?.inventory);
+  inventory = pack.counts;
+  equipment = new Equipment().bind(pack);
+  hotbar = pack.hotbar;
+  inventorySession.cursor = structuredClone(save?.inventory.cursor ?? null);
+  inventorySession.origin = null;
+  if (!save) {
+    if (mode)
+      HOTBAR.forEach((id, i) => {
+        pack.slots[i] = {
+          item: id,
+          count: stackSize(id),
+          ...(ITEMS[id].durability ? { wear: ITEMS[id].durability } : {}),
+        };
+      });
+    else {
+      pack.insert('dirt', 12);
+      pack.insert('apple', 3);
+      pack.insert('seed', 3);
+    }
+  }
   survival = new Survival(save?.survival);
   experience.loadPlayer(save?.experience || { seed });
   combat.reset();
@@ -349,8 +635,7 @@ function startGame(mode = false, save = null) {
   graphics.weatherEffects.thunderDelay = -1;
   bowCharge = 0;
   projectiles.clear();
-  hotbar = save?.hotbar ? [...save.hotbar] : [...HOTBAR];
-  selected = 0;
+  selected = save?.selected ?? 0;
   selectedRecipe = 0;
   health = save?.health ?? 20;
   hunger = save?.hunger ?? 20;
@@ -567,20 +852,20 @@ function travel(to) {
 }
 
 function saveData() {
-  const savedInventory = { ...inventory };
+  containInventory();
+  const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 8,
+    version: 9,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
     inventory: savedInventory,
-    equipment: equipment.serialize(),
+    selected,
     survival: survival.serialize(),
     experience: experience.serializePlayer(),
     weather: weather.serialize(),
     creative,
-    hotbar,
     position: camera.position.toArray(),
     yaw,
     pitch,
@@ -626,6 +911,7 @@ function lock() {
   }
 }
 function openOverlay(id) {
+  settleInventoryCursor();
   combat.reset();
   stopEating(true);
   closeChestLid();
@@ -664,22 +950,17 @@ function openOverlay(id) {
   }
 }
 function closeOverlay() {
+  settleInventoryCursor();
   closeChestLid();
-  if (
-    hasGame &&
-    overlay === '#station-overlay' &&
-    ($('#furnace-progress') || $('#brew-progress'))
-  )
-    saveGame();
-  discardMode = false;
-  $('#drop-mode').textContent = '点击丢弃：关';
-  $('#drop-mode').setAttribute('aria-pressed', 'false');
   document
     .querySelectorAll('.overlay')
     .forEach((e) => e.classList.add('hidden'));
   overlay = null;
+  inventoryControls.refresh();
   if (hasGame) {
     fromMenu = false;
+    updateHUD();
+    saveGame();
     lock();
   }
 }
@@ -698,6 +979,9 @@ function nearbyType(type, radius = 5) {
 }
 function renderCraft() {
   containInventory();
+  const paletteQuery = $('#creative-search')?.value || '';
+  const paletteOpen = $('.creative-palette')?.open ?? true;
+  const paletteScroll = $('.palette-grid')?.scrollTop || 0;
   const station = creative || nearbyType('workbench');
   $('#recipes').innerHTML = RECIPES.map(
     (r, i) =>
@@ -722,94 +1006,82 @@ function renderCraft() {
     !creative && !canCraft(recipe, inventory, tool, station);
   $('#craft-button').textContent =
     `合成 ${ITEMS[recipe.id].name} ×${recipe.count}`;
+  $('#craft-button').dataset.invSlot = 'recipe:output';
+  $('#craft-button').innerHTML =
+    icon(recipe.id) +
+    `<span>${ITEMS[recipe.id].name} ×${recipe.count}<small>点击拿取 · Shift 批量合成到背包</small></span>`;
   $('#station-note').textContent =
     recipe.station && !station
       ? '需要在工作台 5 格范围内'
       : station
         ? '六格环绕，一格居中。每次合成，都是新的可能。'
         : '随身合成 · 制作工作台以解锁更多配方';
-  $('#armor-slots').innerHTML = Object.entries(ARMOR_SLOTS)
-    .map(([slot, name]) => {
-      const id = equipment.armor[slot];
-      const enchant = enchantLabel(equipment.wear[id]?.[0]);
-      return `<button class="${enchant ? 'enchanted' : ''}" data-unequip="${slot}" title="${id ? '点击卸下 ' + escapeHTML(equipment.name(id)) + (enchant ? ' · ' + enchant : '') : name}">${id ? icon(id) : '<span class="empty-armor">◇</span>'}<span>${id ? escapeHTML(equipment.name(id)) : name}</span>${id ? durabilityBar(id) : ''}</button>`;
-    })
-    .join('');
-  $('#armor-slots').innerHTML +=
-    `<button class="${Object.keys(equipment.tags(equipment.offhand)).length ? 'enchanted' : ''}" data-unequip-offhand title="${equipment.offhand ? '点击卸下 ' + escapeHTML(equipment.name(equipment.offhand)) + ' · ' + (enchantLabel(equipment.wear[equipment.offhand]?.[0]) || '未附魔') : '点击背包中的盾牌装备'}">${equipment.offhand ? icon(equipment.offhand) : '<span class="empty-armor">⬡</span>'}<span>副手${equipment.offhand ? ' · 盾牌' : ''}</span>${equipment.offhand ? durabilityBar(equipment.offhand) : ''}</button>`;
-  $('#inventory').innerHTML = Object.entries(ITEMS)
-    .filter(
-      ([id]) =>
-        (creative &&
-          (canEquip(id) || ITEMS[id].armorSlot) &&
-          id !== 'bedrock') ||
-        (inventory[id] || 0) > 0,
-    )
-    .flatMap(([id, item]) =>
-      Array.from(
-        { length: creative ? 1 : Math.ceil(inventory[id] / stackSize(id)) },
-        (_, index) => [id, item, index],
-      ),
-    )
-    .map(
-      ([id, item, index]) =>
-        `<button class="inv-item ${enchantLabel(equipment.wear[id]?.[index]) ? 'enchanted' : ''} ${hotbar[selected] === id && index === 0 ? 'selected' : ''}" data-item="${id}" data-index="${index}" title="${escapeHTML(equipment.name(id, index))}${enchantLabel(equipment.wear[id]?.[index]) ? ' · ' + enchantLabel(equipment.wear[id][index]) : ''}${POTIONS[id] ? ' · ' + potionDescription(id) : FOODS[id] ? ' · 饱食 +' + FOODS[id].food + ' · 饱和 +' + FOODS[id].saturation : ''} · 点击选择；Shift 点击丢出一组${item.durability ? ' · 耐久 ' + equipment.remaining(id, index) + '/' + item.durability : ''}">${icon(id)}<span>${escapeHTML(equipment.name(id, index))}</span><b>${creative ? '∞' : Math.min(stackSize(id), inventory[id] - index * stackSize(id))}</b>${item.durability && !creative ? '<i class="durability"><i style="width:' + (equipment.remaining(id, index) / item.durability) * 100 + '%;background:#82bd58"></i></i>' : ''}${index === 0 && item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}${index === 0 && item.offhand && equipment.offhand === id ? '<small>副手中</small>' : ''}</button>`,
-    )
-    .join('');
-  if (!creative)
-    $('#inventory').innerHTML +=
-      '<span class="inv-item empty-slot" aria-hidden="true"></span>'.repeat(
-        Math.max(0, INVENTORY_SLOTS - usedSlots(inventory)),
-      );
-  $('#pack-capacity').textContent = creative
-    ? '无限材料'
-    : `${usedSlots(inventory)} / ${INVENTORY_SLOTS} 格`;
+  $('#inventory').innerHTML =
+    playerSlots(pack, true) + (creative ? creativePalette() : '');
+  if (creative) {
+    $('#creative-search').value = paletteQuery;
+    $('.creative-palette').open = paletteOpen;
+    $('.palette-grid').scrollTop = paletteScroll;
+    document.querySelectorAll('[data-creative-item]').forEach((b) => {
+      b.hidden = !b.dataset.search.includes(paletteQuery.trim().toLowerCase());
+    });
+  }
+  const query = $('#recipe-search').value.trim();
+  document
+    .querySelectorAll('[data-recipe]')
+    .forEach((b) =>
+      b.classList.toggle('hidden', !b.textContent.includes(query)),
+    );
+  $('#pack-capacity').textContent =
+    `${usedSlots(inventory)} / ${INVENTORY_SLOTS} 格`;
 }
-function doCraft() {
-  const recipe = RECIPES[selectedRecipe];
-  if (
-    ITEMS[recipe.id].durability &&
-    (inventory[recipe.id] || 0) + recipe.count > 256
-  )
+function doCraft(event) {
+  const recipe = RECIPES[selectedRecipe],
+    station = creative || nearbyType('workbench');
+  let crafted = 0;
+  const limit = event?.shiftKey ? stackSize(recipe.id) : recipe.count;
+  while (crafted + recipe.count <= limit) {
+    if (!creative && !canCraft(recipe, inventory, tool, station)) break;
+    // Work on a snapshot first so a full pack never eats recipe ingredients.
+    const draft = new PlayerInventory(pack.serialize());
+    draft.selected = selected;
+    if (!creative)
+      for (const [id, n] of Object.entries(recipe.cost)) draft.consume(id, n);
+    if (draft.room(recipe.id) < recipe.count) break;
+    let fits = true;
+    if (!creative)
+      for (const [id, n] of Object.entries(recipe.returns || {}))
+        if (draft.insert(id, n) !== n) fits = false;
+    if (!fits || draft.insert(recipe.id, recipe.count) !== recipe.count) break;
+    pack.slots = draft.slots;
+    crafted += recipe.count;
+  }
+  if (!crafted) {
+    toast('材料不足、需要工作台，或背包空间不足。');
     return;
-  if (creative)
-    inventory[recipe.id] = (inventory[recipe.id] || 0) + recipe.count;
-  else if (!craft(recipe, inventory, tool, nearbyType('workbench'))) return;
-
-  if (ITEMS[recipe.id].offhand) {
-    if (!equipment.offhand) equipment.equip(recipe.id, inventory, creative);
-  } else if (canEquip(recipe.id) && !hotbar.includes(recipe.id))
-    hotbar[selected] = recipe.id;
+  }
   soundFX.play('craft');
   graphics.swing();
-  toast(`已制作 ${ITEMS[recipe.id].name} ×${recipe.count}`);
+  toast(`已制作 ${ITEMS[recipe.id].name} ×${crafted}`);
   renderCraft();
   updateHUD();
   saveGame();
 }
+
 function heldItem() {
   const id = hotbar[selected];
-  return creative || inventory[id] > 0 ? id : null;
+  return id;
 }
-function durabilityBar(id) {
-  if (!ITEMS[id]?.durability || creative || !inventory[id]) return '';
-  const ratio = equipment.remaining(id) / ITEMS[id].durability;
-  return `<span class="durability"><i style="width:${ratio * 100}%;background:hsl(${ratio * 110} 70% 48%)"></i></span>`;
-}
-function wearItem(id, amount = 1) {
-  if (equipment.damage(id, amount, inventory, creative)) {
-    toast(
-      ITEMS[id].name +
-        '损坏了' +
-        (inventory[id] > 0 ? ' · 已换用备用装备' : ''),
-    );
+function wearItem(id, amount = 1, worn = false) {
+  if (equipment.damage(id, amount, creative, worn)) {
+    toast(ITEMS[id].name + '损坏了');
     soundFX.play('break', 'glass');
   }
   updateHUD();
 }
 function updateHUD() {
+  pack.selected = selected;
   containInventory();
-  equipment.sync(inventory, creative);
   graphics.shieldEquipped = !!equipment.offhand;
   if (heldItem() !== 'bow') bowCharge = 0;
   if (heldItem() !== 'fishingRod') fishing.clear();
@@ -825,25 +1097,25 @@ function updateHUD() {
           !hasGame || !creative || b.dataset.dimension === dimension),
     );
   const signature = JSON.stringify([
-    hotbar,
+    pack.slots.slice(0, 9),
     selected,
     creative,
-    hotbar.map((id) => inventory[id] || 0),
-    equipment.wear,
   ]);
   if (hudSignature !== signature) {
     hudSignature = signature;
-    $('#hotbar').innerHTML = hotbar
+    $('#hotbar').innerHTML = pack.slots
+      .slice(0, 9)
       .map(
-        (id, i) =>
-          `<button class="slot ${i === selected ? 'active' : ''} ${Object.keys(equipment.tags(id)).length ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${escapeHTML(equipment.name(id))} ${creative ? '无限' : inventory[id] || 0} ${enchantLabel(equipment.wear[id]?.[0])}"><span class="slot-inner">${icon(id)}</span><span class="num">${i + 1}</span><span class="count">${creative ? '∞' : inventory[id] || 0}</span>${durabilityBar(id)}</button>`,
+        (stack, i) =>
+          `<button class="slot ${i === selected ? 'active' : ''} ${enchantLabel(stack?.wear) ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${escapeHTML(stack ? stackTitle(stack).replaceAll('\n', ' · ') : '空格')}">${stackContent(stack)}<span class="num">${i + 1}</span></button>`,
       )
       .join('');
   }
-  const selectedEnchant = enchantLabel(equipment.wear[heldItem()]?.[0]);
+  const selectedEnchant = enchantLabel(pack.slots[selected]?.wear);
   $('#selected-name').textContent =
-    equipment.name(heldItem() || hotbar[selected]) +
-    (selectedEnchant ? ' · ' + selectedEnchant : '');
+    (heldItem()
+      ? customName(pack.slots[selected]?.wear) || ITEMS[heldItem()].name
+      : '') + (selectedEnchant ? ' · ' + selectedEnchant : '');
   $('#health').textContent = creative
     ? '◇ 自由建造'
     : '♥'.repeat(Math.ceil(health / 2)) +
@@ -854,7 +1126,7 @@ function updateHUD() {
   const held = heldItem();
   $('#tool').textContent =
     held && ITEMS[held].durability
-      ? `${equipment.remaining(held)} / ${ITEMS[held].durability}`
+      ? `${wearValue(pack.slots[selected].wear)} / ${ITEMS[held].durability}`
       : HELD_LIGHTS[held]
         ? '随身照明'
         : '';
@@ -889,7 +1161,7 @@ function updateHUD() {
   );
   graphics.setHeld(foodUse?.item || heldItem());
   graphics.heldEnchanted =
-    !foodUse && Object.keys(equipment.tags(heldItem())).length > 0;
+    !foodUse && !!enchantLabel(pack.slots[selected]?.wear);
 }
 function pickupNotice(id, n) {
   const popup = document.createElement('div');
@@ -901,12 +1173,7 @@ function pickupNotice(id, n) {
   setTimeout(() => popup.remove(), 2400);
 }
 function addItem(id, n = 1) {
-  const taken = Math.min(
-    n,
-    creative
-      ? (ITEMS[id]?.durability ? 256 : 1e6) - (inventory[id] || 0)
-      : roomFor(inventory, id),
-  );
+  const taken = Math.min(n, roomFor(inventory, id));
   inventory[id] = (inventory[id] || 0) + taken;
   if (taken > 0) pickupNotice(id, taken);
   if (taken < n) {
@@ -935,76 +1202,27 @@ function updateExperienceHUD() {
     '经验 ' + (experience.total - base) + ' / ' + (next - base);
 }
 function collectDrop(d, capacityOnly = false) {
-  const n = Math.min(
-    d.count,
-    creative
-      ? (ITEMS[d.item]?.durability ? 256 : 1e6) - (inventory[d.item] || 0)
-      : roomFor(inventory, d.item),
-  );
+  const n = Math.min(d.count, roomFor(inventory, d.item));
   if (capacityOnly || n <= 0) return Math.max(0, n);
-  // Transfer from a copy: the entity slices its remaining durability after collection.
-  transferWear(
-    structuredClone(d.wear),
-    equipment.wear,
-    d.item,
-    n,
-    d.count,
-    inventory[d.item] || 0,
-  );
-  inventory[d.item] = (inventory[d.item] || 0) + n;
+  pack.insert(d.item, n, d.wear[d.item] || []);
   pickupNotice(d.item, n);
   beep(720 + Math.random() * 180, 0.06, 'sine', 0.025);
   updateHUD();
   return n;
 }
 function containInventory() {
-  if (creative || usedSlots(inventory) <= INVENTORY_SLOTS) return;
-  // Also covers crafting, trading and bucket swaps that change stack occupancy.
-  let remaining = INVENTORY_SLOTS;
-  for (const [id, count] of Object.entries(inventory)) {
-    const keep = Math.min(count, remaining * stackSize(id));
-    remaining -= Math.ceil(keep / stackSize(id));
-    if (keep < count) {
-      const wear = ITEMS[id]?.durability
-        ? { [id]: (equipment.wear[id] || []).slice(keep) }
-        : {};
-      drops.spawn(
-        id,
-        count - keep,
-        [camera.position.x, playerFeet() + 0.5, camera.position.z],
-        wear,
-      );
-      inventory[id] = keep;
-      if (equipment.wear[id])
-        equipment.wear[id].length = Math.min(keep, equipment.wear[id].length);
-    }
-  }
-  toast('背包容量不足，多余物品已落在脚边。');
+  const overflow = pack.overflow.splice(0);
+  for (const stack of overflow) dropInventoryStack(stack, false);
+  if (overflow.length) toast('背包已满，多余物品落在脚边。');
 }
-function throwItem(wholeStack = false, explicitId = null, offset = 0) {
-  const id = explicitId || heldItem();
-  if (!id || !(inventory[id] > 0)) return;
-  const n = Math.min(inventory[id] - offset, wholeStack ? stackSize(id) : 1),
-    wear = {};
-  if (n <= 0) return;
-  if (ITEMS[id].durability) {
-    const values = Array.from(
-      { length: inventory[id] },
-      (_, i) => equipment.wear[id]?.[i] ?? ITEMS[id].durability,
-    );
-    wear[id] = values.splice(offset, n);
-    equipment.wear[id] = values;
-  }
-  inventory[id] -= n;
-  const direction = camera.getWorldDirection(new THREE.Vector3());
-  const p = camera.position.clone();
-  drops.spawn(id, n, p.toArray(), wear, [
-    direction.x * 5,
-    direction.y * 3 + 2,
-    direction.z * 5,
-  ]);
+function throwItem(wholeStack = false) {
+  const stack = takeSlot(
+    resolveInventorySlot('pack:' + selected),
+    wholeStack ? Infinity : 1,
+  );
+  if (!stack) return;
+  dropInventoryStack(stack);
   updateHUD();
-  if (overlay === '#craft-overlay') renderCraft();
   saveGame();
 }
 function dropAt(id, n, q, y, r, wear = {}) {
@@ -1115,7 +1333,7 @@ function useGlassBottle() {
   }
   if (!creative) inventory.glassBottle--;
   const taken = addItem('waterBottle');
-  if (!creative && !inventory.glassBottle && taken)
+  if (!creative && !pack.slots[selected] && taken)
     hotbar[selected] = 'waterBottle';
   soundFX.play('drink');
   graphics.swing();
@@ -1159,8 +1377,10 @@ function useBucket() {
   if (!creative) {
     inventory[id]--;
     inventory[next] = (inventory[next] || 0) + 1;
-    hotbar[selected] = next;
-  } else if (kind === 'empty') hotbar[selected] = next;
+    if (!pack.slots[selected]) hotbar[selected] = next;
+  } else if (kind === 'empty') {
+    pack.slots[selected] = { item: next, count: 1 };
+  }
   flushFluidChanges();
   graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
   soundFX.play('splash');
@@ -1850,7 +2070,6 @@ function interact() {
   if (type === 'brewingStand') {
     stationKey = k;
     tradingWith = null;
-    brewState.slot = 0;
     openOverlay('#station-overlay');
     renderBrewing();
     return;
@@ -1862,7 +2081,10 @@ function interact() {
     }
     stationKey = k;
     enchantState.id = ITEMS[heldItem()]?.durability ? heldItem() : null;
-    enchantState.index = 0;
+    enchantState.index = Math.max(
+      0,
+      pack.copies(enchantState.id).indexOf(pack.slots[selected]),
+    );
     enchantState.page = 0;
     openOverlay('#station-overlay');
     renderEnchanting();
@@ -1876,7 +2098,7 @@ function interact() {
         ITEMS[heldItem()]?.durability && inventory[heldItem()]
           ? heldItem()
           : null,
-      index: 0,
+      index: Math.max(0, pack.copies(heldItem()).indexOf(pack.slots[selected])),
       right: null,
       mode: type === 'grindstone' ? 'single' : 'material',
       name: '',
@@ -1884,7 +2106,9 @@ function interact() {
       page: 0,
       amount: 1,
     });
-    smithState.name = customName(equipment.entry(smithState.id));
+    smithState.name = customName(
+      equipment.entry(smithState.id, smithState.index),
+    );
     openOverlay('#station-overlay');
     renderSmithing();
     return;
@@ -1900,8 +2124,6 @@ function interact() {
     }
     syncDecor();
     stationKey = k;
-    chestState.page = 0;
-    chestState.query = '';
     openOverlay('#station-overlay');
     graphics.chestModels.openKey = k;
     soundFX.play('chestOpen');
@@ -2204,66 +2426,8 @@ function renderFurnace() {
   const f = currentFurnace();
   if (!f) return;
   $('#station-title').textContent = '六棱熔炉';
-  $('#station-content').innerHTML = furnacePanel(
-    inventory,
-    creative,
-    furnaceAmount,
-  );
+  $('#station-content').innerHTML = furnacePanel(pack);
   updateFurnacePanel(f);
-}
-function transferFurnace(slot, id = null) {
-  const f = currentFurnace();
-  if (!f || !['input', 'fuel', 'output'].includes(slot)) return;
-  const old = f[slot];
-  if (id) {
-    if (
-      slot === 'output' ||
-      (slot === 'input' ? !smeltingRecipe(id) : !FUELS[id])
-    )
-      return;
-    if (old && old.item !== id) {
-      toast('先取出槽内的物品。');
-      return;
-    }
-    const n = Math.min(
-      furnaceAmount,
-      id === 'lavaBucket' ? 1 : 64 - (old?.count || 0),
-      creative ? Infinity : inventory[id] || 0,
-    );
-    if (n <= 0 || (id === 'lavaBucket' && old)) return;
-    f[slot] = { item: id, count: (old?.count || 0) + n };
-    if (!creative) inventory[id] -= n;
-    if (slot === 'input' && !old) f.progress = 0;
-  } else {
-    if (!old) return;
-    const n = Math.min(
-      furnaceAmount,
-      old.count,
-      creative ? Infinity : roomFor(inventory, old.item),
-    );
-    if (!n) {
-      toast('背包已满，先腾出空间。');
-      return;
-    }
-    if (slot === 'output') {
-      const share = ((f.xp || 0) * n) / old.count;
-      f.xp = Math.max(0, (f.xp || 0) - share);
-      awardXP(share, [
-        camera.position.x,
-        playerFeet() + 0.5,
-        camera.position.z,
-      ]);
-    }
-    inventory[old.item] = (inventory[old.item] || 0) + n;
-    old.count -= n;
-    if (!old.count) {
-      f[slot] = null;
-      if (slot === 'input') f.progress = 0;
-    }
-  }
-  renderFurnace();
-  updateHUD();
-  saveGame();
 }
 function spillFurnace(k) {
   const f = world.furnaces.get(k);
@@ -2307,101 +2471,9 @@ function renderBrewing() {
   const b = currentBrewing();
   if (!b) return;
   $('#station-title').textContent = '六棱酿造台';
-  $('#station-content').innerHTML = brewingPanel(
-    inventory,
-    creative,
-    brewState,
-  );
-  updateBrewingPanel(b, brewState);
+  $('#station-content').innerHTML = brewingPanel(pack);
+  updateBrewingPanel(b);
 }
-$('#station-content').addEventListener('click', (e) => {
-  const button = e.target.closest('button');
-  if (!button || button.disabled) return;
-  const data = button.dataset;
-  if (!Object.keys(data).some((key) => key.startsWith('brew'))) return;
-  const b = currentBrewing();
-  if (!b) return;
-  if (data.brewAmount !== undefined) {
-    const n = Number(data.brewAmount);
-    if (![1, 8, 64].includes(n)) return;
-    brewState.amount = n;
-  } else if (data.brewSlot !== undefined) {
-    const index = Number(data.brewSlot);
-    if (![0, 1, 2].includes(index)) return;
-    const id = b.bottles[index];
-    brewState.slot = index;
-    if (id) {
-      if (!creative && roomFor(inventory, id) < 1) {
-        toast('背包已满，先腾出一格。');
-        return;
-      }
-      inventory[id] = (inventory[id] || 0) + 1;
-      b.bottles[index] = null;
-      resetBrewing(b);
-    }
-  } else if (data.brewTake !== undefined) {
-    const fuel = data.brewTake === 'fuel';
-    if (!fuel && data.brewTake !== 'ingredient') return;
-    const id = fuel ? 'ember' : b.ingredient?.item,
-      count = fuel ? b.fuelStock : b.ingredient?.count || 0;
-    if (!id || !count) return;
-    const n = Math.min(
-      count,
-      brewState.amount,
-      creative ? Infinity : roomFor(inventory, id),
-    );
-    if (!n) {
-      toast('背包已满，先腾出空间。');
-      return;
-    }
-    inventory[id] = (inventory[id] || 0) + n;
-    if (fuel) b.fuelStock -= n;
-    else {
-      b.ingredient.count -= n;
-      if (!b.ingredient.count) b.ingredient = null;
-      resetBrewing(b);
-    }
-  } else if (data.brewAdd !== undefined) {
-    const id = data.item;
-    if (!creative && !(inventory[id] > 0)) return;
-    if (data.brewAdd === 'bottle') {
-      if (!Object.hasOwn(POTIONS, id)) return;
-      const index = [brewState.slot, 0, 1, 2].find((i) => !b.bottles[i]);
-      if (index === undefined) {
-        toast('三处瓶位已满，先取出药水。');
-        return;
-      }
-      b.bottles[index] = id;
-      if (!creative) inventory[id]--;
-      brewState.slot = [0, 1, 2].find((i) => !b.bottles[i]) ?? index;
-      resetBrewing(b);
-    } else if (data.brewAdd === 'ingredient' || data.brewAdd === 'fuel') {
-      const fuel = data.brewAdd === 'fuel';
-      if (fuel ? id !== 'ember' : !BREW_INGREDIENTS.includes(id)) return;
-      if (!fuel && b.ingredient && b.ingredient.item !== id) {
-        toast('先取出原料槽中已有的材料。');
-        return;
-      }
-      const existing = fuel ? b.fuelStock : b.ingredient?.count || 0;
-      const n = Math.min(
-        brewState.amount,
-        64 - existing,
-        creative ? 64 : inventory[id] || 0,
-      );
-      if (!n) return;
-      if (fuel) b.fuelStock += n;
-      else {
-        b.ingredient = { item: id, count: existing + n };
-        resetBrewing(b);
-      }
-      if (!creative) inventory[id] -= n;
-    } else return;
-  } else return;
-  soundFX.play('craft');
-  updateHUD();
-  renderBrewing();
-  saveGame();
-});
 function spillBrewing(k) {
   const b = world.brewing.get(k);
   if (!b) return;
@@ -2433,7 +2505,7 @@ function updateBreweries(dt) {
   }
   if (overlay === '#station-overlay' && $('#brew-progress')) {
     const b = currentBrewing();
-    if (b) updateBrewingPanel(b, brewState);
+    if (b) updateBrewingPanel(b);
   }
 }
 function closeChestLid() {
@@ -2453,121 +2525,8 @@ function currentChest() {
 function renderChest() {
   const chest = currentChest();
   if (!chest) return;
-  const active = document.activeElement;
-  const searchFocus = active?.id === 'chest-search';
-  const selection = searchFocus
-    ? [active.selectionStart, active.selectionEnd]
-    : null;
-  const panel = $('#station-overlay .panel'),
-    scroll = panel.scrollTop;
   $('#station-title').textContent = '六棱储物箱';
-  $('#station-content').innerHTML = chestPanel(
-    chest,
-    inventory,
-    equipment.wear,
-    chestState,
-    creative,
-  );
-  if (searchFocus) {
-    $('#chest-search').focus({ preventScroll: true });
-    $('#chest-search').setSelectionRange(...selection);
-  } else if (active?.matches('[data-chest-side]')) {
-    const next =
-      $(
-        '#station-content [data-chest-side="' +
-          active.dataset.chestSide +
-          '"][data-index="' +
-          active.dataset.index +
-          '"]',
-      ) || $('[data-chest-action="take-all"]');
-    next?.focus({ preventScroll: true });
-  }
-  panel.scrollTop = scroll;
-}
-function finishChestTransfer(moved) {
-  equipment.sync(inventory, creative);
-  renderChest();
-  updateHUD();
-  saveGame();
-  if (moved) soundFX.play('pickup');
-  else toast('空间不足，或没有可转移的物品。');
-}
-function transferChestButton(button, event, single = false) {
-  const chest = currentChest();
-  if (!chest) return;
-  const count = Number(button.dataset.count);
-  const mode = single ? 'one' : event.shiftKey ? 'stack' : chestState.amount;
-  const requested =
-    mode === 'one' ? 1 : mode === 'half' ? Math.ceil(count / 2) : count;
-  const moved =
-    button.dataset.chestSide === 'box'
-      ? withdrawChest(
-          chest,
-          inventory,
-          equipment.wear,
-          Number(button.dataset.index),
-          requested,
-          creative,
-        )
-      : depositChest(
-          chest,
-          inventory,
-          equipment.wear,
-          button.dataset.item,
-          Number(button.dataset.offset),
-          requested,
-        );
-  finishChestTransfer(moved);
-  if (moved)
-    toast(
-      ITEMS[button.dataset.item].name +
-        ' ×' +
-        moved +
-        (button.dataset.chestSide === 'box' ? ' 已取出' : ' 已存入'),
-    );
-}
-function chestAction(action) {
-  const chest = currentChest();
-  if (!chest) return;
-  if (action === 'sort') {
-    sortChest(chest);
-    renderChest();
-    saveGame();
-    soundFX.play('pickup');
-    return;
-  }
-  let moved = 0;
-  if (action === 'take-all') {
-    for (let i = 0; i < chest.length; i++)
-      moved += withdrawChest(
-        chest,
-        inventory,
-        equipment.wear,
-        i,
-        Infinity,
-        creative,
-      );
-  } else if (action === 'matching') {
-    const matching = new Set(chest.filter(Boolean).map((s) => s.item));
-    const reserved = new Set([
-      heldItem(),
-      equipment.offhand,
-      ...Object.values(equipment.armor),
-    ]);
-    for (const item of matching) {
-      const offset = reserved.has(item) ? 1 : 0;
-      moved += depositChest(
-        chest,
-        inventory,
-        equipment.wear,
-        item,
-        offset,
-        Math.max(0, (inventory[item] || 0) - offset),
-      );
-    }
-  } else return;
-  finishChestTransfer(moved);
-  if (moved) toast('已转移 ' + moved + ' 件，放不下的物品留在原处。');
+  $('#station-content').innerHTML = chestPanel(chest, pack);
 }
 function spillChest(k) {
   const chest = chests.get(k);
@@ -2582,41 +2541,6 @@ function spillChest(k) {
   }
   chests.delete(k);
 }
-$('#station-content').addEventListener('click', (e) => {
-  const slot = e.target.closest('[data-chest-side]');
-  if (slot) return transferChestButton(slot, e);
-  const amount = e.target.closest('[data-chest-amount]');
-  if (amount) {
-    chestState.amount = amount.dataset.chestAmount;
-    renderChest();
-  }
-  const page = e.target.closest('[data-chest-page]');
-  if (page) {
-    chestState.page += Number(page.dataset.chestPage);
-    renderChest();
-  }
-  const action = e.target.closest('[data-chest-action]');
-  if (action) chestAction(action.dataset.chestAction);
-});
-$('#station-content').addEventListener('contextmenu', (e) => {
-  const slot = e.target.closest('[data-chest-side]');
-  if (!slot) return;
-  e.preventDefault();
-  transferChestButton(slot, e, true);
-});
-$('#station-content').addEventListener('input', (e) => {
-  if (e.target.id !== 'chest-search' || e.isComposing) return;
-  chestState.query = e.target.value;
-  chestState.page = 0;
-  renderChest();
-});
-$('#station-content').addEventListener('compositionend', (e) => {
-  if (e.target.id !== 'chest-search') return;
-  chestState.query = e.target.value;
-  chestState.page = 0;
-  renderChest();
-});
-
 function stopEating(clearInputs = false) {
   foodUse = null;
   if (clearInputs) foodInputs.clear();
@@ -2687,8 +2611,7 @@ function updateEating(dt) {
   hunger = vitals.hunger;
   if (FOODS[use.item].container && !creative) {
     addItem(FOODS[use.item].container);
-    if (hotbar[selected] === use.item)
-      hotbar[selected] = FOODS[use.item].container;
+    if (!pack.slots[selected]) hotbar[selected] = FOODS[use.item].container;
   }
   stopEating();
   updateHUD();
@@ -2854,7 +2777,7 @@ function hurt(amount, cause = 'combat', source = null) {
   ) {
     blocked = true;
     combat.impact = 1;
-    wearItem(equipment.offhand, 1 + Math.ceil(amount));
+    wearItem(equipment.offhand, 1 + Math.ceil(amount), true);
     survival.exhaust(0.05);
     soundFX.play('shieldBlock');
     if (source && !boats.riding)
@@ -2872,7 +2795,7 @@ function hurt(amount, cause = 'combat', source = null) {
   if (['combat', 'projectile', 'explosion', 'burn'].includes(cause)) {
     const protection = equipment.protection();
     for (const id of Object.values(equipment.armor))
-      wearItem(id, Math.max(1, Math.ceil(amount / 4)));
+      wearItem(id, Math.max(1, Math.ceil(amount / 4)), true);
     amount *= 1 - protection * 0.04;
   }
   if (!['void', 'hunger'].includes(cause))
@@ -2899,17 +2822,24 @@ function hurt(amount, cause = 'combat', source = null) {
   if (health <= 0) {
     fishing.clear();
     lastDeath = [camera.position.x, playerFeet() + 0.4, camera.position.z];
-    for (const [id, n] of Object.entries(inventory)) {
-      const wear = ITEMS[id]?.durability
-        ? { [id]: equipment.wear[id] || [] }
+    for (const stack of [
+      ...pack.slots,
+      ...pack.gear,
+      inventorySession.cursor,
+    ].filter(Boolean)) {
+      const wear = ITEMS[stack.item].durability
+        ? { [stack.item]: [stack.wear] }
         : {};
-      drops.spawn(id, n, lastDeath, wear, null, 600);
+      drops.spawn(stack.item, stack.count, lastDeath, wear, null, 600);
     }
+    inventorySession.cursor = null;
     const lostXP = Math.min(100, experience.level * 7);
     experience.total = experience.fraction = 0;
     awardXP(lostXP, lastDeath);
-    inventory = {};
-    equipment = new Equipment();
+    pack = new PlayerInventory();
+    inventory = pack.counts;
+    hotbar = pack.hotbar;
+    equipment = new Equipment().bind(pack);
     survival = new Survival({ saturation: 2 });
     combat.reset();
     safeSpawn();
@@ -2958,7 +2888,8 @@ function interactCreature() {
   if (action.consume && !creative) inventory[action.consume]--;
   for (const [id, n] of Object.entries(action.give || {})) addItem(id, n);
   if (action.wear) wearItem(action.wear);
-  if (action.replace) hotbar[selected] = action.replace;
+  if (action.replace && !pack.slots[selected])
+    hotbar[selected] = action.replace;
   toast(action.message);
   graphics.swing();
   updateHUD();
@@ -3451,69 +3382,6 @@ $('#recipes').onclick = (e) => {
     renderCraft();
   }
 };
-$('#craft-button').onclick = doCraft;
-$('#drop-held').onclick = () => throwItem();
-$('#drop-mode').onclick = () => {
-  discardMode = !discardMode;
-  $('#drop-mode').textContent =
-    '点击丢弃：' + (discardMode ? '开（每次 1 件）' : '关');
-  $('#drop-mode').setAttribute('aria-pressed', String(discardMode));
-};
-$('#inventory').onclick = (e) => {
-  const b = e.target.closest('[data-item]');
-  if (b && (e.shiftKey || discardMode)) {
-    throwItem(
-      e.shiftKey,
-      b.dataset.item,
-      Number(b.dataset.index) * stackSize(b.dataset.item),
-    );
-    return;
-  }
-  if (b && (ITEMS[b.dataset.item].armorSlot || ITEMS[b.dataset.item].offhand)) {
-    equipment.equip(
-      b.dataset.item,
-      inventory,
-      creative,
-      Number(b.dataset.index),
-    );
-    updateHUD();
-    renderCraft();
-    saveGame();
-    return;
-  }
-  if (b && canEquip(b.dataset.item)) {
-    if (!creative)
-      equipment.selectCopy(b.dataset.item, Number(b.dataset.index), inventory);
-    hotbar[selected] = b.dataset.item;
-    updateHUD();
-    renderCraft();
-    beep(420, 0.03);
-    saveGame();
-  }
-};
-$('#armor-slots').onclick = (e) => {
-  if (e.target.closest('[data-unequip-offhand]')) {
-    if (equipment.offhand) equipment.offhand = null;
-    else if (creative || inventory.shield > 0)
-      equipment.equip('shield', inventory, creative);
-    else {
-      toast('先在工作台用 6 木板和 1 铁锭制作盾牌。');
-      return;
-    }
-    combat.reset();
-    updateHUD();
-    renderCraft();
-    saveGame();
-    return;
-  }
-  const b = e.target.closest('[data-unequip]');
-  if (b) {
-    delete equipment.armor[b.dataset.unequip];
-    updateHUD();
-    renderCraft();
-    saveGame();
-  }
-};
 $('#hotbar').onclick = (e) => {
   const b = e.target.closest('[data-slot]');
   if (b) {
@@ -3523,16 +3391,6 @@ $('#hotbar').onclick = (e) => {
 };
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-close]')) closeOverlay();
-  const amount = e.target.closest('[data-furnace-amount]');
-  if (amount) {
-    furnaceAmount = Number(amount.dataset.furnaceAmount);
-    renderFurnace();
-  }
-  const deposit = e.target.closest('[data-furnace-deposit]'),
-    take = e.target.closest('[data-furnace-take]');
-  if (deposit)
-    transferFurnace(deposit.dataset.furnaceDeposit, deposit.dataset.item);
-  if (take) transferFurnace(take.dataset.furnaceTake);
 });
 $('#mode-toggle').onclick = () => {
   creative = !creative;
@@ -3709,7 +3567,7 @@ document.addEventListener(
 document.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
   if (
-    ['chest-search', 'smith-name'].includes(e.target.id) &&
+    ['recipe-search', 'creative-search', 'smith-name'].includes(e.target.id) &&
     e.code === 'Escape'
   ) {
     closeOverlay();
@@ -4084,7 +3942,7 @@ function frame(now) {
   fishing.render(camera, fishingTip, playing && heldItem() === 'fishingRod');
   graphics.bowDraw = bowCharge / 1.1;
   graphics.heldEnchanted =
-    !foodUse && Object.keys(equipment.tags(heldItem())).length > 0;
+    !foodUse && !!enchantLabel(pack.slots[selected]?.wear);
   graphics.shieldEnchanted =
     !!equipment.offhand &&
     Object.keys(equipment.tags(equipment.offhand)).length > 0;

@@ -8,11 +8,11 @@ import { validFauna } from './fauna.js';
 import { validDrops } from './item-drops.js';
 import { validWeather } from './weather.js';
 import { validPlant } from './farming-data.js';
-import { validEquipment } from './equipment.js';
+import { validPlayerInventory } from './inventory.js';
 import { LIQUIDS } from './fluids.js';
-import { ITEMS, BLOCKS, canEquip } from './core.js';
+import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v8';
+export const SAVE_KEY = 'hexwild-save-v9';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -32,29 +32,20 @@ const position = (p) =>
   Math.abs(p[2]) < 2e9 &&
   p[1] >= -100 &&
   p[1] < 150;
-const inventory = (inv) =>
-  inv &&
-  typeof inv === 'object' &&
-  !Array.isArray(inv) &&
-  Object.entries(inv).every(
-    ([k, n]) =>
-      Object.hasOwn(ITEMS, k) &&
-      Number.isInteger(n) &&
-      n >= 0 &&
-      n <= (ITEMS[k]?.durability ? 256 : 1e6),
-  );
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 8 ||
+    s.version !== 9 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
     !Object.hasOwn(DIMENSIONS, s.dimension) ||
-    !inventory(s.inventory) ||
+    !validPlayerInventory(s.inventory) ||
+    !Number.isInteger(s.selected) ||
+    s.selected < 0 ||
+    s.selected > 8 ||
     !validExperience(s.experience) ||
     !position(s.position) ||
-    !validEquipment(s.equipment, s.inventory, s.creative) ||
     typeof s.creative !== 'boolean'
   )
     throw Error('存档格式或玩家数据无效');
@@ -215,13 +206,6 @@ export function validateSave(s) {
   for (const field of ['health', 'hunger'])
     if (!Number.isFinite(s[field]) || s[field] < 0 || s[field] > 20)
       throw Error('生存状态无效');
-  if (
-    !Number.isFinite(s.time) ||
-    s.time < 0 ||
-    !Array.isArray(s.hotbar) ||
-    s.hotbar.length !== 9 ||
-    !s.hotbar.every((id) => canEquip(id) && id !== 'bedrock')
-  )
-    throw Error('时间或快捷栏无效');
+  if (!Number.isFinite(s.time) || s.time < 0) throw Error('时间数据无效');
   return s;
 }
