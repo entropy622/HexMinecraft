@@ -174,7 +174,9 @@ export class Fauna {
     let object = hit.object;
     while (object.parent && !this.active.some((m) => m.mesh === object))
       object = object.parent;
-    return this.active.find((m) => m.mesh === object) || null;
+    const mob = this.active.find((m) => m.mesh === object) || null;
+    if (mob) mob.targetDistance = hit.distance;
+    return mob;
   }
   nudge(m, direction) {
     if (direction) {

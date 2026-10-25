@@ -2,6 +2,7 @@
 import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS } from './building-data.js';
 export const blockTextures = {
+  dragonEgg: ['mcl_end_dragon_egg'],
   brewingStand: ['mcl_brewing_top', 'mcl_brewing_side'],
   brewingBase: ['mcl_brewing_base'],
   soulSand: ['mcl_nether_soul_sand'],
@@ -61,6 +62,7 @@ for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Stairs'] = blockTextures[base];
 }
 export const itemTextures = {
+  endCrystal: 'mcl_end_crystal_item',
   pearl: 'mcl_throwing_ender_pearl',
   snowball: 'mcl_throwing_snowball',
   ghastTear: 'mcl_mobitems_ghast_tear',
@@ -161,6 +163,7 @@ export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
 const mobTextures = [
+  'mobs_mc_dragon',
   'mobs_mc_enderman',
   'mobs_mc_enderman_eyes',
   'mobs_mc_cow',

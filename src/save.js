@@ -11,6 +11,7 @@ import { validPlant } from './farming-data.js';
 import { validPlayerInventory } from './inventory.js';
 import { validCraftingGrid } from './crafting.js';
 import { validWorkstationItems } from './workstation-items.js';
+import { validDragonFight } from './end-data.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
@@ -59,6 +60,11 @@ export function validateSave(s) {
   if (s.weather !== undefined && !validWeather(s.weather))
     throw Error('天气数据无效');
   for (const [id, d] of Object.entries(s.dimensions)) {
+    if (
+      d?.dragon !== undefined &&
+      (id !== 'end' || !validDragonFight(d.dragon))
+    )
+      throw Error('末影龙进度无效');
     if (
       !Object.hasOwn(DIMENSIONS, id) ||
       !d ||

@@ -97,6 +97,9 @@ import { Projectiles } from './projectiles.js';
 import { Throwables, pearlDestination } from './throwables.js';
 import { THROWABLES } from './throwable-data.js';
 import { Fireballs } from './fireballs.js';
+import { DragonFight } from './dragon.js';
+import { END_FLOOR, END_PILLARS } from './end-data.js';
+import { stampEndArena } from './end-arena.js';
 import { Fishing } from './fishing.js';
 import { Boats, BOAT_EYE } from './boats.js';
 import { Movement } from './movement.js';
@@ -115,7 +118,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.34 — BETWEEN THE STEPS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.35 — SIX PILLARS, ONE DRAGON</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -195,6 +198,31 @@ const drops = new ItemDrops(graphics.scene, graphics.textures);
 const experience = new Experience(graphics.scene, (levelUp) =>
   soundFX.play(levelUp ? 'levelUp' : 'xp'),
 );
+const dragonFight = new DragonFight(graphics.scene, {
+  sound: (kind) => soundFX.play(kind),
+  notice: toast,
+  save: saveGame,
+  mote: (point, count) => throwables.burst(point, 'pearl', count),
+  hurt: (amount, source, cause) => hurt(amount, cause, source),
+  blast: (point) =>
+    explode(point, {
+      radius: 2.1,
+      damageRadius: 5,
+      damage: 12,
+      mobRadius: 4,
+      mobDamage: 10,
+      soft: true,
+      playerOwned: true,
+      notice: false,
+    }),
+  rebuild: rebuildEndArena,
+  victory: dragonVictory,
+});
+const bossPanel = document.createElement('div');
+bossPanel.id = 'boss-hud';
+bossPanel.className = 'hidden';
+bossPanel.innerHTML = `<b id="boss-name"></b><progress id="boss-health" max="200" value="200" aria-label="末影龙生命"></progress><div id="boss-crystals">${Array.from({ length: 6 }, (_, i) => `<span data-boss-crystal="${i}" title="末地水晶 ${i + 1}">${icon('endCrystal')}</span>`).join('')}</div>`;
+$('#hud').append(bossPanel);
 let workstationItems = newWorkstationItems(),
   pendingStationEffects = [];
 const smithState = { name: '' };
@@ -698,6 +726,7 @@ function collides(x, feet, z) {
   return false;
 }
 function safeSpawn() {
+  dragonFight.clearAttacks();
   graphics.stepOffset = 0;
   throwables.clear();
   throwHeldItem = null;
@@ -824,6 +853,7 @@ function startGame(mode = false, save = null) {
   );
   camera.rotation.set(pitch, yaw, 0);
   fauna.load(world, data.fauna);
+  dragonFight.load(world, data.dragon);
   weatherColumns.update(1, world);
   drops.load(data.drops);
   experience.load(data.experienceOrbs);
@@ -854,6 +884,7 @@ function startGame(mode = false, save = null) {
 function captureDimension() {
   dimensionStates[dimension] = {
     ...world.serialize(),
+    dragon: dragonFight.serialize(),
     fauna: fauna.serialize(),
     drops: drops.serialize(),
     experienceOrbs: experience.serialize(),
@@ -961,7 +992,10 @@ function travel(to) {
   crops = new Map(data.crops);
   chests = new Map(data.chests);
   respawnPoint = data.respawn || null;
-  let destination = data.position || [0, 0, 0],
+  const endArrival = axialToWorld(-5, 0);
+  let destination =
+      data.position ||
+      (to === 'end' ? [endArrival.x, 0, endArrival.z] : [0, 0, 0]),
     a = worldToAxial(destination[0], destination[2]);
   world.ensureAround(a.q, a.r);
   if (!data.position) {
@@ -999,6 +1033,7 @@ function travel(to) {
   drops.load(data.drops);
   experience.load(data.experienceOrbs);
   boats.load(data.boats);
+  dragonFight.load(world, data.dragon);
   if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
   lastDeath = data.lastDeath || null;
   fauna.sync(camera);
@@ -1821,6 +1856,88 @@ function useFishingRod() {
   saveGame();
   return true;
 }
+function useEndCrystal() {
+  if (heldItem() !== 'endCrystal') return false;
+  if (
+    dimension !== 'end' ||
+    !target ||
+    hexDistance(target.q, target.r) > 1 ||
+    !['bedrock', 'dragonEgg'].includes(target.type) ||
+    Math.hypot(camera.position.x, camera.position.z) > 6
+  ) {
+    toast('末地水晶用于再次召唤末影龙：带六颗水晶，对准末地中央基岩祭坛按 E。');
+    return true;
+  }
+  if (dragonFight.state?.mode !== 'dead') {
+    toast('先击败守护这片末地的末影龙。');
+    return true;
+  }
+  if (!creative && (inventory.endCrystal || 0) < 6) {
+    toast('需要六颗末地水晶，分别唤醒六座晶柱。');
+    return true;
+  }
+  if (dragonFight.summon(camera)) {
+    if (!creative) inventory.endCrystal -= 6;
+    graphics.swing();
+    updateHUD();
+    saveGame();
+  }
+  return true;
+}
+function rebuildEndArena() {
+  world.ensureAround(0, 0);
+  const chunks = new Set(['0,0', '-1,0', '0,-1', '-1,-1']);
+  for (const p of END_PILLARS)
+    for (let q = p.q - 1; q <= p.q + 1; q++)
+      for (let r = p.r - 1; r <= p.r + 1; r++)
+        chunks.add(graphics.chunkKey(q, r));
+  for (const chunk of chunks) {
+    const [q, r] = chunk.split(',').map(Number);
+    stampEndArena(world, q, r, true);
+    if (graphics.chunks.has(chunk)) graphics.buildChunk(chunk);
+  }
+  if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
+}
+function dragonVictory(first) {
+  awardXP(first ? 12000 : 500, [0, END_FLOOR + 0.8, 0]);
+  if (first) {
+    const old = world.get(0, END_FLOOR, 0);
+    if (!old) {
+      world.set(0, END_FLOOR, 0, 'dragonEgg', false);
+      if (collides(camera.position.x, playerFeet(), camera.position.z)) {
+        world.set(0, END_FLOOR, 0, null, false);
+        drops.spawn('dragonEgg', 1, [0, END_FLOOR + 1, 0]);
+      } else world.set(0, END_FLOOR, 0, 'dragonEgg');
+      graphics.updateBlock(0, END_FLOOR, 0);
+    } else drops.spawn('dragonEgg', 1, [0, END_FLOOR + 1, 0]);
+  }
+  if (!world.get(1, END_FLOOR, 0)) {
+    world.set(1, END_FLOOR, 0, 'endportal');
+    graphics.updateBlock(1, END_FLOOR, 0);
+  }
+  toast(
+    first
+      ? '解放末地！中央留下龙蛋与 12000 点经验。六颗末地水晶可以再次召唤它。'
+      : '末影龙再次倒下，中央留下 500 点经验。',
+  );
+  saveGame();
+}
+function updateBossHUD() {
+  const state = dragonFight.state;
+  const visible = dragonFight.active && state && state.mode !== 'dead';
+  bossPanel.classList.toggle('hidden', !visible);
+  if (!visible) return;
+  $('#boss-name').textContent = dragonFight.label;
+  $('#boss-health').value = state.hp;
+  bossPanel
+    .querySelectorAll('[data-boss-crystal]')
+    .forEach((node) =>
+      node.classList.toggle(
+        'broken',
+        state.broken[Number(node.dataset.bossCrystal)],
+      ),
+    );
+}
 function useThrowable() {
   const item = heldItem();
   if (!THROWABLES[item]) return false;
@@ -1855,6 +1972,11 @@ function useThrowable() {
 }
 function resolveThrow(impact) {
   const { item, point, mob, direction } = impact;
+  if (mob?.bossType === 'crystal') {
+    const owner = survival;
+    dragonFight.hit(mob, 1, 'thrown', 'crystal');
+    if (owner !== survival) return;
+  }
   if (item === 'pearl') {
     const destination = pearlDestination(world, impact, collides);
     if (!destination) {
@@ -1920,6 +2042,7 @@ function place() {
   if (!playing) return;
   if (combat.raised) return;
   if (foodUse) stopEating();
+  if (useEndCrystal()) return;
   if (
     target &&
     ['door', 'doorTop', 'gate'].includes(target.type) &&
@@ -2452,6 +2575,7 @@ function interact(preferContext = false) {
   if (!playing) return;
   combat.reset();
   if (foodUse) stopEating();
+  if (useEndCrystal()) return;
   if (!preferContext && boats.riding && heldItem() === 'fishingRod') {
     useFishingRod();
     return;
@@ -3295,7 +3419,8 @@ function updateWeather(dt) {
   updatePlants(weatherGrowthTimer);
   weatherGrowthTimer = 0;
 }
-function hitMob(mob, amount, direction, source = 'melee') {
+function hitMob(mob, amount, direction, source = 'melee', part = 'body') {
+  if (mob.bossType) return dragonFight.hit(mob, amount, source, part);
   if (source === 'arrow' && fauna.dodge(mob)) return 'dodged';
   const p = mob.mesh.position,
     a = worldToAxial(p.x, p.z);
@@ -3461,7 +3586,8 @@ function explode(center, settings = {}) {
 }
 function attack() {
   graphics.ray.setFromCamera(new THREE.Vector2(), camera);
-  const meshes = creatures.filter((m) => m.mesh.visible).map((m) => m.mesh);
+  const combatants = [...creatures, ...dragonFight.combatants];
+  const meshes = combatants.filter((m) => m.mesh.visible).map((m) => m.mesh);
   const hit = graphics.ray
     .intersectObjects(meshes, true)
     .find((h) => h.distance < 3.5);
@@ -3482,7 +3608,7 @@ function attack() {
   if (!hit || (target && hit.distance > target.distance)) return false;
   let obj = hit.object;
   while (obj.parent && !meshes.includes(obj)) obj = obj.parent;
-  const mob = creatures.find((m) => m.mesh === obj);
+  const mob = combatants.find((m) => m.mesh === obj);
   if (!mob) return false;
   if (attackCooldown > 0) return true;
   const held = heldItem(),
@@ -3501,6 +3627,8 @@ function attack() {
         : 0)) *
       (critical ? 1.5 : 1),
     camera.getWorldDirection(new THREE.Vector3()),
+    'melee',
+    dragonFight.partOf(hit.object),
   );
   wearItem(held, item?.kind === 'sword' ? 1 : 2);
   if (critical) toast('暴击！');
@@ -4446,14 +4574,34 @@ function frame(now) {
       $('#target').textContent = '恶魂火球 · 空手或近战装备左键击回';
     }
     updateMobs(dt);
+    dragonFight.update(dt, camera, creative);
+    updateBossHUD();
+    const bossTarget = dragonFight.target(
+      camera,
+      Math.min(
+        4.5,
+        target?.distance ?? Infinity,
+        creatureTarget?.targetDistance ?? Infinity,
+        villagerTarget?.distance ?? Infinity,
+        boatTarget?.distance ?? Infinity,
+      ),
+    );
+    if (bossTarget) {
+      $('#target').classList.remove('hidden');
+      $('#target').textContent =
+        bossTarget.actor.bossType === 'crystal'
+          ? '末地水晶 · 攻击摧毁 · 小心爆炸'
+          : `末影龙 · ${Math.ceil(dragonFight.state.hp)} / 200 · ${bossTarget.part === 'head' ? '头部弱点' : '身体减伤'}`;
+    }
     drops.update(dt, world, camera, collectDrop);
     experience.update(dt, world, camera, !creative);
     projectiles.update(
       dt,
       world,
-      creatures,
+      [...creatures, ...dragonFight.combatants],
       camera,
-      (mob, amount, direction) => hitMob(mob, amount, direction, 'arrow'),
+      (mob, amount, direction, part) =>
+        hitMob(mob, amount, direction, 'arrow', part),
       () => addItem('arrow'),
       (amount, source) => hurt(amount, 'projectile', source),
     );
@@ -4461,7 +4609,7 @@ function frame(now) {
     throwables.update(
       dt,
       world,
-      creatures,
+      [...creatures, ...dragonFight.combatants],
       camera,
       villagers.residents,
       boats.records,

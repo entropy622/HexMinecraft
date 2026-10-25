@@ -110,6 +110,7 @@ export class Projectiles {
         }
         ray.set(previous, direction);
         let nearest = null,
+          nearestPart = null,
           distance = Infinity;
         if (arrow.owner === 'hostile') {
           sphere.center
@@ -143,26 +144,38 @@ export class Projectiles {
         for (const mob of arrow.owner === 'hostile' ? [] : creatures) {
           if (!mob.mesh.visible) continue;
           const def = MOBS[mob.kind];
-          for (const height of def.hitHeights || [
-            def.hitHeight || def.height * 0.5,
-          ]) {
-            sphere.center
-              .copy(mob.mesh.position)
-              .add(new THREE.Vector3(0, height * (mob.baby ? 0.6 : 1), 0));
-            sphere.radius =
-              (MOBS[mob.kind].hitRadius ||
-                (mob.kind === 'chicken' ? 0.32 : 0.6)) * (mob.baby ? 0.55 : 1);
-            if (ray.intersectSphere(sphere, point)) {
-              const d = previous.distanceTo(point);
+          const boxes = mob.hitboxes
+            ? mob.hitboxes()
+            : (def.hitHeights || [def.hitHeight || def.height * 0.5]).map(
+                (height) => ({
+                  center: mob.mesh.position
+                    .clone()
+                    .add(
+                      new THREE.Vector3(0, height * (mob.baby ? 0.6 : 1), 0),
+                    ),
+                  radius:
+                    (def.hitRadius || (mob.kind === 'chicken' ? 0.32 : 0.6)) *
+                    (mob.baby ? 0.55 : 1),
+                }),
+              );
+          for (const box of boxes) {
+            sphere.center.copy(box.center);
+            sphere.radius = box.radius;
+            const inside = sphere.containsPoint(previous);
+            if (inside || ray.intersectSphere(sphere, point)) {
+              const d = inside ? 0 : previous.distanceTo(point);
               if (d <= length && d < distance) {
                 nearest = mob;
                 distance = d;
+                nearestPart = box.part;
               }
             }
           }
         }
         if (nearest) {
-          if (onHit(nearest, arrow.damage, direction) !== 'dodged') {
+          if (
+            onHit(nearest, arrow.damage, direction, nearestPart) !== 'dodged'
+          ) {
             this.remove(arrow);
             break;
           }

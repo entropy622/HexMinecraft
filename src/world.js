@@ -1,6 +1,8 @@
 import { structuresNear, stampStructure } from './structures.js';
 import { villagesNear, villageAt, stampVillage, features } from './villages.js';
 import { Fluids } from './fluids.js';
+import { END_FLOOR } from './end-data.js';
+import { stampEndArena } from './end-arena.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -116,6 +118,9 @@ export class World {
       detail = noise(q * 0.18, r * 0.18, this.seed + 19);
     if (this.dimension === 'nether') return Math.floor(4 + n * 15 + detail * 3);
     if (this.dimension === 'end') {
+      const distance = hexDistance(q, r);
+      if (distance <= 16) return END_FLOOR;
+      if (distance <= 21) return END_FLOOR - (distance - 16);
       const island = noise(q * 0.032, r * 0.032, this.seed + 941);
       if (hexDistance(q, r) > 12 && island < 0.43) return 0;
       return Math.floor(17 + n * 9 + detail * 3);
@@ -342,7 +347,12 @@ export class World {
             y++
           )
             put(q, y, r, y === 55 ? 'bedrock' : 'netherrack');
-        if (this.dimension === 'end' && h && hash(q, 54, r, this.seed) > 0.993)
+        if (
+          this.dimension === 'end' &&
+          hexDistance(q, r) > 22 &&
+          h &&
+          hash(q, 54, r, this.seed) > 0.993
+        )
           for (let y = h; y < h + 7; y++) put(q, y, r, 'obsidian');
       }
     // Generate trees from a two-cell halo, clipping writes to this chunk.
@@ -380,6 +390,7 @@ export class World {
       stampVillage(this, v, cq, cr);
     for (const s of this.structures(cq * 8 + 4, cr * 8 + 4, 8))
       stampStructure(this, s, cq, cr);
+    stampEndArena(this, cq, cr);
     for (const [k, t] of this.editChunks.get(ck) || []) {
       if (BLOCKS[t]?.shape) this.buildings.add(k);
       else this.buildings.delete(k);

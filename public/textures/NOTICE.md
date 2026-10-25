@@ -138,6 +138,19 @@ inventory icons. These runtime texture views retain CC BY-SA 3.0. The cut
 geometry, projection code, placement, corner matching and movement logic are
 original implementations; no additional source media is redistributed.
 
+Version 0.35 adds three unmodified PNGs from the same VoxeLibre revision:
+
+- `mcl_end_crystal_item.png` and `mcl_end_dragon_egg.png` use the upstream
+  general **CC BY-SA 3.0** media terms.
+- `mobs_mc_dragon.png` is **CC BY-SA 4.0 mob media**, based on Pixel
+  Perfection by XSSheep; see the preserved
+  [mob-media attribution](VOXELIBRE-MOBS-MEDIA.md).
+
+Runtime skin UV views retain CC BY-SA 4.0; projected dragon-egg icons retain
+CC BY-SA 3.0. The six-sided dragon, articulated wings/tail, crystal cages,
+arena, healing beams, boss logic, breath effects and synthesized sounds are
+original implementations. No upstream model, mob source or recording is used.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

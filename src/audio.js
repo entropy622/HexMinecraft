@@ -134,6 +134,17 @@ export class GameAudio {
       this.tone(240 + Math.random() * 65, 0.07, 'triangle', 0.04);
     } else if (event === 'snowImpact' || event === 'eggImpact') {
       this.noise(0.12, 0.11, event === 'snowImpact' ? 2400 : 1100);
+    } else if (['dragonRoar', 'dragonDeath', 'dragonSummon'].includes(event)) {
+      this.noise(event === 'dragonDeath' ? 2.0 : 0.9, 0.12, 390);
+      [55, 83, 124].forEach((n, i) =>
+        this.tone(n, 0.85, 'sawtooth', 0.018, i * 0.07),
+      );
+    } else if (event === 'dragonBreath') {
+      this.noise(0.5, 0.08, 1800);
+      this.tone(180, 0.3, 'triangle', 0.035);
+    } else if (event === 'dragonHurt') {
+      this.noise(0.2, 0.09, 700);
+      this.tone(130, 0.18, 'sawtooth', 0.02);
     } else if (event === 'endermanAngry') {
       this.noise(0.55, 0.07, 550);
       [95, 143, 205].forEach((n, i) =>

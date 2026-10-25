@@ -11,6 +11,7 @@ import { FOODS } from './survival.js';
 import { BREW_BLOCKS, BREW_ITEMS, BREW_RECIPES } from './brewing-data.js';
 import { SMITHING_BLOCKS, SMITHING_RECIPES } from './smithing-data.js';
 import { THROWING_RECIPES } from './throwable-data.js';
+import { END_BLOCKS, END_ITEMS, END_RECIPES } from './end-data.js';
 import {
   ENCHANT_BLOCKS,
   ENCHANT_ITEMS,
@@ -26,6 +27,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...END_BLOCKS,
   ...BREW_BLOCKS,
   ...SMITHING_BLOCKS,
   ...ENCHANT_BLOCKS,
@@ -161,6 +163,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...END_ITEMS,
   ...BREW_ITEMS,
   ...ENCHANT_ITEMS,
   ...FISH_ITEMS,
@@ -415,6 +418,7 @@ RECIPES.push(
     station: true,
   },
   ...THROWING_RECIPES,
+  ...END_RECIPES,
 );
 export function axialToWorld(q, r) {
   return { x: SQRT3 * (q + r / 2), z: 1.5 * r };

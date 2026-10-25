@@ -188,6 +188,10 @@ export class Throwables {
     };
     for (const mob of mobs) {
       if (!mob.mesh.visible) continue;
+      if (mob.hitboxes) {
+        for (const box of mob.hitboxes()) check(box.center, 0, box.radius, mob);
+        continue;
+      }
       const def = MOBS[mob.kind],
         size = mob.baby ? 0.55 : 1;
       for (const height of def.hitHeights || [

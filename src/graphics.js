@@ -518,7 +518,7 @@ export class Graphics {
     this.hand.add(this.held);
     this.fishingTip = null;
     if (!id) return;
-    if (['slab', 'stairs'].includes(BLOCKS[id]?.shape)) {
+    if (['slab', 'stairs', 'egg'].includes(BLOCKS[id]?.shape)) {
       const mesh = buildingItemMesh(id, this.textures);
       mesh.scale.setScalar(0.28);
       mesh.position.set(0, 0.17, -0.36);

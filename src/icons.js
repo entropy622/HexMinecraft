@@ -102,7 +102,7 @@ const symbols = {
 const cache = new Map();
 export function itemIcon(id) {
   if (!cache.has(id)) {
-    if (['slab', 'stairs'].includes(ITEMS[id]?.shape)) {
+    if (['slab', 'stairs', 'egg'].includes(ITEMS[id]?.shape)) {
       cache.set(id, cutBlockIcon(id));
       return cache.get(id);
     }

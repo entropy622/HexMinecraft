@@ -97,7 +97,7 @@ export class ItemDrops {
   model(id) {
     if (
       !this.templates.has(id) &&
-      ['slab', 'stairs'].includes(BLOCKS[id]?.shape)
+      ['slab', 'stairs', 'egg'].includes(BLOCKS[id]?.shape)
     ) {
       const mesh = buildingItemMesh(id, this.textures);
       mesh.scale.setScalar(0.22);

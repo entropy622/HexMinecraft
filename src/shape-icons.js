@@ -1,13 +1,14 @@
 import { BLOCKS } from './core.js';
-import { cutBlockParts, cutItemWorld } from './cut-blocks.js';
+import { cutItemWorld } from './cut-blocks.js';
+import { buildingParts } from './building-shapes.js';
 import { blockTextures, textureURL } from './texture-pack.js';
 
 // Small isometric projections reuse the same cut polygons and licensed tiles
 // as the world. SVG remains crisp in slots without a second WebGL renderer.
 export function cutBlockIcon(id) {
   const def = BLOCKS[id],
-    parts = cutBlockParts(cutItemWorld(id, 1), 0, 0, 0);
-  const tiles = blockTextures[def.base],
+    parts = buildingParts(cutItemWorld(id, 1), 0, 0, 0);
+  const tiles = blockTextures[def.base || id],
     faces = [];
   const project = ([x, y, z]) =>
     `${(24 + (x - z) * 12.5).toFixed(2)},${(33 + (x + z) * 5.8 - y * 20).toFixed(2)}`;

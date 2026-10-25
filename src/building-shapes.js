@@ -1,5 +1,5 @@
 import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
-import { cutBlockParts, polygonContains } from './cut-blocks.js';
+import { cutBlockParts, polygonContains, HEX_POLYGON } from './cut-blocks.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -26,6 +26,21 @@ export function buildingParts(world, q, y, r, collision = false) {
     angle = facingAngle(state.facing);
   if (shape === 'slab' || shape === 'stairs')
     return cutBlockParts(world, q, y, r);
+  if (shape === 'egg')
+    return [
+      [0.05, 0.28, 0.38],
+      [0.28, 0.7, 0.48],
+      [0.7, 0.91, 0.33],
+      [0.91, 1, 0.16],
+    ].map(([low, high, radius]) => ({
+      x: 0,
+      y: (low + high) / 2,
+      z: 0,
+      h: high - low,
+      angle: 0,
+      tile: type,
+      polygon: HEX_POLYGON.map(([x, z]) => [x * radius, z * radius]),
+    }));
   const parts = [];
   const add = (x, cy, z, w, h, d, turn = 0, tile = 'planks') => {
     parts.push({
