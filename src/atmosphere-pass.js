@@ -142,10 +142,11 @@ void main() {
 `;
 
 export class AtmospherePass extends Pass {
-  constructor(camera, sun, atmosphere, lightUniforms) {
+  constructor(camera, sun, atmosphere, lightUniforms, sceneFrame) {
     super();
     this.camera = camera;
     this.sun = sun;
+    this.sceneFrame = sceneFrame;
     this.target = new WebGLRenderTarget(1, 1, {
       type: HalfFloatType,
       minFilter: NearestFilter,
@@ -198,7 +199,7 @@ export class AtmospherePass extends Pass {
 
   render(renderer, writeBuffer, readBuffer) {
     const u = this.volume.uniforms;
-    u.sceneDepth.value = readBuffer.depthTexture;
+    u.sceneDepth.value = this.sceneFrame.depthTexture;
     u.airShadow.value = this.sun.shadow.map?.depthTexture || null;
     u.airShadowMatrix.value.copy(this.sun.shadow.matrix);
     u.airShadowReady.value =

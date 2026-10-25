@@ -11,7 +11,12 @@ import { isSmithingStation } from './smithing-data.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
 import { buildingMesh } from './building-graphics.js';
-import { createPostprocessing } from './postprocessing.js';
+import {
+  createPostprocessing,
+  setPostprocessingOptions,
+  disposePostprocessing,
+} from './postprocessing.js';
+import { postSettings } from './render-settings.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
 import { itemImage, bowImage } from './texture-pack.js';
@@ -33,12 +38,14 @@ let sharedTextures;
 // Counter-clockwise axial neighbors correspond to the outward side normals.
 export class Graphics {
   constructor(canvas) {
+    this.quality = 1;
+    this.postOptions = postSettings();
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -235,6 +242,7 @@ export class Graphics {
     });
     applySkylight(this.torchMaterial, this.weatherUniforms);
     this.hand = new THREE.Group();
+    this.hand.userData.skipOcclusion = true;
     const sleeve = new THREE.Mesh(
       new THREE.BoxGeometry(0.18, 0.22, 0.48),
       new THREE.MeshLambertMaterial({ color: '#436e65' }),
@@ -251,16 +259,18 @@ export class Graphics {
     this.hand.position.set(0.38, -0.32, -0.65);
     this.camera.add(this.hand);
     this.shield = createShield(this.textures);
+    this.shield.userData.skipOcclusion = true;
     this.camera.add(this.shield);
     this.scene.add(this.camera);
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
-      this.renderer.setSize(innerWidth, innerHeight);
-      this.composer?.setSize(innerWidth, innerHeight);
+      this.resizeRendering();
     });
   }
   setQuality(value) {
+    value = [0.65, 1, 1.7].includes(value) ? value : 1;
+    this.quality = value;
     this.weatherEffects.quality = value;
     this.usePost = value >= 1.7;
     if (this.usePost && !this.composer)
@@ -271,14 +281,19 @@ export class Graphics {
         this.sun,
         this.atmosphere,
         this.dynamicLight.uniforms,
+        this.postOptions,
       );
+    if (!this.usePost && this.composer) {
+      disposePostprocessing(this.composer);
+      this.composer = null;
+    }
     const shadowSize = value >= 1.7 ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== shadowSize) {
       this.sun.shadow.mapSize.set(shadowSize, shadowSize);
       this.sun.shadow.map?.dispose();
       this.sun.shadow.map = null;
     }
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, value));
+    this.resizeRendering();
     this.renderer.shadowMap.enabled = value >= 1;
     this.renderer.shadowMap.needsUpdate = true;
     this.scene.traverse((object) => {
@@ -288,6 +303,22 @@ export class Graphics {
       for (const material of materials)
         if (material) material.needsUpdate = true;
     });
+  }
+  resizeRendering() {
+    // Keep the canvas and every post-process buffer at the same pixel density.
+    const ratio = Math.min(
+      devicePixelRatio,
+      this.usePost ? 1.25 : this.quality,
+    );
+    this.renderer.setPixelRatio(ratio);
+    this.renderer.setSize(innerWidth, innerHeight);
+    this.composer?.setPixelRatio(ratio);
+    this.composer?.setSize(innerWidth, innerHeight);
+  }
+  setPostOptions(settings) {
+    this.postOptions = postSettings(settings);
+    if (this.composer)
+      setPostprocessingOptions(this.composer, this.postOptions);
   }
   chunkKey(q, r) {
     return `${Math.floor(q / 8)},${Math.floor(r / 8)}`;
@@ -1371,6 +1402,10 @@ export class Graphics {
       Math.floor(this.camera.position.y),
       cameraHex.r,
     );
+    const submerged =
+      !!cameraFluid &&
+      this.camera.position.y <
+        Math.floor(this.camera.position.y) + fluidHeight(cameraFluid);
     this.atmosphere.update({
       time,
       dt: renderDt,
@@ -1381,10 +1416,7 @@ export class Graphics {
       horizon,
       sun: this.sun,
       cameraSky: this.caveSky,
-      submerged:
-        !!cameraFluid &&
-        this.camera.position.y <
-          Math.floor(this.camera.position.y) + fluidHeight(cameraFluid),
+      submerged,
       volume: this.usePost,
     });
     this.atmosphere.attach(this.scene);
@@ -1393,7 +1425,10 @@ export class Graphics {
       this.renderer.shadowMap.needsUpdate = true;
     if (this.chestModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;
-    if (this.usePost) this.composer.render(dt);
-    else this.renderer.render(this.scene, this.camera);
+    if (this.usePost) {
+      this.composer.effects.contact.enabled =
+        this.postOptions.occlusion > 0 && !submerged;
+      this.composer.render(dt);
+    } else this.renderer.render(this.scene, this.camera);
   }
 }
