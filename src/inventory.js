@@ -1,10 +1,12 @@
 import { ITEMS } from './core.js';
 import { ARMOR_SLOTS } from './gear-data.js';
 import { validWearEntry } from './enchanting-data.js';
+import { PORTABLE_SLOTS } from './shulker-data.js';
 
 export const INVENTORY_SLOTS = 36;
 export const stackSize = (id) =>
   ITEMS[id]?.durability ||
+  ITEMS[id]?.portable ||
   ITEMS[id]?.vehicle ||
   ITEMS[id]?.potion ||
   (ITEMS[id]?.bucket && id !== 'bucket') ||
@@ -33,7 +35,11 @@ export function roomFor(inventory, id) {
 }
 
 export const sameStack = (a, b) =>
-  a && b && a.item === b.item && !ITEMS[a.item]?.durability;
+  a &&
+  b &&
+  a.item === b.item &&
+  !ITEMS[a.item]?.durability &&
+  !ITEMS[a.item]?.portable;
 export const copyStack = (stack, count = stack?.count) =>
   stack ? { ...structuredClone(stack), count } : null;
 export function validStack(s) {
@@ -47,7 +53,15 @@ export function validStack(s) {
       s.count <= stackSize(s.item) &&
       (ITEMS[s.item].durability
         ? validWearEntry(ITEMS[s.item], s.wear)
-        : s.wear === undefined)
+        : s.wear === undefined) &&
+      (ITEMS[s.item].portable
+        ? s.contents === undefined ||
+          (Array.isArray(s.contents) &&
+            s.contents.length === PORTABLE_SLOTS &&
+            s.contents.every(
+              (entry) => !ITEMS[entry?.item]?.portable && validStack(entry),
+            ))
+        : s.contents === undefined)
     )
   );
 }
@@ -135,13 +149,8 @@ export class PlayerInventory {
     );
   }
   insert(id, count = 1, wear = []) {
+    if (!ITEMS[id].durability) return this.insertStack({ item: id, count });
     let moved = 0;
-    for (const s of this.slots) {
-      if (!s || s.item !== id || ITEMS[id].durability) continue;
-      const n = Math.min(count - moved, stackSize(id) - s.count);
-      s.count += n;
-      moved += n;
-    }
     for (let i = 0; i < this.slots.length && moved < count; i++) {
       if (this.slots[i]) continue;
       const n = Math.min(count - moved, stackSize(id));
@@ -150,6 +159,23 @@ export class PlayerInventory {
         this.slots[i].wear = structuredClone(
           wear[moved] ?? ITEMS[id].durability,
         );
+      moved += n;
+    }
+    return moved;
+  }
+  insertStack(stack) {
+    let moved = 0;
+    const size = stackSize(stack.item);
+    for (const old of this.slots) {
+      if (!sameStack(old, stack)) continue;
+      const n = Math.min(stack.count - moved, size - old.count);
+      old.count += n;
+      moved += n;
+    }
+    for (let i = 0; i < this.slots.length && moved < stack.count; i++) {
+      if (this.slots[i]) continue;
+      const n = Math.min(stack.count - moved, size);
+      this.slots[i] = copyStack(stack, n);
       moved += n;
     }
     return moved;

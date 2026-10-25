@@ -3,6 +3,8 @@ import { BrewingModels } from './brewing-graphics.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
 import { ChestModels } from './chest-graphics.js';
+import { isStorage } from './chests.js';
+import { portableBoxMesh } from './portable-box-graphics.js';
 import { createShield } from './shield-graphics.js';
 import { Atmosphere } from './atmosphere.js';
 import { fluidHeight } from './fluids.js';
@@ -518,6 +520,13 @@ export class Graphics {
     this.hand.add(this.held);
     this.fishingTip = null;
     if (!id) return;
+    if (ITEMS[id]?.portable) {
+      const mesh = portableBoxMesh();
+      mesh.scale.setScalar(0.24);
+      mesh.position.set(0, 0.05, -0.36);
+      this.held.add(mesh);
+      return;
+    }
     if (['slab', 'stairs', 'egg'].includes(BLOCKS[id]?.shape)) {
       const mesh = buildingItemMesh(id, this.textures);
       mesh.scale.setScalar(0.28);
@@ -670,7 +679,7 @@ export class Graphics {
       return (
         t &&
         t !== 'glass' &&
-        t !== 'chest' &&
+        !isStorage(t) &&
         t !== 'enchantingTable' &&
         !isSmithingStation(t) &&
         t !== 'brewingStand' &&
@@ -683,7 +692,7 @@ export class Graphics {
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
           if (!type) continue;
-          if (type === 'chest') {
+          if (isStorage(type)) {
             chestCells.push([q, y, r]);
             continue;
           }

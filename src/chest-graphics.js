@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { axialToWorld } from './core.js';
+import { axialToWorld, ITEMS } from './core.js';
 import { facingAngle } from './building-shapes.js';
+import { portableBoxMesh } from './portable-box-graphics.js';
 
 export class ChestModels {
   constructor(textures) {
@@ -18,6 +19,20 @@ export class ChestModels {
   }
 
   create(world, q, y, r, origin) {
+    if (ITEMS[world.get(q, y, r)]?.portable) {
+      const root = portableBoxMesh(),
+        p = axialToWorld(q, r),
+        key = `${q},${y},${r}`;
+      root.position.set(p.x - origin.x, y, p.z - origin.z);
+      root.rotation.y = facingAngle(world.state(q, y, r).facing);
+      root.userData.chestRoot = key;
+      root.traverse((object) => {
+        if (object.isMesh)
+          object.userData.chest = { q, y, r, type: world.get(q, y, r) };
+      });
+      this.models.set(key, root);
+      return root;
+    }
     const root = new THREE.Group(),
       p = axialToWorld(q, r),
       key = `${q},${y},${r}`;
@@ -72,6 +87,19 @@ export class ChestModels {
   frame(dt) {
     let changed = false;
     for (const [key, root] of this.models) {
+      if (root.userData.portable) {
+        const lid = root.userData.lid,
+          previous = lid.position.y;
+        lid.position.y = THREE.MathUtils.damp(
+          lid.position.y,
+          key === this.openKey ? 1.25 : 0.75,
+          8,
+          dt,
+        );
+        lid.rotation.y = ((lid.position.y - 0.75) * 2 * Math.PI) / 3;
+        changed ||= Math.abs(previous - lid.position.y) > 0.001;
+        continue;
+      }
       const previous = root.userData.lid.rotation.x;
       root.userData.lid.rotation.x = THREE.MathUtils.damp(
         root.userData.lid.rotation.x,

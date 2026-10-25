@@ -174,6 +174,15 @@ integration and synthesized sounds are original implementations. No upstream
 mob model, gameplay code or sound recording is bundled. The selected media
 now totals 212 PNGs: 191 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
 
+Version 0.38 reuses `mobs_mc_shulker_purple.png` for portable hexagonal
+shulker boxes, their sliding lids, held/dropped models, projected inventory
+icons and runtime atlas crops. **These derived texture views retain
+CC BY-SA 4.0**, as an exception to the base-atlas CC BY-SA 3.0 description
+above. The source PNG remains unmodified and available alongside the game.
+The geometry, stack contents, storage transactions, content preview and
+synthesized opening/closing sounds are independent implementations; no
+upstream code or model is included. No new source media is added.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

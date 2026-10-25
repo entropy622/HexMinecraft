@@ -3364,6 +3364,42 @@ input:focus-visible {
 #inventory-tooltip span {
   color: #bca4d8;
 }
+.container-preview {
+  display: grid;
+  grid-template-columns: repeat(9, 26px);
+  gap: 2px;
+  margin-top: 8px;
+  padding: 5px;
+  background: #392b46;
+  border: 2px solid #70587e;
+}
+#inventory-tooltip .container-preview-slot {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: #796d80;
+  box-shadow:
+    inset 1px 1px #4d4056,
+    inset -1px -1px #a89bad;
+}
+#inventory-tooltip .container-preview .block-icon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  padding: 0;
+}
+.container-preview .stack-count {
+  font-size: 10px;
+  right: 1px;
+  bottom: -2px;
+}
+.container-preview .stack-wear {
+  left: 3px;
+  right: 3px;
+  bottom: 2px;
+}
 .panel .mc-slot.drag-target {
   background-color: #a6a6a6;
   outline: 2px solid #f7df93;

@@ -2,12 +2,15 @@ import { BLOCKS } from './core.js';
 import { cutItemWorld } from './cut-blocks.js';
 import { buildingParts } from './building-shapes.js';
 import { blockTextures, textureURL } from './texture-pack.js';
+import { HEX_POLYGON } from './cut-blocks.js';
 
 // Small isometric projections reuse the same cut polygons and licensed tiles
 // as the world. SVG remains crisp in slots without a second WebGL renderer.
 export function cutBlockIcon(id) {
   const def = BLOCKS[id],
-    parts = buildingParts(cutItemWorld(id, 1), 0, 0, 0);
+    parts = def.portable
+      ? [{ y: 0.5, h: 1, polygon: HEX_POLYGON }]
+      : buildingParts(cutItemWorld(id, 1), 0, 0, 0);
   const tiles = blockTextures[def.base || id],
     faces = [];
   const project = ([x, y, z]) =>
@@ -46,8 +49,17 @@ export function cutBlockIcon(id) {
       );
     }
   }
-  const pattern = (name, tile) =>
-    `<pattern id="${id}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><image href="${textureURL(tile)}" width="16" height="16"/></pattern>`;
+  const pattern = (name, tile) => {
+    const url = textureURL(tile);
+    const crop = (y, height, destY, destHeight) =>
+      `<svg x="0" y="${destY}" width="16" height="${destHeight}" viewBox="16 ${y} 16 ${height}" preserveAspectRatio="none"><image href="${url}" width="64" height="64"/></svg>`;
+    const content = def.portable
+      ? name === 'top'
+        ? crop(0, 16, 0, 16)
+        : crop(16, 12, 0, 8) + crop(44, 8, 8, 8)
+      : `<image href="${url}" width="16" height="16"/>`;
+    return `<pattern id="${id}-${name}" width="16" height="16" patternUnits="userSpaceOnUse">${content}</pattern>`;
+  };
   return `<span class="block-icon pixel-icon cut-icon" title="${def.name}"><svg viewBox="0 0 48 48" aria-hidden="true"><defs>${pattern('top', tiles[0])}${pattern('side', tiles.at(-1))}</defs>${faces
     .sort((a, b) => a.depth - b.depth)
     .map((f) => {

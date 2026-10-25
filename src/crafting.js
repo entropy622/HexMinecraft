@@ -168,7 +168,7 @@ export function fillCraftingRecipe(
       filled[i].wear = wear ?? ITEMS[need.item].durability;
   }
   for (const s of rest)
-    if (s && draft.insert(s.item, s.count, [s.wear]) !== s.count)
+    if (s && draft.insertStack(s) !== s.count)
       return { ok: false, reason: 'full' };
   pack.slots = draft.slots;
   grid.splice(0, 7, ...filled);
@@ -215,7 +215,7 @@ export function returnCraftingGrid(pack, grid) {
   for (let i = 0; i < grid.length; i++) {
     const s = grid[i];
     if (!s) continue;
-    const moved = pack.insert(s.item, s.count, [s.wear]);
+    const moved = pack.insertStack(s);
     s.count -= moved;
     if (!s.count) grid[i] = null;
     else remaining += s.count;
@@ -243,12 +243,11 @@ export function quickCraft(pack, grid, preferred, station = true, limit = 64) {
     if (!match || (recipeId && match.recipe.id !== recipeId)) break;
     const output = craftingResult(match),
       draft = new PlayerInventory(pack.serialize());
-    if (draft.insert(output.item, output.count, [output.wear]) !== output.count)
-      break;
+    if (draft.insertStack(output) !== output.count) break;
     const next = structuredClone(grid),
       returns = consumeCrafting(next, match);
     for (const s of returns) {
-      const moved = draft.insert(s.item, s.count, [s.wear]);
+      const moved = draft.insertStack(s);
       if (moved < s.count) remainders.push(copyStack(s, s.count - moved));
     }
     pack.slots = draft.slots;

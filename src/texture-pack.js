@@ -2,6 +2,7 @@
 import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS } from './building-data.js';
 export const blockTextures = {
+  shulkerBox: ['mobs_mc_shulker_purple'],
   dragonEgg: ['mcl_end_dragon_egg'],
   brewingStand: ['mcl_brewing_top', 'mcl_brewing_side'],
   brewingBase: ['mcl_brewing_base'],
@@ -288,6 +289,14 @@ export function paintPackTile(ctx, id, top) {
     names && images.get(names[top ? 0 : Math.min(1, names.length - 1)]);
   if (!image) return;
   ctx.imageSmoothingEnabled = false;
+  if (id === 'shulkerBox') {
+    if (top) ctx.drawImage(image, 16, 0, 16, 16, 0, 0, 16, 16);
+    else {
+      ctx.drawImage(image, 16, 16, 16, 12, 0, 0, 16, 8);
+      ctx.drawImage(image, 16, 44, 16, 8, 0, 8, 16, 8);
+    }
+    return;
+  }
   ctx.clearRect(0, 0, 16, 16);
   ctx.drawImage(image, 0, 0, 16, 16);
   if (id === 'leaves' || (id === 'grass' && top)) {

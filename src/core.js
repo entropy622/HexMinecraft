@@ -13,7 +13,11 @@ import { SMITHING_BLOCKS, SMITHING_RECIPES } from './smithing-data.js';
 import { THROWING_RECIPES } from './throwable-data.js';
 import { END_BLOCKS, END_ITEMS, END_RECIPES } from './end-data.js';
 import { FLIGHT_BLOCKS, FLIGHT_ITEMS, FLIGHT_RECIPES } from './flight-data.js';
-import { SHULKER_ITEMS } from './shulker-data.js';
+import {
+  SHULKER_ITEMS,
+  SHULKER_BLOCKS,
+  SHULKER_RECIPES,
+} from './shulker-data.js';
 import {
   ENCHANT_BLOCKS,
   ENCHANT_ITEMS,
@@ -29,6 +33,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...SHULKER_BLOCKS,
   ...FLIGHT_BLOCKS,
   ...END_BLOCKS,
   ...BREW_BLOCKS,
@@ -87,7 +92,13 @@ export const BLOCKS = {
     hardness: 0.6,
   },
   furnace: { name: '熔炉', color: '#727b7a', side: '#4a5759', hardness: 1 },
-  chest: { name: '储物箱', color: '#dbaf69', side: '#9b724c', hardness: 0.6 },
+  chest: {
+    name: '储物箱',
+    color: '#dbaf69',
+    side: '#9b724c',
+    hardness: 0.6,
+    storage: true,
+  },
   bed: { name: '野营床', color: '#d99175', side: '#aa795c', hardness: 0.45 },
   farmland: {
     name: '耕地',
@@ -425,6 +436,7 @@ RECIPES.push(
   ...THROWING_RECIPES,
   ...END_RECIPES,
   ...FLIGHT_RECIPES,
+  ...SHULKER_RECIPES,
 );
 export function axialToWorld(q, r) {
   return { x: SQRT3 * (q + r / 2), z: 1.5 * r };

@@ -5,6 +5,8 @@ import { validWear } from './equipment.js';
 import { fluidHeight } from './fluids.js';
 import { enchantmentsOf } from './enchanting-data.js';
 import { buildingItemMesh } from './building-graphics.js';
+import { validStack } from './inventory.js';
+import { portableBoxMesh } from './portable-box-graphics.js';
 
 const vec = (p) =>
   Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
@@ -18,6 +20,9 @@ export function validDrops(state) {
         Object.hasOwn(ITEMS, d.item) &&
         Number.isInteger(d.count) &&
         d.count > 0 &&
+        (ITEMS[d.item].portable
+          ? validStack({ item: d.item, count: d.count, contents: d.contents })
+          : d.contents === undefined) &&
         d.count <= (ITEMS[d.item].durability ? 256 : 1e6) &&
         vec(d.position) &&
         Math.abs(d.position[0]) < 2e9 &&
@@ -54,12 +59,40 @@ export class ItemDrops {
   serialize() {
     return this.records.map(({ mesh, ...data }) => structuredClone(data));
   }
-  spawn(item, count, position, wear = {}, velocity = null, life = 300) {
+  spawnStack(stack, position, velocity = null, life = 300) {
+    const wear = ITEMS[stack.item]?.durability
+      ? { [stack.item]: [stack.wear ?? ITEMS[stack.item].durability] }
+      : {};
+    this.spawn(
+      stack.item,
+      stack.count,
+      position,
+      wear,
+      velocity,
+      life,
+      stack.contents,
+    );
+  }
+  spawn(
+    item,
+    count,
+    position,
+    wear = {},
+    velocity = null,
+    life = 300,
+    contents = undefined,
+  ) {
     if (!ITEMS[item] || count <= 0) return;
+    if (ITEMS[item].portable && count > 1) {
+      for (let i = 0; i < count; i++)
+        this.spawn(item, 1, position, wear, velocity, life, contents);
+      return;
+    }
     // Nearby stacks share one entity. Equipment retains its ordered durability.
     const near = this.records.find(
       (d) =>
         d.item === item &&
+        !ITEMS[item].portable &&
         d.delay <= 0 &&
         d.count + count <= (ITEMS[item].durability ? 256 : 1e6) &&
         Math.hypot(...d.position.map((v, i) => v - position[i])) < 1.1,
@@ -84,6 +117,9 @@ export class ItemDrops {
       count,
       position: [...position],
       wear: structuredClone(wear),
+      ...(ITEMS[item].portable && contents !== undefined
+        ? { contents: structuredClone(contents) }
+        : {}),
       velocity: velocity || [
         (Math.random() - 0.5) * 2,
         2.8,
@@ -95,6 +131,13 @@ export class ItemDrops {
     });
   }
   model(id) {
+    if (!this.templates.has(id) && ITEMS[id]?.portable) {
+      const mesh = portableBoxMesh();
+      mesh.userData = {};
+      mesh.scale.setScalar(0.22);
+      mesh.position.y = -0.11;
+      this.templates.set(id, mesh);
+    }
     if (
       !this.templates.has(id) &&
       ['slab', 'stairs', 'egg'].includes(BLOCKS[id]?.shape)

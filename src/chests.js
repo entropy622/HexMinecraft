@@ -1,11 +1,35 @@
-import { ITEMS } from './core.js';
+import { ITEMS, axialToWorld } from './core.js';
 import { stackSize, validStack } from './inventory.js';
 
 export const CHEST_SLOTS = 27;
-export const validChest = (chest) =>
+export const isStorage = (id) => !!ITEMS[id]?.storage;
+export function storageLidClear(world, q, y, r, camera, feet) {
+  if (!ITEMS[world.get(q, y, r)]?.portable) return !world.solid(q, y + 1, r);
+  const p = axialToWorld(q, r);
+  if (
+    Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 1.1 &&
+    feet < y + 1.5 &&
+    camera.position.y + 0.15 > y + 1
+  )
+    return false;
+  for (const [dx, dz] of [
+    [0, 0],
+    [0.65, 0],
+    [-0.65, 0],
+    [0, 0.7],
+    [0, -0.7],
+  ])
+    for (const h of [1.02, 1.25, 1.49])
+      if (world.pointSolid(p.x + dx, y + h, p.z + dz)) return false;
+  return true;
+}
+export const validChest = (chest, portable = false) =>
   Array.isArray(chest) &&
   chest.length === CHEST_SLOTS &&
-  chest.every(validStack);
+  chest.every(
+    (stack) =>
+      validStack(stack) && (!portable || !ITEMS[stack?.item]?.portable),
+  );
 
 export function newChest(loot = {}) {
   const chest = Array(CHEST_SLOTS).fill(null);

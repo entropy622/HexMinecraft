@@ -205,6 +205,7 @@ export function validateSave(s) {
       d.crops.some((e) => !Array.isArray(e) || !cell(e[0]) || !validPlant(e[1]))
     )
       throw Error('农田数据无效');
+    const editedTypes = new Map(d.edits);
     if (
       !Array.isArray(d.chests) ||
       d.chests.length > 1e5 ||
@@ -213,7 +214,7 @@ export function validateSave(s) {
           !Array.isArray(e) ||
           e.length !== 2 ||
           !cell(e[0]) ||
-          !validChest(e[1]),
+          !validChest(e[1], !!BLOCKS[editedTypes.get(e[0])]?.portable),
       ) ||
       new Set(d.chests.map((e) => e[0])).size !== d.chests.length
     )

@@ -1,10 +1,11 @@
-import { copyStack } from './inventory.js';
+import { copyStack, stackSize } from './inventory.js';
 import { takeSlot } from './container-actions.js';
 import {
   cursorMarkup,
   stackContent,
   stackTitle,
   paletteStack,
+  containerPreview,
 } from './inventory-ui.js';
 
 // DOM gestures are separate from stack transactions. Rendering can replace any
@@ -120,9 +121,7 @@ export class InventoryControls {
     if (e.button === 1) {
       if (this.options.creative() && old) {
         this.options.settle();
-        this.session.cursor = paletteStack(old.item);
-        if (old.wear !== undefined)
-          this.session.cursor.wear = structuredClone(old.wear);
+        this.session.cursor = copyStack(old, stackSize(old.item));
         this.changed();
       }
       return;
@@ -323,6 +322,8 @@ export class InventoryControls {
       el.textContent = line;
       this.tooltip.append(el);
     });
+    if (stack)
+      this.tooltip.insertAdjacentHTML('beforeend', containerPreview(stack));
     const { x, y } = this.position;
     this.tooltip.style.left =
       Math.max(4, Math.min(x + 18, innerWidth - this.tooltip.offsetWidth - 8)) +

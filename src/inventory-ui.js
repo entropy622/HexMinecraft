@@ -6,6 +6,7 @@ import { potionDescription } from './brewing-data.js';
 import { FOODS } from './survival.js';
 import { itemIcon as icon } from './icons.js';
 import { THROWABLES } from './throwable-data.js';
+import { PORTABLE_SLOTS } from './shulker-data.js';
 import { escapeHTML as escape } from './ui-text.js';
 
 export function stackTitle(s) {
@@ -18,6 +19,9 @@ export function stackTitle(s) {
     item.glider ? '放入胸甲格 · 空中再次按空格展开 · 俯冲加速、抬头爬升' : '',
     s.item === 'fireworkRocket' ? '滑翔中右键 / E 助推 · 地面使用可放烟花' : '',
     s.item === 'phantomMembrane' ? '铁砧修复鞘翅 · 每片恢复最多 108 耐久' : '',
+    item.portable
+      ? `已用 ${s.contents?.filter(Boolean).length || 0}/${PORTABLE_SLOTS} 格 · 拆除保留物品`
+      : '',
     THROWABLES[s.item]?.hint,
     item.durability ? `耐久 ${wearValue(s.wear)} / ${item.durability}` : '',
     item.armor ? `护甲 +${item.armor}` : '',
@@ -27,6 +31,16 @@ export function stackTitle(s) {
   ]
     .filter(Boolean)
     .join('\n');
+}
+export function containerPreview(stack) {
+  if (!ITEMS[stack?.item]?.portable) return '';
+  const slots = stack.contents || Array(PORTABLE_SLOTS).fill(null);
+  return `<div class="container-preview" aria-label="潜影盒内容">${slots
+    .map(
+      (s) =>
+        `<span class="container-preview-slot" title="${escape(s ? stackTitle(s).replaceAll('\n', ' · ') : '空格')}">${stackContent(s)}</span>`,
+    )
+    .join('')}</div>`;
 }
 export function stackContent(s, ghost = '') {
   if (!s) return ghost ? `<span class="slot-ghost">${ghost}</span>` : '';

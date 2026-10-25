@@ -14,7 +14,7 @@ import { newBrewing, tickBrewing, resetBrewing } from './brewing.js';
 import { brewingPanel, updateBrewingPanel } from './brewing-ui.js';
 import { FUELS, newFurnace, smeltingRecipe, tickFurnace } from './furnaces.js';
 import { furnacePanel, updateFurnacePanel } from './furnace-ui.js';
-import { newChest } from './chests.js';
+import { newChest, isStorage, storageLidClear } from './chests.js';
 import { chestPanel } from './chest-ui.js';
 import { features as villageFeatures, ROLES, trade } from './villages.js';
 import { Villagers } from './villagers.js';
@@ -124,7 +124,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.37 — SHELLS AND SKYWARD SPELLS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.38 — A WORLD IN YOUR POCKET</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -535,7 +535,10 @@ function resolveInventorySlot(ref) {
       },
       ...(kind === 'gear'
         ? { accepts: (s) => acceptsGear(GEAR_SLOTS[index], s), limit: 1 }
-        : {}),
+        : kind === 'box' &&
+            ITEMS[world.get(...stationKey.split(',').map(Number))]?.portable
+          ? { accepts: (s) => !ITEMS[s.item]?.portable }
+          : {}),
     };
   }
   if (kind === 'furnace') {
@@ -727,18 +730,13 @@ function refreshInventoryPanel() {
 }
 function dropInventoryStack(stack, thrown = true) {
   const direction = camera.getWorldDirection(new THREE.Vector3());
-  const wear = ITEMS[stack.item]?.durability
-    ? { [stack.item]: [stack.wear ?? ITEMS[stack.item].durability] }
-    : {};
-  drops.spawn(
-    stack.item,
-    stack.count,
+  drops.spawnStack(
+    stack,
     [
       camera.position.x,
       thrown ? camera.position.y - 0.2 : playerFeet() + 0.5,
       camera.position.z,
     ],
-    wear,
     thrown ? [direction.x * 5, direction.y * 3 + 2, direction.z * 5] : null,
   );
 }
@@ -1573,7 +1571,9 @@ function updateExperienceHUD() {
 function collectDrop(d, capacityOnly = false) {
   const n = Math.min(d.count, roomFor(inventory, d.item));
   if (capacityOnly || n <= 0) return Math.max(0, n);
-  pack.insert(d.item, n, d.wear[d.item] || []);
+  if (ITEMS[d.item].portable)
+    pack.insertStack({ item: d.item, count: n, contents: d.contents });
+  else pack.insert(d.item, n, d.wear[d.item] || []);
   pickupNotice(d.item, n);
   beep(720 + Math.random() * 180, 0.06, 'sine', 0.025);
   updateHUD();
@@ -1581,7 +1581,7 @@ function collectDrop(d, capacityOnly = false) {
 }
 function containInventory() {
   for (const stack of craftingReturns.splice(0)) {
-    const moved = pack.insert(stack.item, stack.count, [stack.wear]);
+    const moved = pack.insertStack(stack);
     if (moved < stack.count)
       dropInventoryStack({ ...stack, count: stack.count - moved }, false);
   }
@@ -1648,28 +1648,34 @@ function mine(dt) {
     target = null;
     return;
   }
-  if (type === 'chest') syncDecor();
+  if (isStorage(type)) syncDecor();
+  const packed = ITEMS[type]?.portable ? packStorage(k, type) : null;
   world.set(q, y, r, null);
   graphics.updateBlock(q, y, r);
   graphics.burst(q, y, r, data.color);
   soundFX.play('break', type);
   wearItem(held, ITEMS[held]?.kind === 'sword' ? 2 : 1);
+  if (packed && (!creative || packed.contents.some(Boolean))) {
+    const point = axialToWorld(q, r);
+    drops.spawnStack(packed, [point.x, y + 0.5, point.z]);
+  }
   if (!creative) {
-    dropAt(
-      type === 'snow' && ITEMS[held]?.kind === 'shovel'
-        ? 'snowball'
-        : data.drop || type,
-      type === 'snow' && ITEMS[held]?.kind === 'shovel'
-        ? 4
-        : type === 'lapisOre'
-          ? 4 + Math.floor(Math.random() * 6)
-          : type === 'redstoneOre'
-            ? 4 + Math.floor(Math.random() * 2)
-            : 1,
-      q,
-      y,
-      r,
-    );
+    if (!packed)
+      dropAt(
+        type === 'snow' && ITEMS[held]?.kind === 'shovel'
+          ? 'snowball'
+          : data.drop || type,
+        type === 'snow' && ITEMS[held]?.kind === 'shovel'
+          ? 4
+          : type === 'lapisOre'
+            ? 4 + Math.floor(Math.random() * 6)
+            : type === 'redstoneOre'
+              ? 4 + Math.floor(Math.random() * 2)
+              : 1,
+        q,
+        y,
+        r,
+      );
     if (natural) {
       const reward = {
         coal: [0, 2],
@@ -2314,6 +2320,7 @@ function place() {
           ...ANVILS,
           'grindstone',
           'chest',
+          'shulkerBox',
           'bed',
         ].includes(target.type)))
   ) {
@@ -2382,7 +2389,7 @@ function place() {
   world.set(q, y, r, id);
   if (
     id === 'furnace' ||
-    id === 'chest' ||
+    isStorage(id) ||
     id === 'brewingStand' ||
     isSmithingStation(id)
   ) {
@@ -2399,9 +2406,12 @@ function place() {
   if (crops.has(cropBelow)) {
     harvestPlant(cropBelow, true, 2);
   }
+  const stored = ITEMS[id]?.portable
+    ? structuredClone(pack.slots[selected]?.contents || newChest())
+    : null;
   if (!creative) inventory[id]--;
   graphics.updateBlock(q, y, r);
-  if (id === 'chest') chests.set(key(q, y, r), newChest());
+  if (isStorage(id)) chests.set(key(q, y, r), stored || newChest());
   soundFX.play('place', id);
   graphics.swing();
   updateHUD();
@@ -2851,6 +2861,7 @@ function interact(preferContext = false) {
         ...ANVILS,
         'grindstone',
         'chest',
+        'shulkerBox',
         'farmland',
       ].includes(target.type) ||
         (plantForItem(heldItem()) && ['grass', 'dirt'].includes(target.type))));
@@ -2955,16 +2966,16 @@ function interact(preferContext = false) {
     toast('在五格内放置火把或萤灯压制刷怪，也可用石镐拆除。');
     return;
   }
-  if (type === 'chest') {
-    if (world.solid(q, y + 1, r)) {
-      toast('箱盖上方被挡住了，先清理上方一格。');
+  if (isStorage(type)) {
+    if (!storageLidClear(world, q, y, r, camera, playerFeet())) {
+      toast('箱盖需要展开空间，移开上方的方块或离开箱顶后再试。');
       return;
     }
     syncDecor();
     stationKey = k;
     openOverlay('#station-overlay');
     graphics.chestModels.openKey = k;
-    soundFX.play('chestOpen');
+    soundFX.play(ITEMS[type]?.portable ? 'shulkerOpen' : 'chestOpen');
     renderChest();
     return;
   }
@@ -3161,7 +3172,7 @@ function settleWorkstationItems() {
     for (let i = 0; i < list.length; i++) {
       const stack = list[i];
       if (!stack) continue;
-      const moved = pack.insert(stack.item, stack.count, [stack.wear]);
+      const moved = pack.insertStack(stack);
       if (moved < stack.count)
         dropInventoryStack({ ...stack, count: stack.count - moved }, false);
       list[i] = null;
@@ -3302,13 +3313,15 @@ function updateBreweries(dt) {
 }
 function closeChestLid() {
   if (!graphics.chestModels.openKey) return;
+  const portable = graphics.chestModels.models.get(graphics.chestModels.openKey)
+    ?.userData.portable;
   graphics.chestModels.openKey = null;
-  soundFX.play('chestClose');
+  soundFX.play(portable ? 'shulkerClose' : 'chestClose');
 }
 function currentChest() {
   if (
     !stationKey ||
-    world.get(...stationKey.split(',').map(Number)) !== 'chest'
+    !isStorage(world.get(...stationKey.split(',').map(Number)))
   )
     return null;
   if (!chests.has(stationKey)) chests.set(stationKey, newChest());
@@ -3317,8 +3330,18 @@ function currentChest() {
 function renderChest() {
   const chest = currentChest();
   if (!chest) return;
-  $('#station-title').textContent = '六棱储物箱';
-  $('#station-content').innerHTML = chestPanel(chest, pack);
+  const type = world.get(...stationKey.split(',').map(Number));
+  $('#station-title').textContent = ITEMS[type].name;
+  $('#station-content').innerHTML = chestPanel(chest, pack, type);
+}
+function packStorage(k, type) {
+  const stack = {
+    item: type,
+    count: 1,
+    contents: structuredClone(chests.get(k) || newChest()),
+  };
+  chests.delete(k);
+  return stack;
 }
 function spillChest(k) {
   const chest = chests.get(k);
@@ -3326,10 +3349,8 @@ function spillChest(k) {
   const [q, y, r] = k.split(',').map(Number);
   for (const slot of chest) {
     if (!slot) continue;
-    const wear = ITEMS[slot.item].durability
-      ? { [slot.item]: [slot.wear] }
-      : {};
-    dropAt(slot.item, slot.count, q, y, r, wear);
+    const point = axialToWorld(q, r);
+    drops.spawnStack(slot, [point.x, y + 0.5, point.z]);
   }
   chests.delete(k);
 }
@@ -3638,10 +3659,7 @@ function hurt(amount, cause = 'combat', source = null) {
       ...Object.values(workstationItems).flat(),
       inventorySession.cursor,
     ].filter(Boolean)) {
-      const wear = ITEMS[stack.item].durability
-        ? { [stack.item]: [stack.wear] }
-        : {};
-      drops.spawn(stack.item, stack.count, lastDeath, wear, null, 600);
+      drops.spawnStack(stack, lastDeath, null, 600);
     }
     inventorySession.cursor = null;
     craftingGrid = newCraftingGrid();
@@ -3811,8 +3829,11 @@ function explode(center, settings = {}) {
           removeBuilding(q, y, r, !creative && Math.random() < 0.6);
           continue;
         }
+        const packed = ITEMS[type]?.portable ? packStorage(k, type) : null;
         world.set(q, y, r, null);
-        if (!creative && Math.random() < 0.6)
+        if (packed && (!creative || packed.contents.some(Boolean)))
+          drops.spawnStack(packed, [p.x, y + 0.5, p.z]);
+        else if (!packed && !creative && Math.random() < 0.6)
           dropAt(BLOCKS[type].drop || type, 1, q, y, r);
         spillChest(k);
         spillFurnace(k);
@@ -4891,6 +4912,7 @@ function frame(now) {
           ...ANVILS,
           'grindstone',
           'chest',
+          'shulkerBox',
           'farmland',
           'bed',
           'portal',
