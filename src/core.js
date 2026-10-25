@@ -148,19 +148,28 @@ export const ITEMS = {
   sword: { name: '铁剑', color: '#c6d9dc' },
   hoe: { name: '锄头', color: '#bdbda4' },
   ingot: { name: '铁锭', color: '#e2d6c6' },
-  seed: { name: '麦种', color: '#b7c071' },
-  wheat: { name: '小麦', color: '#e3c170' },
-  apple: { name: '苹果', color: '#d88666' },
+  seed: { name: '麦种', color: '#b7c071', use: true },
+  wheat: { name: '小麦', color: '#e3c170', use: true },
+  apple: { name: '苹果', color: '#d88666', use: true },
   bread: { name: '面包', color: '#dcb17b' },
   meat: { name: '生肉', color: '#cf9786' },
   cooked: { name: '烤肉', color: '#bd875d' },
   string: { name: '纤维线', color: '#eee3c9' },
   arrow: { name: '箭矢', color: '#c5b48a' },
+  leather: { name: '皮革', color: '#a87542' },
+  feather: { name: '羽毛', color: '#ede7d5' },
+  egg: { name: '鸡蛋', color: '#e5d5b9' },
+  bone: { name: '骨头', color: '#e4ddc9' },
+  boneMeal: { name: '骨粉', color: '#ece8d7', use: true },
+  gunpowder: { name: '火药', color: '#69696c' },
+  milkBucket: { name: '牛奶桶', color: '#eee7d8', use: true },
+  cake: { name: '田园蛋糕', color: '#efd9b1', use: true },
   ...GEAR,
 };
 export const canEquip = (id) =>
   Object.hasOwn(BLOCKS, id) ||
-  (Object.hasOwn(ITEMS, id) && (!!ITEMS[id].bucket || !!ITEMS[id].kind));
+  (Object.hasOwn(ITEMS, id) &&
+    (!!ITEMS[id].bucket || !!ITEMS[id].kind || !!ITEMS[id].use));
 export const HOTBAR = [
   'dirt',
   'stone',
@@ -550,6 +559,8 @@ export function canCraft(recipe, inventory, tool = 0, station = true) {
 export function craft(recipe, inventory, tool = 0, station = true) {
   if (!canCraft(recipe, inventory, tool, station)) return false;
   for (const [id, n] of Object.entries(recipe.cost)) inventory[id] -= n;
+  for (const [id, n] of Object.entries(recipe.returns || {}))
+    inventory[id] = (inventory[id] || 0) + n;
   inventory[recipe.id] = (inventory[recipe.id] || 0) + recipe.count;
   return true;
 }

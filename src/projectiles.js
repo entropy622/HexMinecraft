@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MOBS } from './mob-data.js';
 import { worldToAxial } from './core.js';
 
 export class Projectiles {
@@ -23,7 +24,7 @@ export class Projectiles {
   clear() {
     for (const a of [...this.arrows]) this.remove(a);
   }
-  shoot(position, direction, power, recoverable) {
+  shoot(position, direction, power, recoverable, owner = 'player') {
     if (this.arrows.length >= 32) this.remove(this.arrows[0]);
     const mesh = new THREE.Group();
     mesh.add(new THREE.Mesh(this.shaft, this.wood));
@@ -46,9 +47,18 @@ export class Projectiles {
       damage: 2 + power * 8,
       stuck: false,
       recoverable,
+      owner,
     });
   }
-  update(dt, world, creatures, camera, onHit, onPickup) {
+  update(
+    dt,
+    world,
+    creatures,
+    camera,
+    onHit,
+    onPickup,
+    onPlayerHit = () => {},
+  ) {
     const sphere = new THREE.Sphere(),
       ray = new THREE.Ray(),
       point = new THREE.Vector3();
@@ -94,12 +104,33 @@ export class Projectiles {
         ray.set(previous, direction);
         let nearest = null,
           distance = Infinity;
-        for (const mob of creatures) {
+        if (arrow.owner === 'hostile') {
+          sphere.center
+            .copy(camera.position)
+            .add(new THREE.Vector3(0, -0.65, 0));
+          sphere.radius = 0.5;
+          if (
+            ray.intersectSphere(sphere, point) &&
+            previous.distanceTo(point) <= length
+          ) {
+            onPlayerHit(4);
+            this.remove(arrow);
+            break;
+          }
+        }
+        for (const mob of arrow.owner === 'hostile' ? [] : creatures) {
           if (!mob.mesh.visible) continue;
           sphere.center
             .copy(mob.mesh.position)
-            .add(new THREE.Vector3(0, 0.75, 0));
-          sphere.radius = 0.6;
+            .add(
+              new THREE.Vector3(
+                0,
+                MOBS[mob.kind].height * (mob.baby ? 0.3 : 0.5),
+                0,
+              ),
+            );
+          sphere.radius =
+            (mob.kind === 'chicken' ? 0.32 : 0.6) * (mob.baby ? 0.55 : 1);
           if (ray.intersectSphere(sphere, point)) {
             const d = previous.distanceTo(point);
             if (d <= length && d < distance) {

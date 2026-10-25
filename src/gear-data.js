@@ -73,6 +73,21 @@ for (const [tier, label, material, color, durability] of [
       );
   }
 }
+GEAR.shears = {
+  name: '剪刀',
+  color: '#d3dce0',
+  durability: 238,
+  kind: 'shears',
+  damage: 2,
+  cooldown: 0.6,
+};
+recipe(
+  'shears',
+  ['ingot', null, null, null, 'ingot', null, null],
+  1,
+  false,
+  '对成年绵羊按 E 剪羊毛；草地上约两分钟长回。',
+);
 GEAR.hoe = {
   name: '石锄',
   color: '#bdbda4',
@@ -98,6 +113,7 @@ recipe(
   '手持后按住左键蓄力，松开发射。消耗箭矢，满弓射程更远。',
 );
 for (const [material, label, color, multiplier, points] of [
+  ['leather', '皮革', '#a47c50', 5, [1, 3, 2, 1]],
   ['ingot', '铁', '#cbd6db', 15, [2, 6, 5, 2]],
   ['diamond', '钻石', '#78dce7', 33, [3, 8, 6, 3]],
 ]) {
@@ -108,7 +124,11 @@ for (const [material, label, color, multiplier, points] of [
     [3, 'feet', '靴子', 4, 13],
   ]) {
     const id =
-      (material === 'ingot' ? 'iron' : 'diamond') +
+      (material === 'ingot'
+        ? 'iron'
+        : material === 'leather'
+          ? 'leather'
+          : 'diamond') +
       slot[0].toUpperCase() +
       slot.slice(1);
     GEAR[id] = {
@@ -152,3 +172,26 @@ export const ARMOR_SLOTS = {
   legs: '护腿',
   feet: '靴子',
 };
+
+recipe(
+  'boneMeal',
+  ['bone', null, null, null, null, null, null],
+  3,
+  false,
+  '手持骨粉对麦苗按 E，立即催熟。',
+);
+recipe(
+  'arrow',
+  ['stone', null, 'wood', null, 'feather', null, null],
+  12,
+  false,
+  '羽毛尾羽能做出更多箭矢。',
+);
+recipe(
+  'cake',
+  ['wheat', 'egg', 'wheat', 'milkBucket', 'wheat', 'egg', null],
+  1,
+  true,
+  '鸡蛋、牛奶与小麦做成蛋糕，食用恢复 12 点饱食。合成返还铁桶。',
+);
+GEAR_RECIPES.at(-1).returns = { bucket: 1 };

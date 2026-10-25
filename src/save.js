@@ -1,3 +1,4 @@
+import { validFauna } from './fauna.js';
 import { validEquipment, validWear } from './equipment.js';
 import { LIQUIDS } from './fluids.js';
 import { ITEMS, BLOCKS, canEquip } from './core.js';
@@ -64,6 +65,8 @@ export function validateSave(s) {
       )
     )
       throw Error('地形数据无效');
+    if (d.fauna !== undefined && !validFauna(d.fauna))
+      throw Error('动物存档无效');
     if (
       d.fluids !== undefined &&
       (!Array.isArray(d.fluids) ||

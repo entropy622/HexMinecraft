@@ -15,6 +15,8 @@ export const ROLES = {
     trades: [
       { cost: { wheat: 12 }, give: { emerald: 1 } },
       { cost: { emerald: 1 }, give: { bread: 5 } },
+      { cost: { egg: 8 }, give: { emerald: 1 } },
+      { cost: { leather: 6 }, give: { emerald: 1 } },
     ],
   },
   smith: {

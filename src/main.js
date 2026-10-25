@@ -17,7 +17,9 @@ import {
   craft,
   canCraft,
 } from './core.js';
-import { Graphics, createCreature } from './graphics.js';
+import { Fauna } from './fauna.js';
+import { MOBS } from './mob-data.js';
+import { Graphics } from './graphics.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
 import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack } from './texture-pack.js';
@@ -72,6 +74,19 @@ try {
 const camera = graphics.camera;
 const motion = new Movement();
 const projectiles = new Projectiles(graphics.scene);
+const fauna = new Fauna(graphics.scene, graphics.textures, {
+  damage: (amount) => hurt(amount),
+  drop: addItem,
+  notice: toast,
+  explode,
+  fuse: () => beep(75, 0.3, 'sawtooth', 0.04),
+  shoot: (from, to) => {
+    const aim = to.clone().sub(from);
+    const flight = aim.length() / 25;
+    aim.y += 6.5 * flight * flight;
+    projectiles.shoot(from, aim.normalize(), 0.65, false, 'hostile');
+  },
+});
 let equipment = new Equipment(),
   chestWear = new Map(),
   bowCharge = 0;
@@ -87,7 +102,7 @@ let world = new World(624),
 let crops = new Map(),
   chests = new Map(),
   furnaceJobs = new Map(),
-  creatures = [],
+  creatures = fauna.active,
   hasGame = false,
   playing = false,
   overlay = null,
@@ -120,7 +135,7 @@ let dimension = 'overworld',
   hudSignature = '',
   footstepDistance = 0,
   ambienceTimer = 0,
-  mobCenter = null;
+  creatureTarget = null;
 graphics.build(world);
 
 function toast(message) {
@@ -184,38 +199,6 @@ function safeSpawn() {
   )
     camera.position.y++;
 }
-function createMobs() {
-  for (const m of creatures) {
-    graphics.scene.remove(m.mesh);
-    m.mesh.traverse((o) => {
-      o.geometry?.dispose();
-      o.material?.dispose();
-    });
-  }
-  creatures = [];
-  const center = worldToAxial(camera.position.x, camera.position.z);
-  mobCenter = center;
-  for (let i = 0; i < 15; i++) {
-    const q =
-        center.q + Math.round(hash(i, 52, center.q, world.seed) * 34 - 17),
-      r = center.r + Math.round(hash(i, 78, center.r, world.seed) * 30 - 15),
-      h = world.surface(q, r);
-    if (h < 6 || h > 40) continue;
-    const kind = dimension === 'overworld' && i < 10 ? 'sheep' : 'crawler',
-      p = axialToWorld(q, r),
-      mesh = createCreature(kind, dimension);
-    mesh.position.set(p.x, h, p.z);
-    graphics.scene.add(mesh);
-    creatures.push({
-      kind,
-      mesh,
-      hp: kind === 'sheep' ? 6 : 12,
-      angle: hash(i, 12) * 6.28,
-      think: 0,
-      hit: 0,
-    });
-  }
-}
 function startGame(mode = false, save = null) {
   const seed = save?.seed ?? Number($('#seed').value || 624);
   dimension = save?.dimension || 'overworld';
@@ -267,7 +250,9 @@ function startGame(mode = false, save = null) {
     Math.min(1.5, Number.isFinite(save?.pitch) ? save.pitch : -0.08),
   );
   camera.rotation.set(pitch, yaw, 0);
-  createMobs();
+  fauna.load(world, data.fauna);
+  fauna.sync(camera);
+  creatureTarget = null;
   syncDecor();
   hasGame = true;
   hudSignature = '';
@@ -286,6 +271,7 @@ function startGame(mode = false, save = null) {
 function captureDimension() {
   dimensionStates[dimension] = {
     ...world.serialize(),
+    fauna: fauna.serialize(),
     crops: [...crops],
     chests: [...chests],
     chestWear: [...chestWear],
@@ -379,7 +365,9 @@ function travel(to) {
   mining = 0;
   graphics.build(world, a.q, a.r);
   if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
-  createMobs();
+  fauna.load(world, data.fauna);
+  fauna.sync(camera);
+  creatureTarget = null;
   syncDecor();
   damageCooldown = 3;
   $('#travel span').textContent = DIMENSIONS[to].name;
@@ -684,7 +672,7 @@ function addItem(id, n = 1) {
   updateHUD();
 }
 function mine(dt) {
-  if (!target?.type || target.fluid || villagerTarget) {
+  if (!target?.type || target.fluid || villagerTarget || creatureTarget) {
     mining = 0;
     return;
   }
@@ -822,6 +810,15 @@ function flushFluidChanges() {
 }
 function place() {
   if (!playing) return;
+  if (interactCreature() || drinkMilk()) return;
+  if (heldItem() === 'boneMeal' && target) {
+    interact();
+    return;
+  }
+  if (heldItem() === 'cake') {
+    eat();
+    return;
+  }
   if (useBucket()) return;
   if (!target || !BLOCKS[hotbar[selected]]) return;
   const { q, y, r } = target.place,
@@ -857,6 +854,7 @@ function place() {
 }
 function interact() {
   if (!playing) return;
+  if (interactCreature() || drinkMilk()) return;
   if (villagerTarget) {
     tradingWith = villagerTarget;
     openOverlay('#station-overlay');
@@ -912,6 +910,14 @@ function interact() {
     return;
   }
   if (crops.has(k)) {
+    if (time - crops.get(k) < 90 && heldItem() === 'boneMeal') {
+      if (!creative) inventory.boneMeal--;
+      crops.set(k, time - 90);
+      graphics.crop(k, 90);
+      toast('骨粉让麦穗成熟了 · E 收获');
+      updateHUD();
+      return;
+    }
     if (time - crops.get(k) < 90) {
       toast(
         `麦苗还在生长 · ${Math.min(99, Math.floor(((time - crops.get(k)) / 90) * 100))}%`,
@@ -1055,6 +1061,7 @@ function renderChest() {
 }
 function eat() {
   for (const [id, value] of [
+    ['cake', 12],
     ['cooked', 9],
     ['bread', 7],
     ['apple', 4],
@@ -1098,94 +1105,118 @@ function hurt(amount, cause = 'combat') {
   updateHUD();
 }
 function updateMobs(dt) {
-  const night = dimension !== 'overworld' || time % 600 > 310;
-  for (let i = creatures.length - 1; i >= 0; i--) {
-    const m = creatures[i];
-    m.hit = Math.max(0, m.hit - dt);
-    m.mesh.scale.setScalar(
-      m.hit > 0 ? 1 + Math.sin((m.hit / 0.3) * Math.PI) * 0.13 : 1,
-    );
-    m.mesh.visible = m.kind === 'sheep' || night;
-    if (!m.mesh.visible) continue;
-    const p = m.mesh.position,
-      dist = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
-    m.think -= dt;
-    m.flee = Math.max(0, (m.flee || 0) - dt);
-    if (m.flee > 0 && m.kind === 'sheep') {
-      m.angle = Math.atan2(p.x - camera.position.x, p.z - camera.position.z);
-    } else if (m.kind === 'crawler' && dist < 17) {
-      m.angle = Math.atan2(camera.position.x - p.x, camera.position.z - p.z);
-    } else if (m.think <= 0) {
-      m.think = 2 + Math.random() * 4;
-      m.angle += (Math.random() - 0.5) * 2.5;
-    }
-    const speed = m.kind === 'crawler' ? 1.55 : m.flee > 0 ? 2.5 : 0.45,
-      dx = Math.sin(m.angle) * speed * dt,
-      dz = Math.cos(m.angle) * speed * dt,
-      a = worldToAxial(p.x + dx, p.z + dz),
-      h = world.surface(a.q, a.r);
-    if (h > 3 && h <= p.y + 1.1 && h >= p.y - 2 && world.loaded(a.q, a.r)) {
-      p.x += dx;
-      p.z += dz;
-      p.y = THREE.MathUtils.lerp(p.y, h, Math.min(1, dt * 8));
-    } else m.angle += Math.PI * 0.55;
-    m.mesh.rotation.y = m.angle + Math.PI;
-    m.mesh.children
-      .slice(-4)
-      .forEach(
-        (leg, j) =>
-          (leg.rotation.x = Math.sin(time * 6 + (j % 2) * Math.PI) * 0.2),
-      );
-    if (m.kind === 'crawler' && dist < 1.1 && Math.abs(p.y - playerFeet()) < 2)
-      hurt(2);
-  }
+  fauna.update(dt, time, camera, heldItem(), creative);
 }
 function hitMob(mob, amount, direction) {
-  mob.hit = 0.3;
-  mob.flee = 3;
-  mob.hp -= amount;
-  const push = mob.mesh.position.clone().addScaledVector(direction, 0.65);
-  const cell = worldToAxial(push.x, push.z);
-  if (
-    world.loaded(cell.q, cell.r) &&
-    Math.abs(world.surface(cell.q, cell.r) - mob.mesh.position.y) < 0.7
-  ) {
-    mob.mesh.position.x = push.x;
-    mob.mesh.position.z = push.z;
-  }
-  mob.angle = yaw;
+  const p = mob.mesh.position,
+    a = worldToAxial(p.x, p.z);
+  graphics.burst(a.q, p.y, a.r, MOBS[mob.kind].color);
   beep(140, 0.07, 'triangle');
-  const a = worldToAxial(mob.mesh.position.x, mob.mesh.position.z);
-  graphics.burst(
-    a.q,
-    mob.mesh.position.y,
-    a.r,
-    mob.kind === 'sheep' ? '#ded1b0' : '#7db4a4',
+  fauna.hit(mob, amount, direction);
+}
+function interactCreature() {
+  const mob = fauna.target(
+    camera,
+    Math.min(
+      target?.distance ?? Infinity,
+      villagerTarget?.distance ?? Infinity,
+    ),
   );
-  if (mob.hp <= 0) {
-    graphics.scene.remove(mob.mesh);
-    mob.mesh.traverse((o) => {
-      o.geometry?.dispose();
-      o.material?.dispose();
-    });
-    creatures.splice(creatures.indexOf(mob), 1);
-    addItem(
-      mob.kind === 'sheep' ? 'meat' : 'crystal',
-      mob.kind === 'sheep' ? 2 : 1,
-    );
-    if (mob.kind === 'sheep') addItem('wool', 3);
-    else {
-      addItem(dimension === 'nether' ? 'ember' : 'pearl');
-      addItem('string', 2);
-    }
-    toast(
-      mob.kind === 'sheep'
-        ? '获得生肉 ×2、羊毛 ×3 · 可以做床了'
-        : dimension === 'nether'
-          ? '烈焰余烬 · 萤晶 +1 · 烈焰粉 +1'
-          : '夜行者消散了 · 萤晶 +1 · 末影珍珠 +1',
-    );
+  if (!mob || MOBS[mob.kind].hostile) return false;
+  const action = fauna.interact(mob, heldItem());
+  if (!action) return false;
+  if (action.consume && !creative) inventory[action.consume]--;
+  for (const [id, n] of Object.entries(action.give || {})) addItem(id, n);
+  if (action.wear) wearItem(action.wear);
+  if (action.replace) hotbar[selected] = action.replace;
+  toast(action.message);
+  graphics.swing();
+  updateHUD();
+  saveGame();
+  return true;
+}
+function drinkMilk() {
+  if (heldItem() !== 'milkBucket') return false;
+  if (!creative) {
+    inventory.milkBucket--;
+    addItem('bucket');
   }
+  hotbar[selected] = 'bucket';
+  hunger = Math.min(20, hunger + 4);
+  health = Math.min(20, health + 2);
+  toast('喝下牛奶 · 饱食 +4');
+  updateHUD();
+  return true;
+}
+function explode(center) {
+  const origin = worldToAxial(center.x, center.z),
+    changed = new Set();
+  const distance = center.distanceTo(
+    camera.position.clone().add(new THREE.Vector3(0, -0.8, 0)),
+  );
+  if (distance < 5) hurt(Math.max(1, 14 * (1 - distance / 5)));
+  for (const mob of [...creatures])
+    if (mob.mesh.position.distanceTo(center) < 4)
+      fauna.hit(
+        mob,
+        12,
+        mob.mesh.position.clone().sub(center).normalize(),
+        false,
+      );
+  for (let dq = -2; dq <= 2; dq++)
+    for (let dr = -2; dr <= 2; dr++) {
+      const q = origin.q + dq,
+        r = origin.r + dr,
+        p = axialToWorld(q, r);
+      for (
+        let y = Math.max(1, Math.floor(center.y) - 2);
+        y <= Math.min(63, Math.floor(center.y) + 2);
+        y++
+      ) {
+        if (
+          Math.hypot(p.x - center.x, y + 0.5 - center.y, p.z - center.z) > 2.7
+        )
+          continue;
+        const type = world.get(q, y, r),
+          k = key(q, y, r);
+        if (!type || type === 'bedrock' || type === 'obsidian') continue;
+        world.set(q, y, r, null);
+        chests.delete(k);
+        chestWear.delete(k);
+        furnaceJobs.delete(k);
+        for (const cropKey of [k, key(q, y - 1, r)]) {
+          crops.delete(cropKey);
+          graphics.removeCrop(cropKey);
+        }
+        for (const [a, b] of [
+          [0, 0],
+          [1, 0],
+          [0, 1],
+          [-1, 1],
+          [-1, 0],
+          [0, -1],
+          [1, -1],
+        ])
+          changed.add(graphics.chunkKey(q + a, r + b));
+        graphics.updateLight(q, y, r);
+        if (graphics.portalMeshes.has(k)) {
+          const portal = graphics.portalMeshes.get(k);
+          portal.traverse((o) => {
+            o.geometry?.dispose();
+            if (Array.isArray(o.material))
+              o.material.forEach((m) => m.dispose());
+            else o.material?.dispose();
+          });
+          graphics.decor.remove(portal);
+          graphics.portalMeshes.delete(k);
+        }
+      }
+    }
+  for (const k of changed) if (graphics.chunks.has(k)) graphics.buildChunk(k);
+  graphics.burst(origin.q, center.y, origin.r, '#e3b567');
+  soundFX.play('break', 'stone');
+  toast('轰！苦力怕炸开了周围的方块。');
+  saveGame();
 }
 function attack() {
   graphics.ray.setFromCamera(new THREE.Vector2(), camera);
@@ -1831,11 +1862,6 @@ function frame(now) {
     const cell = worldToAxial(camera.position.x, camera.position.z);
     world.ensureAround(cell.q, cell.r);
     graphics.sync(cell.q, cell.r);
-    if (
-      !mobCenter ||
-      Math.hypot(cell.q - mobCenter.q, cell.r - mobCenter.r) > 20
-    )
-      createMobs();
     ambienceTimer += dt;
     if (ambienceTimer > 18) {
       ambienceTimer = 0;
@@ -1887,9 +1913,44 @@ function frame(now) {
         ROLES[villagerTarget.role].name +
         ' · E 交易';
     }
+    creatureTarget = fauna.target(
+      camera,
+      Math.min(
+        target?.distance ?? Infinity,
+        villagerTarget?.distance ?? Infinity,
+      ),
+    );
+    if (creatureTarget) {
+      villagerTarget = null;
+      const m = creatureTarget,
+        def = MOBS[m.kind];
+      $('#target').classList.remove('hidden');
+      $('#target').textContent =
+        def.name +
+        (m.baby ? '幼崽' : '') +
+        ' · ' +
+        Math.ceil(m.hp) +
+        ' / ' +
+        def.hp +
+        (m.kind === 'creeper' && m.fuse > 0
+          ? ' · 即将爆炸！'
+          : def.hostile
+            ? ''
+            : m.love > 0
+              ? ' · ♥ 寻找伙伴'
+              : m.kind === 'chicken' && m.eggs > 0
+                ? ' · E 收集鸡蛋 ×' + m.eggs
+                : ' · E 喂养 / 互动');
+    }
     updateMobs(dt);
-    projectiles.update(dt, world, creatures, camera, hitMob, () =>
-      addItem('arrow'),
+    projectiles.update(
+      dt,
+      world,
+      creatures,
+      camera,
+      hitMob,
+      () => addItem('arrow'),
+      (amount) => hurt(amount),
     );
     $('#combat-status').textContent =
       heldItem() === 'bow'

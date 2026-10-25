@@ -146,6 +146,8 @@ export class Villagers {
     if (!hit) return null;
     let o = hit.object;
     while (o.parent && !meshes.includes(o)) o = o.parent;
-    return [...this.residents.values()].find((n) => n.mesh === o) || null;
+    const n = [...this.residents.values()].find((n) => n.mesh === o);
+    if (n) n.distance = hit.distance;
+    return n || null;
   }
 }
