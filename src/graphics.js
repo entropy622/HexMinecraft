@@ -17,7 +17,7 @@ import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
 import { ChestModels } from './chest-graphics.js';
 import { isStorage } from './chests.js';
-import { portableBoxMesh } from './portable-box-graphics.js';
+import { createHeldItem, disposeHeldItem } from './held-item.js';
 import { createShield } from './shield-graphics.js';
 import { Atmosphere } from './atmosphere.js';
 import { HexClouds } from './clouds.js';
@@ -28,7 +28,7 @@ import { SmithingModels } from './smithing-graphics.js';
 import { isSmithingStation } from './smithing-data.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
-import { buildingMesh, buildingItemMesh } from './building-graphics.js';
+import { buildingMesh } from './building-graphics.js';
 import {
   createPostprocessing,
   setPostprocessingOptions,
@@ -38,7 +38,7 @@ import { postSettings } from './render-settings.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { itemImage, bowImage, effectImage } from './texture-pack.js';
+import { bowImage, effectImage } from './texture-pack.js';
 import { createTextures } from './textures.js';
 import {
   BLOCKS,
@@ -225,6 +225,10 @@ export class Graphics {
     this.hand.scale.setScalar(0.64);
     this.hand.position.set(0.38, -0.32, -0.65);
     this.camera.add(this.hand);
+    this.offhandHand = this.hand.clone();
+    this.offhandHand.scale.x *= -1;
+    this.offhandHand.position.x *= -1;
+    this.camera.add(this.offhandHand);
     this.shield = createShield(this.textures);
     this.shield.userData.skipOcclusion = true;
     this.camera.add(this.shield);
@@ -467,8 +471,9 @@ export class Graphics {
     this.decor.add(g);
     this.portalMeshes.set(k, g);
   }
-  swing() {
-    this.swingTime = 0.28;
+  swing(hand = 'main') {
+    if (hand === 'offhand') this.offhandSwingTime = 0.28;
+    else this.swingTime = 0.28;
   }
   miningFeedback(target, progress, dt) {
     return this.miningEffects.update(this.world, target, progress, dt);
@@ -477,157 +482,23 @@ export class Graphics {
     this.miningEffects.shatter(this.world, target);
   }
   setHeld(id) {
-    if (id === 'shield' && this.shieldEquipped) id = null;
-    const next = id;
-    if (this.heldKey === next) return;
-    this.heldKey = next;
+    if (this.heldKey === id) return;
+    this.heldKey = id;
     this.bowStage = -2;
-    if (this.held) {
-      this.held.traverse((o) => {
-        o.geometry?.dispose();
-        o.userData.ownedMap?.dispose();
-        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
-        else o.material?.dispose();
-      });
-      this.hand.remove(this.held);
-    }
-    this.held = new THREE.Group();
+    disposeHeldItem(this.held);
+    this.held = createHeldItem(id, this.textures);
     this.hand.add(this.held);
-    this.fishingTip = null;
-    if (!id) return;
-    if (ITEMS[id]?.portable) {
-      const mesh = portableBoxMesh();
-      mesh.scale.setScalar(0.24);
-      mesh.position.set(0, 0.05, -0.36);
-      this.held.add(mesh);
-      return;
-    }
-    if (
-      [
-        'slab',
-        'stairs',
-        'egg',
-        'rod',
-        'chorus',
-        'chorusFlower',
-        'fence',
-        'gate',
-        'trapdoor',
-        'campfire',
-      ].includes(BLOCKS[id]?.shape)
-    ) {
-      const mesh = buildingItemMesh(id, this.textures);
-      mesh.scale.setScalar(0.28);
-      mesh.position.set(0, 0.17, -0.36);
-      this.held.add(mesh);
-      return;
-    }
-    if (id === 'fishingRod') {
-      const rod = new THREE.Group();
-      rod.position.set(0, 0.15, -0.38);
-      rod.rotation.set(-0.45, 0, -0.35);
-      const shaft = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.009, 0.024, 0.9, 6),
-        new THREE.MeshLambertMaterial({ color: '#bd9259' }),
-      );
-      shaft.position.y = 0.26;
-      rod.add(shaft);
-      const handle = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.032, 0.032, 0.2, 6),
-        new THREE.MeshLambertMaterial({ color: '#553b29' }),
-      );
-      handle.position.y = -0.1;
-      rod.add(handle);
-      this.fishingTip = new THREE.Object3D();
-      this.fishingTip.position.y = 0.71;
-      rod.add(this.fishingTip);
-      this.held.add(rod);
-      return;
-    }
-    if ((!BLOCKS[id] || BLOCKS[id]?.shape) && !ITEMS[id]?.bucket) {
-      const image = itemImage(id);
-      if (image) {
-        const map = new THREE.Texture(image);
-        map.colorSpace = THREE.SRGBColorSpace;
-        map.magFilter = THREE.NearestFilter;
-        map.minFilter = THREE.NearestFilter;
-        map.needsUpdate = true;
-        const material = new THREE.MeshLambertMaterial({
-          map,
-          alphaTest: 0.4,
-          side: THREE.DoubleSide,
-        });
-        for (const offset of [-0.008, 0, 0.008]) {
-          const sprite = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.65, 0.65),
-            material,
-          );
-          sprite.position.set(0, 0.24, -0.4 + offset);
-          sprite.rotation.set(-0.1, -0.2, -0.25);
-          if (offset === 0) sprite.userData.ownedMap = map;
-          this.held.add(sprite);
-        }
-      }
-      return;
-    }
-    const material = ['side', 'top', 'top'].map(
-      (face) =>
-        new THREE.MeshLambertMaterial({
-          map: this.textures.single((BLOCKS[id] ? id : 'dirt') + ':' + face),
-          alphaTest: BLOCKS[id]?.foliage ? 0.5 : 0,
-          side: BLOCKS[id]?.foliage ? THREE.DoubleSide : THREE.FrontSide,
-        }),
+    this.fishingTip = this.held.fishingTip || null;
+  }
+  setOffhand(id) {
+    if (this.offhandKey === id) return;
+    this.offhandKey = id;
+    disposeHeldItem(this.offhandHeld);
+    this.offhandHeld = createHeldItem(
+      id === 'shield' ? null : id,
+      this.textures,
     );
-    const block = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.18, 0.24, 6),
-      material,
-    );
-    block.position.set(0, 0.17, -0.36);
-    this.held.add(block);
-    if (id === 'torch') {
-      block.geometry.dispose();
-      block.geometry = new THREE.CylinderGeometry(0.035, 0.035, 0.45, 6);
-      const flame = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.06, 0.055, 0.11, 6),
-        new THREE.MeshBasicMaterial({ color: '#ffcc72' }),
-      );
-      flame.position.y = 0.25;
-      block.add(flame);
-    }
-    if (ITEMS[id]?.bucket) {
-      block.geometry.dispose();
-      for (const m of material) m.dispose();
-      block.geometry = new THREE.CylinderGeometry(0.19, 0.14, 0.26, 6, 1, true);
-      block.material = new THREE.MeshLambertMaterial({
-        color: '#a8b5bd',
-        side: THREE.DoubleSide,
-      });
-      const bottom = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.14, 0.14, 0.025, 6),
-        new THREE.MeshLambertMaterial({ color: '#637781' }),
-      );
-      bottom.position.y = -0.12;
-      block.add(bottom);
-      const handle = new THREE.Mesh(
-        new THREE.TorusGeometry(0.16, 0.018, 4, 6, Math.PI),
-        new THREE.MeshLambertMaterial({ color: '#d8e2e4' }),
-      );
-      handle.position.y = 0.13;
-      block.add(handle);
-      if (ITEMS[id].bucket !== 'empty') {
-        const fill = new THREE.Mesh(
-          new THREE.CircleGeometry(0.175, 6),
-          new THREE.MeshBasicMaterial({
-            color: ITEMS[id].color,
-            side: THREE.DoubleSide,
-          }),
-        );
-        fill.rotation.x = -Math.PI / 2;
-        fill.position.y = 0.09;
-        block.add(fill);
-      }
-    }
-    this.hand.add(this.held);
+    this.offhandHand.add(this.offhandHeld);
   }
   buildChunk(k) {
     const [cq, cr] = k.split(',').map(Number),
@@ -1355,8 +1226,9 @@ export class Graphics {
     columns = null,
     renderDt = dt,
     heldLight = playing ? this.heldKey : null,
+    offhandLight = playing ? this.offhandKey : null,
   ) {
-    this.voxelLight.setHeld(heldLight, this.camera.position);
+    this.voxelLight.setHeld([heldLight, offhandLight], this.camera.position);
     if (this.voxelLight.update(renderDt)) {
       this.dynamicLight.upload(this.voxelLight);
       for (const k of this.chunks.keys()) this.relightQueue.add(k);
@@ -1592,6 +1464,7 @@ export class Graphics {
     this.digPhase = digging ? ((this.digPhase || 0) + dt * 4) % 1 : 0;
     const digSwing = Math.sin(this.digPhase * Math.PI);
     applyEnchantGlow(this.held, this.heldEnchanted, time);
+    applyEnchantGlow(this.offhandHeld, this.offhandEnchanted, time);
     applyEnchantGlow(this.shield, this.shieldEnchanted, time);
     this.swingTime = Math.max(0, (this.swingTime || 0) - dt);
     this.hand.rotation.x = digging
@@ -1608,12 +1481,26 @@ export class Graphics {
       ? 0.65 + Math.sin(time * 22) * 0.3
       : 0.8;
     this.hand.position.y = -0.32 + (moving ? Math.sin(time * 11) * 0.018 : 0);
+    this.offhandHand.visible =
+      playing && !!this.offhandKey && this.offhandKey !== 'shield';
+    this.offhandSwingTime = Math.max(0, (this.offhandSwingTime || 0) - dt);
+    this.offhandHand.rotation.set(
+      Math.sin((this.offhandSwingTime / 0.28) * Math.PI) * 0.7,
+      0,
+      moving ? -Math.sin(time * 5.5) * 0.035 : 0,
+    );
+    this.offhandHand.position.set(
+      -0.38,
+      -0.32 + (moving ? Math.sin(time * 11) * 0.018 : 0),
+      -0.65,
+    );
     if (this.eating > 0) {
       const chew = Math.sin(this.eating * 26);
-      this.hand.rotation.x = 0.75 + chew * 0.09;
-      this.hand.rotation.z = -0.35;
-      this.hand.position.y = -0.18 + Math.abs(chew) * 0.025;
-      this.hand.position.z = -0.48;
+      const hand = this.eatingHand === 'offhand' ? this.offhandHand : this.hand;
+      hand.rotation.x = 0.75 + chew * 0.09;
+      hand.rotation.z = this.eatingHand === 'offhand' ? 0.35 : -0.35;
+      hand.position.y = -0.18 + Math.abs(chew) * 0.025;
+      hand.position.z = -0.48;
     }
     this.shield.visible = playing && !!this.shieldEquipped;
     this.shieldBlend = THREE.MathUtils.damp(

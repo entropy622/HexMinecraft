@@ -402,7 +402,7 @@ export const RECIPES = [
     id: 'bread',
     count: 2,
     title: '田野的馈赠',
-    desc: '按 F 食用，恢复饱食度和生命。',
+    desc: '拿在主手或副手，按住右键食用，恢复饱食度和生命。',
     pattern: ['wheat', 'wheat', 'wheat', null, null, null, null],
     cost: { wheat: 3 },
   },

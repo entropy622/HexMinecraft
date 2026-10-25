@@ -77,6 +77,10 @@ export class Equipment {
       : this.pack.slots[this.pack.selected]?.item === id
         ? this.pack.slots[this.pack.selected]
         : this.pack.copies(id)[0];
+    return this.damageStack(stack, amount, creative);
+  }
+  damageStack(stack, amount, creative = false) {
+    const id = stack?.item;
     if (creative || !ITEMS[id]?.durability || !stack) return false;
     const level = enchantmentsOf(stack.wear).unbreaking || 0;
     let cost = Math.ceil(amount);

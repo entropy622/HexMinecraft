@@ -48,14 +48,27 @@ export class VoxelLight {
     this.heldDirty = false;
   }
 
-  setHeld(item, position) {
-    const type = HELD_LIGHTS[item];
+  setHeld(items, position) {
+    const types = [
+      ...new Set(
+        (Array.isArray(items) ? items : [items])
+          .map((item) => HELD_LIGHTS[item])
+          .filter(Boolean),
+      ),
+    ].sort();
     const hex = worldToAxial(position.x, position.z);
     const y = Math.floor(position.y);
-    const nextKey = type ? `${type}:${hex.q},${y},${hex.r}` : '';
+    const nextKey = types.length
+      ? `${types.join('+')}:${hex.q},${y},${hex.r}`
+      : '';
     if (nextKey === this.heldKey) return;
     this.heldKey = nextKey;
-    this.heldSource = type ? { q: hex.q, y, r: hex.r, type } : null;
+    // Both hands emit from the player's cell. Combine channel maxima rather
+    // than adding brightness, so holding two torches does not double the light.
+    const levels = [0, 1, 2].map((channel) =>
+      Math.max(0, ...types.map((type) => EMISSION[type][channel])),
+    );
+    this.heldSource = types.length ? { q: hex.q, y, r: hex.r, levels } : null;
     this.heldDirty = true;
   }
 
@@ -75,14 +88,14 @@ export class VoxelLight {
     }
     this.rgb = this.baseRGB;
     if (this.heldSource) {
-      const { q, y, r, type } = this.heldSource;
+      const { q, y, r, levels } = this.heldSource;
       const i = this.index(q, y, r);
       // Reuse the static sky/occlusion field when only the player moves.
       // Emit from the occupied cell, not the hand tip that can clip a wall.
       if (i >= 0 && this.cost[i] < 16) {
         this.rgb = this.baseRGB.map((channel) => channel.slice());
         for (let channel = 0; channel < 3; channel++) {
-          const level = EMISSION[type][channel];
+          const level = levels[channel];
           if (level <= this.rgb[channel][i]) continue;
           const buckets = Array.from({ length: 16 }, () => []);
           this.rgb[channel][i] = level;

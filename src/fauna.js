@@ -337,6 +337,7 @@ export class Fauna {
     };
   }
   update(dt, time, camera, held, creative, weather = null) {
+    const hands = Array.isArray(held) ? held : [held];
     this.camera = camera;
     this.creative = creative;
     const world = this.world,
@@ -525,7 +526,9 @@ export class Fauna {
         (m.kind !== 'spider' || night || m.anger > 0);
       const dist = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
       const attracted =
-        !def.hostile && (def.foods || [def.food]).includes(held) && dist < 12;
+        !def.hostile &&
+        hands.some((item) => (def.foods || [def.food]).includes(item)) &&
+        dist < 12;
       let speed = def.speed;
       if (m.flee > 0 && !def.hostile) {
         m.angle = Math.atan2(p.x - camera.position.x, p.z - camera.position.z);
