@@ -53,6 +53,8 @@ export const ENCHANTS = {
     accepts: (item) => !!item.armorSlot && !item.glider,
   },
   power: { name: '力量', max: 5, accepts: (item) => item.kind === 'bow' },
+  punch: { name: '冲击', max: 2, accepts: (item) => item.kind === 'bow' },
+  infinity: { name: '无限', max: 1, accepts: (item) => item.kind === 'bow' },
   unbreaking: { name: '耐久', max: 3, accepts: (item) => !!item.durability },
   fortune: {
     name: '时运',

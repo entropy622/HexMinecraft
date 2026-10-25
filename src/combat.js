@@ -5,6 +5,7 @@ export class Combat {
     this.reset();
   }
   reset() {
+    this.hand = this.stack = this.ref = null;
     this.raised = false;
     this.raiseTime = 0;
     this.impact = 0;

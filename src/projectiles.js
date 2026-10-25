@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MOBS } from './mob-data.js';
 import { worldToAxial } from './core.js';
+import { arrowDamage } from './archery.js';
 
 export class Projectiles {
   constructor(scene) {
@@ -31,6 +32,7 @@ export class Projectiles {
     recoverable,
     owner = 'player',
     damageMultiplier = 1,
+    enchant = {},
   ) {
     if (this.arrows.length >= 32) this.remove(this.arrows[0]);
     const mesh = new THREE.Group();
@@ -49,12 +51,19 @@ export class Projectiles {
     this.scene.add(mesh);
     this.arrows.push({
       mesh,
-      velocity: direction.clone().multiplyScalar(10 + power * 23),
+      velocity: direction
+        .clone()
+        .multiplyScalar(owner === 'player' ? power * 60 : 10 + power * 23),
       life: 40,
       damage: (2 + power * 8) * damageMultiplier,
       stuck: false,
       recoverable,
       owner,
+      power: enchant.power || 0,
+      punch: enchant.punch || 0,
+      critical: owner === 'player' && power >= 1,
+      damageMultiplier,
+      playerPhysics: owner === 'player',
     });
   }
   update(
@@ -81,8 +90,7 @@ export class Projectiles {
           arrow.life < 39.5 &&
           arrow.mesh.position.distanceTo(camera.position) < 2.1
         ) {
-          onPickup();
-          this.remove(arrow);
+          if (onPickup()) this.remove(arrow);
         }
         continue;
       }
@@ -93,7 +101,9 @@ export class Projectiles {
       const step = dt / steps;
       for (let i = 0; i < steps; i++) {
         const previous = arrow.mesh.position.clone();
-        arrow.velocity.y -= 13 * step;
+        arrow.velocity.y -= (arrow.playerPhysics ? 20 : 13) * step;
+        if (arrow.playerPhysics)
+          arrow.velocity.multiplyScalar(Math.exp(-0.2 * step));
         const direction = arrow.velocity.clone().normalize();
         const length = arrow.velocity.length() * step;
         arrow.mesh.position.addScaledVector(arrow.velocity, step);
@@ -129,6 +139,9 @@ export class Projectiles {
               arrow.owner = 'player';
               arrow.recoverable = true;
               arrow.damage = 1;
+              arrow.fixedDamage = 1;
+              arrow.critical = false;
+              arrow.punch = 0;
               arrow.velocity.multiplyScalar(-0.12);
               arrow.velocity.y = -1;
               arrow.mesh.position
@@ -173,7 +186,22 @@ export class Projectiles {
           }
         }
         if (nearest) {
-          const result = onHit(nearest, arrow.damage, direction, nearestPart);
+          const damage =
+            arrow.fixedDamage ??
+            (arrow.playerPhysics
+              ? arrowDamage(
+                  arrow.velocity.length(),
+                  arrow.power,
+                  arrow.critical,
+                ) * arrow.damageMultiplier
+              : arrow.damage);
+          const result = onHit(
+            nearest,
+            damage,
+            direction,
+            nearestPart,
+            arrow.punch,
+          );
           if (result === 'deflected') {
             arrow.velocity.multiplyScalar(-0.2);
             arrow.velocity.y = 0.8;
@@ -181,6 +209,9 @@ export class Projectiles {
               .copy(previous)
               .addScaledVector(direction, -0.18);
             arrow.damage = 1;
+            arrow.fixedDamage = 1;
+            arrow.critical = false;
+            arrow.punch = 0;
             arrow.life = Math.min(arrow.life, 8);
             break;
           }

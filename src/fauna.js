@@ -197,15 +197,22 @@ export class Fauna {
     if (mob) mob.targetDistance = hit.distance;
     return mob;
   }
-  nudge(m, direction) {
+  nudge(m, direction, distance = 0.5) {
     if (MOBS[m.kind].stationary) return;
     if (direction) {
-      const p = m.mesh.position.clone().addScaledVector(direction, 0.5);
-      if (MOBS[m.kind].flying) {
-        if (flyingClear(this.world, p, m.kind)) m.mesh.position.copy(p);
-      } else {
-        const y = this.floor(p.x, p.z, m.mesh.position.y, m.kind);
-        if (y !== null) m.mesh.position.set(p.x, y, p.z);
+      const steps = Math.max(1, Math.ceil(distance / 0.2));
+      for (let i = 0; i < steps; i++) {
+        const p = m.mesh.position
+          .clone()
+          .addScaledVector(direction, distance / steps);
+        if (MOBS[m.kind].flying) {
+          if (!flyingClear(this.world, p, m.kind)) break;
+          m.mesh.position.copy(p);
+        } else {
+          const y = this.floor(p.x, p.z, m.mesh.position.y, m.kind);
+          if (y === null) break;
+          m.mesh.position.set(p.x, y, p.z);
+        }
       }
     }
   }
@@ -242,7 +249,7 @@ export class Fauna {
     if (this.camera) teleportEnderman(this, m, this.camera);
     return true;
   }
-  hit(m, damage, direction, loot = true, provoked = true) {
+  hit(m, damage, direction, loot = true, provoked = true, knockback = 0.5) {
     if (m.kind === 'shulker' && (m.peek || 0) < 0.15) damage *= 0.2;
     m.hp -= damage;
     m.hit = 0.3;
@@ -252,7 +259,7 @@ export class Fauna {
         this.callbacks.mobSound?.('endermanAngry', m.mesh.position);
       m.anger = m.kind === 'enderman' ? 60 : 12;
     }
-    this.nudge(m, direction);
+    this.nudge(m, direction, knockback);
     if (m.hp > 0) {
       if (m.kind === 'shulker' && m.hp < 15 && provoked && Math.random() < 0.25)
         teleportShulker(this, m);

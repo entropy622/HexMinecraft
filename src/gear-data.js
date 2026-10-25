@@ -28,7 +28,7 @@ recipe(
   ['planks', 'ingot', 'planks', 'planks', 'planks', 'planks', 'planks'],
   1,
   true,
-  '将盾牌放入副手格，或在背包中 Shift 点击装备。按住 R 举盾，阻挡正面近战与箭矢，减轻正面爆炸；举盾时移动变慢。',
+  '盾牌可拿在主手或副手，右键或 R 举起，阻挡正面近战与箭矢，减轻正面爆炸；举盾时移动变慢。Shift 点击可放入空副手。',
 );
 recipe(
   'boat',
@@ -141,14 +141,14 @@ recipe(
   [null, 'wood', 'string', 'wood', 'string', 'wood', null],
   1,
   true,
-  '对水面右键 / E 抛线，浮漂下沉时再次按下收杆。雨天更易咬钩，开阔深水偶尔藏有宝物。',
+  '主手或副手对水面右键 / E 抛线，浮漂下沉时再次按下收杆。鱼线与耐久绑定实际钓竿；雨天更易咬钩，开阔深水偶尔藏有宝物。',
 );
 recipe(
   'bow',
   ['wood', 'string', null, 'wood', 'string', 'wood', 'string'],
   1,
   true,
-  '手持后按住左键蓄力，松开发射。消耗箭矢，满弓射程更远。',
+  '主手或副手均可使用。按住右键约一秒满弓，松开发射；箭矢优先从副手取用。支持力量、冲击与无限附魔。',
 );
 for (const [material, label, color, multiplier, points] of [
   ['leather', '皮革', '#a47c50', 5, [1, 3, 2, 1]],

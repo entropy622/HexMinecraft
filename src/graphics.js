@@ -232,6 +232,9 @@ export class Graphics {
     this.shield = createShield(this.textures);
     this.shield.userData.skipOcclusion = true;
     this.camera.add(this.shield);
+    this.mainShield = createShield(this.textures);
+    this.mainShield.userData.skipOcclusion = true;
+    this.camera.add(this.mainShield);
     this.scene.add(this.camera);
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight;
@@ -486,13 +489,14 @@ export class Graphics {
     this.heldKey = id;
     this.bowStage = -2;
     disposeHeldItem(this.held);
-    this.held = createHeldItem(id, this.textures);
+    this.held = createHeldItem(id === 'shield' ? null : id, this.textures);
     this.hand.add(this.held);
     this.fishingTip = this.held.fishingTip || null;
   }
   setOffhand(id) {
     if (this.offhandKey === id) return;
     this.offhandKey = id;
+    this.offhandBowStage = -2;
     disposeHeldItem(this.offhandHeld);
     this.offhandHeld = createHeldItem(
       id === 'shield' ? null : id,
@@ -1440,20 +1444,31 @@ export class Graphics {
         this.particles.splice(i, 1);
       }
     }
-    if (this.heldKey === 'bow') {
-      const stage =
-        this.bowDraw > 0 ? Math.min(2, Math.floor(this.bowDraw * 3)) : -1;
-      if (stage !== this.bowStage) {
-        this.bowStage = stage;
-        const sprite = this.held.children.find((o) => o.userData.ownedMap);
-        const image = bowImage(stage);
-        if (sprite && image) {
-          sprite.userData.ownedMap.image = image;
-          sprite.userData.ownedMap.needsUpdate = true;
-        }
+    for (const [hand, id, group, cache] of [
+      ['main', this.heldKey, this.held, 'bowStage'],
+      ['offhand', this.offhandKey, this.offhandHeld, 'offhandBowStage'],
+    ]) {
+      if (id !== 'bow') continue;
+      const drawing = this.bowHand === hand && this.bowDraw > 0;
+      const stage = drawing
+        ? this.bowTime >= 0.9
+          ? 2
+          : this.bowTime >= 0.65
+            ? 1
+            : 0
+        : -1;
+      if (this[cache] === stage) continue;
+      this[cache] = stage;
+      const sprite = group?.children.find((o) => o.userData.ownedMap);
+      const image = bowImage(stage);
+      if (sprite && image) {
+        sprite.userData.ownedMap.image = image;
+        sprite.userData.ownedMap.needsUpdate = true;
       }
     }
-    this.hand.visible = playing;
+    this.hand.visible = playing && this.heldKey !== 'shield';
+    if (this.held) this.held.visible = true;
+    if (this.offhandHeld) this.offhandHeld.visible = true;
     if (!playing) this.miningEffects.hide();
     this.miningEffects.particles.frame(
       playing ? dt : 0,
@@ -1463,9 +1478,12 @@ export class Graphics {
     const digging = mining && this.miningEffects.overlay.visible;
     this.digPhase = digging ? ((this.digPhase || 0) + dt * 4) % 1 : 0;
     const digSwing = Math.sin(this.digPhase * Math.PI);
+    this.hand.position.x = 0.38;
+    this.hand.rotation.y = 0;
     applyEnchantGlow(this.held, this.heldEnchanted, time);
     applyEnchantGlow(this.offhandHeld, this.offhandEnchanted, time);
     applyEnchantGlow(this.shield, this.shieldEnchanted, time);
+    applyEnchantGlow(this.mainShield, this.mainShieldEnchanted, time);
     this.swingTime = Math.max(0, (this.swingTime || 0) - dt);
     this.hand.rotation.x = digging
       ? digSwing * 0.85 - 0.15
@@ -1473,10 +1491,8 @@ export class Graphics {
         ? Math.sin((this.swingTime / 0.28) * Math.PI) * 0.7
         : 0;
     this.hand.rotation.z =
-      (moving ? Math.sin(time * 5.5) * 0.035 : 0) -
-      (this.bowDraw || 0) * 0.13 -
-      digSwing * 0.12;
-    this.hand.position.z = -0.65 + (this.bowDraw || 0) * 0.09 - digSwing * 0.06;
+      (moving ? Math.sin(time * 5.5) * 0.035 : 0) - digSwing * 0.12;
+    this.hand.position.z = -0.65 - digSwing * 0.06;
     this.outline.material.opacity = mining
       ? 0.65 + Math.sin(time * 22) * 0.3
       : 0.8;
@@ -1502,25 +1518,50 @@ export class Graphics {
       hand.position.y = -0.18 + Math.abs(chew) * 0.025;
       hand.position.z = -0.48;
     }
-    this.shield.visible = playing && !!this.shieldEquipped;
-    this.shieldBlend = THREE.MathUtils.damp(
-      this.shieldBlend || 0,
-      this.blocking ? 1 : 0,
-      12,
-      renderDt,
-    );
-    const guard = this.shieldBlend,
-      impact = this.shieldImpact || 0;
-    this.shield.position.set(
-      -0.42 + guard * 0.22,
-      -0.34 + guard * 0.22,
-      -0.68 + guard * 0.13 + impact * 0.055,
-    );
-    this.shield.rotation.set(
-      0.06,
-      0.32 * (1 - guard),
-      0.1 * (1 - guard) + impact * 0.12,
-    );
+    const drawingBow = playing && this.bowDraw > 0 && !!this.bowHand;
+    if (drawingBow) {
+      const left = this.bowHand === 'offhand';
+      const bow = left ? this.offhandHand : this.hand,
+        support = left ? this.hand : this.offhandHand,
+        otherItem = left ? this.held : this.offhandHeld,
+        sign = left ? -1 : 1;
+      bow.visible = support.visible = true;
+      if (otherItem) otherItem.visible = false;
+      bow.position.set(sign * 0.19, -0.17, -0.48 - this.bowDraw * 0.04);
+      bow.rotation.set(0.08, -sign * 0.25, -sign * 0.18);
+      support.position.set(-sign * 0.13, -0.14, -0.44 + this.bowDraw * 0.08);
+      support.rotation.set(0.7, sign * 0.2, sign * 0.3);
+    }
+    for (const [hand, model, equipped] of [
+      ['offhand', this.shield, this.shieldEquipped],
+      ['main', this.mainShield, this.mainShieldEquipped],
+    ]) {
+      model.visible = playing && !!equipped && !drawingBow;
+      const active = this.blocking && this.blockingHand === hand;
+      const key = hand === 'main' ? 'mainShieldBlend' : 'shieldBlend';
+      this[key] = THREE.MathUtils.damp(
+        this[key] || 0,
+        active ? 1 : 0,
+        12,
+        renderDt,
+      );
+      const guard = this[key],
+        sign = hand === 'main' ? -1 : 1,
+        impact = active ? this.shieldImpact || 0 : 0;
+      model.position.set(
+        sign * (-0.42 + guard * 0.22),
+        -0.34 + guard * 0.22,
+        -0.68 + guard * 0.13 + impact * 0.055,
+      );
+      model.rotation.set(
+        0.06 +
+          (hand === 'main' && this.swingTime > 0 && !active
+            ? Math.sin((this.swingTime / 0.28) * Math.PI) * 0.3
+            : 0),
+        sign * 0.32 * (1 - guard),
+        sign * (0.1 * (1 - guard) + impact * 0.12),
+      );
+    }
     this.brewingModels.frame(renderDt, this.world);
     this.campfireModels.frame(dt, this.world, this.camera);
     this.fallingModels.frame(this.world);

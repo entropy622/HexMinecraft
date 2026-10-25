@@ -110,9 +110,15 @@ import { Graphics } from './graphics.js';
 import { HELD_LIGHTS } from './voxel-light.js';
 import { Survival, FOODS } from './survival.js';
 import { Combat } from './combat.js';
+import { bowPull } from './archery.js';
 import { findFloor } from './grounding.js';
 import { Experience, xpForLevel } from './experience.js';
-import { enchantLabel, customName, wearValue } from './enchanting-data.js';
+import {
+  enchantLabel,
+  customName,
+  wearValue,
+  enchantmentsOf,
+} from './enchanting-data.js';
 import { ANVILS, isSmithingStation } from './smithing-data.js';
 import { smithingPlan, repairMaterial } from './smithing.js';
 import { newWorkstationItems, smithIngredient } from './workstation-items.js';
@@ -159,18 +165,18 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.51 — BETWEEN TWO HANDS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.52 — STRINGS AND RIPPLES</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
   <div id="crosshair"></div><div id="mine-progress"><i></i></div><div id="target" class="hidden"></div>
   <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><div id="attack-meter" role="progressbar" aria-label="挥击恢复" aria-valuemin="0" aria-valuemax="1"></div><div id="shield-status" class="hidden"><span id="shield-label"></span><progress id="shield-ready" max="0.25" value="0" aria-label="举盾准备"></progress></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div id="survival-status"><div id="air-bar" class="hidden" role="progressbar" aria-label="氧气" aria-valuemin="0" aria-valuemax="15"></div><div id="effect-list"></div></div><div id="use-food" class="hidden"><span id="use-food-name"></span><progress id="use-progress" max="1" value="0" aria-label="食用进度"></progress></div><div class="vitals"><span class="health" id="health"></span><span id="absorption-hud" aria-label="额外吸收生命"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="experience-hud"><b id="experience-level">0</b><progress id="experience-progress" max="1" value="0" aria-label="当前等级经验"></progress></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
-  <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="swap" aria-label="交换主副手">F</button><button data-action="eat" aria-label="按住食用或饮用">吃</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
+  <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="swap" aria-label="交换主副手">F</button><button data-action="eat" aria-label="按住食用或饮用">吃</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="使用物品或放置方块">用</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="fire-overlay" aria-hidden="true"></div><div id="portal-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  ${workshopPanel()}
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 柔影与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">六向云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="antialias-toggle">边缘抗锯齿</label><input id="antialias-toggle" type="checkbox" checked></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加近景柔影、体积光束与抗锯齿，显卡开销较高；细节可单独调整。均衡与光影显示移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或按 E 穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>右键 / R</kbd>副手举盾（主手无法使用时）</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 柔影与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">六向云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="antialias-toggle">边缘抗锯齿</label><input id="antialias-toggle" type="checkbox" checked></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加近景柔影、体积光束与抗锯齿，显卡开销较高；细节可单独调整。均衡与光影显示移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或按 E 穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -307,11 +313,15 @@ const boats = new Boats(graphics.scene, graphics.textures, {
 });
 let boatTarget = null;
 const fishingTip = new THREE.Vector3();
+let fishingUse = null;
 const fishing = new Fishing(
   graphics.scene,
   {
     notice: toast,
-    wear: (n) => wearItem('fishingRod', n),
+    wear: (n) => {
+      if (validHandUse(fishingUse, 'fishingRod'))
+        withUseHand(fishingUse.hand, () => wearUseItem('fishingRod', n));
+    },
     catch: (loot) => {
       const taken = addItem(loot.item);
       awardXP(1 + Math.floor(Math.random() * 6), [
@@ -380,8 +390,9 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
     projectiles.shoot(from, aim.normalize(), 0.65, false, 'hostile');
   },
 });
-let equipment = new Equipment(),
-  bowCharge = 0;
+let equipment = new Equipment();
+let bowCharge = 0,
+  bowUse = null;
 let survival = new Survival(),
   foodUse = null,
   survivalSubmerged = false;
@@ -918,7 +929,7 @@ function startGame(mode = false, save = null) {
   graphics.weatherEffects.flash = 0;
   graphics.weatherEffects.nextStrike = 18;
   graphics.weatherEffects.thunderDelay = -1;
-  bowCharge = 0;
+  cancelBow();
   projectiles.clear();
   fireballs.clear();
   shulkerBullets.clear();
@@ -1089,7 +1100,7 @@ function travel(to) {
   shulkerBullets.clear();
   throwables.clear();
   throwHeldItem = null;
-  bowCharge = 0;
+  cancelBow();
   captureDimension();
   glider.reset();
   flightEffects.clear();
@@ -1153,7 +1164,7 @@ function travel(to) {
   tradingWith = null;
   leftDown = false;
   keys.clear();
-  bowCharge = 0;
+  cancelBow();
   motion.reset();
   mining = 0;
   graphics.build(world, a.q, a.r);
@@ -1256,7 +1267,7 @@ function openOverlay(id) {
   soundFX.weather(0, false, false, false);
   leftDown = false;
   keys.clear();
-  bowCharge = 0;
+  cancelBow();
   motion.reset();
   mining = 0;
   playing = false;
@@ -1491,6 +1502,116 @@ function handRef(hand = actionHand || 'main') {
 function handStack(hand = actionHand || 'main') {
   return resolveInventorySlot(handRef(hand))?.get();
 }
+function validHandUse(use, item) {
+  return !!(
+    use &&
+    handRef(use.hand) === use.ref &&
+    handStack(use.hand) === use.stack &&
+    use.stack?.item === item
+  );
+}
+function arrowSlot() {
+  if (pack.gear[4]?.item === 'arrow') return resolveInventorySlot('gear:4');
+  if (pack.slots[selected]?.item === 'arrow')
+    return resolveInventorySlot('pack:' + selected);
+  const index = pack.slots.findIndex((stack) => stack?.item === 'arrow');
+  return index < 0 ? null : resolveInventorySlot('pack:' + index);
+}
+function collectArrow() {
+  const offhand = pack.gear[4];
+  if (offhand?.item === 'arrow' && offhand.count < stackSize('arrow'))
+    offhand.count++;
+  else if (!pack.insertStack({ item: 'arrow', count: 1 })) return false;
+  pickupNotice('arrow', 1);
+  updateHUD();
+  return true;
+}
+function arrowCount() {
+  return (
+    (inventory.arrow || 0) +
+    (pack.gear[4]?.item === 'arrow' ? pack.gear[4].count : 0)
+  );
+}
+function cancelBow() {
+  bowUse = null;
+  bowCharge = 0;
+}
+function useBow() {
+  if (useItem() !== 'bow') return false;
+  if (bowUse) return true;
+  if (!creative && !arrowSlot()) {
+    toast('需要箭矢：可放在副手、快捷栏或背包。');
+    return true;
+  }
+  const input = heldUseInput();
+  if (!input) {
+    toast('按住右键或触屏「用」拉弓，松开发射。');
+    return true;
+  }
+  stopEating();
+  blockUse = throwHeldItem = null;
+  bowUse = {
+    hand: actionHand || 'main',
+    ref: handRef(),
+    stack: handStack(),
+    input,
+  };
+  bowCharge = mining = 0;
+  combat.reset();
+  return true;
+}
+function updateBowUse(dt) {
+  if (!bowUse) return;
+  if (
+    !validHandUse(bowUse, 'bow') ||
+    !foodInputs.has(bowUse.input) ||
+    leftDown ||
+    foodUse ||
+    combat.raised ||
+    (!creative && !arrowSlot())
+  ) {
+    cancelBow();
+    return;
+  }
+  bowCharge = Math.min(1, bowCharge + dt);
+}
+function requestedShieldHand() {
+  if (keys.has('KeyR'))
+    return handStack('offhand')?.item === 'shield'
+      ? 'offhand'
+      : handStack('main')?.item === 'shield'
+        ? 'main'
+        : null;
+  if (!heldUseInput() || bowUse || foodUse) return null;
+  const hand = chooseUseHand();
+  return handStack(hand)?.item === 'shield' ? hand : null;
+}
+function blockingShield() {
+  return combat.raised && validHandUse(combat, 'shield') ? combat.stack : null;
+}
+function availableShield() {
+  return (
+    blockingShield() ||
+    [handStack('offhand'), handStack('main')].find(
+      (stack) => stack?.item === 'shield',
+    )
+  );
+}
+function updateShield(dt) {
+  const hand = requestedShieldHand(),
+    stack = hand && handStack(hand);
+  if (
+    combat.hand !== hand ||
+    combat.stack !== stack ||
+    (hand && combat.ref !== handRef(hand))
+  )
+    combat.reset();
+  combat.hand = hand;
+  combat.stack = stack;
+  combat.ref = hand ? handRef(hand) : null;
+  if (hand && keys.has('KeyR')) cancelBow();
+  combat.update(dt, !!hand && !foodUse && !bowUse && !glider.active);
+}
 function useItem() {
   return handStack()?.item;
 }
@@ -1602,8 +1723,9 @@ function handCanUse(hand) {
     ['glassBottle', 'fireworkRocket', 'flintAndSteel', 'endCrystal'].includes(
       id,
     ) ||
-    (hand === 'main' && ['bow', 'fishingRod'].includes(id)) ||
-    (hand === 'offhand' && id === 'shield') ||
+    (id === 'bow' && (creative || !!arrowSlot())) ||
+    id === 'fishingRod' ||
+    id === 'shield' ||
     (id === 'boneMeal' && target?.crop) ||
     (item.kind === 'axe' &&
       BLOCKS[target?.type]?.stripped &&
@@ -1622,7 +1744,8 @@ function swapHands() {
   stopEating(true);
   throwHeldItem = null;
   leftDown = false;
-  mining = bowCharge = 0;
+  mining = 0;
+  cancelBow();
   miningKey = '';
   fishing.clear();
   combat.reset();
@@ -1632,6 +1755,8 @@ function swapHands() {
   saveGame();
 }
 function wearItem(id, amount = 1, worn = false) {
+  // Ranged gear and shields wear only through their dedicated use actions.
+  if (!worn && ['bow', 'fishingRod', 'shield'].includes(id)) return;
   if (equipment.damage(id, amount, creative, worn)) {
     toast(ITEMS[id].name + '损坏了');
     soundFX.play('break', 'glass');
@@ -1641,9 +1766,13 @@ function wearItem(id, amount = 1, worn = false) {
 function updateHUD() {
   pack.selected = selected;
   containInventory();
-  graphics.shieldEquipped = !!equipment.offhand;
-  if (heldItem() !== 'bow') bowCharge = 0;
-  if (heldItem() !== 'fishingRod') fishing.clear();
+  graphics.shieldEquipped = pack.gear[4]?.item === 'shield';
+  graphics.mainShieldEquipped = heldItem() === 'shield';
+  if (bowUse && !validHandUse(bowUse, 'bow')) cancelBow();
+  if (fishingUse && !validHandUse(fishingUse, 'fishingRod')) {
+    fishing.clear();
+    fishingUse = null;
+  }
   tool = miningStats('', heldItem()).tier;
   $('#armor-hud').textContent = creative
     ? ''
@@ -2133,9 +2262,23 @@ function attackBoat() {
   return true;
 }
 function useFishingRod() {
-  if (heldItem() !== 'fishingRod') return false;
+  if (useItem() !== 'fishingRod') return false;
+  if (
+    fishing.active &&
+    validHandUse(fishingUse, 'fishingRod') &&
+    fishingUse.hand !== actionHand
+  )
+    return withUseHand(fishingUse.hand, useFishingRod);
+  if (!fishing.active || !validHandUse(fishingUse, 'fishingRod')) {
+    fishing.clear();
+    fishingUse = {
+      hand: actionHand || 'main',
+      ref: handRef(),
+      stack: handStack(),
+    };
+  }
   fishing.act(world, camera, weather.rain);
-  graphics.swing();
+  useSwing();
   saveGame();
   return true;
 }
@@ -2277,7 +2420,8 @@ function useEndGateway(q, r) {
   camera.position.set(landing.x, landing.y + 1.66, landing.z);
   vy = 0;
   grounded = false;
-  mining = bowCharge = 0;
+  mining = 0;
+  cancelBow();
   leftDown = false;
   target = creatureTarget = villagerTarget = boatTarget = null;
   graphics.stepOffset = 0;
@@ -2412,7 +2556,8 @@ function useThrowable() {
   consumeUseItem(item);
   if (heldUseInput())
     throwHeldItem = { item, input: heldUseInput(), hand: actionHand || 'main' };
-  mining = bowCharge = 0;
+  mining = 0;
+  cancelBow();
   useSwing();
   soundFX.play('throw');
   updateHUD();
@@ -2448,7 +2593,8 @@ function resolveThrow(impact) {
     vy = 0;
     grounded = false;
     leftDown = false;
-    mining = bowCharge = 0;
+    mining = 0;
+    cancelBow();
     camera.position.copy(destination);
     camera.position.y += 1.65;
     const a = worldToAxial(destination.x, destination.z);
@@ -2564,7 +2710,7 @@ function place() {
     interact(true);
     return;
   }
-  if (useFishingRod() || useBoatItem()) return;
+  if (useBow() || useFishingRod() || useBoatItem()) return;
   if (useIgniter()) return;
   if (interactCreature()) return;
   if (stripLog()) return;
@@ -3198,7 +3344,11 @@ function interact(preferContext = false) {
   if (
     !contextual &&
     !target?.crop &&
-    (useFishingRod() || useBoatItem() || useRocket() || useThrowable())
+    (useBow() ||
+      useFishingRod() ||
+      useBoatItem() ||
+      useRocket() ||
+      useThrowable())
   )
     return;
   if (FOODS[useItem()] && !contextual) {
@@ -3952,7 +4102,8 @@ function teleportChorusFruit() {
   vy = 0;
   grounded = false;
   leftDown = false;
-  mining = bowCharge = 0;
+  mining = 0;
+  cancelBow();
   target = creatureTarget = villagerTarget = boatTarget = null;
   throwables.burst(origin, 'pearl', 18);
   throwables.burst(destination, 'pearl', 18);
@@ -3990,7 +4141,8 @@ function eat(source = 'tap', chosen = null, hand = actionHand) {
     ref: handRef(hand),
     stack: handStack(hand),
   };
-  bowCharge = mining = 0;
+  mining = 0;
+  cancelBow();
   graphics.eatingHand = hand;
   return true;
 }
@@ -4165,32 +4317,28 @@ function combatHUD() {
         : (throwables.cooldowns[item] || 0) / (THROWABLES[item]?.cooldown || 1);
     overlay.style.height = `${Math.min(1, remaining) * 100}%`;
   });
-  const shieldStatus = $('#shield-status');
-  shieldStatus.classList.toggle('hidden', !equipment.offhand);
+  const shield = availableShield(),
+    shieldStatus = $('#shield-status');
+  shieldStatus.classList.toggle('hidden', !shield);
   shieldStatus.classList.toggle('impact', combat.impact > 0.05);
-  if (equipment.offhand) {
+  if (shield) {
     $('#shield-label').textContent =
       (combat.raised
         ? combat.raiseTime < 0.25
           ? '举盾中'
           : '正面防御'
-        : '按住 R 举盾') +
+        : '右键 / R 举盾') +
       ' · ' +
-      (creative
-        ? '∞'
-        : equipment.remaining(equipment.offhand) +
-          ' / ' +
-          ITEMS[equipment.offhand].durability);
+      (shield === handStack('offhand') ? '副手' : '主手') +
+      ' · ' +
+      (creative ? '∞' : wearValue(shield.wear) + ' / 336');
     $('#shield-ready').value = combat.raiseTime;
   }
   const charge = Math.max(0, Math.min(1, 1 - attackCooldown / attackPeriod));
   const meter = $('#attack-meter');
-  meter.classList.toggle(
-    'hidden',
-    !!foodUse || ['bow', 'fishingRod'].includes(heldItem()),
-  );
+  meter.classList.toggle('hidden', !!foodUse || !!bowUse);
   meter.setAttribute('aria-valuenow', charge.toFixed(2));
-  $('#mobile-shield').classList.toggle('hidden', !equipment.offhand);
+  $('#mobile-shield').classList.toggle('hidden', !availableShield());
   const cells = Math.floor(charge * 6 + 0.001);
   if (meter.dataset.cells !== String(cells)) {
     meter.dataset.cells = cells;
@@ -4205,12 +4353,14 @@ function hurt(amount, cause = 'combat', source = null) {
   let blocked = false;
   if (
     ['combat', 'projectile', 'fireball', 'explosion'].includes(cause) &&
-    equipment.offhand &&
+    blockingShield() &&
     combat.canBlock(camera.position, yaw, source)
   ) {
     blocked = true;
     combat.impact = 1;
-    wearItem(equipment.offhand, 1 + Math.ceil(amount), true);
+    withUseHand(combat.hand, () =>
+      wearUseItem('shield', 1 + Math.ceil(amount)),
+    );
     survival.exhaust(0.05);
     soundFX.play('shieldBlock');
     if (source && !boats.riding)
@@ -4323,7 +4473,14 @@ function updateWeather(dt) {
   refreshNetherPortals();
   weatherGrowthTimer = 0;
 }
-function hitMob(mob, amount, direction, source = 'melee', part = 'body') {
+function hitMob(
+  mob,
+  amount,
+  direction,
+  source = 'melee',
+  part = 'body',
+  punch = 0,
+) {
   if (mob.bossType === 'shulkerBullet') return shulkerBullets.hit(mob);
   if (mob.bossType) return dragonFight.hit(mob, amount, source, part);
   if (source === 'arrow' && mob.kind === 'shulker' && (mob.peek || 0) < 0.15) {
@@ -4335,7 +4492,7 @@ function hitMob(mob, amount, direction, source = 'melee', part = 'body') {
     a = worldToAxial(p.x, p.z);
   graphics.burst(a.q, p.y, a.r, MOBS[mob.kind].color);
   beep(140, 0.07, 'triangle');
-  fauna.hit(mob, amount, direction);
+  fauna.hit(mob, amount, direction, true, true, 0.5 + punch * 0.8);
 }
 function interactCreature() {
   const mob = fauna.target(
@@ -4387,7 +4544,7 @@ function explode(center, settings = {}) {
       ))
   ) {
     const guarded =
-      equipment.offhand && combat.canBlock(camera.position, yaw, center);
+      blockingShield() && combat.canBlock(camera.position, yaw, center);
     hurt(
       Math.max(1, damage * (1 - distance / damageRadius)),
       'explosion',
@@ -4572,38 +4729,43 @@ function hurtLanding(velocity) {
   const damage = Math.floor((-velocity - 12) * 0.6 * (hay ? 0.2 : 1));
   if (damage > 0) hurt(damage, 'fall');
 }
-function releaseBow() {
-  const charge = bowCharge;
-  bowCharge = 0;
+function releaseBow(input) {
+  const use = bowUse,
+    pull = bowPull(bowCharge);
+  if (!use || (input && input !== use.input)) return;
+  cancelBow();
   if (
     !playing ||
     overlay ||
-    heldItem() !== 'bow' ||
-    charge < 0.12 ||
+    !validHandUse(use, 'bow') ||
+    pull < 0.1 ||
     combat.raised ||
-    attackCooldown > 0
+    foodUse
   )
     return;
-  if (!creative && !(inventory.arrow > 0)) {
-    toast('需要箭矢：用石头、木材和纤维线制作。');
-    return;
-  }
-  if (!creative) inventory.arrow--;
+  const ammo = arrowSlot();
+  if (!creative && !ammo) return;
+  const enchant = enchantmentsOf(use.stack.wear),
+    infinite = creative || !!enchant.infinity;
+  if (!infinite) takeSlot(ammo, 1);
   const direction = camera.getWorldDirection(new THREE.Vector3());
   projectiles.shoot(
     camera.position.clone(),
     direction,
-    Math.min(charge / 1.1, 1),
-    !creative,
+    pull,
+    !infinite,
     'player',
-    1 + equipment.rank('bow', 'power') * 0.25,
+    1,
+    { power: enchant.power || 0, punch: enchant.punch || 0 },
   );
   attackCooldown = 0.25;
   attackPeriod = attackCooldown;
   if (!creative) survival.exhaust(0.1);
-  graphics.swing();
-  beep(240, 0.05, 'triangle');
-  wearItem('bow');
+  graphics.swing(use.hand);
+  beep(pull >= 1 ? 320 : 240, 0.05, 'triangle');
+  withUseHand(use.hand, () => wearUseItem('bow'));
+  updateHUD();
+  saveGame();
 }
 function moveGlider(dt) {
   const owner = survival;
@@ -4695,7 +4857,9 @@ function movePlayer(dt) {
     );
     camera.position.set(b.position[0], b.position[1] + BOAT_EYE, b.position[2]);
     camera.rotation.set(pitch, yaw, 0);
-    camera.fov += (72 - camera.fov) * (1 - Math.exp(-dt * 8));
+    camera.fov +=
+      (72 * (1 - (bowUse ? bowPull(bowCharge) ** 2 * 0.15 : 0)) - camera.fov) *
+      (1 - Math.exp(-dt * 8));
     camera.updateProjectionMatrix();
     vy = 0;
     grounded = true;
@@ -4754,7 +4918,8 @@ function movePlayer(dt) {
       !glider.lowProfile &&
       !sneaking &&
       !combat.raised &&
-      !foodUse,
+      !foodUse &&
+      !bowUse,
     baseSpeed = fly
       ? 10
       : swimming
@@ -4777,7 +4942,7 @@ function movePlayer(dt) {
       : 1;
   const speed =
     baseSpeed *
-    (!fly && (foodUse || combat.raised) ? 0.35 : 1) *
+    (!fly && (foodUse || combat.raised || bowUse) ? 0.35 : 1) *
     (!fly && !swimming && !climbing ? 1 + survival.rank('speed') * 0.2 : 1) *
     soulSlow;
   const { dx, dz } = motion.update(
@@ -4788,7 +4953,9 @@ function movePlayer(dt) {
     swimming,
     fly,
   );
-  const fov = swimming ? 69 : sprint && norm ? 79 : 72;
+  const fov =
+    (swimming ? 69 : sprint && norm ? 79 : 72) *
+    (1 - (bowUse ? bowPull(bowCharge) ** 2 * 0.15 : 0));
   camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 8));
   camera.updateProjectionMatrix();
   moved = norm;
@@ -5266,7 +5433,7 @@ document.addEventListener('pointerlockchange', () => {
     playing = false;
     leftDown = false;
     keys.clear();
-    bowCharge = 0;
+    cancelBow();
     motion.reset();
     if (hasGame && !overlay) openOverlay('#pause-overlay');
   }
@@ -5293,13 +5460,13 @@ $('#world').addEventListener('mousedown', (e) => {
 });
 document.addEventListener('mouseup', (e) => {
   if (e.button === 2) {
+    releaseBow('mouse');
     foodInputs.delete('mouse');
     throwHeldItem = null;
     blockUse = null;
     if (foodUse?.source === 'mouse') stopEating();
   }
   if (e.button !== 0) return;
-  releaseBow();
   leftDown = false;
   mining = 0;
   $('#mine-progress i').style.width = '0';
@@ -5390,7 +5557,7 @@ document.addEventListener('keyup', (e) => {
 });
 window.addEventListener('blur', () => {
   keys.clear();
-  bowCharge = 0;
+  cancelBow();
   motion.reset();
   leftDown = false;
   if (hasGame && !overlay) openOverlay('#pause-overlay');
@@ -5456,6 +5623,7 @@ if (isTouch) {
     };
     b.onpointerup = () => {
       if (b.dataset.action === 'place') {
+        releaseBow('touch-use');
         foodInputs.delete('touch-use');
         blockUse = throwHeldItem = null;
         if (foodUse?.source === 'touch-use') stopEating();
@@ -5464,10 +5632,10 @@ if (isTouch) {
         foodInputs.delete('touch');
         if (foodUse?.source === 'touch') stopEating();
       }
-      if (b.dataset.action === 'mine') releaseBow();
       leftDown = false;
     };
     b.onpointercancel = () => {
+      cancelBow();
       if (b.dataset.action === 'place') {
         foodInputs.delete('touch-use');
         blockUse = throwHeldItem = null;
@@ -5477,7 +5645,6 @@ if (isTouch) {
         foodInputs.delete('touch');
         if (foodUse?.source === 'touch') stopEating();
       }
-      bowCharge = 0;
       leftDown = false;
     };
   });
@@ -5528,14 +5695,8 @@ function frame(now) {
         eat(pending.source, 'chorusFruit', pending.hand);
     }
     damageCooldown = Math.max(0, damageCooldown - dt);
-    combat.update(
-      dt,
-      (keys.has('KeyR') || (heldUseInput() && chooseUseHand() === 'offhand')) &&
-        !!equipment.offhand &&
-        !foodUse &&
-        !glider.active,
-    );
-    if (combat.raised) bowCharge = 0;
+    updateShield(dt);
+    updateBowUse(dt);
     boats.update(dt, world, keys);
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
     for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
@@ -5546,28 +5707,25 @@ function frame(now) {
     updateEating(dt);
     world.fluids.step(dt);
     flushFluidChanges();
-    if (heldItem() !== 'fishingRod') fishing.clear();
-    else {
-      if (leftDown && fishing.active) {
-        fishing.clear();
-        leftDown = false;
-        toast('已收起鱼线。');
-      }
-      fishing.update(dt, world, camera, weather.rain);
+    if (
+      fishingUse &&
+      (!validHandUse(fishingUse, 'fishingRod') || !fishing.active)
+    ) {
+      fishing.clear();
+      fishingUse = null;
     }
+    if (fishingUse) fishing.update(dt, world, camera, weather.rain);
     target = graphics.target(
       !!ITEMS[hotbar[selected]]?.bucket ||
         heldItem() === 'boat' ||
         heldItem() === 'glassBottle',
     );
     boatTarget = boats.target(camera, target?.distance ?? Infinity);
-    if (foodUse || combat.raised) {
-      mining = bowCharge = 0;
-      $('#mine-progress i').style.width = '0';
-    } else if (leftDown && heldItem() === 'bow') {
-      bowCharge = Math.min(1.1, bowCharge + dt);
+    if (foodUse || combat.raised || bowUse) {
       mining = 0;
-      $('#mine-progress i').style.width = (bowCharge / 1.1) * 100 + '%';
+      miningKey = '';
+      $('#mine-progress i').style.width =
+        (bowUse ? bowPull(bowCharge) * 100 : 0) + '%';
     } else if (leftDown) {
       if (!attackBoat() && !attack()) mine(dt);
       else mining = 0;
@@ -5766,9 +5924,9 @@ function frame(now) {
       world,
       [...creatures, ...dragonFight.combatants, ...shulkerBullets.combatants],
       camera,
-      (mob, amount, direction, part) =>
-        hitMob(mob, amount, direction, 'arrow', part),
-      () => addItem('arrow'),
+      (mob, amount, direction, part, punch) =>
+        hitMob(mob, amount, direction, 'arrow', part, punch),
+      collectArrow,
       (amount, source) => hurt(amount, 'projectile', source),
     );
     fireballs.update(dt, world, creatures, camera);
@@ -5834,22 +5992,38 @@ function frame(now) {
     $('#fishing-window').classList.toggle('hidden', fishing.phase !== 'bite');
     $('#fishing-window').value =
       fishing.phase === 'bite' ? fishing.remaining / fishing.biteWindow : 0;
-    $('#combat-status').textContent =
-      heldItem() === 'fishingRod'
-        ? fishing.status
-        : heldItem() === 'bow'
-          ? (bowCharge > 0
-              ? '拉弓 ' + Math.round((bowCharge / 1.1) * 100) + '% · 松开发射'
-              : '按住左键拉弓') +
-            ' · 箭矢 ' +
-            (creative ? '∞' : inventory.arrow || 0)
-          : THROWABLES[heldItem()]
-            ? throwables.ready(heldItem())
-              ? THROWABLES[heldItem()].hint
-              : `${ITEMS[heldItem()].name} · 冷却 ${throwables.cooldowns[heldItem()].toFixed(1)} 秒`
-            : attackCooldown > 0
-              ? '挥击恢复中'
-              : '';
+    const bowHand =
+      bowUse?.hand ||
+      (heldItem() === 'bow'
+        ? 'main'
+        : pack.gear[4]?.item === 'bow'
+          ? 'offhand'
+          : null);
+    const rodHand =
+      fishingUse?.hand ||
+      (heldItem() === 'fishingRod'
+        ? 'main'
+        : pack.gear[4]?.item === 'fishingRod'
+          ? 'offhand'
+          : null);
+    $('#combat-status').textContent = bowHand
+      ? (bowUse
+          ? '拉弓 ' + Math.round(bowPull(bowCharge) * 100) + '% · 松开发射'
+          : '按住右键拉弓') +
+        ' · ' +
+        (bowHand === 'offhand' ? '副手' : '主手') +
+        ' · 箭矢 ' +
+        (creative ? '∞' : arrowCount()) +
+        (enchantmentsOf(handStack(bowHand)?.wear).infinity ? '（无限）' : '')
+      : rodHand
+        ? fishing.status + ' · ' + (rodHand === 'offhand' ? '副手' : '主手')
+        : THROWABLES[heldItem()]
+          ? throwables.ready(heldItem())
+            ? THROWABLES[heldItem()].hint
+            : `${ITEMS[heldItem()].name} · 冷却 ${throwables.cooldowns[heldItem()].toFixed(1)} 秒`
+          : attackCooldown > 0
+            ? '挥击恢复中'
+            : '';
     simulationAccumulator += dt;
     if (simulationAccumulator > 0.5) {
       simulationAccumulator = 0;
@@ -5880,14 +6054,30 @@ function frame(now) {
       saveGame();
     }
   }
-  if (graphics.fishingTip) graphics.fishingTip.getWorldPosition(fishingTip);
+  const rodHand =
+    fishingUse?.hand ||
+    (heldItem() === 'fishingRod'
+      ? 'main'
+      : pack.gear[4]?.item === 'fishingRod'
+        ? 'offhand'
+        : null);
+  const rodTip = (rodHand === 'offhand' ? graphics.offhandHeld : graphics.held)
+    ?.fishingTip;
+  if (rodTip) rodTip.getWorldPosition(fishingTip);
   else fishingTip.copy(camera.position);
-  fishing.render(camera, fishingTip, playing && heldItem() === 'fishingRod');
-  graphics.bowDraw = bowCharge / 1.1;
+  fishing.render(camera, fishingTip, playing && !!rodHand);
+  graphics.bowDraw = bowPull(bowCharge);
+  graphics.bowTime = bowCharge;
+  graphics.bowHand = bowUse?.hand;
   graphics.heldEnchanted = !!enchantLabel(pack.slots[selected]?.wear);
-  graphics.shieldEnchanted =
-    !!equipment.offhand &&
-    Object.keys(equipment.tags(equipment.offhand)).length > 0;
+  graphics.offhandEnchanted = !!enchantLabel(pack.gear[4]?.wear);
+  graphics.shieldEnchanted = !!enchantLabel(
+    pack.gear[4]?.item === 'shield' ? pack.gear[4].wear : null,
+  );
+  graphics.mainShieldEnchanted = !!enchantLabel(
+    heldItem() === 'shield' ? pack.slots[selected].wear : null,
+  );
+  graphics.blockingHand = combat.hand;
   graphics.blocking = combat.raised;
   graphics.shieldImpact = combat.impact;
   survivalHUD();
@@ -5902,7 +6092,7 @@ function frame(now) {
     time,
     playing,
     moved > 0,
-    leftDown && heldItem() !== 'bow',
+    leftDown,
     weather,
     weatherColumns,
     dt,
