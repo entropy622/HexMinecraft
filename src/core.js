@@ -19,6 +19,11 @@ import { WOOD_BLOCKS, WOOD_ITEMS, WOOD_RECIPES } from './wood-data.js';
 import { recipeMaterials } from './wood-ingredients.js';
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import {
+  IGNITION_BLOCKS,
+  IGNITION_ITEMS,
+  IGNITION_RECIPES,
+} from './ignition-data.js';
+import {
   SHULKER_ITEMS,
   SHULKER_BLOCKS,
   SHULKER_RECIPES,
@@ -38,6 +43,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...IGNITION_BLOCKS,
   ...CAMPFIRE_BLOCKS,
   ...WOOD_BLOCKS,
   ...CHORUS_BLOCKS,
@@ -190,7 +196,9 @@ export const BLOCKS = {
     name: '下界传送门',
     color: '#bd80ed',
     side: '#724298',
-    hardness: 1,
+    hardness: Infinity,
+    internal: true,
+    light: '#b66af4',
     nonSolid: true,
   },
   endportal: {
@@ -208,6 +216,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...IGNITION_ITEMS,
   ...WOOD_ITEMS,
   ...CHORUS_ITEMS,
   ...SHULKER_ITEMS,
@@ -410,23 +419,6 @@ RECIPES.push(
     desc: '六向工坊将岩石、煤与萤晶烧结成黑曜石。',
     pattern: ['stone', 'coal', 'stone', 'crystal', 'stone', 'coal', null],
     cost: { stone: 3, coal: 2, crystal: 1 },
-    station: true,
-  },
-  {
-    id: 'portal',
-    count: 1,
-    title: '通往下界',
-    desc: '放置后按 E 穿越。目的地自动生成返回门。',
-    pattern: [
-      'obsidian',
-      'obsidian',
-      'obsidian',
-      'crystal',
-      'obsidian',
-      'obsidian',
-      'obsidian',
-    ],
-    cost: { obsidian: 6, crystal: 1 },
     station: true,
   },
   {
@@ -648,6 +640,7 @@ export class World {
 }
 RECIPES.push(
   ...GEAR_RECIPES,
+  ...IGNITION_RECIPES,
   ...CAMPFIRE_RECIPES,
   ...BREW_RECIPES,
   ...SMITHING_RECIPES,

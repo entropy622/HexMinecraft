@@ -3,6 +3,7 @@ import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
 import { WOOD_BLOCKS, TREES } from './wood-data.js';
 export const blockTextures = {
+  gravel: ['default_gravel'],
   campfire: ['default_tree'],
   soulCampfire: ['default_tree'],
   campfireLog: ['default_tree'],
@@ -102,6 +103,8 @@ for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Stairs'] = blockTextures[base];
 }
 export const itemTextures = {
+  flint: 'default_flint',
+  flintAndSteel: 'mcl_fire_flint_and_steel',
   campfire: 'mcl_campfires_campfire_inv',
   soulCampfire: 'mcl_campfires_soul_campfire_inv',
   birchSapling: 'mcl_core_sapling_birch',
@@ -324,6 +327,7 @@ export async function loadTexturePack() {
     'mcl_campfires_campfire_fire',
     'mcl_campfires_soul_campfire_fire',
     'mcl_campfires_particle_1',
+    'mcl_portals_portal',
   ]);
   await Promise.allSettled(
     [...names].map(

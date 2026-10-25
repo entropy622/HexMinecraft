@@ -9,6 +9,8 @@ import { pillarFace } from './pillar-faces.js';
 import { isDoor, isTrapdoor } from './building-data.js';
 import { BrewingModels } from './brewing-graphics.js';
 import { CampfireModels } from './campfire-graphics.js';
+import { FallingModels } from './gravity-graphics.js';
+import { netherSheet } from './nether-portal-graphics.js';
 import { isCampfire } from './campfire-data.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
@@ -33,7 +35,7 @@ import { postSettings } from './render-settings.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { itemImage, bowImage } from './texture-pack.js';
+import { itemImage, bowImage, effectImage } from './texture-pack.js';
 import { createTextures } from './textures.js';
 import {
   BLOCKS,
@@ -104,6 +106,16 @@ export class Graphics {
     this.smithingModels = new SmithingModels(this.textures);
     this.brewingModels = new BrewingModels(this.textures);
     this.campfireModels = new CampfireModels(this.scene);
+    this.fallingModels = new FallingModels(this.scene, this.textures);
+    this.netherPortalTexture = new THREE.Texture(
+      effectImage('mcl_portals_portal'),
+    );
+    this.netherPortalTexture.colorSpace = THREE.SRGBColorSpace;
+    this.netherPortalTexture.magFilter = this.netherPortalTexture.minFilter =
+      THREE.NearestFilter;
+    this.netherPortalTexture.generateMipmaps = false;
+    this.netherPortalTexture.repeat.set(1, 1 / 8);
+    this.netherPortalTexture.needsUpdate = true;
     sharedTextures = this.textures;
     this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
     this.terrain = new THREE.Group();
@@ -365,6 +377,7 @@ export class Graphics {
   build(world, q = 0, r = 0) {
     this.leafParticles.clear();
     this.campfireModels.reset();
+    this.fallingModels.clear();
     this.stepOffset = 0;
     this.shapeOutline.visible = false;
     this.world = world;
@@ -480,6 +493,12 @@ export class Graphics {
   portal(q, y, r, type) {
     const k = q + ',' + y + ',' + r;
     if (this.portalMeshes.has(k)) return;
+    if (type === 'portal') {
+      const sheet = netherSheet(this.world, q, y, r, this.netherPortalTexture);
+      this.decor.add(sheet);
+      this.portalMeshes.set(k, sheet);
+      return;
+    }
     const p = axialToWorld(q, r),
       g = new THREE.Group(),
       color = type === 'portal' ? '#c48aff' : '#86f6dd';
@@ -1064,11 +1083,19 @@ export class Graphics {
     this.renderer.shadowMap.needsUpdate = true;
   }
   updateBlock(q, y, r) {
-    const keys = new Set([
-      this.chunkKey(q, r),
-      ...DIRECTIONS.map(([a, b]) => this.chunkKey(q + a, r + b)),
-    ]);
-    for (const k of keys) if (this.chunks.has(k)) this.buildChunk(k);
+    this.updateCells([[q, y, r]]);
+  }
+  updateCells(cells) {
+    const chunks = new Set();
+    for (const [q, y, r] of cells) {
+      chunks.add(this.chunkKey(q, r));
+      for (const [dq, dr] of DIRECTIONS)
+        chunks.add(this.chunkKey(q + dq, r + dr));
+      this.updatePortal(q, y, r);
+    }
+    for (const k of chunks) if (this.chunks.has(k)) this.buildChunk(k);
+  }
+  updatePortal(q, y, r) {
     const pk = q + ',' + y + ',' + r,
       t = this.world.get(q, y, r);
     if (this.portalMeshes.has(pk)) {
@@ -1285,13 +1312,37 @@ export class Graphics {
     const portal = hit.object.userData.block;
     if (portal) {
       const p = axialToWorld(portal.q, portal.r);
-      this.outline.position.set(p.x, portal.y + 1, p.z);
-      this.outline.scale.set(1, 2, 1);
+      const height = portal.type === 'portal' ? 1 : 2;
+      this.outline.position.set(p.x, portal.y + height / 2, p.z);
+      this.outline.scale.set(1, height, 1);
       this.outline.visible = true;
+      const normal = hit.face.normal
+        .clone()
+        .transformDirection(hit.object.matrixWorld);
+      const direction = DIRECTIONS.map(([q, r]) => ({
+        q,
+        r,
+        p: axialToWorld(q, r),
+      })).sort(
+        (a, b) =>
+          b.p.x * normal.x +
+          b.p.z * normal.z -
+          a.p.x * normal.x -
+          a.p.z * normal.z,
+      )[0];
       return {
         ...portal,
-        place: { q: portal.q, y: portal.y + 2, r: portal.r },
+        place:
+          portal.type === 'portal'
+            ? {
+                q: portal.q + direction.q,
+                y: portal.y,
+                r: portal.r + direction.r,
+              }
+            : { q: portal.q, y: portal.y + 2, r: portal.r },
         distance: hit.distance,
+        point: hit.point.clone(),
+        normal,
       };
     }
     this.outline.scale.set(1, 1, 1);
@@ -1558,6 +1609,8 @@ export class Graphics {
         if (child.userData.shimmer)
           child.material.opacity = 0.28 + Math.sin(time * 2) * 0.1;
       }
+    this.netherPortalTexture.offset.y =
+      1 - ((Math.floor(time * 10) % 8) + 1) / 8;
     for (const g of this.cropMeshes.values())
       g.children.forEach(
         (blade, i) =>
@@ -1636,6 +1689,7 @@ export class Graphics {
     );
     this.brewingModels.frame(renderDt, this.world);
     this.campfireModels.frame(dt, this.world, this.camera);
+    this.fallingModels.frame(this.world);
     this.dynamicLight.attach(this.scene);
     const cameraHex = worldToAxial(
       this.camera.position.x,

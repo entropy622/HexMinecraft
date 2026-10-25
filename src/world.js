@@ -9,6 +9,7 @@ import { stampChorus } from './chorus.js';
 import { isChorus } from './chorus-data.js';
 import { treeCells } from './tree-layout.js';
 import { LeafDecay } from './leaves.js';
+import { Gravity } from './gravity.js';
 import { isCampfire, newCampfire } from './campfire-data.js';
 import { isDoorTop, isFence, isGate, isOpenable } from './building-data.js';
 import {
@@ -75,6 +76,7 @@ export class World {
     this.center = null;
     this.spawners = new Set();
     this.buildings = new Set();
+    this.portalCells = new Set();
     this.blockStates = new Map();
     this.naturalStates = new Map();
     this.shapeCache = new Map();
@@ -89,6 +91,7 @@ export class World {
     this.beacons = [];
     this.fluids = new Fluids(this, options.fluids);
     this.campfires = new Map(options.campfires || []);
+    this.gravity = new Gravity(this, options.falling);
     if (options.edits) this.applyEdits(options.edits);
     this.persistentLeaves = new Set(options.persistentLeaves || []);
     this.leafDecay = new LeafDecay(this, options.leafDecay);
@@ -334,6 +337,8 @@ export class World {
     if (record && previous !== type) this.blockStates.delete(k);
     if (this.loaded(q, r)) {
       this.indexTreeCell(k, type);
+      if (type === 'portal') this.portalCells.add(k);
+      else this.portalCells.delete(k);
       if (BLOCKS[type]?.shape) this.buildings.add(k);
       else this.buildings.delete(k);
       if (type === 'spawner') this.spawners.add(k);
@@ -342,6 +347,7 @@ export class World {
       else this.blocks.delete(k);
     }
     if (record && this.loaded(q, r)) this.fluids.changedBlock(q, y, r);
+    if (record && this.loaded(q, r)) this.gravity.wake(q, y, r);
     if (type !== 'chorusFlower') this.chorus.delete(k);
     if (this.loaded(q, r) && previous !== type) {
       for (const [a, b, c] of [
@@ -438,6 +444,16 @@ export class World {
             else if (ore > 0.835) t = 'coal';
           }
           if (
+            this.dimension === 'overworld' &&
+            ((h <= 7 &&
+              y >= h - 3 &&
+              y > 0 &&
+              noise(q * 0.17, r * 0.17, this.seed + 763) > 0.54) ||
+              (t === 'stone' &&
+                noise(q * 0.19 + y * 0.08, r * 0.19, this.seed + 764) > 0.73))
+          )
+            t = 'gravel';
+          if (
             this.dimension === 'nether' &&
             y === h - 1 &&
             noise(q * 0.12, r * 0.12, this.seed + 121) > 0.65
@@ -508,6 +524,8 @@ export class World {
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const k = key(q, y, r);
           this.indexTreeCell(k, this.blocks.get(k));
+          this.gravity.index(q, y, r, this.blocks.get(k));
+          if (this.blocks.get(k) === 'portal') this.portalCells.add(k);
           if (isCampfire(this.blocks.get(k)) && !this.campfires.has(k))
             this.campfires.set(k, newCampfire());
         }
@@ -544,6 +562,7 @@ export class World {
           this.treeLogs.delete(k);
           this.spawners.delete(k);
           this.buildings.delete(k);
+          this.portalCells.delete(k);
           this.naturalStates.delete(k);
           this.chorusPending.delete(k);
         }
@@ -560,6 +579,8 @@ export class World {
     this.blocks.clear();
     this.spawners.clear();
     this.buildings.clear();
+    this.portalCells.clear();
+    this.gravity.pending.clear();
     this.naturalStates.clear();
     this.shapeCache.clear();
     this.heights.clear();
@@ -591,6 +612,7 @@ export class World {
       furnaces: [...this.furnaces],
       brewing: [...this.brewing],
       campfires: [...this.campfires],
+      falling: this.gravity.serialize(),
       chorus: [...this.chorus],
       structureFeatures: [...this.structureFeatures],
       discoveredStructures: [...this.discoveredStructures],

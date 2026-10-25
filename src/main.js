@@ -12,6 +12,12 @@ import {
 } from './brewing-data.js';
 import { newBrewing, tickBrewing, resetBrewing } from './brewing.js';
 import {
+  findNetherFrame,
+  lightNetherFrame,
+  maintainNetherPortals,
+  buildArrivalPortal,
+} from './nether-portals.js';
+import {
   CAMPFIRE_FOODS,
   CAMPFIRE_SECONDS,
   isCampfire,
@@ -150,7 +156,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.46 — AROUND THE FIRE</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.47 — SPARKS BETWEEN WORLDS</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -159,7 +165,7 @@ $('#app').innerHTML = `
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="按住食用或饮用">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
- <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="fire-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
+ <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="fire-overlay" aria-hidden="true"></div><div id="portal-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  ${workshopPanel()}
  <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 柔影与晨雾</option></select></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="antialias-toggle">边缘抗锯齿</label><input id="antialias-toggle" type="checkbox" checked></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加近景柔影、体积光束与抗锯齿，显卡开销较高；细节可单独调整。均衡与流畅使用轻量高度雾。画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>食用或饮用 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>R</kbd>按住举起副手盾牌</span><span><kbd>随身照明</kbd>手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
@@ -332,6 +338,8 @@ const fishing = new Fishing(
 let weather = new Weather();
 const weatherColumns = new WeatherColumns();
 let weatherGrowthTimer = 0;
+let portalExposure = 0,
+  portalCooldown = 0;
 let lastDeath = null;
 const fauna = new Fauna(graphics.scene, graphics.textures, {
   damage: (amount, source) => hurt(amount, 'combat', source),
@@ -870,6 +878,7 @@ function startGame(mode = false, save = null) {
     furnaces: data.furnaces,
     brewing: data.brewing,
     campfires: data.campfires,
+    falling: data.falling,
     chorus: data.chorus,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
@@ -917,6 +926,8 @@ function startGame(mode = false, save = null) {
   stopEating(true);
   weather = new Weather(save?.weather);
   weatherGrowthTimer = 0;
+  portalExposure = portalCooldown = 0;
+  $('#portal-overlay').style.opacity = 0;
   graphics.weatherEffects.flash = 0;
   graphics.weatherEffects.nextStrike = 18;
   graphics.weatherEffects.thunderDelay = -1;
@@ -1110,6 +1121,7 @@ function travel(to) {
     furnaces: data.furnaces,
     brewing: data.brewing,
     campfires: data.campfires,
+    falling: data.falling,
     chorus: data.chorus,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
@@ -1129,7 +1141,7 @@ function travel(to) {
     a = worldToAxial(destination[0], destination[2]);
   world.ensureAround(a.q, a.r);
   if (!data.position) {
-    const h = Math.max(9, world.terrainHeight(a.q, a.r));
+    const h = Math.min(58, Math.max(9, world.terrainHeight(a.q, a.r)));
     for (let dq = -2; dq <= 2; dq++)
       for (let dr = -2; dr <= 2; dr++)
         if (hexDistance(dq, dr) <= 2) {
@@ -1142,7 +1154,8 @@ function travel(to) {
           for (let y = h; y < h + 4; y++)
             world.set(a.q + dq, y, a.r + dr, null);
         }
-    world.set(a.q + 1, h, a.r, to === 'end' ? 'endportal' : 'portal');
+    if (to === 'end') world.set(a.q + 1, h, a.r, 'endportal');
+    else buildArrivalPortal(world, a.q - 1, h, a.r + 1);
     const p = axialToWorld(a.q, a.r);
     destination = [p.x, h + 1.68, p.z];
   }
@@ -1174,6 +1187,9 @@ function travel(to) {
   $('#travel').classList.add('active');
   setTimeout(() => $('#travel').classList.remove('active'), 900);
   soundFX.play('portal');
+  portalExposure = 0;
+  portalCooldown = 15;
+  $('#portal-overlay').style.opacity = 0;
   hudSignature = '';
   updateHUD();
   saveGame();
@@ -1702,6 +1718,7 @@ function mine(dt) {
   const packed = ITEMS[type]?.portable ? packStorage(k, type) : null;
   world.set(q, y, r, null);
   graphics.updateBlock(q, y, r);
+  if (type === 'obsidian') refreshNetherPortals();
   graphics.burst(q, y, r, data.color);
   soundFX.play('break', type);
   wearItem(held, ITEMS[held]?.kind === 'sword' ? 2 : 1);
@@ -1712,9 +1729,11 @@ function mine(dt) {
   if (!creative) {
     if (!packed && !data.foliage)
       dropAt(
-        type === 'snow' && ITEMS[held]?.kind === 'shovel'
-          ? 'snowball'
-          : data.drop || type,
+        type === 'gravel' && Math.random() < 0.1
+          ? 'flint'
+          : type === 'snow' && ITEMS[held]?.kind === 'shovel'
+            ? 'snowball'
+            : data.drop || type,
         type === 'snow' && ITEMS[held]?.kind === 'shovel'
           ? 4
           : type === 'lapisOre'
@@ -1815,6 +1834,7 @@ function useBucket() {
   }
   flushFluidChanges();
   updateCampfires(0);
+  refreshNetherPortals();
   graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
   soundFX.play('splash');
   graphics.swing();
@@ -2413,6 +2433,7 @@ function place() {
     return;
   }
   if (useFishingRod() || useBoatItem()) return;
+  if (useIgniter()) return;
   if (interactCreature() || drinkMilk() || useGoldenApple()) return;
   if (stripLog()) return;
   if (useRocket()) return;
@@ -3051,6 +3072,14 @@ function interact(preferContext = false) {
   if (!target) return;
   const { q, y, r, type } = target,
     k = key(q, y, r);
+  if (heldItem() === 'flintAndSteel' && type === 'obsidian') {
+    useIgniter();
+    return;
+  }
+  if (type === 'portal' && ITEMS[heldItem()]?.bucket) {
+    useBucket();
+    return;
+  }
   if (isCampfire(type)) {
     interactCampfire(q, y, r);
     return;
@@ -3430,6 +3459,93 @@ function updateFurnaces(dt) {
     if (f) updateFurnacePanel(f);
   }
 }
+function refreshNetherPortals() {
+  const changed = maintainNetherPortals(world);
+  if (changed.length) graphics.updateCells(changed);
+}
+function useIgniter() {
+  if (heldItem() !== 'flintAndSteel') return false;
+  if (target && isCampfire(target.type)) {
+    interactCampfire(target.q, target.y, target.r);
+    return true;
+  }
+  if (dimension === 'end') {
+    toast('末地无法开启下界门。');
+    return true;
+  }
+  const p = target?.place;
+  const frame = p && findNetherFrame(world, p.q, p.y, p.r);
+  if (!frame) {
+    toast(
+      '黑曜石门框：内部至少 2 格宽、3 格高；对准框内底座右键点燃。三个水平轴均可，四角可省略。',
+    );
+    return true;
+  }
+  if (frame.cells.every(([q, y, r]) => world.get(q, y, r) === 'portal')) {
+    toast('这座下界门已经开启。');
+    return true;
+  }
+  const cells = lightNetherFrame(world, frame);
+  graphics.updateCells(cells);
+  wearItem('flintAndSteel');
+  graphics.swing();
+  soundFX.play('campfireIgnite');
+  toast(
+    `下界门已点燃 · ${frame.width} × ${frame.height} · 站入门中穿越，也可按 E`,
+  );
+  saveGame();
+  return true;
+}
+function updateFalling(dt) {
+  const changed = world.gravity.tick(dt, {
+    canPlace(q, y, r) {
+      const old = world.get(q, y, r),
+        p = axialToWorld(q, r);
+      world.set(q, y, r, 'stone', false);
+      const occupied =
+        collides(camera.position.x, playerFeet(), camera.position.z) ||
+        buildingOccupied(q, y, r) ||
+        boats.intersectsCell(p.x, y, p.z);
+      world.set(q, y, r, old || null, false);
+      return !occupied;
+    },
+    drop(id, q, y, r) {
+      dropAt(id, 1, q, y, r);
+    },
+  });
+  if (changed.length) {
+    graphics.updateCells(changed);
+    maintainBuildings();
+    refreshNetherPortals();
+  }
+}
+function updatePortalTravel(dt) {
+  portalCooldown = Math.max(0, portalCooldown - dt);
+  const a = worldToAxial(camera.position.x, camera.position.z),
+    y = Math.floor(playerFeet() + 0.75);
+  let inside = false;
+  if (world.get(a.q, y, a.r) === 'portal') {
+    const p = axialToWorld(a.q, a.r),
+      direction = axialToWorld(
+        ...DIRECTIONS[world.state(a.q, y, a.r).facing % 3],
+      );
+    const distance =
+      Math.abs(
+        (camera.position.x - p.x) * direction.z -
+          (camera.position.z - p.z) * direction.x,
+      ) / Math.sqrt(3);
+    inside = distance < 0.38;
+  }
+  if (inside && !portalCooldown) portalExposure += dt;
+  else portalExposure = Math.max(0, portalExposure - dt * 4);
+  const seconds = creative ? 1 : 4;
+  $('#portal-overlay').style.opacity = Math.min(
+    0.6,
+    (portalExposure / seconds) * 0.6,
+  );
+  if (portalExposure < seconds) return false;
+  return travel(dimension === 'nether' ? 'overworld' : 'nether');
+}
 function campfireSlotOrder(q, r) {
   const p = axialToWorld(q, r),
     hit = target?.point || camera.position;
@@ -3450,12 +3566,12 @@ function interactCampfire(q, y, r) {
   }
   if (ITEMS[held]?.kind === 'shovel') {
     if (!setCampfireLit(world, k, false)) {
-      toast('营火已经熄灭，用火把重新点燃。');
+      toast('营火已经熄灭，用打火石或火把重新点燃。');
       return;
     }
     wearItem(held);
     soundFX.play('campfireOut');
-  } else if (held === 'torch') {
+  } else if (held === 'torch' || held === 'flintAndSteel') {
     if (fire.lit) {
       toast('营火已经点燃，不需要持续添加燃料。');
       return;
@@ -3465,7 +3581,8 @@ function interactCampfire(q, y, r) {
       return;
     }
     setCampfireLit(world, k, true);
-    if (!creative) inventory.torch--;
+    if (held === 'flintAndSteel') wearItem(held);
+    else if (!creative) inventory.torch--;
     soundFX.play('campfireIgnite');
   } else if (Object.hasOwn(CAMPFIRE_FOODS, held)) {
     const index = campfireSlotOrder(q, r).find((i) => !fire.slots[i]);
@@ -3480,12 +3597,12 @@ function interactCampfire(q, y, r) {
     toast(
       fire.lit
         ? '已放上食材 · 30 秒后自动出炉'
-        : '已放上食材 · 用火把点燃后开始烹饪',
+        : '已放上食材 · 用打火石或火把点燃后开始烹饪',
     );
   } else if (!held) {
     const index = campfireSlotOrder(q, r).find((i) => fire.slots[i]);
     if (index === undefined) {
-      toast('右键放入生肉、生鱼或马铃薯 · 铲子熄灭 · 火把点燃');
+      toast('右键放入生肉、生鱼或马铃薯 · 铲子熄灭 · 打火石点燃');
       return;
     }
     const slot = fire.slots[index];
@@ -4051,6 +4168,7 @@ function updateWeather(dt) {
   if (weatherGrowthTimer < 1) return;
   updatePlants(weatherGrowthTimer);
   updateCampfires(weatherGrowthTimer);
+  refreshNetherPortals();
   weatherGrowthTimer = 0;
 }
 function hitMob(mob, amount, direction, source = 'melee', part = 'body') {
@@ -4895,6 +5013,8 @@ $('#home').onclick = () => {
   playing = false;
   hasGame = false;
   overlay = null;
+  portalExposure = 0;
+  $('#portal-overlay').style.opacity = 0;
   document
     .querySelectorAll('.overlay')
     .forEach((e) => e.classList.add('hidden'));
@@ -5246,6 +5366,8 @@ function frame(now) {
     boats.update(dt, world, keys);
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
     for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
+    updateFalling(dt);
+    if (updatePortalTravel(dt)) return;
     flightEffects.update(dt, world, camera, glider);
     updateSurvival(dt);
     updateEating(dt);
@@ -5321,8 +5443,13 @@ function frame(now) {
         (fire?.lit ? ' · 燃烧' : ' · 已熄灭') +
         ` · 食材 ${slots.length}/6` +
         (next ? ` · 下份 ${next}s` : '') +
-        ' · 右键/E 放入 · 空手取回 · 铲子熄灭 / 火把点燃';
+        ' · 右键/E 放入 · 空手取回 · 铲子熄灭 / 打火石点燃';
     }
+    if (target?.type === 'portal')
+      $('#target').textContent =
+        '下界传送门 · 站入门中 4 秒穿越 / E 快速穿越 · 水桶关闭';
+    if (target?.type === 'obsidian' && heldItem() === 'flintAndSteel')
+      $('#target').textContent += ' · 对准框内右键点燃 · 内部至少 2 × 3 格';
     if (isTrapdoor(target?.type)) {
       const state = world.state(target.q, target.y, target.r);
       $('#target').textContent =

@@ -19,6 +19,15 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.47 adds four unmodified images from the same revision and CC BY-SA
+3.0 media license: `default_gravel.png`, `default_flint.png`,
+`mcl_fire_flint_and_steel.png`, and `mcl_portals_portal.png` (eight 16 × 16
+frames). Frame sampling and runtime tinting retain that license. The three-axis
+obsidian-frame recognition, continuous portal sheets, travel overlay and
+granular-block simulation are original code and geometry. No upstream models
+or code are included. The collection now contains 264 PNGs: 243 under CC BY-SA
+3.0 and 21 under CC BY-SA 4.0.
+
 Version 0.46 adds seven unmodified images from the same revision and CC BY-SA
 3.0 media license: `mcl_campfires_campfire_inv.png`,
 `mcl_campfires_soul_campfire_inv.png`, `mcl_campfires_campfire_fire.png`,

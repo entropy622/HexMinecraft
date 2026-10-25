@@ -60,6 +60,7 @@ export const ROLES = {
       { cost: { emerald: 6 }, give: { ingot: 4 } },
       { cost: { emerald: 5 }, give: { sword: 1 } },
       { cost: { emerald: 8 }, give: { ironChest: 1 } },
+      { cost: { emerald: 3 }, give: { flintAndSteel: 1 } },
     ],
   },
   merchant: {

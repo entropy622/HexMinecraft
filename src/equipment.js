@@ -141,6 +141,7 @@ export function miningStats(block, held, enchant = {}) {
               'grass',
               'dirt',
               'sand',
+              'gravel',
               'snow',
               'farmland',
               'sandstone',

@@ -1,5 +1,6 @@
 import { validFurnace } from './furnaces.js';
 import { validBrewing } from './brewing.js';
+import { validFalling } from './gravity.js';
 import { isCampfire, validCampfire } from './campfire-data.js';
 import { validChest } from './chests.js';
 import { validSurvival } from './survival.js';
@@ -147,6 +148,8 @@ export function validateSave(s) {
       )
         throw Error('营火或烹饪进度无效');
     }
+    if (d.falling !== undefined && !validFalling(d.falling))
+      throw Error('坠落方块数据无效');
     for (const field of ['structureFeatures', 'discoveredStructures']) {
       if (
         d[field] !== undefined &&

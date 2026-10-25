@@ -153,7 +153,7 @@ export function structureLoot(world, s) {
   const roll = hash(s.q, 663, s.r, world.seed);
   const supplies =
     s.kind === 'mine'
-      ? { torch: 12, coal: 5, ingot: 3, bread: 3, copperIngot: 5 }
+      ? { torch: 12, coal: 5, ingot: 3, bread: 3, copperIngot: 5, flint: 3 }
       : s.kind === 'dungeon'
         ? { goldIngot: 4, arrow: 12, bone: 3, emerald: 2 }
         : s.kind === 'fortress'

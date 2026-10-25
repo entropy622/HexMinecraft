@@ -196,13 +196,6 @@ recipe(
   false,
   '把羊毛捻成纤维线，用于弓弦与箭羽。',
 );
-recipe(
-  'arrow',
-  ['stone', null, 'wood', null, 'string', null, null],
-  8,
-  false,
-  '石制箭头、木杆与纤维尾羽。射在地面的箭可以走近回收。',
-);
 
 export const ARMOR_SLOTS = {
   head: '头盔',
@@ -220,10 +213,10 @@ recipe(
 );
 recipe(
   'arrow',
-  ['stone', null, 'wood', null, 'feather', null, null],
-  12,
+  ['flint', null, 'stick', null, 'feather', null, null],
+  4,
   false,
-  '羽毛尾羽能做出更多箭矢。',
+  '燧石箭头、木棍与羽毛制成四支箭矢，落地的箭可走近回收。',
 );
 recipe(
   'cake',
