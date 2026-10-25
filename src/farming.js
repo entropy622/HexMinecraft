@@ -1,5 +1,6 @@
 import { PLANTS } from './farming-data.js';
-import { axialToWorld, hexDistance } from './core.js';
+import { BLOCKS, axialToWorld, hexDistance } from './core.js';
+import { treeCells } from './tree-layout.js';
 
 export function nearWater(world, q, y, r, radius = 3) {
   for (let dq = -radius; dq <= radius; dq++)
@@ -16,7 +17,9 @@ export function plantingIssue(world, kind, q, y, r) {
     return def.infernal
       ? '下界疣只能种在灵魂沙上。'
       : def.tree
-        ? '树苗需要泥土或草地。'
+        ? kind === 'spruceSapling'
+          ? '云杉树苗需要泥土、草地或雪块。'
+          : '树苗需要泥土或草地。'
         : def.perennial
           ? '甘蔗需要水边的泥土、草地或沙地。'
           : '先用锄头把土地翻耕。';
@@ -79,21 +82,16 @@ export function growthConditions(
     ? { rate: 1, reason: '已灌溉' }
     : { rate: 0.35, reason: '土地干燥 · 靠近水可加速' };
 }
-export function treePlan(world, q, y, r, occupied) {
-  if (y + 6 >= 64) return null;
-  const cells = [];
-  for (let h = 1; h <= 4; h++) cells.push([q, y + h, r, 'wood']);
-  for (let dq = -2; dq <= 2; dq++)
-    for (let dr = -2; dr <= 2; dr++)
-      for (let h = 5; h <= 6; h++)
-        if (hexDistance(dq, dr) <= (h === 5 ? 2 : 1))
-          cells.push([q + dq, y + h, r + dr, 'leaves']);
+export function treePlan(world, q, y, r, occupied, species = 'oak') {
+  const cells = treeCells(species, q, y + 1, r, world.seed);
   if (
     cells.some(
       ([a, b, c, type]) =>
+        b < 0 ||
+        b >= world.maxY ||
         !world.loaded(a, c) ||
         (world.get(a, b, c) &&
-          !(type === 'leaves' && world.get(a, b, c) === 'leaves')) ||
+          !(BLOCKS[type].foliage && BLOCKS[world.get(a, b, c)]?.foliage)) ||
         world.fluids.get(a, b, c) ||
         occupied(a, b, c),
     )

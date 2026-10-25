@@ -131,20 +131,19 @@ export class VoxelLight {
         i = this.index(q, y, r);
       if (i < 0) continue;
       const block = BLOCKS[type];
-      cost[i] =
-        type === 'leaves'
-          ? 3
-          : type === 'glass'
-            ? 1
-            : ['door', 'doorTop'].includes(type)
-              ? this.world.state(q, y, r).open
+      cost[i] = block?.foliage
+        ? 3
+        : type === 'glass'
+          ? 1
+          : ['door', 'doorTop'].includes(type)
+            ? this.world.state(q, y, r).open
+              ? 1
+              : 16
+            : block?.shape
+              ? 2
+              : block?.nonSolid
                 ? 1
-                : 16
-              : block?.shape
-                ? 2
-                : block?.nonSolid
-                  ? 1
-                  : 16;
+                : 16;
       const emission =
         type === 'furnace' && !(this.world.furnaces.get(key)?.burn > 0)
           ? null

@@ -1,5 +1,6 @@
 import { ITEMS } from './core.js';
 import { GEAR_SLOTS } from './inventory.js';
+import { woodKey } from './wood-data.js';
 import {
   enchantmentsOf,
   validWearEntry,
@@ -110,6 +111,7 @@ export class Equipment {
 }
 export function miningStats(block, held, enchant = {}) {
   block = ITEMS[block]?.base || block;
+  block = ITEMS[block]?.foliage ? 'leaves' : woodKey(block);
   const item = ITEMS[held];
   const kind = [
     'wood',
@@ -144,10 +146,12 @@ export function miningStats(block, held, enchant = {}) {
   return {
     tier: item?.kind === 'pick' ? item.tier : 0,
     speed:
-      item?.kind === kind
-        ? [1, 2, 3.2, 4.5, 6.2][item.tier] *
-          (1 + 0.18 * (enchant.efficiency || 0) ** 2)
-        : 1,
+      block === 'leaves' && item?.kind === 'shears'
+        ? 15
+        : item?.kind === kind
+          ? [1, 2, 3.2, 4.5, 6.2][item.tier] *
+            (1 + 0.18 * (enchant.efficiency || 0) ** 2)
+          : 1,
   };
 }
 export function validWear(wear, inventory) {

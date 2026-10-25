@@ -1,7 +1,14 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS } from './building-data.js';
+import { WOOD_BLOCKS } from './wood-data.js';
 export const blockTextures = {
+  birchWood: ['mcl_core_log_birch_top', 'mcl_core_log_birch'],
+  birchLeaves: ['mcl_core_leaves_birch'],
+  birchPlanks: ['mcl_core_planks_birch'],
+  spruceWood: ['mcl_core_log_spruce_top', 'mcl_core_log_spruce'],
+  spruceLeaves: ['mcl_core_leaves_spruce'],
+  sprucePlanks: ['mcl_core_planks_spruce'],
   chorusPlant: ['mcl_end_chorus_plant'],
   chorusFlower: ['mcl_end_chorus_flower'],
   chorusFlowerDead: ['mcl_end_chorus_flower_dead'],
@@ -69,6 +76,8 @@ for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Stairs'] = blockTextures[base];
 }
 export const itemTextures = {
+  birchSapling: 'mcl_core_sapling_birch',
+  spruceSapling: 'mcl_core_sapling_spruce',
   chorusFruit: 'mcl_end_chorus_fruit',
   poppedChorusFruit: 'mcl_end_chorus_fruit_popped',
   shulkerShell: 'mcl_mobitems_shulker_shell',
@@ -234,6 +243,8 @@ const plantTextures = {
     'mcl_farming_potatoes_stage_3',
   ],
   sapling: ['default_sapling'],
+  birchSapling: ['mcl_core_sapling_birch'],
+  spruceSapling: ['mcl_core_sapling_spruce'],
   sugarCane: ['mcl_core_reeds'],
 };
 export const plantImage = (kind, stage) => {
@@ -307,9 +318,10 @@ export function paintPackTile(ctx, id, top) {
     return;
   }
   ctx.drawImage(image, 0, 0, 16, 16);
-  if (id === 'leaves' || (id === 'grass' && top)) {
+  const leafTint = id === 'leaves' ? '#79a94d' : WOOD_BLOCKS[id]?.leafTint;
+  if (leafTint || (id === 'grass' && top)) {
     ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = id === 'leaves' ? '#79a94d' : '#91b95d';
+    ctx.fillStyle = leafTint || '#91b95d';
     ctx.fillRect(0, 0, 16, 16);
     ctx.globalCompositeOperation = 'source-over';
   }

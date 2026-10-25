@@ -12,6 +12,7 @@ const recipe = (id, pattern, count = 1, station = true, desc = '') => {
     pattern,
     cost,
     station,
+    exactWood: id === 'boat',
   });
 };
 GEAR.boat = { name: '橡木船', color: '#bd9259', use: true, vehicle: true };

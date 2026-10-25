@@ -29,7 +29,7 @@ export function createPlant(k, plant) {
   group.userData.kind = plant.kind;
   const layers = plant.kind === 'sugarCane' ? 1 + Math.floor(stage / 1.5) : 1;
   const height =
-    plant.kind === 'sugarCane' ? 0.8 : plant.kind === 'sapling' ? 0.85 : 0.9;
+    plant.kind === 'sugarCane' ? 0.8 : PLANTS[plant.kind].tree ? 0.85 : 0.9;
   const material = new THREE.MeshLambertMaterial({
     map,
     color: map ? '#ffffff' : '#83a54a',

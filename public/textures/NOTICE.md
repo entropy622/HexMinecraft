@@ -203,6 +203,19 @@ independent implementations; no upstream gameplay source or model is bundled.
 Selected media now totals 221 PNGs: 200 under CC BY-SA 3.0 and 21 under
 CC BY-SA 4.0.
 
+Version 0.41 adds ten unmodified PNGs from the same VoxeLibre revision:
+`mcl_core_log_birch.png`, `mcl_core_log_birch_top.png`,
+`mcl_core_leaves_birch.png`, `mcl_core_planks_birch.png`,
+`mcl_core_sapling_birch.png`, `mcl_core_log_spruce.png`,
+`mcl_core_log_spruce_top.png`, `mcl_core_leaves_spruce.png`,
+`mcl_core_planks_spruce.png` and `mcl_core_sapling_spruce.png`.
+These follow the upstream general **CC BY-SA 3.0** media terms. Runtime
+leaf tints, atlas tiles, hexagonal block views and inventory icon projections
+retain CC BY-SA 3.0. Tree layouts, generation, growth and material-family
+crafting are independent implementations; no upstream gameplay source or
+tree schematic is bundled. Selected media now totals 231 PNGs:
+210 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

@@ -1,6 +1,7 @@
 import { ITEMS } from './core.js';
 import { validStack } from './inventory.js';
 import { repairMaterial } from './smithing.js';
+import { woodKey } from './wood-data.js';
 
 const repairMaterials = new Set(
   Object.keys(ITEMS).map(repairMaterial).filter(Boolean),
@@ -8,7 +9,7 @@ const repairMaterials = new Set(
 export const smithIngredient = (stack) =>
   !!(
     stack &&
-    (ITEMS[stack.item]?.durability || repairMaterials.has(stack.item))
+    (ITEMS[stack.item]?.durability || repairMaterials.has(woodKey(stack.item)))
   );
 export const newWorkstationItems = () => ({
   enchant: [null, null],

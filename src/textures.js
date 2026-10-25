@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { paintPackTile } from './texture-pack.js';
 import { BLOCKS, hash } from './core.js';
+import { woodKey } from './wood-data.js';
 
 // Pixel Perfection tiles with procedural fallbacks and original fantasy materials.
 // Wide gutters prevent color bleeding between mipmapped tiles.
@@ -58,6 +59,7 @@ export function createTextures() {
     const base =
       palette[id]?.[top ? 0 : 1] ||
       BLOCKS[id]?.[top ? 'color' : 'side'] ||
+      BLOCKS[id]?.color ||
       '#ffffff';
     const fill = (color, x, y, w = 1, h = 1) => {
       c.fillStyle = color;
@@ -79,7 +81,7 @@ export function createTextures() {
             y,
           );
     }
-    if (['wood', 'crimsonwood'].includes(id)) {
+    if (BLOCKS[id]?.log) {
       if (top) {
         for (let i = 1; i < 8; i += 2) {
           c.strokeStyle = i % 4 === 1 ? '#68472e' : '#d2a56c';
@@ -95,7 +97,7 @@ export function createTextures() {
         }
       }
     }
-    if (['planks', 'workbench', 'chest', 'bed'].includes(id)) {
+    if (['planks', 'workbench', 'chest', 'bed'].includes(woodKey(id))) {
       for (let y = 3; y < 16; y += 4) {
         fill('#634727', 0, y, 16, 1);
         fill('#d5b37b', 0, y + 1, 16, 1);
@@ -181,7 +183,7 @@ export function createTextures() {
         fill(ore[1], x, y, 2, 1);
       }
     }
-    if (id === 'leaves')
+    if (BLOCKS[id]?.foliage)
       for (let i = 0; i < 35; i++) {
         const x = Math.floor(rand(i, 1) * 16),
           y = Math.floor(rand(i, 2) * 16);

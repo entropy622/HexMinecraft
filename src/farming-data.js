@@ -1,4 +1,6 @@
+import { WOOD_PLANTS } from './wood-data.js';
 export const PLANTS = {
+  ...WOOD_PLANTS,
   netherWart: {
     name: '下界疣',
     seed: 'netherWart',
@@ -44,6 +46,7 @@ export const PLANTS = {
     perennial: true,
   },
   sapling: {
+    species: 'oak',
     name: '橡树苗',
     seed: 'sapling',
     seconds: 180,

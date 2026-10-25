@@ -7,6 +7,7 @@ import { FIRST_END_SHIP } from './flight-data.js';
 import { FIRST_END_CITY } from './end-city-data.js';
 import { stampChorus } from './chorus.js';
 import { isChorus } from './chorus-data.js';
+import { treeCells } from './tree-layout.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -97,7 +98,11 @@ export class World {
       wet = noise(q * 0.019, r * 0.019, this.seed + 76);
     if (heat > 0.67) return '沙漠';
     if (heat < 0.3) return '雪原';
-    return wet > 0.53 ? '森林' : '青翠平原';
+    return wet > 0.53
+      ? noise(q * 0.023, r * 0.023, this.seed + 319) > 0.5
+        ? '白桦林'
+        : '森林'
+      : '青翠平原';
   }
   villages(q, r, range = 32) {
     return villagesNear(this, q, r, range);
@@ -160,8 +165,14 @@ export class World {
     return (
       h > 6 &&
       !['沙漠', '玄武岩荒地'].includes(b) &&
-      hash(q, 17, r, this.seed) > (b === '森林' ? 0.948 : 0.981)
+      hash(q, 17, r, this.seed) >
+        (['森林', '白桦林'].includes(b) ? 0.948 : b === '雪原' ? 0.97 : 0.981)
     );
+  }
+  treeKind(q, r) {
+    if (this.dimension === 'nether') return 'crimson';
+    const biome = this.biome(q, r);
+    return biome === '雪原' ? 'spruce' : biome === '白桦林' ? 'birch' : 'oak';
   }
   get(q, y, r) {
     return this.blocks.get(key(q, y, r));
@@ -391,31 +402,25 @@ export class World {
     for (let tq = cq * 8 - 2; tq < cq * 8 + 10; tq++)
       for (let tr = cr * 8 - 2; tr < cr * 8 + 10; tr++)
         if (this.tree(tq, tr)) {
-          const h = this.terrainHeight(tq, tr),
-            trunk = 4;
-          for (let dq = -2; dq <= 2; dq++)
-            for (let dr = -2; dr <= 2; dr++) {
-              const q = tq + dq,
-                r = tr + dr;
-              if (chunkKey(q, r) !== ck) continue;
-              if (!dq && !dr)
-                for (let y = h; y < h + trunk; y++)
-                  put(
-                    q,
-                    y,
-                    r,
-                    this.dimension === 'nether' ? 'crimsonwood' : 'wood',
-                  );
-              if (hexDistance(dq, dr) <= 2)
-                for (let dy = 0; dy < 2; dy++)
-                  if (!dy || hexDistance(dq, dr) <= 1)
-                    put(
-                      q,
-                      h + trunk + dy,
-                      r,
-                      this.dimension === 'nether' ? 'shroom' : 'leaves',
-                    );
-            }
+          for (const [q, y, r, type] of treeCells(
+            this.treeKind(tq, tr),
+            tq,
+            this.terrainHeight(tq, tr),
+            tr,
+            this.seed,
+          )) {
+            if (chunkKey(q, r) !== ck) continue;
+            const previous = this.get(q, y, r);
+            // Crowns may overlap each other, but never erase trunks or hillsides.
+            if (
+              !BLOCKS[type].log &&
+              previous &&
+              !BLOCKS[previous]?.foliage &&
+              previous !== 'shroom'
+            )
+              continue;
+            put(q, y, r, type);
+          }
         }
     stampChorus(this, cq, cr);
     for (const v of this.villages(cq * 8 + 4, cr * 8 + 4, 8))

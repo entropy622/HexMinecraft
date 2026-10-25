@@ -1,4 +1,5 @@
 import { ITEMS } from './core.js';
+import { ingredientMatches, ingredientName } from './wood-ingredients.js';
 import {
   ENCHANTS,
   enchantmentsOf,
@@ -54,7 +55,11 @@ export function smithingPlan(
   const invalid = (reason) => ({ valid: false, reason });
   const def = ITEMS[id];
   if (!def?.durability) return invalid('将要加工的装备放入左侧槽位。');
-  const material = repairMaterial(id);
+  const expectedMaterial = repairMaterial(id);
+  const material =
+    rightStack && ingredientMatches({}, expectedMaterial, rightStack.item)
+      ? rightStack.item
+      : expectedMaterial;
   const mode = !rightStack
     ? 'single'
     : rightStack.item === id
@@ -68,7 +73,7 @@ export function smithingPlan(
     return invalid(
       kind === 'grindstone'
         ? '砂轮右侧需要同类装备。'
-        : `右侧放同类装备${material ? '或' + ITEMS[material].name : ''}；仅命名时留空。`,
+        : `右侧放同类装备${material ? '或' + ingredientName({}, material, ITEMS[material].name) : ''}；仅命名时留空。`,
     );
   const left = leftStack.wear;
   const entry =

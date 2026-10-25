@@ -1,15 +1,17 @@
 import { SMELTING } from './exploration-data.js';
+import { WOOD_GROUPS, woodKey } from './wood-data.js';
 
 export const FUELS = {
   coal: 80,
   charcoal: 80,
-  wood: 15,
-  planks: 15,
+  ...Object.fromEntries(
+    [...WOOD_GROUPS.wood, ...WOOD_GROUPS.planks].map((id) => [id, 15]),
+  ),
   lavaBucket: 1000,
 };
 export const smeltingRecipe = (item) => {
   const entry = Object.entries(SMELTING).find(
-    ([, recipe]) => recipe.input === item,
+    ([, recipe]) => recipe.input === (woodKey(item) === 'wood' ? 'wood' : item),
   );
   return entry ? { output: entry[0], ...entry[1] } : null;
 };

@@ -1,5 +1,11 @@
 import { ITEMS, RECIPES } from './core.js';
 import { FOODS } from './survival.js';
+import { woodKey } from './wood-data.js';
+import {
+  ingredientCount,
+  ingredientMatches,
+  recipeMaterials,
+} from './wood-ingredients.js';
 import {
   PlayerInventory,
   copyStack,
@@ -21,7 +27,7 @@ export const CRAFT_CELLS = [
 const cellAt = new Map(CRAFT_CELLS.map(([q, r], i) => [q + ',' + r, i]));
 const rotate = ([q, r]) => [-r, q + r];
 const reflect = ([q, r]) => [-q, q + r];
-const signature = (cells) => cells.map((s) => s?.item || '').join('|');
+const signature = (cells) => cells.map((s) => woodKey(s?.item || '')).join('|');
 export const newCraftingGrid = () => Array(7).fill(null);
 export const validCraftingGrid = (grid) =>
   Array.isArray(grid) && grid.length === 7 && grid.every(validStack);
@@ -78,7 +84,14 @@ export function craftingMatches(grid, station = true) {
   return matches.filter((match) => {
     if ((match.recipe.station && !station) || seen.has(match.recipe.id))
       return false;
-    if (!match.cells.every((s, i) => !s || grid[i].count >= s.count))
+    if (
+      !match.cells.every(
+        (s, i) =>
+          !s ||
+          (ingredientMatches(match.recipe, s.item, grid[i]?.item) &&
+            grid[i].count >= s.count),
+      )
+    )
       return false;
     seen.add(match.recipe.id);
     return true;
@@ -100,17 +113,24 @@ export function craftingStock(pack, grid) {
   return stock;
 }
 export function availableBatches(recipe, stock) {
-  return Math.max(
+  let upper = Math.max(
     0,
     Math.min(
       ...Object.entries(recipe.cost).map(([id, n]) =>
-        Math.floor((stock[id] || 0) / n),
+        Math.floor(ingredientCount(recipe, id, stock) / n),
       ),
       ...recipeCells(recipe)
         .filter(Boolean)
         .map((s) => Math.floor(stackSize(s.item) / s.count)),
     ),
   );
+  let lower = 0;
+  while (lower < upper) {
+    const middle = Math.ceil((lower + upper) / 2);
+    if (recipeMaterials(recipe, stock, middle)) lower = middle;
+    else upper = middle - 1;
+  }
+  return lower;
 }
 
 // Stage on copies. If the old grid cannot be returned, the entire operation is
@@ -133,8 +153,8 @@ export function fillCraftingRecipe(
       )
     : availableBatches(recipe, stock);
   if (!maximum) return { ok: false, reason: 'missing' };
-  const sameLayout = cells.every(
-    (s, i) => (s?.item || null) === (grid[i]?.item || null),
+  const sameLayout = cells.every((s, i) =>
+    s ? ingredientMatches(recipe, s.item, grid[i]?.item) : !grid[i],
   );
   const existing = sameLayout
     ? Math.min(
@@ -144,28 +164,41 @@ export function fillCraftingRecipe(
       )
     : 0;
   const batches = all ? maximum : Math.min(maximum, existing + 1);
+  const materials = creative
+    ? cells.map((s, i) =>
+        s
+          ? {
+              item: ingredientMatches(recipe, s.item, grid[i]?.item)
+                ? grid[i].item
+                : s.item,
+              count: s.count * batches,
+            }
+          : null,
+      )
+    : recipeMaterials(recipe, stock, batches, grid);
+  if (!materials) return { ok: false, reason: 'missing' };
   const draft = new PlayerInventory(pack.serialize()),
     rest = structuredClone(grid);
   const filled = newCraftingGrid();
   for (let i = 0; i < cells.length; i++) {
-    const need = cells[i];
+    const need = materials[i];
     if (!need) continue;
-    let left = need.count * batches,
-      wear;
+    let left = need.count,
+      source;
     for (const list of [rest, draft.slots])
       for (let j = 0; j < list.length && left; j++) {
         const s = list[j];
         if (!s || s.item !== need.item) continue;
         const n = Math.min(left, s.count);
-        if (s.wear !== undefined) wear = structuredClone(s.wear);
+        source ||= copyStack(s);
         left -= n;
         s.count -= n;
         if (!s.count) list[j] = null;
       }
     if (left && !creative) return { ok: false, reason: 'missing' };
-    filled[i] = { item: need.item, count: need.count * batches };
-    if (ITEMS[need.item].durability)
-      filled[i].wear = wear ?? ITEMS[need.item].durability;
+    filled[i] = source ? copyStack(source, need.count) : { ...need };
+    if (ITEMS[need.item].durability && filled[i].wear === undefined)
+      filled[i].wear = ITEMS[need.item].durability;
   }
   for (const s of rest)
     if (s && draft.insertStack(s) !== s.count)

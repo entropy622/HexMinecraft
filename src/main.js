@@ -39,6 +39,8 @@ import { ItemDrops } from './item-drops.js';
 import { Weather, WeatherColumns, WEATHER } from './weather.js';
 import { PLANTS, plantForItem } from './farming-data.js';
 import { plantingIssue, growthConditions, treePlan } from './farming.js';
+import { TREES } from './wood-data.js';
+import { ingredientCount, ingredientName } from './wood-ingredients.js';
 import { facingFromDirection, facingAngle } from './building-shapes.js';
 import {
   INVENTORY_SLOTS,
@@ -126,7 +128,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.40 — FRUIT BETWEEN PLACES</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.41 — ROOTS OF THE OVERWORLD</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -1329,11 +1331,11 @@ function renderCraft() {
   $('#craft-context').textContent = station
     ? '工作台 · 七格合成'
     : '随身 · 七格合成';
-  $('#pattern').innerHTML = craftingGridHTML(craftingGrid, guide);
+  $('#pattern').innerHTML = craftingGridHTML(craftingGrid, guide, recipe);
   $('#recipe-cost').innerHTML = Object.entries(recipe.cost)
     .map(
       ([id, n]) =>
-        `<span class="${(stock[id] || 0) < n && !creative ? 'missing' : ''}">${icon(id)} ${ITEMS[id].name} ${creative ? '∞' : stock[id] || 0} / ${n}</span>`,
+        `<span class="${ingredientCount(recipe, id, stock) < n && !creative ? 'missing' : ''}">${icon(id)} ${ingredientName(recipe, id, ITEMS[id].name)} ${creative ? '∞' : ingredientCount(recipe, id, stock)} / ${n}</span>`,
     )
     .join('');
   const output = craftingResult(match);
@@ -1678,7 +1680,7 @@ function mine(dt) {
     drops.spawnStack(packed, [point.x, y + 0.5, point.z]);
   }
   if (!creative) {
-    if (!packed)
+    if (!packed && (!data.foliage || ITEMS[held]?.kind === 'shears'))
       dropAt(
         type === 'snow' && ITEMS[held]?.kind === 'shovel'
           ? 'snowball'
@@ -1709,10 +1711,10 @@ function mine(dt) {
           [axialToWorld(q, r).x, y + 0.5, axialToWorld(q, r).z],
         );
     }
-    if (type === 'leaves') {
-      if (Math.random() < 0.3) dropAt('apple', 1, q, y, r);
-      if (Math.random() < 0.45) dropAt('seed', 1, q, y, r);
-      if (Math.random() < 0.2) dropAt('sapling', 1, q, y, r);
+    if (data.foliage && ITEMS[held]?.kind !== 'shears') {
+      if (Math.random() < 0.05) dropAt(data.sapling, 1, q, y, r);
+      if (type === 'leaves' && Math.random() < 0.02)
+        dropAt('apple', 1, q, y, r);
     }
     if (type === 'grass' && Math.random() < 0.35) dropAt('seed', 1, q, y, r);
     survival.exhaust(0.02);
@@ -2735,22 +2737,10 @@ function harvestPlant(k, uproot = false, lift = 1) {
 }
 function growTree(k) {
   const [q, y, r] = k.split(',').map(Number);
-  const occupied = (a, b, c) => {
-    const p = axialToWorld(a, c);
-    if (
-      Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 1.25 &&
-      b < camera.position.y + 0.15 &&
-      b + 1 > playerFeet()
-    )
-      return true;
-    return creatures.some(
-      (m) =>
-        Math.hypot(p.x - m.mesh.position.x, p.z - m.mesh.position.z) < 1.3 &&
-        b < m.mesh.position.y + MOBS[m.kind].height &&
-        b + 1 > m.mesh.position.y,
-    );
-  };
-  const cells = treePlan(world, q, y, r, occupied);
+  const plant = crops.get(k),
+    def = PLANTS[plant?.kind];
+  if (!def?.tree || !def.soil.includes(world.get(q, y, r))) return false;
+  const cells = treePlan(world, q, y, r, growthOccupied, def.species);
   if (!cells) return false;
   crops.delete(k);
   graphics.removeCrop(k);
@@ -2841,7 +2831,9 @@ function interactPlant(k) {
       }
       if (def.tree) {
         if (!growTree(k)) {
-          toast('树苗上方需要六格高度、两格树冠空间，且不能挡住玩家或动物。');
+          toast(
+            '请清理树干与两格半径的树冠空间；云杉需要更高的净空，生长不会挤进生物。',
+          );
           return true;
         }
       } else if (plant.age < def.seconds) {
@@ -2857,7 +2849,11 @@ function interactPlant(k) {
       }
       if (!creative) inventory.boneMeal--;
       updateHUD();
-      toast(def.tree ? '树苗长成了橡树。' : def.name + '已成熟，按 E 收获。');
+      toast(
+        def.tree
+          ? '树苗长成了' + TREES[def.species].name + '。'
+          : def.name + '已成熟，按 E 收获。',
+      );
       return true;
     }
     if (plant.age >= def.seconds && !def.tree) {

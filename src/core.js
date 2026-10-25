@@ -15,6 +15,8 @@ import { END_BLOCKS, END_ITEMS, END_RECIPES } from './end-data.js';
 import { FLIGHT_BLOCKS, FLIGHT_ITEMS, FLIGHT_RECIPES } from './flight-data.js';
 import { CITY_BLOCKS, CITY_RECIPES } from './end-city-data.js';
 import { CHORUS_BLOCKS, CHORUS_ITEMS, CHORUS_RECIPES } from './chorus-data.js';
+import { WOOD_BLOCKS, WOOD_ITEMS, WOOD_RECIPES } from './wood-data.js';
+import { recipeMaterials } from './wood-ingredients.js';
 import {
   SHULKER_ITEMS,
   SHULKER_BLOCKS,
@@ -35,6 +37,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...WOOD_BLOCKS,
   ...CHORUS_BLOCKS,
   ...CITY_BLOCKS,
   ...SHULKER_BLOCKS,
@@ -56,9 +59,28 @@ export const BLOCKS = {
   dirt: { name: '泥土', color: '#a58b66', side: '#85684d', hardness: 0.35 },
   stone: { name: '岩石', color: '#a0aaa5', side: '#7a8785', hardness: 1.25 },
   sand: { name: '细沙', color: '#e6c98e', side: '#c9a975', hardness: 0.35 },
-  wood: { name: '原木', color: '#c4a074', side: '#805f46', hardness: 0.65 },
-  leaves: { name: '树叶', color: '#83ad6b', side: '#5d8b63', hardness: 0.18 },
-  planks: { name: '木板', color: '#d7b47a', side: '#b58c59', hardness: 0.45 },
+  wood: {
+    name: '橡木原木',
+    color: '#c4a074',
+    side: '#805f46',
+    hardness: 0.65,
+    log: true,
+  },
+  leaves: {
+    name: '橡树树叶',
+    color: '#83ad6b',
+    side: '#5d8b63',
+    hardness: 0.18,
+    foliage: true,
+    sapling: 'sapling',
+    leafTint: '#79a94d',
+  },
+  planks: {
+    name: '橡木木板',
+    color: '#d7b47a',
+    side: '#b58c59',
+    hardness: 0.45,
+  },
   crystal: {
     name: '萤晶',
     color: '#a5f5dc',
@@ -120,6 +142,7 @@ export const BLOCKS = {
   },
   basalt: { name: '玄武岩', color: '#625563', side: '#443e4d', hardness: 1.2 },
   crimsonwood: {
+    log: true,
     name: '绯红菌柄',
     color: '#c08386',
     side: '#813f57',
@@ -181,6 +204,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...WOOD_ITEMS,
   ...CHORUS_ITEMS,
   ...SHULKER_ITEMS,
   ...FLIGHT_ITEMS,
@@ -248,6 +272,7 @@ export const RECIPES = [
   {
     id: 'planks',
     count: 4,
+    exactWood: true,
     title: '从一棵树开始',
     desc: '轻巧温暖的建筑材料。',
     pattern: [null, null, null, 'wood', null, null, null],
@@ -373,6 +398,7 @@ export const RECIPES = [
   },
 ];
 RECIPES.push(
+  ...WOOD_RECIPES,
   {
     id: 'obsidian',
     count: 4,
@@ -628,14 +654,15 @@ RECIPES.push(
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (
     (!recipe.station || station) &&
-    Object.entries(recipe.cost).every(([id, n]) => (inventory[id] || 0) >= n) &&
+    !!recipeMaterials(recipe, inventory, 1) &&
     (!ITEMS[recipe.id]?.durability ||
       (inventory[recipe.id] || 0) + recipe.count <= 256)
   );
 }
 export function craft(recipe, inventory, tool = 0, station = true) {
   if (!canCraft(recipe, inventory, tool, station)) return false;
-  for (const [id, n] of Object.entries(recipe.cost)) inventory[id] -= n;
+  for (const s of recipeMaterials(recipe, inventory, 1))
+    if (s) inventory[s.item] -= s.count;
   for (const [id, n] of Object.entries(recipe.returns || {}))
     inventory[id] = (inventory[id] || 0) + n;
   inventory[recipe.id] = (inventory[recipe.id] || 0) + recipe.count;

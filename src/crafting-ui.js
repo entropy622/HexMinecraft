@@ -1,5 +1,6 @@
 import { ITEMS, RECIPES } from './core.js';
 import { availableBatches } from './crafting.js';
+import { ingredientMatches, ingredientName } from './wood-ingredients.js';
 import { inventorySlot, inventoryHelp, touchControls } from './inventory-ui.js';
 import { itemIcon as icon } from './icons.js';
 import { escapeHTML as escape } from './ui-text.js';
@@ -16,7 +17,7 @@ export const workshopPanel =
     <div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b></div><div id="inventory"></div>${touchControls}<details class="workshop-help"><summary>物品操作与合成说明</summary>${inventoryHelp}<p class="inventory-help">在七个蜂巢格放入真实材料；支持平移、六向旋转与镜像配方。右键逐个放置，或拖动均分。取出产物后才扣料；Shift 只合成网格中的材料。点击配方册自动填一批，Shift 点击填入尽可能多的批次。关闭界面收回材料，背包满则落在脚边。</p></details></div>
   </div></div></div></section>`;
 
-export function craftingGridHTML(grid, guide) {
+export function craftingGridHTML(grid, guide, recipe) {
   return grid
     .map((stack, i) => {
       const need = guide?.[i];
@@ -31,10 +32,15 @@ export function craftingGridHTML(grid, guide) {
         );
         button = button.replace(
           'type="button"',
-          `type="button" data-inv-hint="${escape('配方提示：' + ITEMS[need.item].name + ' ×' + need.count + '（尚未放入）')}"`,
+          `type="button" data-inv-hint="${escape('配方提示：' + ingredientName(recipe, need.item, ITEMS[need.item].name) + ' ×' + need.count + '（尚未放入）')}"`,
         );
       }
-      if (stack && need && stack.item === need.item && stack.count < need.count)
+      if (
+        stack &&
+        need &&
+        ingredientMatches(recipe, need.item, stack.item) &&
+        stack.count < need.count
+      )
         button = button.replace('craft-cell ', 'craft-cell insufficient ');
       return button;
     })
