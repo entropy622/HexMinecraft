@@ -104,6 +104,7 @@ export function itemIcon(id) {
   if (!cache.has(id)) {
     if (
       ITEMS[id]?.portable ||
+      (ITEMS[id]?.pillar && blockTextures[id]) ||
       ['slab', 'stairs', 'egg', 'rod', 'chorus', 'chorusFlower'].includes(
         ITEMS[id]?.shape,
       )

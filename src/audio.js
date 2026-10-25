@@ -120,6 +120,9 @@ export class GameAudio {
     } else if (event === 'break') {
       this.noise(0.15, 0.22, material === 'glass' ? 5500 : 1500);
       this.tone(160, 0.08, 'triangle', 0.08);
+    } else if (event === 'strip') {
+      this.noise(0.19, 0.16, 1800);
+      this.tone(145, 0.08, 'triangle', 0.055);
     } else if (event === 'place') {
       this.noise(0.05, 0.13, 600);
       this.tone(230, 0.05, 'triangle', 0.08);

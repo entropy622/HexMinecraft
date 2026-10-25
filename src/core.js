@@ -65,6 +65,8 @@ export const BLOCKS = {
     side: '#805f46',
     hardness: 0.65,
     log: true,
+    pillar: true,
+    stripped: 'strippedOakWood',
   },
   leaves: {
     name: '橡树树叶',
@@ -274,7 +276,7 @@ export const RECIPES = [
     count: 4,
     exactWood: true,
     title: '从一棵树开始',
-    desc: '轻巧温暖的建筑材料。',
+    desc: '带皮或去皮橡木原木制成四块橡木木板；不同树种保留各自木色。',
     pattern: [null, null, null, 'wood', null, null, null],
     cost: { wood: 1 },
   },

@@ -8,9 +8,10 @@ import { HEX_POLYGON } from './cut-blocks.js';
 // as the world. SVG remains crisp in slots without a second WebGL renderer.
 export function cutBlockIcon(id) {
   const def = BLOCKS[id],
-    parts = def.portable
-      ? [{ y: 0.5, h: 1, polygon: HEX_POLYGON }]
-      : buildingParts(cutItemWorld(id, 1), 0, 0, 0);
+    parts =
+      def.portable || def.pillar
+        ? [{ y: 0.5, h: 1, polygon: HEX_POLYGON }]
+        : buildingParts(cutItemWorld(id, 1), 0, 0, 0);
   const tiles = blockTextures[def.base || id],
     faces = [];
   const project = ([x, y, z]) =>

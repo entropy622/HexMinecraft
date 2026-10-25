@@ -98,7 +98,9 @@ export function validateSave(s) {
             e[1].facing > 5 ||
             typeof e[1].open !== 'boolean' ||
             (e[1].upper !== undefined && typeof e[1].upper !== 'boolean') ||
-            (e[1].double !== undefined && typeof e[1].double !== 'boolean'),
+            (e[1].double !== undefined && typeof e[1].double !== 'boolean') ||
+            (e[1].axis !== undefined &&
+              (!Number.isInteger(e[1].axis) || e[1].axis < 0 || e[1].axis > 3)),
         ))
     )
       throw Error('建筑朝向或开关状态无效');

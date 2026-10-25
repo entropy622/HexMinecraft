@@ -1,7 +1,12 @@
 export const FIRST_END_CITY = { q: 66, r: -16, h: 29 };
 export const CITY_BLOCKS = {
   endstoneBricks: { name: '末地石砖', color: '#dbd9ac', hardness: 1.5 },
-  purpurPillar: { name: '紫珀柱', color: '#bc9bbc', hardness: 1.3 },
+  purpurPillar: {
+    name: '紫珀柱',
+    color: '#bc9bbc',
+    hardness: 1.3,
+    pillar: true,
+  },
   endRod: {
     name: '末地烛',
     color: '#efdfed',

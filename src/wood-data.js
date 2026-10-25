@@ -2,6 +2,7 @@ export const TREES = {
   oak: {
     name: '橡树',
     log: 'wood',
+    stripped: 'strippedOakWood',
     leaves: 'leaves',
     planks: 'planks',
     sapling: 'sapling',
@@ -10,6 +11,7 @@ export const TREES = {
   birch: {
     name: '白桦',
     log: 'birchWood',
+    stripped: 'strippedBirchWood',
     leaves: 'birchLeaves',
     planks: 'birchPlanks',
     sapling: 'birchSapling',
@@ -18,6 +20,7 @@ export const TREES = {
   spruce: {
     name: '云杉',
     log: 'spruceWood',
+    stripped: 'strippedSpruceWood',
     leaves: 'spruceLeaves',
     planks: 'sprucePlanks',
     sapling: 'spruceSapling',
@@ -25,8 +28,13 @@ export const TREES = {
   },
   crimson: { name: '绯红树', log: 'crimsonwood', leaves: 'shroom', height: 4 },
 };
+export const LOG_VARIANTS = Object.fromEntries(
+  Object.values(TREES)
+    .filter((tree) => tree.stripped)
+    .map((tree) => [tree.log, [tree.log, tree.stripped]]),
+);
 export const WOOD_GROUPS = {
-  wood: ['wood', 'birchWood', 'spruceWood'],
+  wood: Object.values(LOG_VARIANTS).flat(),
   planks: ['planks', 'birchPlanks', 'sprucePlanks'],
 };
 export const woodKey = (id) =>
@@ -46,6 +54,8 @@ for (const [species, label, logColor, leafColor, plankColor] of [
     side: logColor,
     hardness: 0.65,
     log: true,
+    pillar: true,
+    stripped: t.stripped,
   };
   WOOD_BLOCKS[t.leaves] = {
     name: label + '树叶',
@@ -79,8 +89,25 @@ for (const [species, label, logColor, leafColor, plankColor] of [
     count: 4,
     title: label + '木作',
     exactWood: true,
-    desc: label + '原木制成四块对应木板；通用木制配方可以混用不同树种。',
+    desc:
+      '带皮或去皮' +
+      label +
+      '原木制成四块对应木板；通用木制配方可以混用不同树种。',
     pattern: [null, null, null, t.log, null, null, null],
     cost: { [t.log]: 1 },
   });
+}
+for (const [species, label, color, side] of [
+  ['oak', '橡木', '#c7a56c', '#b59056'],
+  ['birch', '白桦', '#e0cda0', '#d2bb83'],
+  ['spruce', '云杉', '#98754d', '#87623b'],
+]) {
+  WOOD_BLOCKS[TREES[species].stripped] = {
+    name: '去皮' + label + '原木',
+    color,
+    side,
+    hardness: 0.65,
+    log: true,
+    pillar: true,
+  };
 }

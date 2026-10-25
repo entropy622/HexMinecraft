@@ -1,16 +1,18 @@
-import { WOOD_GROUPS } from './wood-data.js';
+import { WOOD_GROUPS, LOG_VARIANTS } from './wood-data.js';
 
 export const ingredientChoices = (recipe, id) =>
-  !recipe.exactWood && WOOD_GROUPS[id] ? WOOD_GROUPS[id] : [id];
+  (!recipe.exactWood && WOOD_GROUPS[id]) || LOG_VARIANTS[id] || [id];
 export const ingredientMatches = (recipe, expected, actual) =>
   ingredientChoices(recipe, expected).includes(actual);
 export const ingredientCount = (recipe, id, stock) =>
   ingredientChoices(recipe, id).reduce((n, key) => n + (stock[key] || 0), 0);
 export const ingredientName = (recipe, id, name) =>
   ingredientChoices(recipe, id).length > 1
-    ? id === 'wood'
-      ? '任意原木'
-      : '任意木板'
+    ? !recipe.exactWood && WOOD_GROUPS[id]
+      ? id === 'wood'
+        ? '任意原木'
+        : '任意木板'
+      : name + '（含去皮）'
     : name;
 
 // Assign one real material to each cell, since a slot cannot hold a mixture of

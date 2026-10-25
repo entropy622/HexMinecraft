@@ -215,6 +215,7 @@ export class World {
       open: state.open,
       upper: state.upper === true,
       double: state.double === true,
+      axis: state.axis ?? 0,
     });
     this.shapeCache.clear();
   }

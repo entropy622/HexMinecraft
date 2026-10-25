@@ -3,6 +3,15 @@ import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS } from './building-data.js';
 import { WOOD_BLOCKS } from './wood-data.js';
 export const blockTextures = {
+  strippedOakWood: ['mcl_core_stripped_oak_top', 'mcl_core_stripped_oak_side'],
+  strippedBirchWood: [
+    'mcl_core_stripped_birch_top',
+    'mcl_core_stripped_birch_side',
+  ],
+  strippedSpruceWood: [
+    'mcl_core_stripped_spruce_top',
+    'mcl_core_stripped_spruce_side',
+  ],
   birchWood: ['mcl_core_log_birch_top', 'mcl_core_log_birch'],
   birchLeaves: ['mcl_core_leaves_birch'],
   birchPlanks: ['mcl_core_planks_birch'],

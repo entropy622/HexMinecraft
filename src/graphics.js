@@ -5,6 +5,7 @@ import {
   leafMaterials,
 } from './foliage-shader.js';
 import { LeafParticles } from './leaf-particles.js';
+import { pillarFace } from './pillar-faces.js';
 import { BrewingModels } from './brewing-graphics.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
@@ -802,6 +803,27 @@ export class Graphics {
           const abs = axialToWorld(q, r),
             x = abs.x - origin.x,
             z = abs.z - origin.z;
+          const axis = BLOCKS[type].pillar ? world.state(q, y, r).axis || 0 : 0;
+          const blockFace = (vertices, uv, side, shade = 1, ao = [1, 1, 1]) => {
+            let tile = type + (side < 0 ? ':top' : ':side');
+            if (axis) {
+              const mapped = pillarFace(
+                axis,
+                side,
+                vertices.map(([a, b, c]) => [a - x, b - y, c - z]),
+              );
+              tile = type + ':' + mapped.face;
+              uv = mapped.uv;
+            } else if (type === 'furnace' && side >= 0) {
+              tile =
+                side === world.state(q, y, r).facing
+                  ? world.furnaces.get(q + ',' + y + ',' + r)?.burn > 0
+                    ? 'furnaceLit:side'
+                    : 'furnace:side'
+                  : 'furnaceCasing:side';
+            }
+            tri(vertices, uv, tile, shade, ao);
+          };
           const visible = (q, y, r) =>
             !opaque(q, y, r) &&
             (type !== 'glass' || world.get(q, y, r) !== 'glass');
@@ -825,14 +847,14 @@ export class Graphics {
               const j = (i + 1) % 6,
                 a = corners[i],
                 b = corners[j];
-              tri(
+              blockFace(
                 [
                   [x, y + 1, z],
                   [x + b[0], y + 1, z + b[1]],
                   [x + a[0], y + 1, z + a[1]],
                 ],
                 [[0.5, 0.5], capUV(j), capUV(i)],
-                type + ':top',
+                -1,
                 tint,
                 [1, cornerAO(j, y + 1), cornerAO(i, y + 1)],
               );
@@ -842,14 +864,14 @@ export class Graphics {
               const j = (i + 1) % 6,
                 a = corners[i],
                 b = corners[j];
-              tri(
+              blockFace(
                 [
                   [x, y, z],
                   [x + a[0], y, z + a[1]],
                   [x + b[0], y, z + b[1]],
                 ],
                 [[0.5, 0.5], capUV(i), capUV(j)],
-                type + ':top',
+                -2,
                 tint * 0.65,
               );
             }
@@ -865,37 +887,25 @@ export class Graphics {
               v3 = [x + a[0], y + 1, z + a[1]];
             const bottom = opaque(q + dq, y - 1, r + dr) ? 0.78 : 1;
             const shade = tint * (0.82 + Math.cos((i * Math.PI) / 3) * 0.07);
-            tri(
+            blockFace(
               [v0, v2, v1],
               [
                 [0, 0],
                 [1, 1],
                 [1, 0],
               ],
-              type === 'furnace'
-                ? i === world.state(q, y, r).facing
-                  ? world.furnaces.get(q + ',' + y + ',' + r)?.burn > 0
-                    ? 'furnaceLit:side'
-                    : 'furnace:side'
-                  : 'furnaceCasing:side'
-                : type + ':side',
+              i,
               shade,
               [bottom, cornerAO(j, y + 1), bottom],
             );
-            tri(
+            blockFace(
               [v0, v3, v2],
               [
                 [0, 0],
                 [0, 1],
                 [1, 1],
               ],
-              type === 'furnace'
-                ? i === world.state(q, y, r).facing
-                  ? world.furnaces.get(q + ',' + y + ',' + r)?.burn > 0
-                    ? 'furnaceLit:side'
-                    : 'furnace:side'
-                  : 'furnaceCasing:side'
-                : type + ':side',
+              i,
               shade,
               [bottom, cornerAO(i, y + 1), cornerAO(j, y + 1)],
             );

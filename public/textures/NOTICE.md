@@ -224,6 +224,17 @@ remain 231 PNGs, 210 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
 The leaf support graph, decay rules, wind displacement, simple forward
 scattering and fixed particle pool are independent implementations.
 
+Version 0.43 adds six unmodified PNGs from the same VoxeLibre revision:
+`mcl_core_stripped_oak_top.png`, `mcl_core_stripped_oak_side.png`,
+`mcl_core_stripped_birch_top.png`, `mcl_core_stripped_birch_side.png`,
+`mcl_core_stripped_spruce_top.png` and `mcl_core_stripped_spruce_side.png`.
+These follow the upstream general **CC BY-SA 3.0** media terms; derived
+atlas tiles, directional UV views and projected inventory icons retain
+CC BY-SA 3.0. Six-face material-axis projection, stripping interactions
+and synthesized sounds are independent implementations. No upstream
+gameplay source, model or sound recording is bundled. Selected media now
+totals 237 PNGs: 216 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

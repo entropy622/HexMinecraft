@@ -40,6 +40,7 @@ import { Weather, WeatherColumns, WEATHER } from './weather.js';
 import { PLANTS, plantForItem } from './farming-data.js';
 import { plantingIssue, growthConditions, treePlan } from './farming.js';
 import { TREES } from './wood-data.js';
+import { pillarAxis, pillarAxisLabel } from './pillar-faces.js';
 import { leafDrops } from './leaves.js';
 import { ingredientCount, ingredientName } from './wood-ingredients.js';
 import { facingFromDirection, facingAngle } from './building-shapes.js';
@@ -129,7 +130,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.42 — LIVING CANOPIES</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.43 — GRAIN AND BEAMS</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -2316,6 +2317,40 @@ function resolveThrow(impact) {
     }
   }
 }
+function stripLog() {
+  const held = heldItem(),
+    next = BLOCKS[target?.type]?.stripped;
+  if (
+    !next ||
+    ITEMS[held]?.kind !== 'axe' ||
+    target?.fluid ||
+    target?.crop ||
+    creatureTarget ||
+    villagerTarget ||
+    boatTarget
+  )
+    return false;
+  const { q, y, r } = target,
+    previous = world.state(q, y, r);
+  world.set(q, y, r, next);
+  world.setState(q, y, r, { ...previous, axis: previous.axis ?? 0 });
+  wearItem(held);
+  graphics.updateBlock(q, y, r);
+  graphics.burst(q, y, r, BLOCKS[next].color);
+  graphics.swing();
+  soundFX.play('strip');
+  mining = 0;
+  miningKey = '';
+  updateHUD();
+  saveGame();
+  toast(
+    '已去皮 · ' +
+      BLOCKS[next].name +
+      ' · 保留' +
+      pillarAxisLabel(previous.axis),
+  );
+  return true;
+}
 function place() {
   if (!playing) return;
   if (combat.raised) return;
@@ -2352,6 +2387,7 @@ function place() {
   }
   if (useFishingRod() || useBoatItem()) return;
   if (interactCreature() || drinkMilk() || useGoldenApple()) return;
+  if (stripLog()) return;
   if (useRocket()) return;
   if (useThrowable()) return;
   if (useGlassBottle()) return;
@@ -2411,6 +2447,12 @@ function place() {
   }
   world.set(q, y, r, id);
   if (BLOCKS[id].foliage) world.keepLeaf(q, y, r);
+  if (BLOCKS[id].pillar)
+    world.setState(q, y, r, {
+      facing: 0,
+      open: false,
+      axis: pillarAxis(target.normal),
+    });
   if (
     id === 'furnace' ||
     isStorage(id) ||
@@ -2963,7 +3005,7 @@ function interact(preferContext = false) {
     renderTrade();
     return;
   }
-  if (!contextual && (useGlassBottle() || useBucket())) return;
+  if (!contextual && (stripLog() || useGlassBottle() || useBucket())) return;
   if (!target) return;
   const { q, y, r, type } = target,
     k = key(q, y, r);
@@ -5089,6 +5131,11 @@ function frame(now) {
     if (BLOCKS[target?.type]?.foliage)
       $('#target').textContent +=
         ' · ' + world.leafDecay.label(key(target.q, target.y, target.r));
+    if (BLOCKS[target?.type]?.pillar)
+      $('#target').textContent +=
+        ' · ' +
+        pillarAxisLabel(world.state(target.q, target.y, target.r).axis) +
+        (BLOCKS[target.type].stripped ? ' · 斧头右键/E 去皮' : '');
     if (target?.crop && crops.has(target.crop)) {
       const plant = crops.get(target.crop),
         def = PLANTS[plant.kind];
