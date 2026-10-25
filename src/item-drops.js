@@ -157,6 +157,8 @@ export class ItemDrops {
           (face) =>
             new THREE.MeshLambertMaterial({
               map: this.textures.single(id + ':' + face),
+              alphaTest: BLOCKS[id]?.foliage ? 0.5 : 0,
+              side: BLOCKS[id]?.foliage ? THREE.DoubleSide : THREE.FrontSide,
             }),
         );
       } else if (image) {

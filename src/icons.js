@@ -123,7 +123,7 @@ export function itemIcon(id) {
     if (ITEMS[id]?.foliage) {
       cache.set(
         id,
-        `<span class="block-icon pixel-icon block-tile" title="${ITEMS[id].name}"><span style="display:inline-flex;width:85%;height:85%;clip-path:var(--hex);background:${ITEMS[id].leafTint};isolation:isolate"><img src="${textureURL(blockTextures[id][0])}" alt="" draggable="false" style="width:100%;height:100%;mix-blend-mode:multiply"></span></span>`,
+        `<span class="block-icon pixel-icon block-tile" title="${ITEMS[id].name}"><span style="display:inline-flex;width:85%;height:85%;clip-path:var(--hex);background:${ITEMS[id].leafTint};isolation:isolate;mask-image:url('${textureURL(blockTextures[id][0])}');mask-size:100% 100%"><img src="${textureURL(blockTextures[id][0])}" alt="" draggable="false" style="width:100%;height:100%;mix-blend-mode:multiply"></span></span>`,
       );
       return cache.get(id);
     }

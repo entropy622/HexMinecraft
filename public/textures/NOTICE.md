@@ -216,6 +216,17 @@ crafting are independent implementations; no upstream gameplay source or
 tree schematic is bundled. Selected media now totals 231 PNGs:
 210 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
 
+Version 0.42 reuses the existing oak, birch and spruce leaves. Runtime tinting
+now preserves the original alpha cutouts in the atlas, held/dropped blocks,
+shadows and masked inventory icons. Those derived texture views and cosmetic
+leaf flecks retain **CC BY-SA 3.0**. No new source media is bundled; totals
+remain 231 PNGs, 210 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+The leaf support graph, decay rules, wind displacement, simple forward
+scattering and fixed particle pool are independent implementations.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.
+Its `shaders/include/vertex/displacement.glsl` was also consulted for the
+concepts of anchored plants, world-space wind and weather-dependent gusts;
+no Photon source was copied or distributed.

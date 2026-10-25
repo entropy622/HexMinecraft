@@ -323,6 +323,10 @@ export function paintPackTile(ctx, id, top) {
     ctx.globalCompositeOperation = 'multiply';
     ctx.fillStyle = leafTint || '#91b95d';
     ctx.fillRect(0, 0, 16, 16);
+    if (leafTint) {
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(image, 0, 0, 16, 16);
+    }
     ctx.globalCompositeOperation = 'source-over';
   }
   if (id === 'grass' && !top) {

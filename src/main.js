@@ -40,6 +40,7 @@ import { Weather, WeatherColumns, WEATHER } from './weather.js';
 import { PLANTS, plantForItem } from './farming-data.js';
 import { plantingIssue, growthConditions, treePlan } from './farming.js';
 import { TREES } from './wood-data.js';
+import { leafDrops } from './leaves.js';
 import { ingredientCount, ingredientName } from './wood-ingredients.js';
 import { facingFromDirection, facingAngle } from './building-shapes.js';
 import {
@@ -128,7 +129,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.41 — ROOTS OF THE OVERWORLD</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.42 — LIVING CANOPIES</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -841,6 +842,8 @@ function startGame(mode = false, save = null) {
   world = new World(seed, dimension, {
     edits: data.edits,
     blockStates: data.blockStates,
+    persistentLeaves: data.persistentLeaves,
+    leafDecay: data.leafDecay,
     furnaces: data.furnaces,
     brewing: data.brewing,
     chorus: data.chorus,
@@ -1078,6 +1081,8 @@ function travel(to) {
   world = new World(seed, to, {
     edits: data.edits,
     blockStates: data.blockStates,
+    persistentLeaves: data.persistentLeaves,
+    leafDecay: data.leafDecay,
     furnaces: data.furnaces,
     brewing: data.brewing,
     chorus: data.chorus,
@@ -1155,7 +1160,7 @@ function saveData() {
   const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 10,
+    version: 11,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -1680,7 +1685,7 @@ function mine(dt) {
     drops.spawnStack(packed, [point.x, y + 0.5, point.z]);
   }
   if (!creative) {
-    if (!packed && (!data.foliage || ITEMS[held]?.kind === 'shears'))
+    if (!packed && !data.foliage)
       dropAt(
         type === 'snow' && ITEMS[held]?.kind === 'shovel'
           ? 'snowball'
@@ -1711,11 +1716,9 @@ function mine(dt) {
           [axialToWorld(q, r).x, y + 0.5, axialToWorld(q, r).z],
         );
     }
-    if (data.foliage && ITEMS[held]?.kind !== 'shears') {
-      if (Math.random() < 0.05) dropAt(data.sapling, 1, q, y, r);
-      if (type === 'leaves' && Math.random() < 0.02)
-        dropAt('apple', 1, q, y, r);
-    }
+    if (data.foliage)
+      for (const stack of leafDrops(type, ITEMS[held]?.kind === 'shears'))
+        dropAt(stack.item, stack.count, q, y, r);
     if (type === 'grass' && Math.random() < 0.35) dropAt('seed', 1, q, y, r);
     survival.exhaust(0.02);
   }
@@ -2407,6 +2410,7 @@ function place() {
     return;
   }
   world.set(q, y, r, id);
+  if (BLOCKS[id].foliage) world.keepLeaf(q, y, r);
   if (
     id === 'furnace' ||
     isStorage(id) ||
@@ -2764,6 +2768,21 @@ function growTree(k) {
   return true;
 }
 function updatePlants(dt) {
+  const leaves = world.leafDecay.update(dt);
+  if (leaves.length) {
+    const chunks = new Set();
+    for (const { q, y, r, type } of leaves) {
+      graphics.leafParticles.spawn(q, y, r, type, camera.position);
+      for (const [dq, dr] of [[0, 0], ...DIRECTIONS])
+        chunks.add(graphics.chunkKey(q + dq, r + dr));
+      if (!creative)
+        for (const stack of leafDrops(type))
+          dropAt(stack.item, stack.count, q, y, r);
+    }
+    for (const ck of chunks)
+      if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
+    weatherColumns.update(1, world);
+  }
   applyChorusChanges(growChorus(world, dt, growthOccupied), !creative);
   for (const [k, plant] of crops) {
     const [q, y, r] = k.split(',').map(Number);
@@ -3957,8 +3976,12 @@ function explode(center, settings = {}) {
         world.set(q, y, r, null);
         if (packed && (!creative || packed.contents.some(Boolean)))
           drops.spawnStack(packed, [p.x, y + 0.5, p.z]);
-        else if (!packed && !creative && Math.random() < 0.6)
-          dropAt(BLOCKS[type].drop || type, 1, q, y, r);
+        else if (!packed && !creative && Math.random() < 0.6) {
+          if (BLOCKS[type].foliage)
+            for (const stack of leafDrops(type))
+              dropAt(stack.item, stack.count, q, y, r);
+          else dropAt(BLOCKS[type].drop || type, 1, q, y, r);
+        }
         spillChest(k);
         spillFurnace(k);
         spillBrewing(k);
@@ -5063,6 +5086,9 @@ function frame(now) {
           ? ' · E 交互'
           : '')
       : '';
+    if (BLOCKS[target?.type]?.foliage)
+      $('#target').textContent +=
+        ' · ' + world.leafDecay.label(key(target.q, target.y, target.r));
     if (target?.crop && crops.has(target.crop)) {
       const plant = crops.get(target.crop),
         def = PLANTS[plant.kind];

@@ -1,5 +1,5 @@
 import { PLANTS } from './farming-data.js';
-import { BLOCKS, axialToWorld, hexDistance } from './core.js';
+import { BLOCKS, axialToWorld, hexDistance, key } from './core.js';
 import { treeCells } from './tree-layout.js';
 
 export function nearWater(world, q, y, r, radius = 3) {
@@ -90,6 +90,7 @@ export function treePlan(world, q, y, r, occupied, species = 'oak') {
         b < 0 ||
         b >= world.maxY ||
         !world.loaded(a, c) ||
+        world.persistentLeaves.has(key(a, b, c)) ||
         (world.get(a, b, c) &&
           !(BLOCKS[type].foliage && BLOCKS[world.get(a, b, c)]?.foliage)) ||
         world.fluids.get(a, b, c) ||

@@ -16,7 +16,7 @@ import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v10';
+export const SAVE_KEY = 'hexwild-save-v11';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -39,7 +39,7 @@ const position = (p) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 10 ||
+    s.version !== 11 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -206,6 +206,30 @@ export function validateSave(s) {
     )
       throw Error('农田数据无效');
     const editedTypes = new Map(d.edits);
+    if (
+      !Array.isArray(d.persistentLeaves) ||
+      d.persistentLeaves.length > 2e6 ||
+      d.persistentLeaves.some(
+        (k) => !cell(k) || !BLOCKS[editedTypes.get(k)]?.foliage,
+      ) ||
+      new Set(d.persistentLeaves).size !== d.persistentLeaves.length
+    )
+      throw Error('建筑树叶数据无效');
+    if (
+      !Array.isArray(d.leafDecay) ||
+      d.leafDecay.length > 2e6 ||
+      d.leafDecay.some(
+        (entry) =>
+          !Array.isArray(entry) ||
+          entry.length !== 2 ||
+          !cell(entry[0]) ||
+          !Number.isFinite(entry[1]) ||
+          entry[1] <= 0 ||
+          entry[1] > 20,
+      ) ||
+      new Set(d.leafDecay.map((entry) => entry[0])).size !== d.leafDecay.length
+    )
+      throw Error('树叶消散数据无效');
     if (
       d.chorus !== undefined &&
       (!Array.isArray(d.chorus) ||

@@ -1,4 +1,10 @@
 import { applySkylight, visionUniforms } from './skylight.js';
+import {
+  foliageUniforms,
+  applyFoliageWind,
+  leafMaterials,
+} from './foliage-shader.js';
+import { LeafParticles } from './leaf-particles.js';
 import { BrewingModels } from './brewing-graphics.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
@@ -88,6 +94,7 @@ export class Graphics {
     this.sun.shadow.bias = -0.0002;
     this.scene.add(this.sun, this.sun.target);
     this.textures = createTextures();
+    this.leafParticles = new LeafParticles(this.scene, this.textures);
     this.chestModels = new ChestModels(this.textures);
     this.enchantingModels = new EnchantingModels(this.textures);
     this.smithingModels = new SmithingModels(this.textures);
@@ -102,6 +109,12 @@ export class Graphics {
       map: this.textures.atlas,
     });
     this.weatherUniforms = applySkylight(this.material);
+    this.leafUniforms = foliageUniforms();
+    this.leafMaterials = leafMaterials(
+      this.textures.atlas,
+      this.weatherUniforms,
+      this.leafUniforms,
+    );
     this.weatherEffects = new WeatherEffects(this.scene);
     this.foliageMaterial = new THREE.MeshLambertMaterial({
       map: this.textures.atlas,
@@ -118,6 +131,7 @@ export class Graphics {
       side: THREE.DoubleSide,
     });
     applySkylight(this.foliageMaterial, this.weatherUniforms);
+    applyFoliageWind(this.foliageMaterial, this.leafUniforms, true);
     applySkylight(this.glassMaterial, this.weatherUniforms);
     this.ray = new THREE.Raycaster();
     this.ray.far = 7;
@@ -336,6 +350,7 @@ export class Graphics {
     return `${Math.floor(q / 8)},${Math.floor(r / 8)}`;
   }
   build(world, q = 0, r = 0) {
+    this.leafParticles.clear();
     this.stepOffset = 0;
     this.shapeOutline.visible = false;
     this.world = world;
@@ -590,6 +605,8 @@ export class Graphics {
       (face) =>
         new THREE.MeshLambertMaterial({
           map: this.textures.single((BLOCKS[id] ? id : 'dirt') + ':' + face),
+          alphaTest: BLOCKS[id]?.foliage ? 0.5 : 0,
+          side: BLOCKS[id]?.foliage ? THREE.DoubleSide : THREE.FrontSide,
         }),
     );
     const block = new THREE.Mesh(
@@ -648,6 +665,7 @@ export class Graphics {
       world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
     const solid = { p: [], c: [], uv: [], sky: [], rain: [] },
+      leaves = { p: [], c: [], uv: [], sky: [], rain: [] },
       glass = { p: [], c: [], uv: [], sky: [], rain: [] },
       plants = { p: [], c: [], uv: [], sky: [], rain: [] },
       torches = { p: [], c: [], uv: [], sky: [], rain: [] };
@@ -688,6 +706,7 @@ export class Graphics {
         !isSmithingStation(t) &&
         t !== 'brewingStand' &&
         !BLOCKS[t]?.nonSolid &&
+        !BLOCKS[t]?.foliage &&
         !BLOCKS[t]?.shape
       );
     };
@@ -775,7 +794,11 @@ export class Graphics {
             continue;
           }
           if (BLOCKS[type].nonSolid) continue;
-          out = type === 'glass' ? glass : solid;
+          out = BLOCKS[type].foliage
+            ? leaves
+            : type === 'glass'
+              ? glass
+              : solid;
           const abs = axialToWorld(q, r),
             x = abs.x - origin.x,
             z = abs.z - origin.z;
@@ -983,6 +1006,15 @@ export class Graphics {
       mesh.add(new THREE.Mesh(geometry(torches), this.torchMaterial));
     if (glass.p.length)
       mesh.add(new THREE.Mesh(geometry(glass), this.glassMaterial));
+    if (leaves.p.length) {
+      const canopy = new THREE.Mesh(
+        geometry(leaves),
+        this.leafMaterials.material,
+      );
+      canopy.customDepthMaterial = this.leafMaterials.depth;
+      canopy.castShadow = canopy.receiveShadow = true;
+      mesh.add(canopy);
+    }
     if (plants.p.length) {
       const foliage = new THREE.Mesh(geometry(plants), this.foliageMaterial);
       foliage.raycast = () => {};
@@ -1414,6 +1446,21 @@ export class Graphics {
     }
     this.sun.target.position.copy(this.camera.position);
     this.sun.intensity *= 1 - rain * 0.78;
+    this.leafUniforms.leafTime.value = time;
+    this.leafUniforms.leafViewer.value.copy(this.camera.position);
+    this.leafUniforms.leafWind.value = overworld
+      ? 0.018 + rain * 0.012 + storm * 0.014
+      : 0;
+    this.leafUniforms.leafSunDirection.value
+      .copy(this.sun.position)
+      .sub(this.sun.target.position)
+      .normalize();
+    this.leafUniforms.leafSunColor.value
+      .copy(this.sun.color)
+      .multiplyScalar(
+        overworld && elevation > 0 ? this.sun.intensity * 0.2 : 0,
+      );
+    this.leafParticles.frame(dt, time, this.leafUniforms.leafWind.value);
     this.hemi.intensity = this.hemi.intensity * (1 - rain * 0.2) + flash * 0.85;
     this.cloudMaterial.color
       .set('#ffffff')

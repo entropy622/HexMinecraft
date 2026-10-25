@@ -8,6 +8,7 @@ import { FIRST_END_CITY } from './end-city-data.js';
 import { stampChorus } from './chorus.js';
 import { isChorus } from './chorus-data.js';
 import { treeCells } from './tree-layout.js';
+import { LeafDecay } from './leaves.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -60,6 +61,10 @@ export class World {
     this.dimension = dimension;
     this.blocks = new Map();
     this.lightRevision = 0;
+    this.leafRevision = 0;
+    this.treeLeaves = new Set();
+    this.treeLogs = new Set();
+    this.persistentLeaves = new Set();
     this.heights = new Map();
     this.chunks = new Map();
     this.edits = new Map();
@@ -81,6 +86,8 @@ export class World {
     this.beacons = [];
     this.fluids = new Fluids(this, options.fluids);
     if (options.edits) this.applyEdits(options.edits);
+    this.persistentLeaves = new Set(options.persistentLeaves || []);
+    this.leafDecay = new LeafDecay(this, options.leafDecay);
     this.blockStates = new Map(options.blockStates || []);
     this.furnaces = new Map(options.furnaces || []);
     this.brewing = new Map(options.brewing || []);
@@ -280,9 +287,21 @@ export class World {
     const k = key(q, y, r);
     const previous = this.get(q, y, r);
     if (previous !== type) this.lightRevision++;
+    if (
+      previous !== type &&
+      (BLOCKS[previous]?.foliage ||
+        BLOCKS[previous]?.log ||
+        BLOCKS[type]?.foliage ||
+        BLOCKS[type]?.log)
+    ) {
+      this.leafRevision++;
+      if (record) this.persistentLeaves.delete(k);
+    }
+    if (record && !BLOCKS[type]?.foliage) this.leafDecay?.pending.delete(k);
     this.shapeCache.clear();
     if (record && previous !== type) this.blockStates.delete(k);
     if (this.loaded(q, r)) {
+      this.indexTreeCell(k, type);
       if (BLOCKS[type]?.shape) this.buildings.add(k);
       else this.buildings.delete(k);
       if (type === 'spawner') this.spawners.add(k);
@@ -308,10 +327,22 @@ export class World {
       this.editChunks.get(ck).set(k, type || null);
     }
   }
+  indexTreeCell(k, type) {
+    this.treeLeaves.delete(k);
+    this.treeLogs.delete(k);
+    if (BLOCKS[type]?.foliage) this.treeLeaves.add(k);
+    if (BLOCKS[type]?.log) this.treeLogs.add(k);
+  }
+  keepLeaf(q, y, r) {
+    if (!BLOCKS[this.get(q, y, r)]?.foliage) return;
+    this.persistentLeaves.add(key(q, y, r));
+    this.leafRevision++;
+  }
   generateChunk(cq, cr) {
     const ck = `${cq},${cr}`;
     if (this.chunks.has(ck)) return;
     this.lightRevision++;
+    this.leafRevision++;
     this.chunks.set(ck, true);
     const put = (q, y, r, t) => {
       if (y >= 0 && y < WORLD_HEIGHT) this.blocks.set(key(q, y, r), t);
@@ -437,6 +468,12 @@ export class World {
       if (t) this.blocks.set(k, t);
       else this.blocks.delete(k);
     }
+    for (let q = cq * 8; q < cq * 8 + 8; q++)
+      for (let r = cr * 8; r < cr * 8 + 8; r++)
+        for (let y = 0; y < WORLD_HEIGHT; y++) {
+          const k = key(q, y, r);
+          this.indexTreeCell(k, this.blocks.get(k));
+        }
     this.fluids.load(cq, cr);
     this.shapeCache.clear();
   }
@@ -458,6 +495,7 @@ export class World {
   }
   unloadChunk(cq, cr) {
     this.lightRevision++;
+    this.leafRevision++;
     this.fluids.unload(cq, cr);
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -465,6 +503,8 @@ export class World {
         for (let y = 0; y < 64; y++) {
           const k = key(q, y, r);
           this.blocks.delete(k);
+          this.treeLeaves.delete(k);
+          this.treeLogs.delete(k);
           this.spawners.delete(k);
           this.buildings.delete(k);
           this.naturalStates.delete(k);
@@ -476,6 +516,9 @@ export class World {
   }
   clearLoaded() {
     this.lightRevision++;
+    this.leafRevision++;
+    this.treeLeaves.clear();
+    this.treeLogs.clear();
     this.fluids.clear();
     this.blocks.clear();
     this.spawners.clear();
@@ -506,6 +549,8 @@ export class World {
     return {
       edits: [...this.edits],
       blockStates: [...this.blockStates],
+      persistentLeaves: [...this.persistentLeaves],
+      leafDecay: [...this.leafDecay.pending],
       furnaces: [...this.furnaces],
       brewing: [...this.brewing],
       chorus: [...this.chorus],
