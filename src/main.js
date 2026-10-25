@@ -33,6 +33,7 @@ import { INVENTORY_SLOTS, usedSlots, roomFor, stackSize } from './inventory.js';
 import { MOBS } from './mob-data.js';
 import { Graphics } from './graphics.js';
 import { HELD_LIGHTS } from './voxel-light.js';
+import { Survival, FOODS } from './survival.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
 import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack } from './texture-pack.js';
@@ -57,18 +58,18 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.19 — A PLACE FOR EVERYTHING</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.20 — RHYTHM OF THE WILD</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
   <div id="crosshair"></div><div id="mine-progress"><i></i></div><div id="target" class="hidden"></div>
-  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div class="vitals"><span class="health" id="health"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
+  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div id="survival-status"><div id="air-bar" class="hidden" role="progressbar" aria-label="氧气" aria-valuemin="0" aria-valuemax="15"></div><div id="effect-list"></div></div><div id="use-food" class="hidden"><span id="use-food-name"></span><progress id="use-progress" max="1" value="0" aria-label="食用进度"></progress></div><div class="vitals"><span class="health" id="health"></span><span id="absorption-hud" aria-label="额外吸收生命"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
-  <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="吃东西">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
+  <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="按住食用">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
- <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
- <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b> <span class="tiny">/ 点击选择；点击护甲穿戴；Shift 点击丢出一组</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><div class="pack-actions"><button id="drop-held">丢出手持物 ×1</button><button id="drop-mode" aria-pressed="false">点击丢弃：关</button></div><p class="panel-note">Q 丢出 1 件 / Ctrl+Q 丢出一组 · 靠近地面物品自动拾取 · 工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · 鱼竿：右键/E 抛线与收杆，左键收起 · F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>随身照明</kbd>手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="fire-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
+ <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b> <span class="tiny">/ 点击选择；点击护甲穿戴；Shift 点击丢出一组</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><div class="pack-actions"><button id="drop-held">丢出手持物 ×1</button><button id="drop-mode" aria-pressed="false">点击丢弃：关</button></div><p class="panel-note">Q 丢出 1 件 / Ctrl+Q 丢出一组 · 靠近地面物品自动拾取 · 工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · 鱼竿：右键/E 抛线与收杆，左键收起 · 按住 F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>按住食用 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>随身照明</kbd>手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -149,6 +150,10 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
 });
 let equipment = new Equipment(),
   bowCharge = 0;
+let survival = new Survival(),
+  foodUse = null,
+  survivalSubmerged = false;
+const foodInputs = new Set();
 const chestState = { amount: 'stack', page: 0, query: '' };
 let world = new World(624),
   inventory = {},
@@ -287,6 +292,8 @@ function startGame(mode = false, save = null) {
   });
   inventory = save ? { ...save.inventory } : { dirt: 12, apple: 3, seed: 3 };
   equipment = new Equipment(save?.equipment);
+  survival = new Survival(save?.survival);
+  stopEating(true);
   weather = new Weather(save?.weather);
   weatherGrowthTimer = 0;
   graphics.weatherEffects.flash = 0;
@@ -415,6 +422,7 @@ function syncDecor() {
 }
 function travel(to) {
   if (!hasGame || !DIMENSIONS[to] || to === dimension) return false;
+  stopEating(true);
   boats.riding = null;
   boatTarget = null;
   fishing.clear();
@@ -504,6 +512,7 @@ function saveData() {
     seed: world.seed,
     inventory: savedInventory,
     equipment: equipment.serialize(),
+    survival: survival.serialize(),
     weather: weather.serialize(),
     creative,
     hotbar,
@@ -552,6 +561,7 @@ function lock() {
   }
 }
 function openOverlay(id) {
+  stopEating(true);
   closeChestLid();
   soundFX.weather(0, false, false, false);
   leftDown = false;
@@ -670,7 +680,7 @@ function renderCraft() {
     )
     .map(
       ([id, item, index]) =>
-        `<button class="inv-item ${hotbar[selected] === id ? 'selected' : ''}" data-item="${id}" data-index="${index}" title="${item.name} · 点击选择；Shift 点击丢出一组${item.durability ? ' · 耐久 ' + (equipment.wear[id]?.[index] ?? item.durability) + '/' + item.durability : ''}">${icon(id)}<span>${item.name}</span><b>${creative ? '∞' : Math.min(stackSize(id), inventory[id] - index * stackSize(id))}</b>${item.durability && !creative ? '<i class="durability"><i style="width:' + ((equipment.wear[id]?.[index] ?? item.durability) / item.durability) * 100 + '%;background:#82bd58"></i></i>' : ''}${index === 0 && item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}</button>`,
+        `<button class="inv-item ${hotbar[selected] === id ? 'selected' : ''}" data-item="${id}" data-index="${index}" title="${item.name}${FOODS[id] ? ' · 饱食 +' + FOODS[id].food + ' · 饱和 +' + FOODS[id].saturation : ''} · 点击选择；Shift 点击丢出一组${item.durability ? ' · 耐久 ' + (equipment.wear[id]?.[index] ?? item.durability) + '/' + item.durability : ''}">${icon(id)}<span>${item.name}</span><b>${creative ? '∞' : Math.min(stackSize(id), inventory[id] - index * stackSize(id))}</b>${item.durability && !creative ? '<i class="durability"><i style="width:' + ((equipment.wear[id]?.[index] ?? item.durability) / item.durability) * 100 + '%;background:#82bd58"></i></i>' : ''}${index === 0 && item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}</button>`,
     )
     .join('');
   if (!creative)
@@ -774,7 +784,7 @@ function updateHUD() {
   $('#world-info').textContent =
     `第 ${Math.floor(time / 600) + 1} 天 / ${phase < 270 ? '日光' : phase < 330 ? '黄昏' : phase < 570 ? '星夜' : '黎明'} · ${creative ? '创造' : '生存'}`;
   $('#location').innerHTML =
-    `${DIMENSIONS[dimension].name} · 种子 ${world.seed}<br>Q ${a.q} / R ${a.r} / Y ${Math.floor(playerFeet())}<br>${creative ? '空格 ↑ · Shift ↓' : 'F 食用 · Shift 冲刺'}`;
+    `${DIMENSIONS[dimension].name} · 种子 ${world.seed}<br>Q ${a.q} / R ${a.r} / Y ${Math.floor(playerFeet())}<br>${creative ? '空格 ↑ · Shift ↓' : '按住 F 食用 · Shift 冲刺'}`;
   $('#dimension-name').textContent = DIMENSIONS[dimension].name;
   $('#weather-hud').textContent =
     dimension === 'overworld' ? weather.label(world.biome(a.q, a.r)) : '';
@@ -798,7 +808,7 @@ function updateHUD() {
     '--dimension',
     DIMENSIONS[dimension].color,
   );
-  graphics.setHeld(heldItem());
+  graphics.setHeld(foodUse?.item || heldItem());
 }
 function pickupNotice(id, n) {
   const popup = document.createElement('div');
@@ -964,7 +974,7 @@ function mine(dt) {
       if (Math.random() < 0.2) dropAt('sapling', 1, q, y, r);
     }
     if (type === 'grass' && Math.random() < 0.35) dropAt('seed', 1, q, y, r);
-    hunger = Math.max(0, hunger - 0.022);
+    survival.exhaust(0.02);
   }
   if (crops.has(k)) {
     harvestPlant(k, true);
@@ -1178,6 +1188,7 @@ function attackBoat() {
   if (fauna.target(camera, boatTarget.distance)) return false;
   if (attackCooldown > 0) return true;
   attackCooldown = 0.45;
+  if (!creative) survival.exhaust(0.1);
   boats.damage(
     boatTarget.boat,
     creative ? 20 : ITEMS[heldItem()]?.kind === 'axe' ? 7 : 4,
@@ -1198,6 +1209,7 @@ function useFishingRod() {
 }
 function place() {
   if (!playing) return;
+  if (foodUse) stopEating();
   if (useFishingRod() || useBoatItem()) return;
   if (
     target &&
@@ -1217,8 +1229,8 @@ function place() {
     interact();
     return;
   }
-  if (heldItem() === 'cake') {
-    eat();
+  if (FOODS[heldItem()]) {
+    eat(foodInputs.has('mouse') ? 'mouse' : 'tap');
     return;
   }
   if (useBucket()) return;
@@ -1592,12 +1604,34 @@ function interactPlant(k) {
 }
 function interact() {
   if (!playing) return;
+  if (foodUse) stopEating();
   if (boats.riding && heldItem() === 'fishingRod') {
     useFishingRod();
     return;
   }
   if (interactBoat() || useFishingRod() || useBoatItem()) return;
-  if (interactCreature() || drinkMilk() || useGoldenApple()) return;
+  if (interactCreature()) return;
+  const contextual =
+    villagerTarget ||
+    (target &&
+      ([
+        'door',
+        'doorTop',
+        'gate',
+        'ladder',
+        'portal',
+        'endportal',
+        'bed',
+        'workbench',
+        'furnace',
+        'chest',
+        'farmland',
+      ].includes(target.type) ||
+        (plantForItem(heldItem()) && ['grass', 'dirt'].includes(target.type))));
+  if (FOODS[heldItem()] && !contextual) {
+    eat(foodInputs.has('mouse') ? 'mouse' : 'tap');
+    return;
+  }
   if (villagerTarget) {
     tradingWith = villagerTarget;
     openOverlay('#station-overlay');
@@ -1638,6 +1672,7 @@ function interact() {
       weather.set('clear', 300);
       health = 20;
       hunger = Math.max(4, hunger - 2);
+      survival.saturation = Math.min(survival.saturation, hunger);
       toast('一觉醒来，天光正好。重生点已设在床边。');
       beep(500, 0.4);
     } else toast('重生点已设在这里。夜晚再来，可以睡到黎明。');
@@ -2012,50 +2047,188 @@ $('#station-content').addEventListener('compositionend', (e) => {
   renderChest();
 });
 
-function eat() {
-  for (const [id, value] of [
-    ['cake', 12],
-    ['cooked', 9],
-    ['cookedSalmon', 6],
-    ['cookedCod', 5],
-    ['rawCod', 2],
-    ['rawSalmon', 2],
-    ['tropicalFish', 1],
-    ['bakedPotato', 6],
-    ['carrot', 4],
-    ['potato', 1],
-    ['bread', 7],
-    ['apple', 4],
-    ['meat', 2],
-  ].sort(([a], [b]) => Number(b === heldItem()) - Number(a === heldItem())))
-    if ((inventory[id] || 0) > 0) {
-      if (hunger >= 20 && health >= 20) {
-        toast('你已经吃饱了。');
-        return;
-      }
-      inventory[id]--;
-      hunger = Math.min(20, hunger + value);
-      health = Math.min(20, health + value * 0.35);
-      beep(440, 0.13, 'triangle');
-      toast(`吃了${ITEMS[id].name} · 饱食 +${value}`);
-      updateHUD();
-      return;
-    }
-  toast('没有食物了。树叶会掉落苹果，也可以种菜、钓鱼、烹饪或狩猎。');
+function stopEating(clearInputs = false) {
+  foodUse = null;
+  if (clearInputs) foodInputs.clear();
+  if (graphics) {
+    graphics.eating = 0;
+    graphics.setHeld(heldItem());
+  }
 }
+function canEat(item) {
+  return (
+    FOODS[item] &&
+    (creative || inventory[item] > 0) &&
+    (creative || hunger < 20 || FOODS[item].always)
+  );
+}
+function eat(source = 'tap', chosen = null) {
+  if (!playing || overlay || foodUse) return false;
+  const item =
+    chosen ||
+    (FOODS[heldItem()]
+      ? heldItem()
+      : Object.keys(FOODS)
+          .filter((id) => !FOODS[id].always && inventory[id] > 0)
+          .sort((a, b) => FOODS[b].saturation - FOODS[a].saturation)[0]);
+  if (!canEat(item)) {
+    toast(
+      item
+        ? '已经吃饱了，等饥饿后再吃。'
+        : '没有可食用的物品。可以采果、耕种、钓鱼或狩猎。',
+    );
+    return false;
+  }
+  foodUse = {
+    item,
+    source,
+    elapsed: 0,
+    sound: 0,
+    selection: selected + ':' + hotbar[selected],
+  };
+  bowCharge = mining = 0;
+  graphics.setHeld(item);
+  return true;
+}
+function updateEating(dt) {
+  if (!foodUse) return;
+  const use = foodUse;
+  if (
+    use.selection !== selected + ':' + hotbar[selected] ||
+    !canEat(use.item) ||
+    leftDown ||
+    (use.source !== 'tap' && !foodInputs.has(use.source))
+  ) {
+    stopEating();
+    return;
+  }
+  use.elapsed += dt;
+  use.sound -= dt;
+  if (use.sound <= 0) {
+    soundFX.play(use.item === 'milkBucket' ? 'drink' : 'eat');
+    use.sound = 0.28;
+  }
+  graphics.eating = use.elapsed;
+  if (use.elapsed < 1.6) return;
+  if (!creative) inventory[use.item]--;
+  const vitals = { health, hunger };
+  survival.eat(use.item, vitals);
+  hunger = vitals.hunger;
+  if (FOODS[use.item].container && !creative) {
+    addItem(FOODS[use.item].container);
+    if (hotbar[selected] === use.item)
+      hotbar[selected] = FOODS[use.item].container;
+  }
+  stopEating();
+  updateHUD();
+  saveGame();
+  if (use.item === 'goldenApple')
+    toast('金苹果 · 生命恢复 5 秒 · 伤害吸收 2 分钟');
+  else if (use.item === 'milkBucket') toast('已喝下牛奶，清除状态效果。');
+  if (use.source !== 'tap' && foodInputs.has(use.source) && canEat(use.item))
+    eat(use.source, use.item);
+}
+function playerFluidAt(height) {
+  const a = worldToAxial(camera.position.x, camera.position.z),
+    y = Math.floor(height);
+  const fluid = world.fluids.get(a.q, y, a.r);
+  return fluid && height < y + fluidHeight(fluid) ? fluid : null;
+}
+function updateSurvival(dt) {
+  if (creative) {
+    survivalSubmerged = false;
+    return;
+  }
+  const head = playerFluidAt(camera.position.y),
+    feet = playerFluidAt(playerFeet() + 0.12);
+  const a = worldToAxial(camera.position.x, camera.position.z);
+  const column = weatherColumns.get(world, a.q, a.r);
+  survivalSubmerged = !!head;
+  const wet =
+    [feet, head].some((fluid) => fluid && LIQUIDS[fluid.type].coolant) ||
+    (dimension === 'overworld' &&
+      weather.rain > 0.25 &&
+      column.roof < camera.position.y &&
+      !['沙漠', '雪原'].includes(column.biome));
+  const vitals = { health, hunger };
+  const owner = survival;
+  const damage = owner.tick(dt, vitals, {
+    submerged: survivalSubmerged,
+    wet,
+    lava:
+      [feet, head].some((fluid) => fluid && LIQUIDS[fluid.type].damage) ||
+      !!boats.riding?.burning,
+  });
+  health = vitals.health;
+  hunger = vitals.hunger;
+  for (const [amount, cause] of damage) {
+    hurt(amount, cause);
+    if (survival !== owner) break;
+  }
+}
+function survivalHUD() {
+  const air = Math.ceil(survival.air / 1.5);
+  const airBar = $('#air-bar');
+  airBar.classList.toggle(
+    'hidden',
+    creative || (!survivalSubmerged && survival.air >= 15),
+  );
+  airBar.setAttribute('aria-valuenow', survival.air.toFixed(1));
+  if (airBar.dataset.bubbles !== String(air)) {
+    airBar.dataset.bubbles = air;
+    airBar.innerHTML = Array.from(
+      { length: 10 },
+      (_, i) => '<i class="' + (i < air ? 'filled' : '') + '"></i>',
+    ).join('');
+  }
+  $('#absorption-hud').textContent = creative
+    ? ''
+    : '◆'.repeat(Math.ceil(survival.absorption / 2));
+  const effects = [];
+  if (!creative) {
+    if (survival.burning > 0)
+      effects.push('燃烧 ' + Math.ceil(survival.burning) + 's');
+    if (survival.regeneration > 0)
+      effects.push('生命恢复 ' + Math.ceil(survival.regeneration) + 's');
+    if (survival.absorptionTime > 0)
+      effects.push('伤害吸收 ' + Math.ceil(survival.absorptionTime) + 's');
+    if (hunger <= 0) effects.push('饥饿 · 需要食物');
+  }
+  $('#effect-list').textContent = effects.join(' · ');
+  $('#health').classList.toggle('low-health', !creative && health <= 6);
+  $('#hunger').classList.toggle('low-hunger', !creative && hunger <= 6);
+  $('#hunger').title =
+    '饱和度 ' + survival.saturation.toFixed(1) + ' / ' + Math.floor(hunger);
+  $('#fire-overlay').classList.toggle(
+    'active',
+    !creative && survival.burning > 0 && hasGame,
+  );
+  $('#use-food').classList.toggle('hidden', !foodUse);
+  if (foodUse) {
+    $('#use-food-name').textContent =
+      (foodUse.item === 'milkBucket' ? '饮用 ' : '食用 ') +
+      ITEMS[foodUse.item].name;
+    $('#use-progress').value = foodUse.elapsed / 1.6;
+  }
+}
+
 function hurt(amount, cause = 'combat') {
   if (creative || damageCooldown > 0) return;
+  stopEating();
   if (cause === 'combat' || cause === 'burn') {
     const protection = equipment.protection();
     for (const id of Object.values(equipment.armor))
       wearItem(id, Math.max(1, Math.ceil(amount / 4)));
     amount *= 1 - protection * 0.04;
   }
+  if (cause !== 'void') amount = survival.absorb(amount);
+  survival.exhaust(0.1);
   health = Math.max(0, health - amount);
   damageCooldown = 0.8;
   $('#damage').style.opacity = '.6';
+  $('#damage').dataset.cause = cause;
   setTimeout(() => ($('#damage').style.opacity = '0'), 250);
-  soundFX.play('hurt');
+  soundFX.play(cause === 'drown' ? 'drown' : 'hurt');
   if (health <= 0) {
     fishing.clear();
     lastDeath = [camera.position.x, playerFeet() + 0.4, camera.position.z];
@@ -2067,10 +2240,17 @@ function hurt(amount, cause = 'combat') {
     }
     inventory = {};
     equipment = new Equipment();
+    survival = new Survival({ saturation: 2 });
     safeSpawn();
     health = 20;
     hunger = 12;
-    toast('你在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。');
+    toast(
+      (cause === 'drown'
+        ? '你溺水了。'
+        : cause === 'burn'
+          ? '你被烧伤倒下了。'
+          : '') + '已在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。',
+    );
     saveGame();
   }
   updateHUD();
@@ -2114,32 +2294,7 @@ function interactCreature() {
   saveGame();
   return true;
 }
-function useGoldenApple() {
-  if (heldItem() !== 'goldenApple') return false;
-  if (health >= 20 && hunger >= 20) {
-    toast('你现在状态很好，留着金苹果吧。');
-    return true;
-  }
-  if (!creative) inventory.goldenApple--;
-  health = Math.min(20, health + 8);
-  hunger = Math.min(20, hunger + 8);
-  toast('金苹果 · 生命 +8 · 饱食 +8');
-  updateHUD();
-  return true;
-}
-function drinkMilk() {
-  if (heldItem() !== 'milkBucket') return false;
-  if (!creative) {
-    inventory.milkBucket--;
-    addItem('bucket');
-  }
-  hotbar[selected] = 'bucket';
-  hunger = Math.min(20, hunger + 4);
-  health = Math.min(20, health + 2);
-  toast('喝下牛奶 · 饱食 +4');
-  updateHUD();
-  return true;
-}
+
 function explode(center) {
   syncDecor();
   for (const b of [...boats.records])
@@ -2235,6 +2390,7 @@ function attack() {
   const held = heldItem(),
     item = ITEMS[held];
   attackCooldown = item?.cooldown || 0.45;
+  if (!creative) survival.exhaust(0.1);
   const critical = !grounded && vy < -1 && !creative;
   graphics.swing();
   hitMob(
@@ -2270,6 +2426,7 @@ function releaseBow() {
     !creative,
   );
   attackCooldown = 0.25;
+  if (!creative) survival.exhaust(0.1);
   graphics.swing();
   beep(240, 0.05, 'triangle');
   wearItem('bow');
@@ -2283,6 +2440,10 @@ function movePlayer(dt) {
       if (!boats.riding) return;
     }
     const b = boats.riding;
+    const distance = Math.hypot(
+      camera.position.x - b.position[0],
+      camera.position.z - b.position[2],
+    );
     camera.position.set(b.position[0], b.position[1] + BOAT_EYE, b.position[2]);
     camera.rotation.set(pitch, yaw, 0);
     camera.fov += (72 - camera.fov) * (1 - Math.exp(-dt * 8));
@@ -2291,22 +2452,14 @@ function movePlayer(dt) {
     grounded = true;
     moved = 0;
     $('#underwater').style.display = 'none';
-    if (!creative) {
-      hunger = Math.max(0, hunger - dt * (keys.has('KeyW') ? 0.008 : 0.003));
-      if (hunger > 14 && health < 20) health = Math.min(20, health + dt * 0.14);
-      if (hunger <= 0) hurt(dt * 2, 'hunger');
-      if (b.burning) hurt(4, 'burn');
-    }
+    if (!creative) survival.exhaust(distance * 0.02);
     return;
   }
-  const fluidAt = (height) => {
-    const a = worldToAxial(camera.position.x, camera.position.z),
-      y = Math.floor(height),
-      f = world.fluids.get(a.q, y, a.r);
-    return f && height < y + fluidHeight(f) ? f : null;
-  };
-  const feetFluid = fluidAt(playerFeet() + 0.12),
-    headFluid = fluidAt(camera.position.y);
+  const survivalBeforeMove = survival;
+  const startX = camera.position.x,
+    startZ = camera.position.z;
+  const feetFluid = playerFluidAt(playerFeet() + 0.12),
+    headFluid = playerFluidAt(camera.position.y);
   const swimming = !!feetFluid,
     fly = creative,
     climbing = !creative && onLadder();
@@ -2319,8 +2472,13 @@ function movePlayer(dt) {
   }
   const sneaking = keys.has('ControlLeft') || keys.has('ControlRight');
   const sprint =
-      keys.has('ShiftLeft') && forward > 0 && hunger > 2 && !fly && !sneaking,
-    speed = fly
+      keys.has('ShiftLeft') &&
+      forward > 0 &&
+      hunger > 6 &&
+      !fly &&
+      !sneaking &&
+      !foodUse,
+    baseSpeed = fly
       ? 10
       : swimming
         ? LIQUIDS[feetFluid.type].speed
@@ -2329,6 +2487,7 @@ function movePlayer(dt) {
           : sprint
             ? 7
             : 4.8;
+  const speed = baseSpeed * (foodUse && !fly ? 0.35 : 1);
   const { dx, dz } = motion.update(
     dt,
     (-Math.sin(yaw) * forward + Math.cos(yaw) * side) * speed,
@@ -2372,6 +2531,7 @@ function movePlayer(dt) {
       motion.takeJump(keys.has('Space'), grounded)
     ) {
       vy = 8.5;
+      survival.exhaust(sprint ? 0.8 : 0.2);
       grounded = false;
       beep(180, 0.04, 'sine', 0.01);
     }
@@ -2402,17 +2562,13 @@ function movePlayer(dt) {
       }
       camera.position.y += dy / steps;
     }
-    if (headFluid) hunger = Math.max(0, hunger - dt * 0.12);
-    hunger = Math.max(
-      0,
-      hunger - dt * (norm ? (sprint ? 0.024 : 0.012) : 0.003),
-    );
-    if (hunger > 14 && health < 20) health = Math.min(20, health + dt * 0.14);
-    if (hunger <= 0) hurt(dt * 2, 'hunger');
+    if (survival === survivalBeforeMove)
+      survival.exhaust(
+        Math.hypot(camera.position.x - startX, camera.position.z - startZ) *
+          (swimming ? 0.015 : sprint ? 0.06 : 0.006),
+      );
   }
   const a = worldToAxial(camera.position.x, camera.position.z);
-  if (feetFluid && LIQUIDS[feetFluid.type].damage)
-    hurt(LIQUIDS[feetFluid.type].damage, 'burn');
   if (camera.position.y < -12) {
     if (creative) safeSpawn();
     else {
@@ -2772,9 +2928,16 @@ $('#world').addEventListener('mousedown', (e) => {
     return;
   }
   if (e.button === 0) leftDown = true;
-  if (e.button === 2) place();
+  if (e.button === 2) {
+    foodInputs.add('mouse');
+    place();
+  }
 });
 document.addEventListener('mouseup', (e) => {
+  if (e.button === 2) {
+    foodInputs.delete('mouse');
+    if (foodUse?.source === 'mouse') stopEating();
+  }
   if (e.button !== 0) return;
   releaseBow();
   leftDown = false;
@@ -2825,7 +2988,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.code === 'KeyF') {
-    eat();
+    foodInputs.add('key');
+    eat('key');
     return;
   }
   if (e.code === 'KeyQ') {
@@ -2844,7 +3008,13 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Space') motion.jump();
   keys.add(e.code);
 });
-document.addEventListener('keyup', (e) => keys.delete(e.code));
+document.addEventListener('keyup', (e) => {
+  keys.delete(e.code);
+  if (e.code === 'KeyF') {
+    foodInputs.delete('key');
+    if (foodUse?.source === 'key') stopEating();
+  }
+});
 window.addEventListener('blur', () => {
   keys.clear();
   bowCharge = 0;
@@ -2896,8 +3066,10 @@ if (isTouch) {
       if (action === 'mine') leftDown = true;
       else if (action === 'place') place();
       else if (action === 'interact') interact();
-      else if (action === 'eat') eat();
-      else
+      else if (action === 'eat') {
+        foodInputs.add('touch');
+        eat('touch');
+      } else
         openOverlay(
           action === 'craft'
             ? '#craft-overlay'
@@ -2907,10 +3079,18 @@ if (isTouch) {
         );
     };
     b.onpointerup = () => {
+      if (b.dataset.action === 'eat') {
+        foodInputs.delete('touch');
+        if (foodUse?.source === 'touch') stopEating();
+      }
       if (b.dataset.action === 'mine') releaseBow();
       leftDown = false;
     };
     b.onpointercancel = () => {
+      if (b.dataset.action === 'eat') {
+        foodInputs.delete('touch');
+        if (foodUse?.source === 'touch') stopEating();
+      }
       bowCharge = 0;
       leftDown = false;
     };
@@ -2951,6 +3131,8 @@ function frame(now) {
     boats.update(dt, world, keys);
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
     for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
+    updateSurvival(dt);
+    updateEating(dt);
     world.fluids.step(dt);
     flushFluidChanges();
     if (heldItem() !== 'fishingRod') fishing.clear();
@@ -2966,7 +3148,10 @@ function frame(now) {
       !!ITEMS[hotbar[selected]]?.bucket || heldItem() === 'boat',
     );
     boatTarget = boats.target(camera, target?.distance ?? Infinity);
-    if (leftDown && heldItem() === 'bow') {
+    if (foodUse) {
+      mining = bowCharge = 0;
+      $('#mine-progress i').style.width = '0';
+    } else if (leftDown && heldItem() === 'bow') {
       bowCharge = Math.min(1.1, bowCharge + dt);
       mining = 0;
       $('#mine-progress i').style.width = (bowCharge / 1.1) * 100 + '%';
@@ -3122,6 +3307,7 @@ function frame(now) {
   else fishingTip.copy(camera.position);
   fishing.render(camera, fishingTip, playing && heldItem() === 'fishingRod');
   graphics.bowDraw = bowCharge / 1.1;
+  survivalHUD();
   graphics.frame(
     playing ? dt : 0,
     time,
@@ -3131,7 +3317,7 @@ function frame(now) {
     weather,
     weatherColumns,
     dt,
-    heldItem(),
+    foodUse?.item || heldItem(),
   );
   const weatherCell = worldToAxial(camera.position.x, camera.position.z);
   const localWeather = weatherColumns.get(world, weatherCell.q, weatherCell.r);

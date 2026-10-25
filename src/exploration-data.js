@@ -158,7 +158,7 @@ export const EXPLORATION_RECIPES = [
       'goldIngot',
     ],
     '深处的回报',
-    '恢复 8 点生命与 8 点饱食。',
+    '食用恢复 4 点饱食，获得 5 秒生命恢复与 2 分钟伤害吸收。',
     true,
   ),
 ];

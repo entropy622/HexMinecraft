@@ -1,5 +1,6 @@
 import { validFurnace } from './furnaces.js';
 import { validChest } from './chests.js';
+import { validSurvival } from './survival.js';
 import { validBoats } from './boats.js';
 import { validFauna } from './fauna.js';
 import { validDrops } from './item-drops.js';
@@ -56,6 +57,8 @@ export function validateSave(s) {
     throw Error('存档格式或玩家数据无效');
   if (!s.dimensions || !Object.hasOwn(s.dimensions, s.dimension))
     throw Error('维度数据缺失');
+  if (s.survival !== undefined && !validSurvival(s.survival))
+    throw Error('生存状态数据无效');
   if (s.weather !== undefined && !validWeather(s.weather))
     throw Error('天气数据无效');
   for (const [id, d] of Object.entries(s.dimensions)) {

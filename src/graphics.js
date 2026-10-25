@@ -1284,6 +1284,13 @@ export class Graphics {
       ? 0.65 + Math.sin(time * 22) * 0.3
       : 0.8;
     this.hand.position.y = -0.32 + (moving ? Math.sin(time * 11) * 0.018 : 0);
+    if (this.eating > 0) {
+      const chew = Math.sin(this.eating * 26);
+      this.hand.rotation.x = 0.75 + chew * 0.09;
+      this.hand.rotation.z = -0.35;
+      this.hand.position.y = -0.18 + Math.abs(chew) * 0.025;
+      this.hand.position.z = -0.48;
+    }
     this.dynamicLight.attach(this.scene);
     if (this.chestModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;

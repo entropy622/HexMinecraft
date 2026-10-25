@@ -215,6 +215,6 @@ recipe(
   ['wheat', 'egg', 'wheat', 'milkBucket', 'wheat', 'egg', 'sugar'],
   1,
   true,
-  '鸡蛋、牛奶、小麦与糖做成蛋糕，食用恢复 12 点饱食。合成返还铁桶。',
+  '鸡蛋、牛奶、小麦与糖做成蛋糕，食用恢复 14 点饱食。合成返还铁桶。',
 );
 GEAR_RECIPES.at(-1).returns = { bucket: 1 };

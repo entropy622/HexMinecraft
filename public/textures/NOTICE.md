@@ -33,6 +33,10 @@ the same revision and media license. The hexagonal hull, seats and oars are
 original geometry using the existing wood tiles; no upstream boat model is
 redistributed.
 
+Version 0.20 adds unmodified `farming_bread.png`, `mcl_mobitems_beef_raw.png`,
+and `mcl_mobitems_beef_cooked.png` from the same revision and media license,
+used for food inventory icons, dropped items and held eating animation.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.
