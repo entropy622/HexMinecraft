@@ -1,5 +1,10 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
+import { POTIONS } from './brewing-data.js';
 export const blockTextures = {
+  brewingStand: ['mcl_brewing_top', 'mcl_brewing_side'],
+  brewingBase: ['mcl_brewing_base'],
+  soulSand: ['mcl_nether_soul_sand'],
+  redstoneOre: ['mcl_core_redstone_ore'],
   ironBlock: ['default_steel_block'],
   anvil: ['mcl_anvils_anvil_top_damaged_0', 'mcl_anvils_anvil_side'],
   chippedAnvil: ['mcl_anvils_anvil_top_damaged_1', 'mcl_anvils_anvil_side'],
@@ -51,6 +56,18 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  glassBottle: 'mcl_potions_potion_bottle',
+  netherWart: 'mcl_nether_nether_wart',
+  redstone: 'redstone_redstone_dust',
+  glowDust: 'mcl_nether_glowstone_dust',
+  magmaCream: 'mcl_mobitems_magma_cream',
+  slimeBall: 'mcl_mobitems_slimeball',
+  pufferFish: 'mcl_fishing_pufferfish_raw',
+  goldNugget: 'mcl_core_gold_nugget',
+  goldenCarrot: 'farming_carrot_gold',
+  glisteringMelon: 'mcl_potions_melon_speckled',
+  melonSlice: 'farming_melon',
+  melonSeed: 'mcl_farming_melon_seeds',
   lapis: 'mcl_core_lapis',
   shield: 'mcl_shield',
   boat: 'mcl_boats_oak_boat',
@@ -134,6 +151,19 @@ export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
 const plantTextures = {
+  netherWart: [
+    'mcl_nether_nether_wart_stage_0',
+    'mcl_nether_nether_wart_stage_1',
+    'mcl_nether_nether_wart_stage_1',
+    'mcl_nether_nether_wart_stage_2',
+  ],
+  melon: [
+    'mcl_farming_melon_stem_disconnected',
+    'mcl_farming_melon_stem_disconnected',
+    'mcl_farming_melon_stem_disconnected',
+    'farming_melon_side',
+  ],
+  melonTop: ['farming_melon_top'],
   wheat: [
     'mcl_farming_wheat_stage_0',
     'mcl_farming_wheat_stage_2',
@@ -159,7 +189,27 @@ export const plantImage = (kind, stage) => {
   const names = plantTextures[kind];
   return names && images.get(names[Math.min(stage, names.length - 1)]);
 };
-export const itemImage = (id) => images.get(itemTextures[id]);
+const potionImages = new Map();
+export const itemImage = (id) => {
+  if (!POTIONS[id]) return images.get(itemTextures[id]);
+  if (!potionImages.has(id)) {
+    const overlay = images.get('mcl_potions_potion_overlay'),
+      bottle = images.get('mcl_potions_potion_bottle');
+    if (!overlay || !bottle) return bottle;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 16;
+    const c = canvas.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    c.drawImage(overlay, 0, 0, 16, 16);
+    c.globalCompositeOperation = 'source-in';
+    c.fillStyle = POTIONS[id].color;
+    c.fillRect(0, 0, 16, 16);
+    c.globalCompositeOperation = 'source-over';
+    c.drawImage(bottle, 0, 0, 16, 16);
+    potionImages.set(id, canvas);
+  }
+  return potionImages.get(id);
+};
 export const bowImage = (stage) =>
   images.get(stage < 0 ? 'mcl_bows_bow' : 'mcl_bows_bow_' + stage);
 export async function loadTexturePack() {
@@ -171,6 +221,8 @@ export async function loadTexturePack() {
     'mcl_bows_bow_0',
     'mcl_bows_bow_1',
     'mcl_bows_bow_2',
+    'mcl_potions_potion_bottle',
+    'mcl_potions_potion_overlay',
   ]);
   await Promise.allSettled(
     [...names].map(

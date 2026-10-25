@@ -145,6 +145,11 @@ export class GameAudio {
     } else if (event === 'grindstone') {
       this.noise(0.6, 0.14, 1500);
       this.tone(230, 0.35, 'triangle', 0.035);
+    } else if (event === 'brew') {
+      this.noise(0.3, 0.07, 480);
+      [440, 660, 880].forEach((n, i) =>
+        this.tone(n, 0.25, 'sine', 0.05, i * 0.08),
+      );
     } else if (event === 'xp') {
       this.tone(720 + Math.random() * 280, 0.1, 'sine', 0.045);
     } else if (event === 'levelUp') {

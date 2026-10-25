@@ -64,7 +64,9 @@ export function fishingLoot(conditions, random = Math.random) {
     const junk = ['leather', 'string', 'bone', 'wood'];
     return { item: junk[Math.floor(random() * junk.length)], category: '杂物' };
   }
-  const n = random(),
+  const fishRoll = random();
+  if (fishRoll < 0.12) return { item: 'pufferFish', category: '鱼获' };
+  const n = (fishRoll - 0.12) / 0.88,
     cold = conditions.biome === '雪原',
     hot = conditions.biome === '沙漠';
   return {

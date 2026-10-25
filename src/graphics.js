@@ -1,4 +1,5 @@
-import { applySkylight } from './skylight.js';
+import { applySkylight, visionUniforms } from './skylight.js';
+import { BrewingModels } from './brewing-graphics.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
 import { ChestModels } from './chest-graphics.js';
@@ -87,6 +88,7 @@ export class Graphics {
     this.chestModels = new ChestModels(this.textures);
     this.enchantingModels = new EnchantingModels(this.textures);
     this.smithingModels = new SmithingModels(this.textures);
+    this.brewingModels = new BrewingModels(this.textures);
     sharedTextures = this.textures;
     this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
     this.terrain = new THREE.Group();
@@ -337,6 +339,7 @@ export class Graphics {
       this.chestModels.release(mesh);
       this.enchantingModels.release(mesh);
       this.smithingModels.release(mesh);
+      this.brewingModels.release(mesh);
       mesh.traverse((o) => o.geometry?.dispose());
       this.terrain.remove(mesh);
     }
@@ -346,7 +349,9 @@ export class Graphics {
     for (const child of [...this.decor.children]) {
       child.traverse((o) => {
         o.geometry?.dispose();
-        o.material?.dispose?.();
+        if (Array.isArray(o.material))
+          new Set(o.material).forEach((material) => material.dispose());
+        else o.material?.dispose?.();
       });
       this.decor.remove(child);
     }
@@ -383,6 +388,7 @@ export class Graphics {
           this.chestModels.release(mesh);
           this.enchantingModels.release(mesh);
           this.smithingModels.release(mesh);
+          this.brewingModels.release(mesh);
           mesh.traverse((o) => o.geometry?.dispose());
           this.terrain.remove(mesh);
           this.chunks.delete(k);
@@ -621,6 +627,7 @@ export class Graphics {
     const chestCells = [];
     const enchantCells = [];
     const smithCells = [];
+    const brewCells = [];
     const rainRoofs = new Map();
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -649,6 +656,7 @@ export class Graphics {
         t !== 'chest' &&
         t !== 'enchantingTable' &&
         !isSmithingStation(t) &&
+        t !== 'brewingStand' &&
         !BLOCKS[t]?.nonSolid &&
         !BLOCKS[t]?.shape
       );
@@ -669,6 +677,11 @@ export class Graphics {
           }
           if (isSmithingStation(type)) {
             smithCells.push([q, y, r]);
+            continue;
+          }
+          if (type === 'brewingStand') {
+            brewCells.push([q, y, r]);
+            this.updateLight(q, y, r);
             continue;
           }
           if (BLOCKS[type].shape) {
@@ -889,6 +902,7 @@ export class Graphics {
       this.chestModels.release(mesh);
       this.enchantingModels.release(mesh);
       this.smithingModels.release(mesh);
+      this.brewingModels.release(mesh);
       mesh.geometry.dispose();
       for (const child of [...mesh.children]) {
         child.traverse((o) => o.geometry?.dispose());
@@ -910,6 +924,8 @@ export class Graphics {
       mesh.add(this.enchantingModels.create(q, y, r, origin));
     for (const [q, y, r] of smithCells)
       mesh.add(this.smithingModels.create(world, q, y, r, origin));
+    for (const [q, y, r] of brewCells)
+      mesh.add(this.brewingModels.create(world, q, y, r, origin));
     for (const [q, y, r] of shaped)
       mesh.add(
         buildingMesh(world, q, y, r, origin, this.textures, this.material),
@@ -1001,7 +1017,12 @@ export class Graphics {
     if (hit.object.userData.chest || hit.object.userData.station) {
       const block = hit.object.userData.chest || hit.object.userData.station,
         p = axialToWorld(block.q, block.r);
-      const height = block.type === 'enchantingTable' ? 1.6 : 1;
+      const height =
+        block.type === 'enchantingTable'
+          ? 1.6
+          : block.type === 'brewingStand'
+            ? 1.2
+            : 1;
       this.outline.position.set(p.x, block.y + height / 2, p.z);
       this.outline.scale.set(1, height, 1);
       this.outline.visible = true;
@@ -1137,7 +1158,9 @@ export class Graphics {
     if (g) {
       g.traverse((m) => {
         m.geometry?.dispose();
-        m.material?.dispose();
+        if (Array.isArray(m.material))
+          new Set(m.material).forEach((material) => material.dispose());
+        else m.material?.dispose();
       });
       this.decor.remove(g);
       this.cropMeshes.delete(k);
@@ -1227,7 +1250,17 @@ export class Graphics {
       3,
       renderDt,
     );
-    this.scene.fog.color.multiplyScalar(0.035 + this.caveSky * 0.965);
+    visionUniforms.nightVision.value = THREE.MathUtils.damp(
+      visionUniforms.nightVision.value,
+      this.nightVision || 0,
+      4,
+      renderDt,
+    );
+    const perceivedSky = Math.max(
+      this.caveSky,
+      visionUniforms.nightVision.value * 0.75,
+    );
+    this.scene.fog.color.multiplyScalar(0.035 + perceivedSky * 0.965);
     this.sky.position.copy(this.camera.position);
     this.sky.material.uniforms.zenith.value.copy(sky);
     this.sky.material.uniforms.horizon.value.copy(horizon);
@@ -1392,6 +1425,7 @@ export class Graphics {
       0.32 * (1 - guard),
       0.1 * (1 - guard) + impact * 0.12,
     );
+    this.brewingModels.frame(renderDt, this.world);
     this.dynamicLight.attach(this.scene);
     const cameraHex = worldToAxial(
       this.camera.position.x,
@@ -1415,7 +1449,7 @@ export class Graphics {
       dusk,
       horizon,
       sun: this.sun,
-      cameraSky: this.caveSky,
+      cameraSky: perceivedSky,
       submerged,
       volume: this.usePost,
     });

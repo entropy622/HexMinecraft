@@ -18,6 +18,7 @@ export const ROLES = {
       { cost: { rawSalmon: 8 }, give: { emerald: 1 } },
       { cost: { tropicalFish: 4 }, give: { emerald: 1 } },
       { cost: { emerald: 1 }, give: { cookedCod: 4 } },
+      { cost: { emerald: 2 }, give: { pufferFish: 1 } },
     ],
   },
   farmer: {
@@ -60,6 +61,8 @@ export const ROLES = {
       { cost: { emerald: 1 }, give: { apple: 5 } },
       { cost: { emerald: 2 }, give: { lantern: 3 } },
       { cost: { emerald: 1 }, give: { arrow: 16 } },
+      { cost: { emerald: 1 }, give: { melonSeed: 3 } },
+      { cost: { emerald: 2 }, give: { slimeBall: 3 } },
     ],
   },
 };

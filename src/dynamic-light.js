@@ -1,6 +1,6 @@
 import { Data3DTexture, NearestFilter, Vector3 } from 'three';
 import { axialToWorld } from './core.js';
-import { voxelLightingChunk } from './skylight.js';
+import { voxelLightingChunk, visionUniforms } from './skylight.js';
 
 // Packed RGBA8: RGB contain 0..15 block-light levels; alpha packs sky in
 // its high nibble; low nibble is 0 for solid, 1..3 for liquids, 15 for air.
@@ -133,7 +133,7 @@ export class DynamicLight {
     const previous = material.onBeforeCompile;
     material.onBeforeCompile = (shader) => {
       previous.call(material, shader);
-      Object.assign(shader.uniforms, this.uniforms);
+      Object.assign(shader.uniforms, this.uniforms, visionUniforms);
       shader.vertexShader =
         sampleShader +
         shader.vertexShader.replace(
@@ -153,7 +153,7 @@ export class DynamicLight {
         vBlockLight = entityLight.rgb;`,
         );
       shader.fragmentShader =
-        `varying float vSkylight; varying vec3 vBlockLight;\n` +
+        `varying float vSkylight; varying vec3 vBlockLight; uniform float nightVision;\n` +
         shader.fragmentShader.replace(
           '#include <lights_fragment_begin>',
           voxelLightingChunk,

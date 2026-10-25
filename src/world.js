@@ -74,6 +74,7 @@ export class World {
     if (options.edits) this.applyEdits(options.edits);
     this.blockStates = new Map(options.blockStates || []);
     this.furnaces = new Map(options.furnaces || []);
+    this.brewing = new Map(options.brewing || []);
     if (options.load !== false) this.ensureAround(0, 0);
   }
   biome(q, r) {
@@ -276,10 +277,17 @@ export class World {
             else if (ore > 0.981 && y < 11) t = 'gold';
             else if (ore > 0.967) t = 'crystal';
             else if (ore > 0.951 && y < 12) t = 'lapisOre';
+            else if (ore > 0.94 && y < 10) t = 'redstoneOre';
             else if (ore > 0.927) t = 'iron';
             else if (ore > 0.89) t = 'copper';
             else if (ore > 0.835) t = 'coal';
           }
+          if (
+            this.dimension === 'nether' &&
+            y === h - 1 &&
+            noise(q * 0.12, r * 0.12, this.seed + 121) > 0.65
+          )
+            t = 'soulSand';
           if (this.dimension === 'nether' && y > 1 && ore > 0.97)
             t = 'glowstone';
           put(q, y, r, t);
@@ -406,6 +414,7 @@ export class World {
       edits: [...this.edits],
       blockStates: [...this.blockStates],
       furnaces: [...this.furnaces],
+      brewing: [...this.brewing],
       structureFeatures: [...this.structureFeatures],
       discoveredStructures: [...this.discoveredStructures],
       fluids: this.fluids.serialize(),

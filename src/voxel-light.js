@@ -15,6 +15,7 @@ const EMISSION = {
   lava: [15, 10, 5],
   glow: [7, 15, 12],
   enchantingTable: [8, 5, 13],
+  brewingStand: [3, 2, 1],
 };
 const HEIGHT = 64;
 export const HELD_LIGHTS = {

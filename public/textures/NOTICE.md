@@ -55,6 +55,28 @@ media license: `default_steel_block.png`, `mcl_anvils_anvil_base.png`,
 The hexagonal anvils, grindstone, supports, axle and processing animations
 are original geometry; no upstream model or GUI artwork is included.
 
+Version 0.26 adds 30 unmodified files from the same revision and CC BY-SA 3.0
+media license:
+
+- `mcl_brewing_base.png`, `mcl_brewing_side.png`, `mcl_brewing_top.png`;
+- `mcl_potions_potion_bottle.png`, `mcl_potions_potion_overlay.png`;
+- `mcl_nether_soul_sand.png`, `mcl_nether_nether_wart.png`, and
+  `mcl_nether_nether_wart_stage_0.png` through `_2.png`;
+- `mcl_core_redstone_ore.png`, `redstone_redstone_dust.png`,
+  `mcl_nether_glowstone_dust.png`, `mcl_mobitems_magma_cream.png`,
+  `mcl_mobitems_slimeball.png`, `mcl_fishing_pufferfish_raw.png`;
+- `mcl_core_gold_nugget.png`, `farming_carrot_gold.png`,
+  `mcl_potions_melon_speckled.png`, `farming_melon.png`,
+  `mcl_farming_melon_stem_disconnected.png`, `farming_melon_side.png`,
+  `farming_melon_top.png`, `mcl_farming_melon_seeds.png`;
+- the six `mcl_potions_effect_*.png` icons for `swiftness`, `strength`,
+  `regeneration`, `fire_resistance`, `water_breathing`, and `night_vision`.
+
+The bottle overlay is tinted and combined with the original bottle texture at
+runtime for inventory icons, held sprites and dropped items. These derived
+texture combinations retain CC BY-SA 3.0. The six-sided brewing stand, glass
+vials, bubbles and melon geometry are original; no upstream models are included.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

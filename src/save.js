@@ -1,4 +1,5 @@
 import { validFurnace } from './furnaces.js';
+import { validBrewing } from './brewing.js';
 import { validChest } from './chests.js';
 import { validSurvival } from './survival.js';
 import { validExperience, validOrbs } from './experience.js';
@@ -11,7 +12,7 @@ import { validEquipment } from './equipment.js';
 import { LIQUIDS } from './fluids.js';
 import { ITEMS, BLOCKS, canEquip } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v7';
+export const SAVE_KEY = 'hexwild-save-v8';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -45,7 +46,7 @@ const inventory = (inv) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 7 ||
+    s.version !== 8 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -59,8 +60,7 @@ export function validateSave(s) {
     throw Error('存档格式或玩家数据无效');
   if (!s.dimensions || !Object.hasOwn(s.dimensions, s.dimension))
     throw Error('维度数据缺失');
-  if (s.survival !== undefined && !validSurvival(s.survival))
-    throw Error('生存状态数据无效');
+  if (!validSurvival(s.survival)) throw Error('生存状态数据无效');
   if (s.weather !== undefined && !validWeather(s.weather))
     throw Error('天气数据无效');
   for (const [id, d] of Object.entries(s.dimensions)) {
@@ -108,6 +108,18 @@ export function validateSave(s) {
         ))
     )
       throw Error('熔炉数据无效');
+    if (
+      !Array.isArray(d.brewing) ||
+      d.brewing.length > 200000 ||
+      d.brewing.some(
+        (e) =>
+          !Array.isArray(e) ||
+          e.length !== 2 ||
+          !cell(e[0]) ||
+          !validBrewing(e[1]),
+      )
+    )
+      throw Error('酿造台数据无效');
     for (const field of ['structureFeatures', 'discoveredStructures']) {
       if (
         d[field] !== undefined &&

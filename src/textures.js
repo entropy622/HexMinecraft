@@ -15,6 +15,7 @@ export function createTextures() {
   ]);
   names.push(
     'anvilBase:side',
+    'brewingBase:side',
     'grindstoneFrame:side',
     'water',
     'lava',

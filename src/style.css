@@ -1000,6 +1000,178 @@ button svg {
 .post-settings:disabled {
   opacity: 0.45;
 }
+.potion-icon {
+  position: relative;
+  clip-path: none;
+}
+.potion-icon img,
+.potion-icon .potion-liquid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.potion-liquid {
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}
+.brewing-machine {
+  padding: 15px;
+  margin: 15px 0 22px;
+  border: 3px solid #857a5e;
+  background: #26392f;
+  box-shadow: inset 3px 3px #122319;
+}
+.brew-inputs {
+  display: grid;
+  grid-template-columns: 1fr 30px 1fr;
+  justify-items: center;
+  align-items: center;
+  gap: 10px;
+}
+.brew-inputs > div:not(.brew-bubbles) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 11px;
+  color: #d9d1b5;
+  gap: 6px;
+}
+.brew-bubbles {
+  color: #abde91;
+  font-size: 18px;
+  text-align: center;
+  opacity: 0.25;
+}
+.active .brew-bubbles {
+  opacity: 1;
+  animation: brew-bubbles 1.2s steps(3) infinite;
+}
+@keyframes brew-bubbles {
+  50% {
+    transform: translateY(-4px);
+    color: #e2edaa;
+  }
+}
+#brew-status,
+#brew-fuel {
+  text-align: center;
+  margin: 5px 0;
+}
+.station-panel #brew-status {
+  color: #dfd69c;
+  font-size: 12px;
+}
+.station-panel #brew-fuel {
+  font-size: 10px;
+}
+#brew-progress {
+  display: block;
+  width: 100%;
+  height: 12px;
+  border: 2px solid #132519;
+  border-radius: 0;
+  background: #172d22;
+  accent-color: #9bc77a;
+}
+#brew-progress::-webkit-progress-bar {
+  background: #172d22;
+}
+#brew-progress::-webkit-progress-value {
+  background: #9bc77a;
+}
+#brew-progress::-moz-progress-bar {
+  background: #9bc77a;
+}
+.brew-bottles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+.station-panel .brew-bottle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 4px;
+  margin: 0;
+  width: 100%;
+  min-height: 110px;
+  background: #1c3026;
+  border: 2px solid #667a58;
+  font-size: 11px;
+}
+.station-panel .brew-bottle.selected {
+  border-color: #e5cb83;
+}
+.brew-bottle .block-icon {
+  width: 40px;
+  height: 40px;
+}
+.brew-bottles small {
+  display: block;
+  text-align: center;
+  color: #adc58d;
+  font-size: 10px;
+  line-height: 1.6;
+  padding-top: 5px;
+}
+.brew-recipes {
+  margin-top: 18px;
+  border: 2px solid #77825f;
+  padding: 12px;
+}
+.brew-recipes summary {
+  cursor: pointer;
+  color: #e3d4a5;
+  font-size: 13px;
+}
+.brew-recipes p {
+  border-bottom: 1px solid #687b4f;
+  padding-bottom: 8px;
+}
+.brew-recipes .block-icon {
+  display: inline-block;
+  vertical-align: middle;
+  width: 22px;
+  height: 25px;
+}
+.brew-recipes small {
+  display: block;
+  color: #b3c68f;
+}
+#effect-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  max-width: min(580px, 90vw);
+  margin: 0 auto;
+}
+.effect-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--effect, #9aa780);
+  background: #172a23d9;
+  color: #e4e6ce;
+  font-size: 10px;
+}
+.effect-badge img {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+@media (prefers-reduced-motion: reduce) {
+  .active .brew-bubbles {
+    animation: none;
+  }
+}
 .help-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

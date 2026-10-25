@@ -36,9 +36,12 @@ import {
 } from 'lucide';
 import { blockTextures, itemTextures, textureURL } from './texture-pack.js';
 import { ITEMS } from './core.js';
+import { POTIONS, potionDescription } from './brewing-data.js';
 
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
 const symbols = {
+  blazeRod: Flame,
+  brewingStand: CookingPot,
   anvil: Anvil,
   chippedAnvil: Anvil,
   damagedAnvil: Anvil,
@@ -98,6 +101,15 @@ const symbols = {
 const cache = new Map();
 export function itemIcon(id) {
   if (!cache.has(id)) {
+    if (POTIONS[id]) {
+      const bottle = textureURL('mcl_potions_potion_bottle'),
+        overlay = textureURL('mcl_potions_potion_overlay');
+      cache.set(
+        id,
+        `<span class="block-icon pixel-icon item-tile potion-icon" title="${potionDescription(id)}"><span class="potion-liquid" style="background:${POTIONS[id].color};mask-image:url('${overlay}')"></span><img src="${bottle}" alt="" draggable="false"></span>`,
+      );
+      return cache.get(id);
+    }
     const tile =
       itemTextures[id] ||
       (![
@@ -107,6 +119,7 @@ export function itemIcon(id) {
         'chippedAnvil',
         'damagedAnvil',
         'grindstone',
+        'brewingStand',
       ].includes(id)
         ? blockTextures[id]?.at(-1)
         : null);

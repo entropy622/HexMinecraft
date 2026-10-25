@@ -36,6 +36,29 @@ export function createPlant(k, plant) {
     side: THREE.DoubleSide,
     alphaTest: 0.4,
   });
+  if (plant.kind === 'melon' && stage === 3) {
+    const image = plantImage('melonTop', 0);
+    if (image && !textures.has('melon:top')) {
+      const top = new THREE.Texture(image);
+      top.colorSpace = THREE.SRGBColorSpace;
+      top.magFilter = top.minFilter = THREE.NearestFilter;
+      top.needsUpdate = true;
+      textures.set('melon:top', top);
+    }
+    const topMaterial = new THREE.MeshLambertMaterial({
+      map: textures.get('melon:top'),
+      color: '#ffffff',
+    });
+    const fruit = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.44, 0.44, 0.65, 6),
+      [material, topMaterial, topMaterial],
+    );
+    fruit.position.y = 0.325;
+    fruit.castShadow = fruit.receiveShadow = true;
+    fruit.userData.plant = { q, y, r, k, height: 0.65 };
+    group.add(fruit);
+    return group;
+  }
   for (let h = 0; h < layers; h++)
     for (let side = 0; side < 3; side++) {
       const mesh = new THREE.Mesh(

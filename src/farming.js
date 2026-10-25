@@ -13,11 +13,13 @@ export function nearWater(world, q, y, r, radius = 3) {
 export function plantingIssue(world, kind, q, y, r) {
   const def = PLANTS[kind];
   if (!def.soil.includes(world.get(q, y, r)))
-    return def.tree
-      ? '树苗需要泥土或草地。'
-      : def.perennial
-        ? '甘蔗需要水边的泥土、草地或沙地。'
-        : '先用锄头把土地翻耕。';
+    return def.infernal
+      ? '下界疣只能种在灵魂沙上。'
+      : def.tree
+        ? '树苗需要泥土或草地。'
+        : def.perennial
+          ? '甘蔗需要水边的泥土、草地或沙地。'
+          : '先用锄头把土地翻耕。';
   if (y >= 62 || world.get(q, y + 1, r) || world.fluids.get(q, y + 1, r))
     return '先清理土地上方的空间和液体。';
   if (
@@ -44,6 +46,7 @@ export function growthConditions(
   lights,
 ) {
   const def = PLANTS[plant.kind];
+  if (def.infernal) return { rate: 1, reason: '灵魂沙滋养 · 无需光照与水' };
   if (
     def.perennial &&
     [2, 3].some((h) => world.get(q, y + h, r) || world.fluids.get(q, y + h, r))

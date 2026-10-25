@@ -1,4 +1,19 @@
 export const PLANTS = {
+  netherWart: {
+    name: '下界疣',
+    seed: 'netherWart',
+    seconds: 120,
+    soil: ['soulSand'],
+    yield: { netherWart: 3 },
+    infernal: true,
+  },
+  melon: {
+    name: '西瓜',
+    seed: 'melonSeed',
+    seconds: 150,
+    soil: ['farmland'],
+    yield: { melonSlice: 4, melonSeed: 2 },
+  },
   wheat: {
     name: '小麦',
     seed: 'seed',
@@ -77,14 +92,14 @@ export const FARM_RECIPES = [
     1,
     ['paper', null, 'paper', 'leather', null, 'paper', null],
     '一本新书',
-    '纸与皮革装订成书，用来制作书架。',
+    '纸与皮革装订成书，用来制作书架或附魔台。',
   ),
   recipe(
     'bookshelf',
     1,
     ['planks', 'planks', 'planks', 'book', 'book', 'book', 'planks'],
     '书香小屋',
-    '带像素书脊的六棱书架，用来装饰家。',
+    '带像素书脊的六棱书架，也能增强两格外的附魔台。',
     true,
   ),
 ];

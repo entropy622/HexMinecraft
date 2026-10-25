@@ -174,7 +174,15 @@ export function miningStats(block, held, enchant = {}) {
     'ladder',
   ].includes(block)
     ? 'axe'
-    : ['grass', 'dirt', 'sand', 'snow', 'farmland', 'sandstone'].includes(block)
+    : [
+          'grass',
+          'dirt',
+          'sand',
+          'snow',
+          'farmland',
+          'sandstone',
+          'soulSand',
+        ].includes(block)
       ? 'shovel'
       : ['leaves', 'shroom', 'bed'].includes(block)
         ? null

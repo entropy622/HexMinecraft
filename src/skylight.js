@@ -1,4 +1,5 @@
 import { ShaderChunk, Color } from 'three';
+export const visionUniforms = { nightVision: { value: 0 } };
 
 // Both static surfaces and moving models use the same response to voxel light.
 export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
@@ -12,7 +13,7 @@ export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
   )
   .replace(
     'vec3 irradiance = getAmbientLightIrradiance( ambientLightColor );',
-    'vec3 irradiance = vec3(0.025) + vBlockLight * 3.8;',
+    'vec3 irradiance = vec3(0.025 + nightVision * 0.75) + vBlockLight * 3.8;',
   )
   .replace(
     'irradiance += getHemisphereLightIrradiance',
@@ -28,7 +29,7 @@ export function applySkylight(material, sharedUniforms) {
     wetSky: { value: new Color('#7c96a5') },
   };
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+    Object.assign(shader.uniforms, uniforms, visionUniforms);
     shader.vertexShader =
       `attribute float skylight; attribute float rainExposure; attribute vec3 blocklight;
       varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 wetPosition;\n${shader.vertexShader}`.replace(
@@ -41,7 +42,7 @@ export function applySkylight(material, sharedUniforms) {
       );
     shader.fragmentShader =
       `varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 wetPosition;
-      uniform float terrainWetness; uniform vec3 wetSky;\n${shader.fragmentShader}`
+      uniform float terrainWetness; uniform vec3 wetSky; uniform float nightVision;\n${shader.fragmentShader}`
         .replace('#include <lights_fragment_begin>', voxelLightingChunk)
         .replace(
           '#include <opaque_fragment>',

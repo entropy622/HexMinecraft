@@ -107,7 +107,15 @@ export function structureLoot(world, s) {
       : s.kind === 'dungeon'
         ? { goldIngot: 4, arrow: 12, bone: 3, emerald: 2 }
         : s.kind === 'fortress'
-          ? { goldIngot: 6, ember: 2, obsidian: 3, sword: 1 }
+          ? {
+              goldIngot: 6,
+              ember: 2,
+              obsidian: 3,
+              sword: 1,
+              blazeRod: 2,
+              netherWart: 3,
+              soulSand: 4,
+            }
           : s.kind === 'shrine'
             ? { pearl: 3, diamond: 2, goldenApple: 1 }
             : { bread: 3, torch: 6, ingot: 2, emerald: 1 };
@@ -238,12 +246,29 @@ export function stampStructure(world, s, cq, cr) {
           block(dq * d, 2, dr * d, null);
         }
     }
-    if (s.kind === 'fortress') block(0, 1, 0, 'spawner');
-    else {
+    if (s.kind === 'fortress') {
+      block(0, 1, 0, 'spawner');
+      block(-4, 1, 0, 'brewingStand');
+      for (const p of structurePlants(s)) put(p.q, p.y, p.r, 'soulSand');
+    } else {
       block(0, 1, 0, 'goldBlock');
       block(0, 2, 0, 'lantern');
     }
   }
   for (const chest of structureLoot(world, s))
     put(chest.q, chest.y, chest.r, 'chest');
+}
+export function structurePlants(s) {
+  return s.kind === 'fortress'
+    ? [
+        [-3, -2],
+        [-2, -3],
+        [-1, -3],
+      ].map(([dq, dr]) => ({
+        q: s.q + dq,
+        y: s.y,
+        r: s.r + dr,
+        kind: 'netherWart',
+      }))
+    : [];
 }
