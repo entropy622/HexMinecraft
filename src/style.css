@@ -2147,7 +2147,7 @@ input:focus-visible {
 }
 .armor-slots {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin: 12px 0;
 }
@@ -2178,6 +2178,64 @@ input:focus-visible {
   background: #543c22;
   outline: 2px solid #d1a15d;
   padding: 5px 12px;
+}
+
+#attack-meter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 12px;
+  margin: 3px 0 7px;
+}
+#attack-meter i {
+  width: 11px;
+  height: 10px;
+  clip-path: var(--hex);
+  background: #2c3935;
+  box-shadow: inset 0 2px #050f0b;
+}
+#attack-meter i.ready {
+  background: #e1d49a;
+  box-shadow:
+    inset 0 2px #f5ecc0,
+    inset 0 -2px #9d8d60;
+}
+#shield-status {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  margin: 4px 0;
+  padding: 4px 9px;
+  color: #d4ddd0;
+  background: #263b32b8;
+  border: 2px solid #697c62;
+  font-size: 11px;
+  text-shadow: 1px 1px #121e18;
+}
+#shield-status.impact {
+  color: #fff0ae;
+  border-color: #f4d587;
+  background: #79623ecc;
+}
+#shield-ready {
+  width: 45px;
+  height: 6px;
+  border: 0;
+  border-radius: 0;
+  background: #17271f;
+  accent-color: #d7dca6;
+}
+#shield-ready::-webkit-progress-bar {
+  background: #17271f;
+}
+#shield-ready::-webkit-progress-value {
+  background: #d7dca6;
+}
+#shield-ready::-moz-progress-bar {
+  background: #d7dca6;
 }
 #boat-status {
   max-width: min(580px, 90vw);

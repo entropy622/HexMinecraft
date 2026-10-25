@@ -42,6 +42,7 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  shield: 'mcl_shield',
   boat: 'mcl_boats_oak_boat',
   fishingRod: 'mcl_fishing_fishing_rod',
   rawCod: 'mcl_fishing_fish_raw',

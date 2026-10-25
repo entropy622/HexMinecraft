@@ -521,7 +521,7 @@ export class Fauna {
           sight &&
           m.attack <= 0
         ) {
-          this.callbacks.damage(m.kind === 'zombie' ? 3 : 2);
+          this.callbacks.damage(m.kind === 'zombie' ? 3 : 2, p);
           m.attack = 1.1;
         }
       } else m.fuse = 0;

@@ -5,6 +5,19 @@ export class Movement {
   }
   reset() {
     this.x = this.z = this.jumpBuffer = this.coyote = 0;
+    this.kickX = this.kickZ = 0;
+  }
+  kick(x, z, strength) {
+    const length = Math.hypot(x, z);
+    if (length < 0.01) return;
+    this.kickX = Math.max(
+      -7,
+      Math.min(7, this.kickX + (x / length) * strength),
+    );
+    this.kickZ = Math.max(
+      -7,
+      Math.min(7, this.kickZ + (z / length) * strength),
+    );
   }
   jump() {
     this.jumpBuffer = 0.14;
@@ -16,7 +29,14 @@ export class Movement {
     const blend = 1 - Math.exp(-response * dt);
     this.x += (x - this.x) * blend;
     this.z += (z - this.z) * blend;
-    return { dx: this.x * dt, dz: this.z * dt };
+    const result = {
+      dx: (this.x + this.kickX) * dt,
+      dz: (this.z + this.kickZ) * dt,
+    };
+    const damping = Math.exp(-7 * dt);
+    this.kickX *= damping;
+    this.kickZ *= damping;
+    return result;
   }
   takeJump(held, grounded) {
     if (this.coyote > 0 && (this.jumpBuffer > 0 || (held && grounded))) {

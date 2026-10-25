@@ -137,6 +137,10 @@ export class GameAudio {
       [440, 554, 659].forEach((n, i) =>
         this.tone(n, 0.15, 'triangle', 0.075, i * 0.065),
       );
+    } else if (event === 'shieldBlock') {
+      this.noise(0.11, 0.17, 650);
+      this.tone(170, 0.09, 'triangle', 0.07);
+      this.tone(510, 0.05, 'sine', 0.04);
     } else if (event === 'eat') {
       this.noise(0.08, 0.09, 1800);
     } else if (event === 'drink') {

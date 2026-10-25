@@ -16,6 +16,7 @@ export class Equipment {
   constructor(saved = {}) {
     this.wear = structuredClone(saved.wear || {});
     this.armor = { ...saved.armor };
+    this.offhand = saved.offhand || null;
   }
   remaining(id) {
     return this.wear[id]?.[0] ?? ITEMS[id]?.durability ?? 0;
@@ -27,11 +28,31 @@ export class Equipment {
     }
     for (const slot of Object.keys(this.armor))
       if (!creative && !inventory[this.armor[slot]]) delete this.armor[slot];
+    if (this.offhand && !creative && !inventory[this.offhand])
+      this.offhand = null;
   }
-  equip(id, inventory, creative) {
+  equip(id, inventory, creative, index = 0) {
+    if (
+      !creative &&
+      (!Number.isInteger(index) || index < 0 || index >= (inventory[id] || 0))
+    )
+      return;
+    if (ITEMS[id]?.durability && index > 0) {
+      const copies = Array.from(
+        { length: inventory[id] || 0 },
+        (_, i) => this.wear[id]?.[i] ?? ITEMS[id].durability,
+      );
+      const selected = copies.splice(index, 1)[0];
+      copies.unshift(selected);
+      this.wear[id] = copies;
+    }
+    if (ITEMS[id]?.offhand && (creative || inventory[id] > 0)) {
+      this.offhand = this.offhand === id && index === 0 ? null : id;
+      return;
+    }
     const slot = ITEMS[id]?.armorSlot;
     if (!slot || (!creative && !inventory[id])) return;
-    if (this.armor[slot] === id) delete this.armor[slot];
+    if (this.armor[slot] === id && index === 0) delete this.armor[slot];
     else this.armor[slot] = id;
   }
   damage(id, amount, inventory, creative = false) {
@@ -57,7 +78,11 @@ export class Equipment {
     );
   }
   serialize() {
-    return { armor: { ...this.armor }, wear: structuredClone(this.wear) };
+    return {
+      armor: { ...this.armor },
+      offhand: this.offhand,
+      wear: structuredClone(this.wear),
+    };
   }
 }
 export function miningStats(block, held) {
@@ -107,6 +132,8 @@ export function validEquipment(e, inventory, creative) {
   return (
     e &&
     validWear(e.wear, inventory) &&
+    (e.offhand == null ||
+      (ITEMS[e.offhand]?.offhand && (creative || inventory[e.offhand] > 0))) &&
     e.armor &&
     typeof e.armor === 'object' &&
     !Array.isArray(e.armor) &&

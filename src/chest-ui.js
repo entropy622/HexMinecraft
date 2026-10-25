@@ -41,5 +41,5 @@ export function chestPanel(chest, inventory, wear, state, creative) {
     <div class="chest-search"><input id="chest-search" placeholder="筛选背包物品…" aria-label="筛选背包物品" value="${escape(state.query)}"><span>${pack.total} 组</span></div>
     <div class="chest-grid" role="group" aria-label="背包物品">${pack.slots.map((slot, i) => slotButton(slot, 'pack', i)).join('')}</div>
     <div class="chest-pagination"><button data-chest-page="-1" ${pack.page === 0 ? 'disabled' : ''}>上一页</button><span>${pack.page + 1} / ${pack.pages}</span><button data-chest-page="1" ${pack.page + 1 >= pack.pages ? 'disabled' : ''}>下一页</button></div>
-    <p class="panel-note">点击物品按所选数量存取 · 右键取/存 1 件 · Shift 点击整组。补存同类会保留当前手持物与已穿戴护甲各 1 件。空间不足的物品留在原处；装备耐久逐件保留。</p>`;
+    <p class="panel-note">点击物品按所选数量存取 · 右键取/存 1 件 · Shift 点击整组。补存同类会保留当前手持物、护甲与副手装备各 1 件。空间不足的物品留在原处；装备耐久逐件保留。</p>`;
 }

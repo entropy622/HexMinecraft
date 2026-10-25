@@ -113,7 +113,22 @@ export class Projectiles {
             ray.intersectSphere(sphere, point) &&
             previous.distanceTo(point) <= length
           ) {
-            onPlayerHit(4);
+            // A point upstream from impact preserves the incoming direction,
+            // even if this simulation step has crossed the player's center.
+            const source = point.clone().addScaledVector(direction, -2);
+            const blocked = onPlayerHit(4, source) === 'blocked';
+            if (blocked) {
+              arrow.owner = 'player';
+              arrow.recoverable = true;
+              arrow.damage = 1;
+              arrow.velocity.multiplyScalar(-0.12);
+              arrow.velocity.y = -1;
+              arrow.mesh.position
+                .copy(previous)
+                .addScaledVector(direction, -0.35);
+              arrow.life = Math.min(arrow.life, 15);
+              break;
+            }
             this.remove(arrow);
             break;
           }

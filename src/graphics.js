@@ -2,6 +2,7 @@ import { applySkylight } from './skylight.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
 import { ChestModels } from './chest-graphics.js';
+import { createShield } from './shield-graphics.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
 import { buildingMesh } from './building-graphics.js';
@@ -238,6 +239,8 @@ export class Graphics {
     this.hand.scale.setScalar(0.64);
     this.hand.position.set(0.38, -0.32, -0.65);
     this.camera.add(this.hand);
+    this.shield = createShield(this.textures);
+    this.camera.add(this.shield);
     this.scene.add(this.camera);
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight;
@@ -432,6 +435,7 @@ export class Graphics {
     this.swingTime = 0.28;
   }
   setHeld(id) {
+    if (id === 'shield' && this.shieldEquipped) id = null;
     const next = id;
     if (this.heldKey === next) return;
     this.heldKey = next;
@@ -1291,6 +1295,25 @@ export class Graphics {
       this.hand.position.y = -0.18 + Math.abs(chew) * 0.025;
       this.hand.position.z = -0.48;
     }
+    this.shield.visible = playing && !!this.shieldEquipped;
+    this.shieldBlend = THREE.MathUtils.damp(
+      this.shieldBlend || 0,
+      this.blocking ? 1 : 0,
+      12,
+      renderDt,
+    );
+    const guard = this.shieldBlend,
+      impact = this.shieldImpact || 0;
+    this.shield.position.set(
+      -0.42 + guard * 0.22,
+      -0.34 + guard * 0.22,
+      -0.68 + guard * 0.13 + impact * 0.055,
+    );
+    this.shield.rotation.set(
+      0.06,
+      0.32 * (1 - guard),
+      0.1 * (1 - guard) + impact * 0.12,
+    );
     this.dynamicLight.attach(this.scene);
     if (this.chestModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;

@@ -37,6 +37,10 @@ Version 0.20 adds unmodified `farming_bread.png`, `mcl_mobitems_beef_raw.png`,
 and `mcl_mobitems_beef_cooked.png` from the same revision and media license,
 used for food inventory icons, dropped items and held eating animation.
 
+Version 0.21 adds the unmodified `mcl_shield.png` inventory icon from the same
+revision and media license. The held hexagonal shield is original geometry,
+using the existing wood tile and plain metal material.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.
