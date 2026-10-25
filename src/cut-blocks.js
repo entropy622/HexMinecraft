@@ -49,7 +49,7 @@ export function cutBlockParts(world, q, y, r) {
     z: 0,
     h: high - low,
     angle: 0,
-    tile: def.base,
+    tile: def.tile || def.base,
   });
   if (def.shape === 'slab')
     return [

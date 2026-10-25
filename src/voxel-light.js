@@ -2,6 +2,7 @@ import { Float32BufferAttribute } from 'three';
 import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
 import { isDoor, isTrapdoor } from './building-data.js';
 import { isCampfire } from './campfire-data.js';
+import { FURNACES, isFurnace } from './processing-data.js';
 
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
@@ -13,7 +14,7 @@ const EMISSION = {
   lantern: [15, 13, 9],
   glowstone: [15, 13, 9],
   crystal: [6, 11, 10],
-  furnace: [13, 9, 5],
+  ...Object.fromEntries(Object.keys(FURNACES).map((id) => [id, [13, 9, 5]])),
   portal: [11, 6, 15],
   endportal: [7, 14, 12],
   spawner: [10, 5, 13],
@@ -166,7 +167,7 @@ export class VoxelLight {
                   ? 1
                   : 16;
       const emission =
-        (type === 'furnace' && !(this.world.furnaces.get(key)?.burn > 0)) ||
+        (isFurnace(type) && !(this.world.furnaces.get(key)?.burn > 0)) ||
         (isCampfire(type) && !this.world.campfires.get(key)?.lit)
           ? null
           : EMISSION[type];

@@ -3464,6 +3464,78 @@ input:focus-visible {
 .palette-grid [hidden] {
   display: none;
 }
+.stonecut-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 24px 76px;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+}
+.stonecut-row > label {
+  text-align: center;
+  font-size: 12px;
+}
+.stonecut-row > label .mc-slot {
+  margin: 6px 0;
+}
+.stonecut-row > label small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.stonecut-recipes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  max-height: 232px;
+  overflow-y: auto;
+  padding: 4px;
+  background: #272726;
+  box-shadow:
+    inset 2px 2px #161615,
+    inset -2px -2px #d4d1c5;
+}
+.panel .stonecut-recipe {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  margin: 0;
+  padding: 5px;
+  text-align: left;
+  font-size: 11px;
+  border: 2px solid #464742;
+  background: #77796f;
+}
+.stonecut-recipe .block-icon {
+  width: 30px;
+  height: 32px;
+  flex-shrink: 0;
+}
+.stonecut-recipe small {
+  display: block;
+  margin-top: 4px;
+  color: #ede6ca;
+  font-size: 9px;
+}
+.panel .stonecut-recipe.selected {
+  border-color: #f4e5ae;
+  background: #646c50;
+}
+.stonecut-recipes > p {
+  grid-column: 1 / -1;
+  padding: 8px;
+  font-size: 11px;
+}
+@media (max-width: 540px) {
+  .stonecut-row {
+    grid-template-columns: 44px minmax(0, 1fr) 16px 52px;
+    gap: 6px;
+  }
+  .stonecut-recipes {
+    grid-template-columns: 1fr;
+  }
+}
 .furnace-machine .mc-slot,
 .brew-inputs .mc-slot,
 .brew-bottles .mc-slot {

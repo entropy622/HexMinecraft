@@ -27,6 +27,37 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (shape === 'stonecutter') {
+    const base = {
+      x: 0,
+      y: 0.28125,
+      z: 0,
+      h: 0.5625,
+      angle: 0,
+      tile: 'stonecutter',
+      polygon: HEX_POLYGON,
+    };
+    return collision
+      ? [base]
+      : [
+          base,
+          {
+            x: 0,
+            y: 0.61,
+            z: 0,
+            h: 0.7,
+            angle,
+            tile: 'stonecutterSaw',
+            uvFull: true,
+            polygon: [
+              [-0.45, -0.012],
+              [0.45, -0.012],
+              [0.45, 0.012],
+              [-0.45, 0.012],
+            ],
+          },
+        ];
+  }
   if (shape === 'campfire') {
     const base = {
       x: 0,

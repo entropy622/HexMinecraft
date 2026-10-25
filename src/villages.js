@@ -238,7 +238,7 @@ export function stampVillage(world, v, cq, cr) {
               v.h,
               r,
               role === 'smith'
-                ? 'furnace'
+                ? 'blastFurnace'
                 : role === 'merchant'
                   ? 'workbench'
                   : 'bed',
@@ -300,6 +300,8 @@ export function stampVillage(world, v, cq, cr) {
   for (const p of f.chests) put(p.q, p.y, p.r, 'chest');
   put(v.q - 3, v.h, v.r + 2, 'hayBale');
   put(v.q - 3, v.h + 1, v.r + 2, 'campfire');
+  put(v.q - 2, v.h, v.r + 3, 'smoker');
+  put(v.q + 3, v.h, v.r - 2, 'stonecutter');
   for (const [x, z] of [
     [4, -4],
     [-4, 4],

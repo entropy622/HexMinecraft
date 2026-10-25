@@ -13,6 +13,8 @@ import { FallingModels } from './gravity-graphics.js';
 import { MiningEffects } from './mining-graphics.js';
 import { netherSheet } from './nether-portal-graphics.js';
 import { isCampfire } from './campfire-data.js';
+import { isFurnace } from './processing-data.js';
+import { animateSawMaterial, sawClock } from './processing-graphics.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
 import { ChestModels } from './chest-graphics.js';
@@ -143,6 +145,7 @@ export class Graphics {
       shadowSide: THREE.DoubleSide,
     });
     applySkylight(this.doorMaterial, this.weatherUniforms);
+    animateSawMaterial(this.doorMaterial);
     this.leafUniforms = foliageUniforms();
     this.leafMaterials = leafMaterials(
       this.textures.atlas,
@@ -408,7 +411,7 @@ export class Graphics {
       for (const ck of wanted)
         for (const [k, t] of this.world.editChunks.get(ck) || []) {
           const [x, y, z] = k.split(',').map(Number);
-          if (BLOCKS[t]?.light || t === 'furnace') this.updateLight(x, y, z);
+          if (BLOCKS[t]?.light || isFurnace(t)) this.updateLight(x, y, z);
           if (t === 'portal' || t === 'endportal') this.portal(x, y, z, t);
         }
     }
@@ -588,8 +591,7 @@ export class Graphics {
             !['沙漠', '雪原'].includes(world.biome(q, r))
               ? 1
               : 0;
-          if (BLOCKS[type].light || type === 'furnace')
-            this.updateLight(q, y, r);
+          if (BLOCKS[type].light || isFurnace(type)) this.updateLight(q, y, r);
           if (type === 'torch') {
             out = torches;
             const p = axialToWorld(q, r),
@@ -657,13 +659,13 @@ export class Graphics {
               );
               tile = type + ':' + mapped.face;
               uv = mapped.uv;
-            } else if (type === 'furnace' && side >= 0) {
+            } else if (isFurnace(type) && side >= 0) {
               tile =
                 side === world.state(q, y, r).facing
                   ? world.furnaces.get(q + ',' + y + ',' + r)?.burn > 0
-                    ? 'furnaceLit:side'
-                    : 'furnace:side'
-                  : 'furnaceCasing:side';
+                    ? type + 'Lit:side'
+                    : type + ':side'
+                  : type + 'Casing:side';
             }
             tri(vertices, uv, tile, shade, ao);
           };
@@ -845,7 +847,9 @@ export class Graphics {
         r,
         origin,
         this.textures,
-        isDoor(world.get(q, y, r)) || isTrapdoor(world.get(q, y, r))
+        isDoor(world.get(q, y, r)) ||
+          isTrapdoor(world.get(q, y, r)) ||
+          world.get(q, y, r) === 'stonecutter'
           ? this.doorMaterial
           : this.material,
       );
@@ -917,7 +921,7 @@ export class Graphics {
       color =
         isCampfire(type) && !this.world.campfires.get(k)?.lit
           ? null
-          : type === 'furnace' && this.world.furnaces.get(k)?.burn > 0
+          : isFurnace(type) && this.world.furnaces.get(k)?.burn > 0
             ? '#ff9d47'
             : BLOCKS[type]?.light;
     if (this.lights.get(k)?.color !== color) this.voxelLight.dirty = true;
@@ -1232,6 +1236,7 @@ export class Graphics {
     heldLight = playing ? this.heldKey : null,
     offhandLight = playing ? this.offhandKey : null,
   ) {
+    sawClock.value = time;
     this.voxelLight.setHeld([heldLight, offhandLight], this.camera.position);
     if (this.voxelLight.update(renderDt)) {
       this.dynamicLight.upload(this.voxelLight);

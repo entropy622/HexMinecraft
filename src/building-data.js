@@ -127,6 +127,9 @@ export const CUT_MATERIALS = [
   ['sandstone', '砂岩', '#d6bf85', 0.9],
   ['netherbrick', '下界砖', '#593841', 1.4],
   ['purpur', '紫珀', '#b48eaf', 1.3],
+  ['endstoneBricks', '末地石砖', '#c1c0a0', 3],
+  ['mossybrick', '苔石砖', '#7f9475', 2],
+  ['copperBlock', '切制铜', '#c38466', 3],
 ];
 for (const [base, name, color, hardness] of CUT_MATERIALS) {
   for (const [suffix, shape, label] of [

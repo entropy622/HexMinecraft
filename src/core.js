@@ -24,6 +24,7 @@ import {
   MINERAL_RECIPES,
 } from './mineral-data.js';
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
+import { PROCESSING_BLOCKS, PROCESSING_RECIPES } from './processing-data.js';
 import {
   IGNITION_BLOCKS,
   IGNITION_ITEMS,
@@ -49,6 +50,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...PROCESSING_BLOCKS,
   ...MINERAL_BLOCKS,
   ...IGNITION_BLOCKS,
   ...CAMPFIRE_BLOCKS,
@@ -665,6 +667,7 @@ RECIPES.push(
   ...MINERAL_RECIPES,
   ...IGNITION_RECIPES,
   ...CAMPFIRE_RECIPES,
+  ...PROCESSING_RECIPES,
   ...BREW_RECIPES,
   ...SMITHING_RECIPES,
   ...ENCHANT_RECIPES,

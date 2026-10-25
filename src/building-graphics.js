@@ -46,12 +46,12 @@ function polygonPrism(part) {
         [b[0], high, b[1]],
         [b[0], low, b[1]],
       ];
-      const width = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      const width = part.uvFull ? 1 : Math.hypot(a[0] - b[0], a[1] - b[1]);
       const tex = [
-        [0, 1 - (part.y + low)],
-        [0, 1 - (part.y + high)],
-        [width, 1 - (part.y + high)],
-        [width, 1 - (part.y + low)],
+        [0, part.uvFull ? 0 : 1 - (part.y + low)],
+        [0, part.uvFull ? 1 : 1 - (part.y + high)],
+        [width, part.uvFull ? 1 : 1 - (part.y + high)],
+        [width, part.uvFull ? 0 : 1 - (part.y + low)],
       ];
       triangle([points[0], points[1], points[2]], [tex[0], tex[1], tex[2]]);
       triangle([points[0], points[2], points[3]], [tex[0], tex[2], tex[3]]);
@@ -73,6 +73,8 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
   const positions = [],
     normals = [],
     uv = [],
+    sawNext = [],
+    sawLast = [],
     colors = [],
     sky = [],
     rain = [];
@@ -102,6 +104,21 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
         : Math.abs(normal.getY(i));
       const face = panelNormal > 0.5 ? 'top' : 'side';
       uv.push(...textures.uv(part.tile + ':' + face, tex.getX(i), tex.getY(i)));
+      const saw = part.tile === 'stonecutterSaw';
+      sawNext.push(
+        ...textures.uv(
+          (saw ? 'stonecutterSaw2' : part.tile) + ':' + face,
+          tex.getX(i),
+          tex.getY(i),
+        ),
+      );
+      sawLast.push(
+        ...textures.uv(
+          (saw ? 'stonecutterSaw3' : part.tile) + ':' + face,
+          tex.getX(i),
+          tex.getY(i),
+        ),
+      );
       const shade = normal.getY(i) > 0.5 ? 1 : 0.86;
       colors.push(shade, shade, shade);
       sky.push(1);
@@ -114,6 +131,8 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     ['position', positions, 3],
     ['normal', normals, 3],
     ['uv', uv, 2],
+    ['sawNextUV', sawNext, 2],
+    ['sawLastUV', sawLast, 2],
     ['color', colors, 3],
     ['skylight', sky, 1],
     ['rainExposure', rain, 1],
@@ -143,7 +162,9 @@ export function buildingItemMesh(type, textures) {
     new THREE.MeshLambertMaterial({
       map: textures.atlas,
       vertexColors: true,
-      alphaTest: BLOCKS[type]?.shape === 'trapdoor' ? 0.5 : 0,
+      alphaTest: ['trapdoor', 'stonecutter'].includes(BLOCKS[type]?.shape)
+        ? 0.5
+        : 0,
       side: THREE.DoubleSide,
     }),
   );

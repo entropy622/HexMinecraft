@@ -40,6 +40,7 @@ import { POTIONS, potionDescription } from './brewing-data.js';
 import { cutBlockIcon } from './shape-icons.js';
 import { MINERAL_ICON_BLOCKS } from './mineral-data.js';
 
+import { PROCESSING_BLOCKS } from './processing-data.js';
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
 const symbols = {
   blazeRod: Flame,
@@ -105,6 +106,7 @@ export function itemIcon(id) {
   if (!cache.has(id)) {
     if (
       ITEMS[id]?.portable ||
+      PROCESSING_BLOCKS[id] ||
       MINERAL_ICON_BLOCKS.has(id) ||
       (ITEMS[id]?.pillar && blockTextures[id]) ||
       [

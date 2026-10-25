@@ -2,6 +2,7 @@ import { ITEMS } from './core.js';
 import { validStack } from './inventory.js';
 import { repairMaterial } from './smithing.js';
 import { woodKey } from './wood-data.js';
+import { canStonecut } from './stonecutting.js';
 
 const repairMaterials = new Set(
   Object.keys(ITEMS).map(repairMaterial).filter(Boolean),
@@ -14,6 +15,7 @@ export const smithIngredient = (stack) =>
 export const newWorkstationItems = () => ({
   enchant: [null, null],
   smith: [null, null],
+  stonecut: [null],
 });
 export function validWorkstationItems(items) {
   if (items === undefined) return true;
@@ -28,6 +30,10 @@ export function validWorkstationItems(items) {
     (!items.enchant[0] || ITEMS[items.enchant[0].item].durability) &&
     (!items.enchant[1] || items.enchant[1].item === 'lapis') &&
     (!items.smith[0] || ITEMS[items.smith[0].item].durability) &&
-    (!items.smith[1] || smithIngredient(items.smith[1]))
+    (!items.smith[1] || smithIngredient(items.smith[1])) &&
+    Array.isArray(items.stonecut) &&
+    items.stonecut.length === 1 &&
+    items.stonecut.every(validStack) &&
+    (!items.stonecut[0] || canStonecut(items.stonecut[0].item))
   );
 }

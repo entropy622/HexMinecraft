@@ -18,7 +18,7 @@ import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v12';
+export const SAVE_KEY = 'hexwild-save-v13';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -41,7 +41,7 @@ const position = (p) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 12 ||
+    s.version !== 13 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -119,6 +119,14 @@ export function validateSave(s) {
         ))
     )
       throw Error('熔炉数据无效');
+    if (d.furnaces) {
+      const edits = new Map(d.edits);
+      if (
+        new Set(d.furnaces.map(([k]) => k)).size !== d.furnaces.length ||
+        d.furnaces.some(([k, f]) => edits.has(k) && edits.get(k) !== f.kind)
+      )
+        throw Error('炉具位置或类型无效');
+    }
     if (
       !Array.isArray(d.brewing) ||
       d.brewing.length > 200000 ||

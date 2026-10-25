@@ -166,12 +166,13 @@ export const EXPLORATION_RECIPES = [
   ),
 ];
 export const SMELTING = {
+  smoothStone: { input: 'stone', seconds: 10, xp: 0.1 },
   poppedChorusFruit: { input: 'chorusFruit', seconds: 10 },
-  cookedCod: { input: 'rawCod', seconds: 8 },
-  cookedSalmon: { input: 'rawSalmon', seconds: 8 },
-  charcoal: { input: 'wood', seconds: 8 },
-  glass: { input: 'sand', seconds: 8 },
-  bakedPotato: { input: 'potato', seconds: 6 },
+  cookedCod: { input: 'rawCod', seconds: 10 },
+  cookedSalmon: { input: 'rawSalmon', seconds: 10 },
+  charcoal: { input: 'wood', seconds: 10 },
+  glass: { input: 'sand', seconds: 10 },
+  bakedPotato: { input: 'potato', seconds: 10 },
   ingot: { inputs: ['rawIron', 'ironOre'], seconds: 10, xp: 0.7 },
   goldIngot: { inputs: ['rawGold', 'goldOre'], seconds: 10, xp: 1 },
   copperIngot: { inputs: ['rawCopper', 'copperOre'], seconds: 10, xp: 0.7 },
@@ -181,5 +182,5 @@ export const SMELTING = {
   diamond: { input: 'diamondOre', seconds: 10, xp: 1 },
   lapis: { input: 'lapisOre', seconds: 10, xp: 0.2 },
   redstone: { input: 'redstoneOre', seconds: 10, xp: 0.7 },
-  cooked: { input: 'meat', seconds: 8 },
+  cooked: { input: 'meat', seconds: 10 },
 };

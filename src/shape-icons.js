@@ -85,7 +85,9 @@ export function cutBlockIcon(id) {
       ? name === 'top'
         ? crop(0, 16, 0, 16)
         : crop(16, 12, 0, 8) + crop(44, 8, 8, 8)
-      : `<image href="${url}" width="16" height="16"/>`;
+      : tile === 'stonecutterSaw'
+        ? `<svg width="16" height="16" viewBox="0 0 16 16"><image href="${url}" width="16" height="48"/></svg>`
+        : `<image href="${url}" width="16" height="16"/>`;
     return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse">${content}</pattern>`;
   };
   const tiles = [...new Set(faces.map((f) => f.tile))];

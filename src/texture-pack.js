@@ -89,6 +89,18 @@ export const blockTextures = {
   furnace: ['default_furnace_top', 'default_furnace_front'],
   furnaceLit: ['default_furnace_top', 'default_furnace_front_active'],
   furnaceCasing: ['default_furnace_top', 'default_furnace_side'],
+  blastFurnace: ['blast_furnace_top', 'blast_furnace_front'],
+  blastFurnaceLit: ['blast_furnace_top', 'blast_furnace_front_on'],
+  blastFurnaceCasing: ['blast_furnace_top', 'blast_furnace_side'],
+  smoker: ['smoker_top', 'smoker_front'],
+  smokerLit: ['smoker_top', 'smoker_front_on'],
+  smokerCasing: ['smoker_top', 'smoker_side'],
+  stonecutter: ['mcl_stonecutter_top', 'mcl_stonecutter_side'],
+  stonecutterSaw: ['mcl_stonecutter_saw'],
+  stonecutterSaw2: ['mcl_stonecutter_saw'],
+  stonecutterSaw3: ['mcl_stonecutter_saw'],
+  smoothStone: ['mcl_stairs_stone_slab_top'],
+  smoothStoneSlab: ['mcl_stairs_stone_slab_top', 'mcl_stairs_stone_slab_side'],
   farmland: ['mcl_farming_farmland_wet', 'default_dirt'],
   glowstone: ['mcl_nether_glowstone'],
   bedrock: ['mcl_core_bedrock'],
@@ -373,7 +385,8 @@ export function paintPackTile(ctx, id, top) {
     }
     return;
   }
-  ctx.drawImage(image, 0, 0, 16, 16);
+  const frame = id === 'stonecutterSaw2' ? 1 : id === 'stonecutterSaw3' ? 2 : 0;
+  ctx.drawImage(image, 0, frame * 16, 16, 16, 0, 0, 16, 16);
   const leafTint = id === 'leaves' ? '#79a94d' : WOOD_BLOCKS[id]?.leafTint;
   if (leafTint || (id === 'grass' && top)) {
     ctx.globalCompositeOperation = 'multiply';

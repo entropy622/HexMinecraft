@@ -31,6 +31,9 @@ import {
 import { brewingPanel, updateBrewingPanel } from './brewing-ui.js';
 import { FUELS, newFurnace, smeltingRecipe, tickFurnace } from './furnaces.js';
 import { furnacePanel, updateFurnacePanel } from './furnace-ui.js';
+import { FURNACES, isFurnace } from './processing-data.js';
+import { canStonecut, stonecuttingResult } from './stonecutting.js';
+import { stonecutterPanel } from './stonecutter-ui.js';
 import { newChest, isStorage, storageLidClear } from './chests.js';
 import { chestPanel } from './chest-ui.js';
 import { features as villageFeatures, ROLES, trade } from './villages.js';
@@ -165,7 +168,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.52 — STRINGS AND RIPPLES</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.53 — THE CRAFTER'S WORKSHOP</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -300,6 +303,7 @@ $('#combat-status').before(flightStatus);
 let workstationItems = newWorkstationItems(),
   pendingStationEffects = [];
 const smithState = { name: '' };
+const stonecutState = { selection: null, cuts: 0 };
 const boats = new Boats(graphics.scene, graphics.textures, {
   drop: (position) =>
     drops.spawn('boat', 1, [position[0], position[1] + 0.6, position[2]]),
@@ -502,6 +506,38 @@ function resolveInventorySlot(ref) {
   if (typeof ref !== 'string') return null;
   const [kind, name] = ref.split(':'),
     index = Number(name);
+  if (kind === 'stonecut' && currentStonecutter()) {
+    if (name === 'input')
+      return {
+        get: () => workstationItems.stonecut[0],
+        set: (stack) => {
+          if (stack?.item !== workstationItems.stonecut[0]?.item)
+            stonecutState.selection = null;
+          workstationItems.stonecut[0] = stack;
+        },
+        accepts: (stack) => canStonecut(stack.item),
+      };
+    if (name === 'output')
+      return {
+        get: () =>
+          stonecuttingResult(
+            workstationItems.stonecut[0],
+            stonecutState.selection,
+          ),
+        set: () => {},
+        accepts: () => false,
+        output: true,
+        whole: true,
+        collect: false,
+        taken: () => {
+          const stack = workstationItems.stonecut[0];
+          if (!stack || !stonecuttingResult(stack, stonecutState.selection))
+            return;
+          if (--stack.count <= 0) workstationItems.stonecut[0] = null;
+          stonecutState.cuts++;
+        },
+      };
+  }
   if (kind === 'smith' && name === 'output')
     return {
       get: () => {
@@ -611,7 +647,7 @@ function resolveInventorySlot(ref) {
       },
       accepts: (s) =>
         name === 'input'
-          ? !!smeltingRecipe(s.item)
+          ? !!smeltingRecipe(s.item, f.kind)
           : name === 'fuel' && !!FUELS[s.item],
       output: name === 'output',
       taken: (s, n) => {
@@ -681,6 +717,14 @@ function quickMoveInventory(ref) {
     doCraft({ shiftKey: true });
     return;
   }
+  if (ref === 'stonecut:output') {
+    const destinations = [...packRefs(9), ...packRefs(0, 9)]
+      .reverse()
+      .map(resolveInventorySlot);
+    for (let i = 0; i < 64; i++)
+      if (!moveSlot(resolveInventorySlot(ref), destinations)) break;
+    return;
+  }
   const source = resolveInventorySlot(ref),
     stack = source?.get();
   if (!stack) return;
@@ -698,11 +742,13 @@ function quickMoveDestinations(ref, stack) {
   } else if (overlay === '#station-overlay' && currentChest())
     refs = currentChest().map((_, i) => 'box:' + i);
   else if (overlay === '#station-overlay' && currentFurnace()) {
-    refs = smeltingRecipe(stack.item)
+    refs = smeltingRecipe(stack.item, currentFurnace().kind)
       ? ['furnace:input']
       : FUELS[stack.item]
         ? ['furnace:fuel']
         : [];
+  } else if (overlay === '#station-overlay' && currentStonecutter()) {
+    refs = canStonecut(stack.item) ? ['stonecut:input'] : [];
   } else if (overlay === '#station-overlay' && currentBrewing()) {
     refs =
       stack.item === 'ember'
@@ -754,6 +800,7 @@ function refreshInventoryPanel() {
     else if (currentBrewing()) renderBrewing();
     else if (currentEnchanting()) renderEnchanting();
     else if (currentSmithing()) renderSmithing();
+    else if (currentStonecutter()) renderStonecutter();
   }
   if (panel) panel.scrollTop = scroll;
   if (focus)
@@ -1199,7 +1246,7 @@ function saveData() {
   const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 12,
+    version: 13,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -2695,7 +2742,8 @@ function place() {
       (target &&
         [
           'workbench',
-          'furnace',
+          ...Object.keys(FURNACES),
+          'stonecutter',
           'brewingStand',
           'campfire',
           'soulCampfire',
@@ -2782,7 +2830,7 @@ function place() {
       axis: pillarAxis(target.normal),
     });
   if (
-    id === 'furnace' ||
+    isFurnace(id) ||
     isStorage(id) ||
     id === 'brewingStand' ||
     isSmithingStation(id)
@@ -3329,7 +3377,8 @@ function interact(preferContext = false) {
           'endGateway',
           'bed',
           'workbench',
-          'furnace',
+          ...Object.keys(FURNACES),
+          'stonecutter',
           'enchantingTable',
           'brewingStand',
           'campfire',
@@ -3423,7 +3472,13 @@ function interact(preferContext = false) {
     openOverlay('#craft-overlay');
     return;
   }
-  if (type === 'furnace') {
+  if (type === 'stonecutter') {
+    stationKey = k;
+    openOverlay('#station-overlay');
+    renderStonecutter();
+    return;
+  }
+  if (isFurnace(type)) {
     stationKey = k;
     openOverlay('#station-overlay');
     renderFurnace();
@@ -3645,11 +3700,20 @@ $('#station-content').addEventListener('click', (e) => {
   const button = e.target.closest('[data-station-return]');
   if (!button) return;
   const kind = button.dataset.stationReturn;
-  if (kind !== 'enchant' && kind !== 'smith') return;
-  if (kind === 'enchant' ? !currentEnchanting() : !currentSmithing()) return;
-  for (let i = 0; i < 2; i++)
+  if (!['enchant', 'smith', 'stonecut'].includes(kind)) return;
+  if (
+    kind === 'enchant'
+      ? !currentEnchanting()
+      : kind === 'stonecut'
+        ? !currentStonecutter()
+        : !currentSmithing()
+  )
+    return;
+  for (let i = 0; i < workstationItems[kind].length; i++)
     moveSlot(
-      resolveInventorySlot(kind + ':' + i),
+      resolveInventorySlot(
+        kind === 'stonecut' ? 'stonecut:input' : kind + ':' + i,
+      ),
       [...packRefs(9), ...packRefs(0, 9)].map(resolveInventorySlot),
     );
   updateHUD();
@@ -3670,8 +3734,18 @@ function settleWorkstationItems() {
       list[i] = null;
     }
   smithState.name = '';
+  stonecutState.selection = null;
+  stonecutState.cuts = 0;
 }
 function flushStationEffects() {
+  if (stonecutState.cuts) {
+    stonecutState.cuts = 0;
+    soundFX.play('grindstone');
+    if (stationKey) {
+      const [q, y, r] = stationKey.split(',').map(Number);
+      graphics.burst(q, y + 0.5, r, '#aaa99b');
+    }
+  }
   let shouldClose = false;
   for (const effect of pendingStationEffects.splice(0)) {
     const { plan, type, key: k } = effect,
@@ -3707,21 +3781,53 @@ function flushStationEffects() {
   }
   if (shouldClose) closeOverlay();
 }
+function currentStonecutter() {
+  return !!(
+    stationKey &&
+    world.get(...stationKey.split(',').map(Number)) === 'stonecutter'
+  );
+}
+function renderStonecutter() {
+  if (!currentStonecutter()) return;
+  const scroll = document.querySelector('.stonecut-recipes')?.scrollTop || 0;
+  $('#station-title').textContent = '六棱切石机';
+  $('#station-content').innerHTML = stonecutterPanel(
+    pack,
+    workstationItems.stonecut[0],
+    stonecutState.selection,
+  );
+  document.querySelector('.stonecut-recipes').scrollTop = scroll;
+}
+$('#station-content').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-stonecut]');
+  if (!button || !currentStonecutter()) return;
+  if (
+    !stonecuttingResult(workstationItems.stonecut[0], button.dataset.stonecut)
+  )
+    return;
+  inventoryControls.cancel();
+  stonecutState.selection = button.dataset.stonecut;
+  renderStonecutter();
+  inventoryControls.refresh();
+});
 function currentFurnace() {
   if (
     !stationKey ||
-    world.get(...stationKey.split(',').map(Number)) !== 'furnace'
+    !isFurnace(world.get(...stationKey.split(',').map(Number)))
   )
     return null;
   if (!world.furnaces.has(stationKey))
-    world.furnaces.set(stationKey, newFurnace());
+    world.furnaces.set(
+      stationKey,
+      newFurnace(world.get(...stationKey.split(',').map(Number))),
+    );
   return world.furnaces.get(stationKey);
 }
 function renderFurnace() {
   const f = currentFurnace();
   if (!f) return;
-  $('#station-title').textContent = '六棱熔炉';
-  $('#station-content').innerHTML = furnacePanel(pack);
+  $('#station-title').textContent = '六棱' + FURNACES[f.kind].name;
+  $('#station-content').innerHTML = furnacePanel(pack, f.kind);
   updateFurnacePanel(f);
 }
 function spillFurnace(k) {
@@ -3738,7 +3844,7 @@ function updateFurnaces(dt) {
   for (const [k, f] of world.furnaces) {
     const [q, y, r] = k.split(',').map(Number);
     if (!world.loaded(q, r)) continue;
-    if (world.get(q, y, r) !== 'furnace') {
+    if (world.get(q, y, r) !== f.kind) {
       spillFurnace(k);
       continue;
     }
@@ -5500,6 +5606,7 @@ document.addEventListener('keydown', (e) => {
     (currentChest() ||
       currentBrewing() ||
       currentSmithing() ||
+      currentStonecutter() ||
       (stationKey &&
         world.get(...stationKey.split(',').map(Number)) ===
           'enchantingTable')) &&
@@ -5751,7 +5858,8 @@ function frame(now) {
         (isOpenable(target.type) ||
         [
           'workbench',
-          'furnace',
+          ...Object.keys(FURNACES),
+          'stonecutter',
           'enchantingTable',
           'brewingStand',
           ...ANVILS,

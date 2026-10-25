@@ -19,6 +19,18 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.53 adds thirteen unmodified images from the same revision and
+CC BY-SA 3.0 media license: `blast_furnace_front.png`,
+`blast_furnace_front_on.png`, `blast_furnace_side.png`, `blast_furnace_top.png`,
+`smoker_front.png`, `smoker_front_on.png`, `smoker_side.png`, `smoker_top.png`,
+`mcl_stonecutter_top.png`, `mcl_stonecutter_side.png`, `mcl_stonecutter_saw.png`,
+`mcl_stairs_stone_slab_top.png`, and `mcl_stairs_stone_slab_side.png`.
+The 16 × 48 saw image is cropped into three 16 × 16 atlas frames at runtime;
+its icon uses the first frame. Atlas crops and derived hex-projected icons
+retain CC BY-SA 3.0. Machine geometry, animation, processing and container code
+are original; no upstream code is included. The collection now contains 291
+PNGs: 270 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+
 Version 0.50 adds the unmodified `mcl_moon_moon_phases.png` from the same
 revision and CC BY-SA 3.0 media license. The 256 × 128 source contains eight
 64-pixel phase frames; Hexwild crops their central 32 × 32 pixels at runtime
