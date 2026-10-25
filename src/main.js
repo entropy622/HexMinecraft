@@ -82,7 +82,8 @@ import { Combat } from './combat.js';
 import { Experience, xpForLevel } from './experience.js';
 import { enchantLabel, customName, wearValue } from './enchanting-data.js';
 import { ANVILS, isSmithingStation } from './smithing-data.js';
-import { smithingPlan } from './smithing.js';
+import { smithingPlan, repairMaterial } from './smithing.js';
+import { newWorkstationItems, smithIngredient } from './workstation-items.js';
 import { smithingPanel, smithingPreview } from './smithing-ui.js';
 import { escapeHTML } from './ui-text.js';
 import { bookshelfPower, enchantOffers } from './enchanting.js';
@@ -110,7 +111,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.28 — THE HONEYCOMB WORKSHOP</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.29 — FORGED BY HAND</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -146,17 +147,9 @@ const drops = new ItemDrops(graphics.scene, graphics.textures);
 const experience = new Experience(graphics.scene, (levelUp) =>
   soundFX.play(levelUp ? 'levelUp' : 'xp'),
 );
-const enchantState = { id: null, index: 0, page: 0 };
-const smithState = {
-  id: null,
-  index: 0,
-  right: null,
-  mode: 'material',
-  name: '',
-  slot: 'left',
-  page: 0,
-  amount: 1,
-};
+let workstationItems = newWorkstationItems(),
+  pendingStationEffects = [];
+const smithState = { name: '' };
 const boats = new Boats(graphics.scene, graphics.textures, {
   drop: (position) =>
     drops.spawn('boat', 1, [position[0], position[1] + 0.6, position[2]]),
@@ -295,6 +288,7 @@ const inventoryControls = new InventoryControls(inventorySession, {
   changed: (refs) => {
     if (refs?.some((ref) => ref?.startsWith('craft:')))
       craftingPreviewOnly = false;
+    flushStationEffects();
     updateHUD();
     refreshInventoryPanel();
     saveGame();
@@ -321,6 +315,62 @@ function resolveInventorySlot(ref) {
   if (typeof ref !== 'string') return null;
   const [kind, name] = ref.split(':'),
     index = Number(name);
+  if (kind === 'smith' && name === 'output')
+    return {
+      get: () => {
+        const plan = currentSmithingPlan();
+        return plan.valid && (creative || experience.level >= plan.cost)
+          ? { item: plan.id, count: 1, wear: structuredClone(plan.entry) }
+          : null;
+      },
+      set: () => {},
+      accepts: () => false,
+      output: true,
+      whole: true,
+      collect: false,
+      taken: () => {
+        const plan = currentSmithingPlan(),
+          type = currentSmithing();
+        if (
+          !plan.valid ||
+          !type ||
+          (!creative && plan.cost > 0 && !experience.spend(plan.cost))
+        )
+          return;
+        workstationItems.smith[0] = null;
+        const right = workstationItems.smith[1];
+        if (right && plan.consumeRight) {
+          right.count -= plan.consumeRight;
+          if (!right.count) workstationItems.smith[1] = null;
+        }
+        smithState.name = '';
+        pendingStationEffects.push({ plan, type, key: stationKey, creative });
+      },
+    };
+  if (
+    (kind === 'enchant' && currentEnchanting()) ||
+    (kind === 'smith' && currentSmithing())
+  ) {
+    if (!['0', '1'].includes(name)) return null;
+    const list = workstationItems[kind];
+    return {
+      get: () => list[index],
+      set: (stack) => {
+        list[index] = stack;
+        if (kind === 'smith' && index === 0)
+          smithState.name = customName(stack?.wear);
+      },
+      accepts: (stack) =>
+        index === 0
+          ? !!ITEMS[stack.item]?.durability
+          : kind === 'enchant'
+            ? stack.item === 'lapis'
+            : currentSmithing() === 'grindstone'
+              ? !!ITEMS[stack.item]?.durability
+              : smithIngredient(stack),
+      ...(index === 0 ? { limit: 1 } : {}),
+    };
+  }
   if (kind === 'craft' && name === 'output')
     return {
       get: () => craftingResult(currentCraftingMatch()),
@@ -446,6 +496,24 @@ function quickMoveInventory(ref) {
           : BREW_INGREDIENTS.includes(stack.item)
             ? ['brew:ingredient']
             : [];
+  } else if (overlay === '#station-overlay' && currentEnchanting()) {
+    refs =
+      stack.item === 'lapis'
+        ? ['enchant:1']
+        : ITEMS[stack.item].durability
+          ? ['enchant:0']
+          : [];
+  } else if (overlay === '#station-overlay' && currentSmithing()) {
+    const left = workstationItems.smith[0];
+    refs =
+      !left && ITEMS[stack.item].durability
+        ? ['smith:0']
+        : left &&
+            (stack.item === left.item ||
+              (currentSmithing() !== 'grindstone' &&
+                stack.item === repairMaterial(left.item)))
+          ? ['smith:1']
+          : [];
   } else {
     const gear = GEAR_SLOTS.indexOf(
       ITEMS[stack.item].offhand ? 'offhand' : ITEMS[stack.item].armorSlot,
@@ -497,6 +565,8 @@ function refreshInventoryPanel() {
     if (currentChest()) renderChest();
     else if (currentFurnace()) renderFurnace();
     else if (currentBrewing()) renderBrewing();
+    else if (currentEnchanting()) renderEnchanting();
+    else if (currentSmithing()) renderSmithing();
   }
   if (panel) panel.scrollTop = scroll;
   if (focus)
@@ -619,6 +689,11 @@ function startGame(mode = false, save = null) {
   inventorySession.origin = null;
   craftingGrid = structuredClone(save?.crafting || newCraftingGrid());
   craftingReturns = [];
+  workstationItems = structuredClone(
+    save?.workstations || newWorkstationItems(),
+  );
+  pendingStationEffects = [];
+  smithState.name = '';
   if (!save) {
     if (mode)
       HOTBAR.forEach((id, i) => {
@@ -872,6 +947,7 @@ function saveData() {
     seed: world.seed,
     inventory: savedInventory,
     crafting: structuredClone(craftingGrid),
+    workstations: structuredClone(workstationItems),
     selected,
     survival: survival.serialize(),
     experience: experience.serializePlayer(),
@@ -923,6 +999,7 @@ function lock() {
 }
 function openOverlay(id) {
   settleInventoryCursor();
+  settleWorkstationItems();
   if (overlay === '#craft-overlay' && id !== '#craft-overlay')
     settleCraftingGrid();
   combat.reset();
@@ -965,6 +1042,7 @@ function openOverlay(id) {
 function closeOverlay() {
   settleInventoryCursor();
   settleCraftingGrid();
+  settleWorkstationItems();
   closeChestLid();
   document
     .querySelectorAll('.overlay')
@@ -2172,12 +2250,6 @@ function interact() {
       return;
     }
     stationKey = k;
-    enchantState.id = ITEMS[heldItem()]?.durability ? heldItem() : null;
-    enchantState.index = Math.max(
-      0,
-      pack.copies(enchantState.id).indexOf(pack.slots[selected]),
-    );
-    enchantState.page = 0;
     openOverlay('#station-overlay');
     renderEnchanting();
     return;
@@ -2185,22 +2257,7 @@ function interact() {
   if (isSmithingStation(type)) {
     stationKey = k;
     tradingWith = null;
-    Object.assign(smithState, {
-      id:
-        ITEMS[heldItem()]?.durability && inventory[heldItem()]
-          ? heldItem()
-          : null,
-      index: Math.max(0, pack.copies(heldItem()).indexOf(pack.slots[selected])),
-      right: null,
-      mode: type === 'grindstone' ? 'single' : 'material',
-      name: '',
-      slot: 'left',
-      page: 0,
-      amount: 1,
-    });
-    smithState.name = customName(
-      equipment.entry(smithState.id, smithState.index),
-    );
+    smithState.name = '';
     openOverlay('#station-overlay');
     renderSmithing();
     return;
@@ -2296,103 +2353,92 @@ $('#station-content').addEventListener('click', (e) => {
     renderTrade();
   }
 });
+function currentEnchanting() {
+  return (
+    !!stationKey &&
+    world.get(...stationKey.split(',').map(Number)) === 'enchantingTable'
+  );
+}
 function renderEnchanting() {
-  if (
-    !stationKey ||
-    world.get(...stationKey.split(',').map(Number)) !== 'enchantingTable'
-  )
-    return;
+  if (!currentEnchanting()) return;
   const [q, y, r] = stationKey.split(',').map(Number);
-  const shelves = bookshelfPower(world, q, y, r);
   $('#station-title').textContent = '六棱附魔台';
   $('#station-content').innerHTML = enchantingPanel(
-    inventory,
-    equipment,
+    pack,
+    workstationItems.enchant,
     experience,
-    shelves,
+    bookshelfPower(world, q, y, r),
     (experience.seed + world.seed) % 1e9,
-    enchantState,
     creative,
   );
 }
 $('#station-content').addEventListener('click', (e) => {
-  const page = e.target.closest('[data-enchant-page]');
-  if (page && !page.disabled) {
-    enchantState.page = Number(page.dataset.enchantPage);
-    renderEnchanting();
-    return;
-  }
-  const select = e.target.closest('[data-enchant-item]');
-  if (select) {
-    enchantState.id = select.dataset.enchantItem;
-    enchantState.index = Number(select.dataset.enchantCopy);
-    renderEnchanting();
-  }
   const button = e.target.closest('[data-enchant-offer]');
-  if (
-    !button ||
-    button.disabled ||
-    !stationKey ||
-    world.get(...stationKey.split(',').map(Number)) !== 'enchantingTable'
-  )
-    return;
-  const { id, index } = enchantState;
-  if (!(inventory[id] > index) || Object.keys(equipment.tags(id, index)).length)
-    return;
-  const [q, y, r] = stationKey.split(',').map(Number),
-    shelves = bookshelfPower(world, q, y, r);
+  if (!currentEnchanting() || !button || button.disabled) return;
+  const target = workstationItems.enchant[0],
+    lapis = workstationItems.enchant[1];
+  if (!target || enchantLabel(target.wear)) return;
+  const [q, y, r] = stationKey.split(',').map(Number);
   const offer = enchantOffers(
-    id,
+    target.item,
     (experience.seed + world.seed) % 1e9,
-    shelves,
+    bookshelfPower(world, q, y, r),
   )[Number(button.dataset.enchantOffer)];
   if (
     !offer?.available ||
     (!creative &&
-      (experience.level < offer.levels || (inventory.lapis || 0) < offer.cost))
+      (experience.level < offer.levels || (lapis?.count || 0) < offer.cost))
   )
     return;
   if (!creative) {
-    inventory.lapis -= offer.cost;
-    experience.spend(offer.cost, true);
+    if (!experience.spend(offer.cost, true)) return;
+    lapis.count -= offer.cost;
+    if (!lapis.count) workstationItems.enchant[1] = null;
   } else experience.seed = (experience.seed + 1) % 1e9;
-  equipment.enchant(id, index, offer.enchants);
+  target.wear = {
+    ...(typeof target.wear === 'object' ? target.wear : {}),
+    value: wearValue(target.wear),
+    enchant: { ...offer.enchants },
+  };
   renderEnchanting();
+  inventoryControls.refresh();
   updateHUD();
   saveGame();
   soundFX.play('enchant');
   toast(
-    equipment.name(id, index) + ' · ' + enchantLabel(equipment.wear[id][index]),
+    (customName(target.wear) || ITEMS[target.item].name) +
+      ' · ' +
+      enchantLabel(target.wear),
   );
 });
 function currentSmithing() {
   const type = stationKey && world.get(...stationKey.split(',').map(Number));
   return isSmithingStation(type) ? type : null;
 }
+function currentSmithingPlan() {
+  const type = currentSmithing();
+  if (!type) return { valid: false, reason: '需要使用铁砧或砂轮。' };
+  return smithingPlan(
+    type === 'grindstone' ? type : 'anvil',
+    ...workstationItems.smith,
+    smithState.name,
+    creative,
+  );
+}
 function renderSmithing(previewOnly = false) {
   const type = currentSmithing();
   if (!type) return;
-  if (!(inventory[smithState.id] > smithState.index)) {
-    smithState.id =
-      Object.keys(inventory).find(
-        (id) => inventory[id] > 0 && ITEMS[id].durability,
-      ) || null;
-    smithState.index = 0;
-    smithState.right = null;
-    smithState.name = customName(equipment.entry(smithState.id));
-  }
-  const kind = type === 'grindstone' ? type : 'anvil';
-  const plan = smithingPlan(kind, smithState, inventory, equipment, creative);
+  const plan = currentSmithingPlan();
   if (previewOnly && $('#smith-preview')) {
     $('#smith-preview').innerHTML = smithingPreview(plan, experience, creative);
     return;
   }
   $('#station-title').textContent = BLOCKS[type].name;
   $('#station-content').innerHTML = smithingPanel(
-    kind,
-    inventory,
-    equipment,
-    smithState,
+    type === 'grindstone' ? type : 'anvil',
+    pack,
+    workstationItems.smith,
+    smithState.name,
     plan,
     experience,
     creative,
@@ -2404,106 +2450,71 @@ $('#station-content').addEventListener('input', (e) => {
   renderSmithing(true);
 });
 $('#station-content').addEventListener('click', (e) => {
-  const type = currentSmithing();
-  const button = e.target.closest('button');
-  if (!type || !button || button.disabled) return;
-  const data = button.dataset;
-  if (data.smithMode !== undefined) {
-    smithState.mode = data.smithMode;
-    smithState.right = null;
-    smithState.slot =
-      data.smithMode === 'combine' && smithState.id ? 'right' : 'left';
-    smithState.page = 0;
-  } else if (data.smithSlot !== undefined) {
-    if (data.smithSlot === 'right' && !smithState.id) return;
-    smithState.slot = data.smithSlot;
-    smithState.page = 0;
-  } else if (data.smithPage !== undefined)
-    smithState.page = Number(data.smithPage);
-  else if (data.smithAmount !== undefined)
-    smithState.amount = Number(data.smithAmount);
-  else if (data.smithItem !== undefined) {
-    const id = data.smithItem,
-      index = Number(data.smithCopy);
-    if (
-      !ITEMS[id]?.durability ||
-      !Number.isInteger(index) ||
-      index < 0 ||
-      !(inventory[id] > index)
-    )
-      return;
-    if (smithState.slot === 'right') {
-      if (id !== smithState.id || index === smithState.index) return;
-      smithState.right = index;
-    } else {
-      smithState.id = id;
-      smithState.index = index;
-      smithState.right = null;
-      smithState.name = customName(equipment.entry(id, index));
-      if (smithState.mode === 'combine') {
-        smithState.slot = 'right';
-        smithState.page = 0;
-      }
-    }
-  } else if (data.smithConfirm !== undefined) {
-    const grind = type === 'grindstone';
-    const plan = smithingPlan(
-      grind ? 'grindstone' : 'anvil',
-      smithState,
-      inventory,
-      equipment,
-      creative,
+  const button = e.target.closest('[data-station-return]');
+  if (!button) return;
+  const kind = button.dataset.stationReturn;
+  if (kind !== 'enchant' && kind !== 'smith') return;
+  if (kind === 'enchant' ? !currentEnchanting() : !currentSmithing()) return;
+  for (let i = 0; i < 2; i++)
+    moveSlot(
+      resolveInventorySlot(kind + ':' + i),
+      [...packRefs(9), ...packRefs(0, 9)].map(resolveInventorySlot),
     );
-    if (!plan.valid || (!creative && experience.level < plan.cost)) return;
-    if (!creative && plan.cost && !experience.spend(plan.cost)) return;
-    let index = plan.index;
-    if (plan.right !== null) {
-      equipment.removeCopy(plan.id, plan.right, inventory);
-      if (plan.right < index) index--;
+  updateHUD();
+  refreshInventoryPanel();
+  inventoryControls.refresh();
+  saveGame();
+  if (workstationItems[kind].some(Boolean))
+    toast('背包空间不足，剩余物品留在槽位。');
+});
+function settleWorkstationItems() {
+  for (const list of Object.values(workstationItems))
+    for (let i = 0; i < list.length; i++) {
+      const stack = list[i];
+      if (!stack) continue;
+      const moved = pack.insert(stack.item, stack.count, [stack.wear]);
+      if (moved < stack.count)
+        dropInventoryStack({ ...stack, count: stack.count - moved }, false);
+      list[i] = null;
     }
-    if (!creative && plan.units) inventory[plan.material] -= plan.units;
-    equipment.replaceCopy(plan.id, index, plan.entry);
-    Object.assign(smithState, {
-      id: plan.id,
-      index,
-      right: null,
-      slot: 'left',
-      name: customName(plan.entry),
-    });
-    const [q, y, r] = stationKey.split(',').map(Number);
-    if (grind)
+  smithState.name = '';
+}
+function flushStationEffects() {
+  let shouldClose = false;
+  for (const effect of pendingStationEffects.splice(0)) {
+    const { plan, type, key: k } = effect,
+      grind = type === 'grindstone';
+    const [q, y, r] = k.split(',').map(Number);
+    if (grind && !effect.creative)
       awardXP(plan.xp, [
         camera.position.x,
         playerFeet() + 0.5,
         camera.position.z,
       ]);
     let broken = false;
-    if (!grind && !creative && Math.random() < 0.12) {
+    if (!grind && !effect.creative && Math.random() < 0.12) {
       const state = { ...world.state(q, y, r) },
         next = ANVILS[ANVILS.indexOf(type) + 1] || null;
       world.set(q, y, r, next);
       if (next) world.setState(q, y, r, state);
       else {
         broken = true;
-        closeOverlay();
+        shouldClose = true;
       }
       graphics.updateBlock(q, y, r);
     }
-    graphics.smithingModels.use(stationKey);
+    graphics.smithingModels.use(k);
     graphics.burst(q, y + 0.5, r, grind ? '#c7be9f' : '#d6bd8c');
     soundFX.play(grind ? 'grindstone' : broken ? 'anvilBreak' : 'anvil');
-    updateHUD();
-    saveGame();
     toast(
       (grind ? '砂轮加工完成' : '铁砧加工完成') +
         ' · ' +
-        equipment.name(plan.id, index) +
+        (customName(plan.entry) || ITEMS[plan.id].name) +
         (broken ? ' · 铁砧已损坏消失' : ''),
     );
-    if (broken) return;
-  } else return;
-  renderSmithing();
-});
+  }
+  if (shouldClose) closeOverlay();
+}
 function currentFurnace() {
   if (
     !stationKey ||
@@ -2919,6 +2930,7 @@ function hurt(amount, cause = 'combat', source = null) {
       ...pack.gear,
       ...craftingGrid,
       ...craftingReturns,
+      ...Object.values(workstationItems).flat(),
       inventorySession.cursor,
     ].filter(Boolean)) {
       const wear = ITEMS[stack.item].durability
@@ -2929,6 +2941,8 @@ function hurt(amount, cause = 'combat', source = null) {
     inventorySession.cursor = null;
     craftingGrid = newCraftingGrid();
     craftingReturns = [];
+    workstationItems = newWorkstationItems();
+    pendingStationEffects = [];
     const lostXP = Math.min(100, experience.level * 7);
     experience.total = experience.fraction = 0;
     awardXP(lostXP, lastDeath);

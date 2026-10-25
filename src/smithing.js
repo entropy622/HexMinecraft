@@ -5,6 +5,7 @@ import {
   repairPenalty,
   customName,
   cleanName,
+  wearValue,
 } from './enchanting-data.js';
 
 export function repairMaterial(id) {
@@ -41,26 +42,34 @@ const grindXP = (entry) =>
   );
 
 // Plans never mutate inventory. The click handler recomputes the same plan before spending.
-export function smithingPlan(kind, state, inventory, equipment, creative) {
-  const { id, index, mode, right } = state;
+export function smithingPlan(
+  kind,
+  leftStack,
+  rightStack,
+  name = '',
+  creative = false,
+) {
+  const id = leftStack?.item;
   const invalid = (reason) => ({ valid: false, reason });
-  if (
-    !(
-      kind === 'grindstone'
-        ? ['single', 'combine']
-        : ['material', 'combine', 'rename']
-    ).includes(mode)
-  )
-    return invalid('请选择加工方式。');
   const def = ITEMS[id];
+  if (!def?.durability) return invalid('将要加工的装备放入左侧槽位。');
+  const material = repairMaterial(id);
+  const mode = !rightStack
+    ? 'single'
+    : rightStack.item === id
+      ? 'combine'
+      : 'material';
   if (
-    !def?.durability ||
-    !Number.isInteger(index) ||
-    index < 0 ||
-    !(inventory[id] > index)
+    rightStack &&
+    mode === 'material' &&
+    (kind === 'grindstone' || rightStack.item !== material)
   )
-    return invalid('先选择一件背包中的装备。');
-  const left = equipment.entry(id, index);
+    return invalid(
+      kind === 'grindstone'
+        ? '砂轮右侧需要同类装备。'
+        : `右侧放同类装备${material ? '或' + ITEMS[material].name : ''}；仅命名时留空。`,
+    );
+  const left = leftStack.wear;
   const entry =
     typeof left === 'number'
       ? { value: left, enchant: {} }
@@ -71,40 +80,30 @@ export function smithingPlan(kind, state, inventory, equipment, creative) {
     levels = 0,
     xp = 0,
     units = 0;
-  const material = repairMaterial(id);
   if (mode === 'combine') {
-    if (
-      !Number.isInteger(right) ||
-      right === index ||
-      right < 0 ||
-      !(inventory[id] > right)
-    )
-      return invalid('在右侧选择另一件同类装备，合并会消耗它。');
-    donor = equipment.entry(id, right);
+    donor = rightStack.wear;
     entry.value = Math.min(
       def.durability,
-      equipment.remaining(id, index) +
-        equipment.remaining(id, right) +
+      wearValue(left) +
+        wearValue(donor) +
         Math.floor(def.durability * (kind === 'grindstone' ? 0.05 : 0.12)),
     );
-    changed = entry.value > equipment.remaining(id, index);
+    changed = entry.value > wearValue(left);
     if (changed) levels += 2;
   } else if (kind !== 'grindstone' && mode === 'material') {
     if (!material)
       return invalid('这种装备不能用材料修复，请选择同类合并或命名。');
-    if (entry.value >= def.durability) return invalid('这件装备的耐久已满。');
     units = Math.min(
-      Math.max(1, Math.min(4, state.amount || 1)),
-      creative ? 4 : inventory[material] || 0,
+      4,
+      rightStack.count,
       Math.ceil((def.durability - entry.value) / Math.ceil(def.durability / 4)),
     );
-    if (!units) return invalid('缺少修复材料：' + ITEMS[material].name + '。');
     entry.value = Math.min(
       def.durability,
       entry.value + units * Math.ceil(def.durability / 4),
     );
     levels += units;
-    changed = true;
+    changed = units > 0;
   }
   if (kind === 'grindstone') {
     xp = Math.ceil((grindXP(left) + grindXP(donor)) / 2);
@@ -136,7 +135,7 @@ export function smithingPlan(kind, state, inventory, equipment, creative) {
     }
     if (donor && !changed)
       return invalid('右侧装备不能改善耐久或附魔，请换一件同类装备。');
-    const renamed = cleanName(state.name) !== customName(left);
+    const renamed = cleanName(name) !== customName(left);
     if (!changed && !renamed)
       return invalid('当前操作不会改善装备或改变名称。');
     const renameOnly = !changed;
@@ -148,7 +147,7 @@ export function smithingPlan(kind, state, inventory, equipment, creative) {
         63,
         Math.max(repairPenalty(left), repairPenalty(donor)) * 2 + 1,
       );
-    if (cleanName(state.name)) entry.name = cleanName(state.name);
+    if (cleanName(name)) entry.name = cleanName(name);
     else delete entry.name;
     if (levels >= 40 && !creative)
       return {
@@ -163,8 +162,7 @@ export function smithingPlan(kind, state, inventory, equipment, creative) {
   return {
     valid: true,
     id,
-    index,
-    right: donor === null ? null : right,
+    consumeRight: donor === null ? units : 1,
     entry,
     cost: kind === 'grindstone' ? 0 : levels,
     xp,
