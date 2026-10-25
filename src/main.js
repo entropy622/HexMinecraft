@@ -1,6 +1,8 @@
 import { STRUCTURE_NAMES, structureLoot } from './structures.js';
 import { FUELS, newFurnace, smeltingRecipe, tickFurnace } from './furnaces.js';
 import { furnacePanel, updateFurnacePanel } from './furnace-ui.js';
+import { newChest, depositChest, withdrawChest, sortChest } from './chests.js';
+import { chestPanel } from './chest-ui.js';
 import { features as villageFeatures, ROLES, trade } from './villages.js';
 import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
@@ -55,7 +57,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.18 — CARRY THE LIGHT</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.19 — A PLACE FOR EVERYTHING</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -146,8 +148,8 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
   },
 });
 let equipment = new Equipment(),
-  chestWear = new Map(),
   bowCharge = 0;
+const chestState = { amount: 'stack', page: 0, query: '' };
 let world = new World(624),
   inventory = {},
   tool = 0,
@@ -301,7 +303,6 @@ function startGame(mode = false, save = null) {
   creative = save?.creative ?? mode;
   crops = new Map(data.crops);
   chests = new Map(data.chests);
-  chestWear = new Map(data.chestWear || []);
   respawnPoint = data.respawn || null;
   const pos = save?.position;
   if (pos) {
@@ -358,7 +359,6 @@ function captureDimension() {
     lastDeath,
     crops: [...crops],
     chests: [...chests],
-    chestWear: [...chestWear],
     respawn: respawnPoint,
     position: camera.position.toArray(),
   };
@@ -387,7 +387,7 @@ function syncDecor() {
       if (!world.loaded(p.q, p.r) || world.villageFeatures.has(id)) continue;
       world.villageFeatures.add(id);
       if (world.get(p.q, p.y, p.r) === 'chest' && !chests.has(k))
-        chests.set(k, { ...p.loot });
+        chests.set(k, newChest(p.loot));
     }
   }
   for (const s of world.structures(a.q, a.r, 32)) {
@@ -405,7 +405,7 @@ function syncDecor() {
       if (!world.loaded(p.q, p.r) || world.structureFeatures.has(id)) continue;
       world.structureFeatures.add(id);
       if (world.get(p.q, p.y, p.r) === 'chest' && !chests.has(k))
-        chests.set(k, { ...p.loot });
+        chests.set(k, newChest(p.loot));
     }
   }
   for (const [k, plant] of crops) {
@@ -440,7 +440,6 @@ function travel(to) {
   });
   crops = new Map(data.crops);
   chests = new Map(data.chests);
-  chestWear = new Map(data.chestWear || []);
   respawnPoint = data.respawn || null;
   let destination = data.position || [0, 0, 0],
     a = worldToAxial(destination[0], destination[2]);
@@ -499,7 +498,7 @@ function saveData() {
   const savedInventory = { ...inventory };
   captureDimension();
   return {
-    version: 5,
+    version: 6,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -553,6 +552,7 @@ function lock() {
   }
 }
 function openOverlay(id) {
+  closeChestLid();
   soundFX.weather(0, false, false, false);
   leftDown = false;
   keys.clear();
@@ -588,6 +588,7 @@ function openOverlay(id) {
   }
 }
 function closeOverlay() {
+  closeChestLid();
   if (hasGame && overlay === '#station-overlay' && $('#furnace-progress'))
     saveGame();
   discardMode = false;
@@ -968,16 +969,7 @@ function mine(dt) {
   if (crops.has(k)) {
     harvestPlant(k, true);
   }
-  if (chests.has(k)) {
-    for (const [id, n] of Object.entries(chests.get(k))) {
-      const wear = ITEMS[id]?.durability
-        ? { [id]: chestWear.get(k)?.[id] || [] }
-        : {};
-      dropAt(id, n, q, y, r, wear);
-    }
-    chestWear.delete(k);
-    chests.delete(k);
-  }
+  spillChest(k);
   spillFurnace(k);
   mining = 0;
   target = null;
@@ -1258,7 +1250,7 @@ function place() {
     return;
   }
   world.set(q, y, r, id);
-  if (id === 'furnace') {
+  if (id === 'furnace' || id === 'chest') {
     const center = axialToWorld(q, r);
     world.setState(q, y, r, {
       facing: facingFromDirection(
@@ -1274,7 +1266,7 @@ function place() {
   }
   if (!creative) inventory[id]--;
   graphics.updateBlock(q, y, r);
-  if (id === 'chest') chests.set(key(q, y, r), {});
+  if (id === 'chest') chests.set(key(q, y, r), newChest());
   soundFX.play('place', id);
   graphics.swing();
   updateHUD();
@@ -1668,9 +1660,17 @@ function interact() {
     return;
   }
   if (type === 'chest') {
+    if (world.solid(q, y + 1, r)) {
+      toast('箱盖上方被挡住了，先清理上方一格。');
+      return;
+    }
     syncDecor();
     stationKey = k;
+    chestState.page = 0;
+    chestState.query = '';
     openOverlay('#station-overlay');
+    graphics.chestModels.openKey = k;
+    soundFX.play('chestOpen');
     renderChest();
     return;
   }
@@ -1835,29 +1835,183 @@ function updateFurnaces(dt) {
     if (f) updateFurnacePanel(f);
   }
 }
-function renderChest() {
-  const storage = chests.get(stationKey) || {};
-  chests.set(stationKey, storage);
-  $('#station-title').textContent = '储物箱';
-  $('#station-content').innerHTML =
-    `<p>点击存取最多 10 件；装备的耐久会随物品一起存取。</p><div class="section-label" style="margin-top:18px">背包 → 箱子</div><div class="inventory-grid">${
-      Object.entries(inventory)
-        .filter(([, n]) => n > 0)
-        .map(
-          ([id, n]) =>
-            `<button class="inv-item" data-store="${id}">${icon(id)}${ITEMS[id].name}<b>${n}</b></button>`,
-        )
-        .join('') || '<p>背包空空如也。</p>'
-    }</div><div class="section-label" style="margin-top:18px">箱子 → 背包</div><div class="inventory-grid">${
-      Object.entries(storage)
-        .filter(([, n]) => n > 0)
-        .map(
-          ([id, n]) =>
-            `<button class="inv-item" data-take="${id}">${icon(id)}${ITEMS[id].name}<b>${n}</b></button>`,
-        )
-        .join('') || '<p>还没有存入物品。</p>'
-    }</div>`;
+function closeChestLid() {
+  if (!graphics.chestModels.openKey) return;
+  graphics.chestModels.openKey = null;
+  soundFX.play('chestClose');
 }
+function currentChest() {
+  if (
+    !stationKey ||
+    world.get(...stationKey.split(',').map(Number)) !== 'chest'
+  )
+    return null;
+  if (!chests.has(stationKey)) chests.set(stationKey, newChest());
+  return chests.get(stationKey);
+}
+function renderChest() {
+  const chest = currentChest();
+  if (!chest) return;
+  const active = document.activeElement;
+  const searchFocus = active?.id === 'chest-search';
+  const selection = searchFocus
+    ? [active.selectionStart, active.selectionEnd]
+    : null;
+  const panel = $('#station-overlay .panel'),
+    scroll = panel.scrollTop;
+  $('#station-title').textContent = '六棱储物箱';
+  $('#station-content').innerHTML = chestPanel(
+    chest,
+    inventory,
+    equipment.wear,
+    chestState,
+    creative,
+  );
+  if (searchFocus) {
+    $('#chest-search').focus({ preventScroll: true });
+    $('#chest-search').setSelectionRange(...selection);
+  } else if (active?.matches('[data-chest-side]')) {
+    const next =
+      $(
+        '#station-content [data-chest-side="' +
+          active.dataset.chestSide +
+          '"][data-index="' +
+          active.dataset.index +
+          '"]',
+      ) || $('[data-chest-action="take-all"]');
+    next?.focus({ preventScroll: true });
+  }
+  panel.scrollTop = scroll;
+}
+function finishChestTransfer(moved) {
+  equipment.sync(inventory, creative);
+  renderChest();
+  updateHUD();
+  saveGame();
+  if (moved) soundFX.play('pickup');
+  else toast('空间不足，或没有可转移的物品。');
+}
+function transferChestButton(button, event, single = false) {
+  const chest = currentChest();
+  if (!chest) return;
+  const count = Number(button.dataset.count);
+  const mode = single ? 'one' : event.shiftKey ? 'stack' : chestState.amount;
+  const requested =
+    mode === 'one' ? 1 : mode === 'half' ? Math.ceil(count / 2) : count;
+  const moved =
+    button.dataset.chestSide === 'box'
+      ? withdrawChest(
+          chest,
+          inventory,
+          equipment.wear,
+          Number(button.dataset.index),
+          requested,
+          creative,
+        )
+      : depositChest(
+          chest,
+          inventory,
+          equipment.wear,
+          button.dataset.item,
+          Number(button.dataset.offset),
+          requested,
+        );
+  finishChestTransfer(moved);
+  if (moved)
+    toast(
+      ITEMS[button.dataset.item].name +
+        ' ×' +
+        moved +
+        (button.dataset.chestSide === 'box' ? ' 已取出' : ' 已存入'),
+    );
+}
+function chestAction(action) {
+  const chest = currentChest();
+  if (!chest) return;
+  if (action === 'sort') {
+    sortChest(chest);
+    renderChest();
+    saveGame();
+    soundFX.play('pickup');
+    return;
+  }
+  let moved = 0;
+  if (action === 'take-all') {
+    for (let i = 0; i < chest.length; i++)
+      moved += withdrawChest(
+        chest,
+        inventory,
+        equipment.wear,
+        i,
+        Infinity,
+        creative,
+      );
+  } else if (action === 'matching') {
+    const matching = new Set(chest.filter(Boolean).map((s) => s.item));
+    const reserved = new Set([heldItem(), ...Object.values(equipment.armor)]);
+    for (const item of matching) {
+      const offset = reserved.has(item) ? 1 : 0;
+      moved += depositChest(
+        chest,
+        inventory,
+        equipment.wear,
+        item,
+        offset,
+        Math.max(0, (inventory[item] || 0) - offset),
+      );
+    }
+  } else return;
+  finishChestTransfer(moved);
+  if (moved) toast('已转移 ' + moved + ' 件，放不下的物品留在原处。');
+}
+function spillChest(k) {
+  const chest = chests.get(k);
+  if (!chest) return;
+  const [q, y, r] = k.split(',').map(Number);
+  for (const slot of chest) {
+    if (!slot) continue;
+    const wear = ITEMS[slot.item].durability
+      ? { [slot.item]: [slot.wear] }
+      : {};
+    dropAt(slot.item, slot.count, q, y, r, wear);
+  }
+  chests.delete(k);
+}
+$('#station-content').addEventListener('click', (e) => {
+  const slot = e.target.closest('[data-chest-side]');
+  if (slot) return transferChestButton(slot, e);
+  const amount = e.target.closest('[data-chest-amount]');
+  if (amount) {
+    chestState.amount = amount.dataset.chestAmount;
+    renderChest();
+  }
+  const page = e.target.closest('[data-chest-page]');
+  if (page) {
+    chestState.page += Number(page.dataset.chestPage);
+    renderChest();
+  }
+  const action = e.target.closest('[data-chest-action]');
+  if (action) chestAction(action.dataset.chestAction);
+});
+$('#station-content').addEventListener('contextmenu', (e) => {
+  const slot = e.target.closest('[data-chest-side]');
+  if (!slot) return;
+  e.preventDefault();
+  transferChestButton(slot, e, true);
+});
+$('#station-content').addEventListener('input', (e) => {
+  if (e.target.id !== 'chest-search' || e.isComposing) return;
+  chestState.query = e.target.value;
+  chestState.page = 0;
+  renderChest();
+});
+$('#station-content').addEventListener('compositionend', (e) => {
+  if (e.target.id !== 'chest-search') return;
+  chestState.query = e.target.value;
+  chestState.page = 0;
+  renderChest();
+});
+
 function eat() {
   for (const [id, value] of [
     ['cake', 12],
@@ -2029,16 +2183,10 @@ function explode(center) {
         world.set(q, y, r, null);
         if (!creative && Math.random() < 0.6)
           dropAt(BLOCKS[type].drop || type, 1, q, y, r);
-        for (const [id, n] of Object.entries(chests.get(k) || {})) {
-          const wear = ITEMS[id]?.durability
-            ? { [id]: chestWear.get(k)?.[id] || [] }
-            : {};
-          dropAt(id, n, q, y, r, wear);
-        }
+        spillChest(k);
         spillFurnace(k);
         chests.delete(k);
         world.structureFeatures.add('chest:' + k);
-        chestWear.delete(k);
         for (const cropKey of [k, key(q, y - 1, r)]) {
           harvestPlant(cropKey, true);
         }
@@ -2506,37 +2654,6 @@ document.addEventListener('click', (e) => {
   if (deposit)
     transferFurnace(deposit.dataset.furnaceDeposit, deposit.dataset.item);
   if (take) transferFurnace(take.dataset.furnaceTake);
-  const st = e.target.closest('[data-store]'),
-    tk = e.target.closest('[data-take]');
-  if (st || tk) {
-    const storage = chests.get(stationKey) || {},
-      id = st ? st.dataset.store : tk.dataset.take,
-      from = st ? inventory : storage,
-      to = st ? storage : inventory,
-      n = Math.min(
-        10,
-        from[id] || 0,
-        st || creative ? Infinity : roomFor(inventory, id),
-        ITEMS[id]?.durability ? 256 - (to[id] || 0) : 1e6,
-      );
-    const storageWear = chestWear.get(stationKey) || {};
-    transferWear(
-      st ? equipment.wear : storageWear,
-      st ? storageWear : equipment.wear,
-      id,
-      n,
-      from[id] || 0,
-      to[id] || 0,
-    );
-    chestWear.set(stationKey, storageWear);
-    from[id] = (from[id] || 0) - n;
-    to[id] = (to[id] || 0) + n;
-    chests.set(stationKey, storage);
-    equipment.sync(inventory, creative);
-    renderChest();
-    updateHUD();
-    saveGame();
-  }
 });
 $('#mode-toggle').onclick = () => {
   creative = !creative;
@@ -2675,6 +2792,13 @@ document.addEventListener(
   { passive: true },
 );
 document.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
+  if (e.target.id === 'chest-search' && e.code === 'Escape') {
+    closeOverlay();
+    return;
+  }
+  if (overlay === '#station-overlay' && currentChest() && e.code === 'Tab')
+    return;
   if (e.target.matches('input')) return;
   if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code))
     e.preventDefault();

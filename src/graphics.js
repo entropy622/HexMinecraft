@@ -1,6 +1,7 @@
 import { applySkylight } from './skylight.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
+import { ChestModels } from './chest-graphics.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
 import { buildingMesh } from './building-graphics.js';
@@ -69,6 +70,7 @@ export class Graphics {
     this.sun.shadow.bias = -0.0002;
     this.scene.add(this.sun, this.sun.target);
     this.textures = createTextures();
+    this.chestModels = new ChestModels(this.textures);
     sharedTextures = this.textures;
     this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
     this.terrain = new THREE.Group();
@@ -282,7 +284,9 @@ export class Graphics {
     this.relightQueue = new Set();
     this.caveSky = null;
     this.fluidRenderer.clear();
+    this.chestModels.openKey = null;
     for (const mesh of this.chunks.values()) {
+      this.chestModels.release(mesh);
       mesh.traverse((o) => o.geometry?.dispose());
       this.terrain.remove(mesh);
     }
@@ -326,6 +330,7 @@ export class Graphics {
           wanted.add(cq + dq + ',' + (cr + dr));
       for (const [k, mesh] of this.chunks)
         if (!wanted.has(k)) {
+          this.chestModels.release(mesh);
           mesh.traverse((o) => o.geometry?.dispose());
           this.terrain.remove(mesh);
           this.chunks.delete(k);
@@ -560,6 +565,7 @@ export class Graphics {
     let out = solid,
       rainExposure = 0;
     const shaped = [];
+    const chestCells = [];
     const rainRoofs = new Map();
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -582,13 +588,23 @@ export class Graphics {
     };
     const opaque = (q, y, r) => {
       const t = world.get(q, y, r);
-      return t && t !== 'glass' && !BLOCKS[t]?.nonSolid && !BLOCKS[t]?.shape;
+      return (
+        t &&
+        t !== 'glass' &&
+        t !== 'chest' &&
+        !BLOCKS[t]?.nonSolid &&
+        !BLOCKS[t]?.shape
+      );
     };
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++)
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
           if (!type) continue;
+          if (type === 'chest') {
+            chestCells.push([q, y, r]);
+            continue;
+          }
           if (BLOCKS[type].shape) {
             shaped.push([q, y, r]);
             continue;
@@ -804,9 +820,10 @@ export class Graphics {
     };
     let mesh = this.chunks.get(k);
     if (mesh) {
+      this.chestModels.release(mesh);
       mesh.geometry.dispose();
       for (const child of [...mesh.children]) {
-        child.geometry.dispose();
+        child.traverse((o) => o.geometry?.dispose());
         mesh.remove(child);
       }
     } else {
@@ -819,6 +836,8 @@ export class Graphics {
     mesh.position.set(origin.x, 0, origin.z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    for (const [q, y, r] of chestCells)
+      mesh.add(this.chestModels.create(world, q, y, r, origin));
     for (const [q, y, r] of shaped)
       mesh.add(
         buildingMesh(world, q, y, r, origin, this.textures, this.material),
@@ -906,6 +925,39 @@ export class Graphics {
         place: { q: plant.q, y: plant.y + 1, r: plant.r },
         distance: hit.distance,
       };
+    }
+    if (hit.object.userData.chest) {
+      const block = hit.object.userData.chest,
+        p = axialToWorld(block.q, block.r);
+      this.outline.position.set(p.x, block.y + 0.5, p.z);
+      this.outline.scale.set(1, 1, 1);
+      this.outline.visible = true;
+      const normal = hit.face.normal
+        .clone()
+        .transformDirection(hit.object.matrixWorld);
+      let place;
+      if (Math.abs(normal.y) > 0.5)
+        place = { q: block.q, y: block.y + Math.sign(normal.y), r: block.r };
+      else {
+        const directions = DIRECTIONS.map(([q, r]) => ({
+          q,
+          r,
+          p: axialToWorld(q, r),
+        }));
+        directions.sort(
+          (a, b) =>
+            b.p.x * normal.x +
+            b.p.z * normal.z -
+            a.p.x * normal.x -
+            a.p.z * normal.z,
+        );
+        place = {
+          q: block.q + directions[0].q,
+          y: block.y,
+          r: block.r + directions[0].r,
+        };
+      }
+      return { ...block, place, distance: hit.distance };
     }
     if (hit.object.userData.shaped) {
       const block = hit.object.userData.shaped,
@@ -1233,6 +1285,8 @@ export class Graphics {
       : 0.8;
     this.hand.position.y = -0.32 + (moving ? Math.sin(time * 11) * 0.018 : 0);
     this.dynamicLight.attach(this.scene);
+    if (this.chestModels.frame(renderDt))
+      this.renderer.shadowMap.needsUpdate = true;
     if (this.usePost) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
   }

@@ -123,6 +123,9 @@ export class GameAudio {
     } else if (event === 'place') {
       this.noise(0.05, 0.13, 600);
       this.tone(230, 0.05, 'triangle', 0.08);
+    } else if (event === 'chestOpen' || event === 'chestClose') {
+      this.noise(0.16, 0.09, 390);
+      this.tone(event === 'chestOpen' ? 180 : 110, 0.14, 'triangle', 0.06);
     } else if (event === 'doorOpen' || event === 'doorClose') {
       this.noise(0.09, 0.08, 480);
       this.tone(event === 'doorOpen' ? 190 : 125, 0.12, 'triangle', 0.05);

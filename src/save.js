@@ -1,14 +1,15 @@
 import { validFurnace } from './furnaces.js';
+import { validChest } from './chests.js';
 import { validBoats } from './boats.js';
 import { validFauna } from './fauna.js';
 import { validDrops } from './item-drops.js';
 import { validWeather } from './weather.js';
 import { validPlant } from './farming-data.js';
-import { validEquipment, validWear } from './equipment.js';
+import { validEquipment } from './equipment.js';
 import { LIQUIDS } from './fluids.js';
 import { ITEMS, BLOCKS, canEquip } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v5';
+export const SAVE_KEY = 'hexwild-save-v6';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -42,7 +43,7 @@ const inventory = (inv) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 5 ||
+    s.version !== 6 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -182,22 +183,16 @@ export function validateSave(s) {
     if (
       !Array.isArray(d.chests) ||
       d.chests.length > 1e5 ||
-      d.chests.some((e) => !Array.isArray(e) || !cell(e[0]) || !inventory(e[1]))
+      d.chests.some(
+        (e) =>
+          !Array.isArray(e) ||
+          e.length !== 2 ||
+          !cell(e[0]) ||
+          !validChest(e[1]),
+      ) ||
+      new Set(d.chests.map((e) => e[0])).size !== d.chests.length
     )
       throw Error('储物数据无效');
-    if (
-      d.chestWear !== undefined &&
-      (!Array.isArray(d.chestWear) ||
-        d.chestWear.length > 1e5 ||
-        d.chestWear.some(
-          (e) =>
-            !Array.isArray(e) ||
-            e.length !== 2 ||
-            !cell(e[0]) ||
-            !validWear(e[1], d.chests.find((c) => c[0] === e[0])?.[1] || {}),
-        ))
-    )
-      throw Error('箱内装备数据无效');
   }
   for (const field of ['health', 'hunger'])
     if (!Number.isFinite(s[field]) || s[field] < 0 || s[field] > 20)
