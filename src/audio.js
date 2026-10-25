@@ -70,6 +70,41 @@ export class GameAudio {
       gain.disconnect();
     };
   }
+  weather(intensity, sheltered, snow, active) {
+    const ctx = this.context;
+    if (!ctx) return;
+    const level =
+      this.enabled && active
+        ? intensity * this.volume * (snow ? 0.07 : 0.12) * (sheltered ? 0.2 : 1)
+        : 0;
+    if (!this.rainSound && level > 0) {
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      const source = ctx.createBufferSource(),
+        filter = ctx.createBiquadFilter(),
+        gain = ctx.createGain();
+      source.buffer = buffer;
+      source.loop = true;
+      filter.type = 'lowpass';
+      gain.gain.value = 0;
+      source.connect(filter).connect(gain).connect(ctx.destination);
+      source.start();
+      this.rainSound = { source, filter, gain };
+    }
+    if (this.rainSound) {
+      this.rainSound.gain.gain.setTargetAtTime(level, ctx.currentTime, 0.15);
+      this.rainSound.filter.frequency.setTargetAtTime(
+        sheltered ? 420 : snow ? 650 : 3200,
+        ctx.currentTime,
+        0.2,
+      );
+    }
+  }
+  thunder(sheltered = false) {
+    this.noise(3.2, sheltered ? 0.11 : 0.22, 280);
+    this.tone(54, 1.8, 'sine', sheltered ? 0.025 : 0.055);
+  }
   play(event, material = 'grass') {
     if (!this.enabled) return;
     this.events[event] = (this.events[event] || 0) + 1;

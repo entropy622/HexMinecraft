@@ -1,4 +1,5 @@
 import { applySkylight } from './skylight.js';
+import { WeatherEffects } from './weather-graphics.js';
 import { createPostprocessing } from './postprocessing.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
@@ -72,7 +73,8 @@ export class Graphics {
       vertexColors: true,
       map: this.textures.atlas,
     });
-    applySkylight(this.material);
+    this.weatherUniforms = applySkylight(this.material);
+    this.weatherEffects = new WeatherEffects(this.scene);
     this.foliageMaterial = new THREE.MeshLambertMaterial({
       map: this.textures.atlas,
       alphaTest: 0.5,
@@ -140,11 +142,12 @@ export class Graphics {
       transparent: true,
       opacity: 0.88,
     });
+    this.cloudMaterial = cloudMat;
     for (let i = 0; i < 20; i++) {
       const cloud = new THREE.Group();
       for (let j = 0; j < 4; j++) {
         const m = new THREE.Mesh(
-          new THREE.BoxGeometry(7 + (j % 2) * 3, 1.2, 5 + (j % 2) * 3),
+          new THREE.CylinderGeometry(5 + (j % 2) * 2, 5 + (j % 2) * 2, 1.2, 6),
           cloudMat,
         );
         m.position.set(j * 3, Math.sin(j) * 0.4, (j % 2) * 2);
@@ -238,6 +241,7 @@ export class Graphics {
     });
   }
   setQuality(value) {
+    this.weatherEffects.quality = value;
     this.usePost = value >= 1.7;
     if (this.usePost && !this.composer)
       this.composer = createPostprocessing(
@@ -516,17 +520,21 @@ export class Graphics {
     const [cq, cr] = k.split(',').map(Number),
       world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
-    const solid = { p: [], c: [], uv: [], sky: [] },
-      glass = { p: [], c: [], uv: [], sky: [] },
-      plants = { p: [], c: [], uv: [], sky: [] },
-      torches = { p: [], c: [], uv: [], sky: [] };
+    const solid = { p: [], c: [], uv: [], sky: [], rain: [] },
+      glass = { p: [], c: [], uv: [], sky: [], rain: [] },
+      plants = { p: [], c: [], uv: [], sky: [], rain: [] },
+      torches = { p: [], c: [], uv: [], sky: [], rain: [] };
     let out = solid,
-      skylight = 1;
+      skylight = 1,
+      rainExposure = 0;
     const roofs = new Map();
+    const rainRoofs = new Map();
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
         for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
           const type = world.get(q, y, r);
+          if (type && !BLOCKS[type].nonSolid && !rainRoofs.has(q + ',' + r))
+            rainRoofs.set(q + ',' + r, y);
           if (
             type &&
             !BLOCKS[type].nonSolid &&
@@ -541,6 +549,7 @@ export class Graphics {
       for (let i = 0; i < 3; i++) {
         out.p.push(...verts[i]);
         out.sky.push(skylight);
+        out.rain.push(rainExposure);
         out.uv.push(...this.textures.uv(tile, ...uvs[i]));
         out.c.push(shade * ao[i], shade * ao[i], shade * ao[i]);
       }
@@ -558,6 +567,12 @@ export class Graphics {
             0.12,
             1 - Math.max(0, (roofs.get(q + ',' + r) || 0) - y) * 0.22,
           );
+          rainExposure =
+            world.dimension === 'overworld' &&
+            rainRoofs.get(q + ',' + r) === y &&
+            !['沙漠', '雪原'].includes(world.biome(q, r))
+              ? 1
+              : 0;
           if (BLOCKS[type].light) this.updateLight(q, y, r);
           if (type === 'torch') {
             out = torches;
@@ -740,6 +755,10 @@ export class Graphics {
       g.setAttribute('color', new THREE.Float32BufferAttribute(data.c, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(data.uv, 2));
       g.setAttribute('skylight', new THREE.Float32BufferAttribute(data.sky, 1));
+      g.setAttribute(
+        'rainExposure',
+        new THREE.Float32BufferAttribute(data.rain, 1),
+      );
       g.computeVertexNormals();
       g.computeBoundingSphere();
       return g;
@@ -932,7 +951,19 @@ export class Graphics {
       this.cropMeshes.delete(k);
     }
   }
-  frame(dt, time, playing, moving, mining) {
+  frame(dt, time, playing, moving, mining, weather = null, columns = null) {
+    this.weatherEffects.frame(
+      dt,
+      time,
+      this.world,
+      this.camera,
+      weather,
+      columns,
+    );
+    const rain = this.world.dimension === 'overworld' ? weather?.rain || 0 : 0;
+    const storm =
+      this.world.dimension === 'overworld' ? weather?.storm || 0 : 0;
+    const flash = this.weatherEffects.flashes ? this.weatherEffects.flash : 0;
     this.fluidRenderer.sync(this.world, new Set(this.chunks.keys()));
     const phase = (time % 600) / 600,
       day = Math.max(0.08, Math.sin(phase * Math.PI * 2)),
@@ -950,6 +981,22 @@ export class Graphics {
     const elevation = Math.sin(phase * Math.PI * 2);
     const dusk = overworld ? Math.max(0, 1 - Math.abs(elevation) * 3.5) : 0;
     if (overworld) horizon.lerp(new THREE.Color('#e49a69'), dusk * 0.65);
+    if (overworld) {
+      const grey = new THREE.Color('#263444').lerp(
+        new THREE.Color('#7e919b'),
+        day,
+      );
+      sky.lerp(grey, rain * 0.85);
+      horizon.lerp(grey, rain * 0.8);
+      sky.lerp(new THREE.Color('#c7d8eb'), flash * 0.5);
+      horizon.lerp(new THREE.Color('#c7d8eb'), flash * 0.35);
+      this.scene.fog.near = 22 - rain * 6;
+      this.scene.fog.far = 44 - rain * 7 - storm * 3;
+    }
+    this.weatherUniforms.terrainWetness.value = overworld
+      ? weather?.wetness || 0
+      : 0;
+    this.weatherUniforms.wetSky.value.copy(horizon);
     this.sun.color.set(overworld ? '#fff3d2' : '#dac4ff');
     if (overworld) this.sun.color.lerp(new THREE.Color('#ff9857'), dusk * 0.8);
     this.hemi.groundColor.set(overworld ? '#77715b' : '#514353');
@@ -989,6 +1036,15 @@ export class Graphics {
       }
     }
     this.sun.target.position.copy(this.camera.position);
+    this.sun.intensity *= 1 - rain * 0.78;
+    this.hemi.intensity = this.hemi.intensity * (1 - rain * 0.2) + flash * 0.85;
+    this.cloudMaterial.color
+      .set('#ffffff')
+      .lerp(new THREE.Color('#596775'), rain * 0.8);
+    this.cloudMaterial.opacity = 0.88 + rain * 0.1;
+    this.clouds.children.forEach((cloud) =>
+      cloud.scale.set(1 + rain * 0.9, 1 + storm * 1.8, 1 + rain * 0.9),
+    );
     this.shadowTimer = (this.shadowTimer || 0) - dt;
     if (this.shadowTimer <= 0) {
       this.renderer.shadowMap.needsUpdate = true;
@@ -1009,13 +1065,19 @@ export class Graphics {
       .normalize();
     this.sky.material.uniforms.sunColor.value.set('#ffd29b');
     this.sky.material.uniforms.sunStrength.value = overworld
-      ? Math.max(0, Math.min(1, elevation * 4 + 0.3))
+      ? Math.max(0, Math.min(1, elevation * 4 + 0.3)) * (1 - rain)
       : 0;
     this.sunDisk.material.color.set('#fff0bd').multiplyScalar(2.5);
+    this.sunDisk.material.transparent = true;
+    this.sunDisk.material.opacity = 1 - rain * 0.97;
+    this.moonDisk.material.transparent = true;
+    this.moonDisk.material.opacity = 1 - rain * 0.93;
     this.sunDisk.quaternion.copy(this.camera.quaternion);
     this.moonDisk.quaternion.copy(this.camera.quaternion);
     this.stars.material.opacity =
-      this.world?.dimension === 'end' ? 0.9 : Math.max(0, 1 - day * 2.5);
+      this.world?.dimension === 'end'
+        ? 0.9
+        : Math.max(0, 1 - day * 2.5) * (1 - rain);
     for (const g of this.portalMeshes?.values() || [])
       for (const child of g.children) {
         if (child.userData.spin) child.rotation.z = time * child.userData.spin;
@@ -1025,7 +1087,9 @@ export class Graphics {
     for (const g of this.cropMeshes.values())
       g.children.forEach(
         (blade, i) =>
-          (blade.rotation.z = Math.sin(time * 1.4 + g.position.x + i) * 0.07),
+          (blade.rotation.z =
+            Math.sin(time * (1.4 + storm) + g.position.x + i) *
+            (0.07 + rain * 0.05)),
       );
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];

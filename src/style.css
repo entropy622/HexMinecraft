@@ -736,6 +736,34 @@ button svg {
   gap: 8px;
   margin-top: 12px;
 }
+#weather-hud {
+  display: block;
+  color: #d9e4e8;
+  font-size: 12px;
+  margin: 5px 0;
+  text-shadow: 1px 2px #172127;
+}
+#weather-hud:empty {
+  display: none;
+}
+#weather-controls {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 2px solid #59604e;
+}
+.weather-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.weather-buttons button {
+  flex: 1;
+}
+#lightning-toggle {
+  width: 20px;
+  height: 20px;
+  accent-color: #a3be72;
+}
 #drop-mode[aria-pressed='true'] {
   background: #714636;
   color: #fff3dc;

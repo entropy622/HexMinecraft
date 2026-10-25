@@ -278,9 +278,12 @@ export class Fauna {
       message: `${def.name} · 手持${{ wheat: '小麦', seed: '麦种', apple: '苹果' }[def.food]}吸引并按 E 喂食`,
     };
   }
-  update(dt, time, camera, held, creative) {
+  update(dt, time, camera, held, creative, weather = null) {
     const world = this.world,
-      night = world.dimension !== 'overworld' || time % 600 >= 300;
+      night =
+        world.dimension !== 'overworld' ||
+        time % 600 >= 300 ||
+        (weather?.storm || 0) > 0.65;
     this.syncTimer -= dt;
     this.hostileTimer -= dt;
     this.spawnerTimer -= dt;
@@ -405,7 +408,7 @@ export class Fauna {
           continue;
         }
       }
-      if (def.sunlight && !night && m.sunlit) {
+      if (def.sunlight && !night && m.sunlit && (weather?.rain || 0) < 0.3) {
         m.hp -= dt * 3;
         m.hit = 0.1;
         if (m.hp <= 0) {

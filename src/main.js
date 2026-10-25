@@ -21,6 +21,7 @@ import {
 } from './core.js';
 import { Fauna } from './fauna.js';
 import { ItemDrops } from './item-drops.js';
+import { Weather, WeatherColumns, WEATHER } from './weather.js';
 import { INVENTORY_SLOTS, usedSlots, roomFor, stackSize } from './inventory.js';
 import { MOBS } from './mob-data.js';
 import { Graphics } from './graphics.js';
@@ -46,10 +47,10 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.10 — WHAT WE LEAVE BEHIND</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.11 — UNDER CHANGING SKIES</div></footer>
  </section>
  <div id="hud" class="hidden">
-  <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
+  <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
   <div id="crosshair"></div><div id="mine-progress"><i></i></div><div id="target" class="hidden"></div>
   <div class="bottom-hud"><div id="combat-status"></div><div id="selected-name"></div><div class="vitals"><span class="health" id="health"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
@@ -57,7 +58,7 @@ $('#app').innerHTML = `
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b> <span class="tiny">/ 点击选择；点击护甲穿戴；Shift 点击丢出一组</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><div class="pack-actions"><button id="drop-held">丢出手持物 ×1</button><button id="drop-mode" aria-pressed="false">点击丢弃：关</button></div><p class="panel-note">Q 丢出 1 件 / Ctrl+Q 丢出一组 · 靠近地面物品自动拾取 · 工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -79,6 +80,9 @@ const camera = graphics.camera;
 const motion = new Movement();
 const projectiles = new Projectiles(graphics.scene);
 const drops = new ItemDrops(graphics.scene, graphics.textures);
+let weather = new Weather();
+const weatherColumns = new WeatherColumns();
+let weatherGrowthTimer = 0;
 let lastDeath = null;
 let discardMode = false;
 const fauna = new Fauna(graphics.scene, graphics.textures, {
@@ -227,6 +231,11 @@ function startGame(mode = false, save = null) {
   });
   inventory = save ? { ...save.inventory } : { dirt: 12, apple: 3, seed: 3 };
   equipment = new Equipment(save?.equipment);
+  weather = new Weather(save?.weather);
+  weatherGrowthTimer = 0;
+  graphics.weatherEffects.flash = 0;
+  graphics.weatherEffects.nextStrike = 18;
+  graphics.weatherEffects.thunderDelay = -1;
   bowCharge = 0;
   projectiles.clear();
   hotbar = save?.hotbar ? [...save.hotbar] : [...HOTBAR];
@@ -260,6 +269,7 @@ function startGame(mode = false, save = null) {
   );
   camera.rotation.set(pitch, yaw, 0);
   fauna.load(world, data.fauna);
+  weatherColumns.update(1, world);
   drops.load(data.drops);
   lastDeath = data.lastDeath || null;
   fauna.sync(camera);
@@ -399,6 +409,7 @@ function travel(to) {
   graphics.build(world, a.q, a.r);
   if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
   fauna.load(world, data.fauna);
+  weatherColumns.update(1, world);
   drops.load(data.drops);
   lastDeath = data.lastDeath || null;
   fauna.sync(camera);
@@ -430,6 +441,7 @@ function saveData() {
     seed: world.seed,
     inventory: savedInventory,
     equipment: equipment.serialize(),
+    weather: weather.serialize(),
     creative,
     hotbar,
     position: camera.position.toArray(),
@@ -477,6 +489,7 @@ function lock() {
   }
 }
 function openOverlay(id) {
+  soundFX.weather(0, false, false, false);
   leftDown = false;
   keys.clear();
   bowCharge = 0;
@@ -693,6 +706,12 @@ function updateHUD() {
   $('#location').innerHTML =
     `${DIMENSIONS[dimension].name} · 种子 ${world.seed}<br>Q ${a.q} / R ${a.r} / Y ${Math.floor(playerFeet())}<br>${creative ? '空格 ↑ · Shift ↓' : 'F 食用 · Shift 冲刺'}`;
   $('#dimension-name').textContent = DIMENSIONS[dimension].name;
+  $('#weather-hud').textContent =
+    dimension === 'overworld' ? weather.label(world.biome(a.q, a.r)) : '';
+  $('#weather-controls').classList.toggle(
+    'hidden',
+    !creative || dimension !== 'overworld',
+  );
   const settlement = world
     .villages(a.q, a.r, 0)
     .find((v) => hexDistance(a.q - v.q, a.r - v.r) <= 12);
@@ -1024,8 +1043,9 @@ function interact() {
     }
     const p = axialToWorld(q, r);
     respawnPoint = [p.x, y + 1.03, p.z];
-    if (time % 600 > 300) {
+    if (time % 600 > 300 || weather.storm > 0.6) {
       time = Math.floor(time / 600) * 600 + 675;
+      weather.set('clear', 300);
       health = 20;
       hunger = Math.max(4, hunger - 2);
       toast('一觉醒来，天光正好。重生点已设在床边。');
@@ -1284,7 +1304,26 @@ function hurt(amount, cause = 'combat') {
   updateHUD();
 }
 function updateMobs(dt) {
-  fauna.update(dt, time, camera, heldItem(), creative);
+  fauna.update(dt, time, camera, heldItem(), creative, weather);
+}
+function updateWeather(dt) {
+  weather.update(dt, world.seed);
+  weatherColumns.update(dt, world);
+  weatherGrowthTimer += dt;
+  if (weatherGrowthTimer < 1) return;
+  if (dimension === 'overworld' && weather.rain > 0.15) {
+    for (const [k, planted] of crops) {
+      if (time - planted >= 90) continue;
+      const [q, y, r] = k.split(',').map(Number);
+      const column = weatherColumns.get(world, q, r);
+      if (column.roof <= y + 1 && !['雪原', '沙漠'].includes(column.biome))
+        crops.set(
+          k,
+          Math.max(0, planted - weatherGrowthTimer * weather.rain * 0.5),
+        );
+    }
+  }
+  weatherGrowthTimer = 0;
 }
 function hitMob(mob, amount, direction) {
   const p = mob.mesh.position,
@@ -2113,6 +2152,7 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.25);
   last = now;
   if (!hasGame) {
+    soundFX.weather(0, false, false, false);
     menuTime += dt;
     const angle = 0.64 + Math.sin(menuTime * 0.035) * 0.1;
     camera.position.set(Math.cos(angle) * 47, 29, Math.sin(angle) * 47);
@@ -2126,6 +2166,7 @@ function frame(now) {
     const cell = worldToAxial(camera.position.x, camera.position.z);
     world.ensureAround(cell.q, cell.r);
     graphics.sync(cell.q, cell.r);
+    updateWeather(dt);
     ambienceTimer += dt;
     if (ambienceTimer > 18) {
       ambienceTimer = 0;
@@ -2265,7 +2306,27 @@ function frame(now) {
     playing,
     moved > 0,
     leftDown && heldItem() !== 'bow',
+    weather,
+    weatherColumns,
   );
+  const weatherCell = worldToAxial(camera.position.x, camera.position.z);
+  const localWeather = weatherColumns.get(world, weatherCell.q, weatherCell.r);
+  const sheltered =
+    localWeather.roof > camera.position.y ||
+    !!world.fluids.get(
+      weatherCell.q,
+      Math.floor(camera.position.y),
+      weatherCell.r,
+    );
+  soundFX.weather(
+    dimension === 'overworld' && localWeather.biome !== '沙漠'
+      ? weather.rain
+      : 0,
+    sheltered,
+    localWeather.biome === '雪原',
+    playing && !overlay,
+  );
+  if (graphics.weatherEffects.thunder && playing) soundFX.thunder(sheltered);
 }
 if (readSave()) $('#continue').classList.remove('hidden');
 $('#loading').classList.add('hidden');
@@ -2363,6 +2424,9 @@ function restorePreferences() {
     if (Number.isFinite(p.volume))
       soundFX.volume = Math.max(0, Math.min(1, p.volume));
     if (typeof p.sound === 'boolean') sound = soundFX.enabled = p.sound;
+    if (typeof p.flashes === 'boolean')
+      graphics.weatherEffects.flashes = p.flashes;
+    $('#lightning-toggle').checked = graphics.weatherEffects.flashes;
     $('#sensitivity').value = sensitivity;
     $('#volume').value = soundFX.volume;
     $('#sound-toggle').textContent = sound ? '开启' : '关闭';
@@ -2378,6 +2442,7 @@ function savePreferences() {
         sensitivity,
         volume: soundFX.volume,
         sound,
+        flashes: graphics.weatherEffects.flashes,
         quality: Number($('#quality').value),
       }),
     );
@@ -2386,4 +2451,19 @@ function savePreferences() {
 for (const id of ['sensitivity', 'volume', 'quality'])
   $('#' + id).addEventListener('change', savePreferences);
 $('#sound-toggle').addEventListener('click', savePreferences);
+$('#lightning-toggle').onchange = (e) => {
+  graphics.weatherEffects.flashes = e.target.checked;
+  savePreferences();
+};
+document.querySelectorAll('[data-weather]').forEach((button) => {
+  button.onclick = () => {
+    if (!creative || dimension !== 'overworld') return;
+    weather.set(button.dataset.weather, 180);
+    toast(
+      '天气正转为' + WEATHER[button.dataset.weather] + '，返回世界后逐渐变化。',
+    );
+    updateHUD();
+    saveGame();
+  };
+});
 restorePreferences();
