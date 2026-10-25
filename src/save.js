@@ -12,6 +12,7 @@ import { validPlayerInventory } from './inventory.js';
 import { validCraftingGrid } from './crafting.js';
 import { validWorkstationItems } from './workstation-items.js';
 import { validDragonFight } from './end-data.js';
+import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
@@ -34,7 +35,7 @@ const position = (p) =>
   Math.abs(p[0]) < 2e9 &&
   Math.abs(p[2]) < 2e9 &&
   p[1] >= -100 &&
-  p[1] < 150;
+  p[1] < 512;
 export function validateSave(s) {
   if (
     !s ||
@@ -57,9 +58,12 @@ export function validateSave(s) {
   if (!s.dimensions || !Object.hasOwn(s.dimensions, s.dimension))
     throw Error('维度数据缺失');
   if (!validSurvival(s.survival)) throw Error('生存状态数据无效');
+  if (!validFlight(s.flight)) throw Error('飞行状态数据无效');
   if (s.weather !== undefined && !validWeather(s.weather))
     throw Error('天气数据无效');
   for (const [id, d] of Object.entries(s.dimensions)) {
+    if (d?.crawling !== undefined && typeof d.crawling !== 'boolean')
+      throw Error('维度姿态无效');
     if (
       d?.dragon !== undefined &&
       (id !== 'end' || !validDragonFight(d.dragon))

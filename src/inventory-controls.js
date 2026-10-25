@@ -1,6 +1,11 @@
 import { copyStack } from './inventory.js';
 import { takeSlot } from './container-actions.js';
-import { cursorMarkup, stackTitle, paletteStack } from './inventory-ui.js';
+import {
+  cursorMarkup,
+  stackContent,
+  stackTitle,
+  paletteStack,
+} from './inventory-ui.js';
 
 // DOM gestures are separate from stack transactions. Rendering can replace any
 // panel while a drag is active; references always resolve against current state.
@@ -126,7 +131,19 @@ export class InventoryControls {
       e.shiftKey ||
       (e.pointerType === 'touch' && this.touchMode === 'quick')
     ) {
-      this.options.quickMove(ref);
+      const now = performance.now();
+      if (
+        e.button === 0 &&
+        this.lastClick?.quick &&
+        this.lastClick.ref === ref &&
+        now - this.lastClick.time < 250
+      ) {
+        this.options.quickMoveAll(ref, this.lastClick.stack);
+        this.lastClick = null;
+      } else {
+        this.lastClick = { ref, time: now, quick: true, stack: copyStack(old) };
+        this.options.quickMove(ref);
+      }
       this.changed();
       return;
     }
@@ -136,6 +153,8 @@ export class InventoryControls {
     const now = performance.now();
     if (
       !right &&
+      !this.lastClick?.quick &&
+      this.lastClick?.button === 0 &&
       this.lastClick?.ref === ref &&
       now - this.lastClick.time < 250 &&
       this.session.cursor?.item === this.lastClick.item
@@ -148,6 +167,7 @@ export class InventoryControls {
     this.lastClick = {
       ref,
       time: now,
+      button: e.button,
       item: this.session.cursor?.item || old?.item,
     };
     if (!this.session.cursor) {
@@ -159,8 +179,10 @@ export class InventoryControls {
         x: e.clientX,
         y: e.clientY,
         id: e.pointerId,
-        refs: [ref],
+        button: e.button,
+        refs: this.session.canDistribute(ref) ? [ref] : [],
         moved: false,
+        crossed: false,
       };
     }
   }
@@ -172,42 +194,50 @@ export class InventoryControls {
     const g = this.gesture;
     if (g && g.id === e.pointerId) {
       g.moved ||= Math.hypot(e.clientX - g.x, e.clientY - g.y) > 5;
-      if (ref && !g.refs.includes(ref)) g.refs.push(ref);
+      if (ref && ref !== g.ref) g.crossed = true;
+      if (
+        ref &&
+        !g.refs.includes(ref) &&
+        this.session.canDistribute(ref) &&
+        g.refs.length < this.session.cursor.count
+      )
+        g.refs.push(ref);
       this.preview();
     }
     this.showTooltip();
   }
   up(e) {
     const g = this.gesture;
-    if (!g || g.id !== e.pointerId) return;
+    if (!g || g.id !== e.pointerId || g.button !== e.button) return;
     this.gesture = null;
     this.clearPreview();
     if (!this.active()) return;
     const ref = this.refAt(e.clientX, e.clientY);
-    if (g.moved && g.refs.length > 1) this.session.distribute(g.refs, g.right);
+    if (g.moved && g.crossed) this.session.distribute(g.refs, g.right);
     else if (ref === g.ref) this.session.click(g.ref, g.right);
     this.changed(g.refs);
   }
   clearPreview() {
     document.querySelectorAll('.drag-target').forEach((b) => {
       b.classList.remove('drag-target');
-      b.querySelector('.drag-count')?.remove();
+      b.querySelector('.drag-preview')?.remove();
     });
   }
   preview() {
     this.clearPreview();
     const g = this.gesture;
-    if (!g?.moved || g.refs.length < 2) return;
+    if (!g?.moved || !g.crossed || !this.session.cursor) return;
     const plan = this.session.distribution(g.refs, g.right);
     for (const p of plan) {
       if (!p.count) continue;
       const button = document.querySelector(`[data-inv-slot="${p.ref}"]`);
       if (!button) continue;
       button.classList.add('drag-target');
-      const amount = document.createElement('b');
-      amount.className = 'drag-count';
-      amount.textContent = p.total;
-      button.append(amount);
+      const preview = document.createElement('span');
+      preview.className = 'drag-preview';
+      preview.setAttribute('aria-hidden', 'true');
+      preview.innerHTML = stackContent(copyStack(this.session.cursor, p.total));
+      button.append(preview);
     }
     const remaining =
       this.session.cursor.count - plan.reduce((n, p) => n + p.count, 0);
@@ -225,6 +255,17 @@ export class InventoryControls {
     const ref = this.hover || document.activeElement?.dataset.invSlot;
     if (!ref || e.repeat) return;
     let handled = false;
+    // A keyboard transaction must not leave an old drag plan live on mouse-up.
+    const action =
+      (['Space', 'Enter'].includes(e.code) &&
+        e.target.matches('[data-inv-slot]')) ||
+      (/^Digit[1-9]$/.test(e.code) && !this.session.cursor) ||
+      e.code === 'KeyQ';
+    if (action) {
+      this.gesture = null;
+      this.lastClick = null;
+      this.clearPreview();
+    }
     if (
       ['Space', 'Enter'].includes(e.code) &&
       e.target.matches('[data-inv-slot]')

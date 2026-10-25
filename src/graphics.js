@@ -1557,6 +1557,7 @@ export class Graphics {
       cameraSky: perceivedSky,
       submerged,
       volume: this.usePost,
+      flight: this.gliding,
     });
     this.atmosphere.attach(this.scene);
     this.enchantingModels.frame(time);

@@ -62,6 +62,9 @@ for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Stairs'] = blockTextures[base];
 }
 export const itemTextures = {
+  elytra: 'mcl_armor_inv_elytra',
+  fireworkRocket: 'vl_fireworks_rocket',
+  phantomMembrane: 'vl_mobitems_spectre_membrane',
   endCrystal: 'mcl_end_crystal_item',
   pearl: 'mcl_throwing_ender_pearl',
   snowball: 'mcl_throwing_snowball',

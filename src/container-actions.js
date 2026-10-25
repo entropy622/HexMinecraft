@@ -103,17 +103,21 @@ export class ContainerSession {
     }
     return false;
   }
+  canDistribute(ref) {
+    if (!this.cursor) return false;
+    const slot = this.resolve(ref),
+      old = slot?.get();
+    return (
+      slotLimit(slot, this.cursor) > (old?.count || 0) &&
+      (!old || sameStack(old, this.cursor))
+    );
+  }
   distribution(refs, right = false) {
     if (!this.cursor) return [];
     const targets = [...new Set(refs)]
-      .map((ref) => ({ ref, slot: this.resolve(ref) }))
-      .filter(({ slot }) => {
-        const old = slot?.get();
-        return (
-          slotLimit(slot, this.cursor) > (old?.count || 0) &&
-          (!old || sameStack(old, this.cursor))
-        );
-      });
+      .filter((ref) => this.canDistribute(ref))
+      .slice(0, this.cursor.count)
+      .map((ref) => ({ ref, slot: this.resolve(ref) }));
     const each = right ? 1 : Math.floor(this.cursor.count / targets.length);
     let remaining = this.cursor.count;
     return targets.map(({ ref, slot }) => {

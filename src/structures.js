@@ -1,4 +1,6 @@
-import { DIRECTIONS, hash, hexDistance, key } from './core.js';
+import { BLOCKS, DIRECTIONS, hash, hexDistance, key } from './core.js';
+import { FIRST_END_SHIP } from './flight-data.js';
+import { stampEndShip } from './end-ship.js';
 
 export const STRUCTURE_NAMES = {
   ruin: '古老瞭望塔',
@@ -6,6 +8,7 @@ export const STRUCTURE_NAMES = {
   dungeon: '苔石地牢',
   fortress: '余烬堡垒',
   shrine: '末地遗址',
+  endship: '末地船',
 };
 function descriptor(world, id, q, r, kind) {
   const h = world.terrainHeight(q, r);
@@ -21,13 +24,19 @@ function descriptor(world, id, q, r, kind) {
     q,
     r,
     h,
-    y: underground ? Math.max(3, h - 7) : h,
+    y: kind === 'endship' ? h + 10 : underground ? Math.max(3, h - 7) : h,
     kind,
-    radius: underground ? 30 : kind === 'fortress' ? 15 : 8,
+    radius: underground
+      ? 30
+      : kind === 'fortress'
+        ? 15
+        : kind === 'endship'
+          ? 12
+          : 8,
     material:
       kind === 'fortress'
         ? 'netherbrick'
-        : kind === 'shrine'
+        : kind === 'shrine' || kind === 'endship'
           ? 'purpur'
           : world.biome(q, r) === '沙漠'
             ? 'sandstone'
@@ -55,6 +64,8 @@ export function structuresNear(world, q, r, range = 32) {
     get('starter-ruin', -18, 14, 'ruin');
     get('starter-mine', -32, -16, 'mine');
   }
+  if (world.dimension === 'end')
+    get('endship-first', FIRST_END_SHIP.q, FIRST_END_SHIP.r, 'endship');
   const reach = Math.ceil((range + 32) / 96);
   for (let x = Math.floor(q / 96) - reach; x <= Math.floor(q / 96) + reach; x++)
     for (
@@ -80,7 +91,9 @@ export function structuresNear(world, q, r, range = 32) {
           world.dimension === 'nether'
             ? 'fortress'
             : world.dimension === 'end'
-              ? 'shrine'
+              ? hash(x, 913, z, world.seed) > 0.5
+                ? 'endship'
+                : 'shrine'
               : ['ruin', 'mine', 'dungeon'][
                   Math.floor(hash(x, 157, z, world.seed) * 3)
                 ];
@@ -100,6 +113,22 @@ export function structuresNear(world, q, r, range = 32) {
   return result;
 }
 export function structureLoot(world, s) {
+  if (s.kind === 'endship')
+    return [
+      {
+        q: s.q - 2,
+        y: s.y + 4,
+        r: s.r,
+        loot: {
+          elytra: 1,
+          fireworkRocket: 24,
+          phantomMembrane: 3,
+          diamond: 2,
+          goldenApple: 2,
+          book: 1,
+        },
+      },
+    ];
   const roll = hash(s.q, 663, s.r, world.seed);
   const supplies =
     s.kind === 'mine'
@@ -138,13 +167,20 @@ export function structureLoot(world, s) {
 export function stampStructure(world, s, cq, cr) {
   const put = (q, y, r, type) => {
     if (Math.floor(q / 8) !== cq || Math.floor(r / 8) !== cr || y < 1 || y > 62)
-      return;
+      return false;
     const k = key(q, y, r);
     if (type) world.blocks.set(k, type);
     else world.blocks.delete(k);
     if (type === 'spawner') world.spawners.add(k);
     else world.spawners.delete(k);
+    if (BLOCKS[type]?.shape) world.buildings.add(k);
+    else world.buildings.delete(k);
+    return true;
   };
+  if (s.kind === 'endship') {
+    stampEndShip(world, s, put);
+    return;
+  }
   const block = (dq, dy, dr, type) => put(s.q + dq, s.y + dy, s.r + dr, type);
   if (!['mine', 'dungeon'].includes(s.kind)) {
     const radius = s.kind === 'fortress' ? 7 : s.kind === 'shrine' ? 5 : 4;

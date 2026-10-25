@@ -99,7 +99,7 @@ export class Projectiles {
         arrow.mesh.position.addScaledVector(arrow.velocity, step);
         const p = arrow.mesh.position,
           a = worldToAxial(p.x, p.z);
-        if (p.y < 0 || p.y > 90 || !world.loaded(a.q, a.r)) {
+        if (p.y < 0 || p.y > 512 || !world.loaded(a.q, a.r)) {
           this.remove(arrow);
           break;
         }

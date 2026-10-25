@@ -18,6 +18,7 @@ export class Atmosphere {
       airCameraSky: { value: 1 },
       airTime: { value: 0 },
       airVolume: { value: 0 },
+      airFlight: { value: 0 },
     };
   }
 
@@ -33,6 +34,7 @@ export class Atmosphere {
     cameraSky,
     submerged,
     volume,
+    flight = false,
   }) {
     const u = this.uniforms,
       overworld = dimension === 'overworld';
@@ -59,6 +61,12 @@ export class Atmosphere {
     u.airCameraSky.value = cameraSky;
     u.airTime.value = time;
     u.airVolume.value = volume ? 1 : 0;
+    u.airFlight.value = MathUtils.damp(
+      u.airFlight.value,
+      flight ? 1 : 0,
+      5,
+      dt,
+    );
   }
 
   attach(scene) {
@@ -101,7 +109,7 @@ export class Atmosphere {
         uniform vec3 airCameraPosition; uniform float airDensity; uniform float airBaseHeight;
         uniform float airFalloff; uniform vec3 airHorizon; uniform vec3 airSunColor;
         uniform vec3 airSunDirection; uniform float airSunPower; uniform float airAmbient;
-        uniform float airCameraSky; uniform float airVolume;\n` +
+        uniform float airCameraSky; uniform float airVolume; uniform float airFlight;\n` +
         shader.fragmentShader.replace('#include <fog_fragment>', '').replace(
           '#include <opaque_fragment>',
           /* glsl */ `
@@ -120,14 +128,15 @@ export class Atmosphere {
             airSunColor * airSunPower * airForward * airSky * 0.3;
           outgoingLight = mix(outgoingLight, airSource, airFog * (1.0 - airVolume));
           // Keep the streaming boundary hidden in both rendering paths.
-          float airEdge = smoothstep(fogNear, fogFar, airDistance);
+          float edgeDistance = mix(airDistance, length(vec3(airDelta.x, airDelta.y * 0.15, airDelta.z)), airFlight);
+          float airEdge = smoothstep(fogNear, fogFar, edgeDistance);
           outgoingLight = mix(outgoingLight, fogColor, airEdge);
         #endif
         #include <opaque_fragment>`,
         );
     };
     material.customProgramCacheKey = () =>
-      cacheKey.call(material) + '-height-air-v1';
+      cacheKey.call(material) + '-height-air-v2';
     material.needsUpdate = true;
   }
 }

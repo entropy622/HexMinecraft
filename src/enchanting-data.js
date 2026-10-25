@@ -47,7 +47,11 @@ export const ENCHANTS = {
     max: 5,
     accepts: (item) => ['sword', 'axe'].includes(item.kind),
   },
-  protection: { name: '保护', max: 4, accepts: (item) => !!item.armorSlot },
+  protection: {
+    name: '保护',
+    max: 4,
+    accepts: (item) => !!item.armorSlot && !item.glider,
+  },
   power: { name: '力量', max: 5, accepts: (item) => item.kind === 'bow' },
   unbreaking: { name: '耐久', max: 3, accepts: (item) => !!item.durability },
 };

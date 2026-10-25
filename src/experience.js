@@ -44,7 +44,7 @@ export function validOrbs(records) {
         Math.abs(o.position[0]) < 2e9 &&
         Math.abs(o.position[2]) < 2e9 &&
         o.position[1] > -50 &&
-        o.position[1] < 150 &&
+        o.position[1] < 512 &&
         Number.isFinite(o.life) &&
         o.life > 0 &&
         o.life <= 300,

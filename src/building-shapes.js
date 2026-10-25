@@ -42,6 +42,20 @@ export function buildingParts(world, q, y, r, collision = false) {
       polygon: HEX_POLYGON.map(([x, z]) => [x * radius, z * radius]),
     }));
   const parts = [];
+  if (shape === 'gateway')
+    return collision
+      ? []
+      : [
+          {
+            x: 0,
+            y: 0.8,
+            z: 0,
+            h: 1.4,
+            angle: 0,
+            tile: 'endportal',
+            polygon: HEX_POLYGON.map(([x, z]) => [x * 0.5, z * 0.5]),
+          },
+        ];
   const add = (x, cy, z, w, h, d, turn = 0, tile = 'planks') => {
     parts.push({
       x: x * Math.cos(angle) + z * Math.sin(angle),

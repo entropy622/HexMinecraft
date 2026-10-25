@@ -3,6 +3,7 @@ import { villagesNear, villageAt, stampVillage, features } from './villages.js';
 import { Fluids } from './fluids.js';
 import { END_FLOOR } from './end-data.js';
 import { stampEndArena } from './end-arena.js';
+import { FIRST_END_SHIP } from './flight-data.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -118,6 +119,9 @@ export class World {
       detail = noise(q * 0.18, r * 0.18, this.seed + 19);
     if (this.dimension === 'nether') return Math.floor(4 + n * 15 + detail * 3);
     if (this.dimension === 'end') {
+      const outer = hexDistance(q - FIRST_END_SHIP.q, r - FIRST_END_SHIP.r);
+      if (outer <= 10) return FIRST_END_SHIP.h;
+      if (outer <= 14) return FIRST_END_SHIP.h - (outer - 10) * 2;
       const distance = hexDistance(q, r);
       if (distance <= 16) return END_FLOOR;
       if (distance <= 21) return END_FLOOR - (distance - 16);

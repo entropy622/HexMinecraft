@@ -151,6 +151,15 @@ CC BY-SA 3.0. The six-sided dragon, articulated wings/tail, crystal cages,
 arena, healing beams, boss logic, breath effects and synthesized sounds are
 original implementations. No upstream model, mob source or recording is used.
 
+Version 0.36 adds unmodified `mcl_armor_inv_elytra.png`,
+`vl_fireworks_rocket.png`, and `vl_mobitems_spectre_membrane.png` from the
+same VoxeLibre revision, under its general **CC BY-SA 3.0** media terms.
+These are inventory, held and dropped item images. The gliding physics,
+low-profile collision, hexagonal End ships, gateways, firework particles and
+synthesized sounds are original implementations; no upstream model, gameplay
+source or recording is bundled. The selected media now totals 208 PNGs:
+189 under CC BY-SA 3.0 and 19 under CC BY-SA 4.0.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

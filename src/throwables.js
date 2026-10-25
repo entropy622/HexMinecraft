@@ -67,7 +67,7 @@ export function pearlDestination(world, impact, blocked) {
       continue;
     for (const drop of drops) {
       const feet = baseY - drop;
-      if (feet < 0.03 || feet + 1.8 > 90 || blocked(x, feet, z)) continue;
+      if (feet < 0.03 || feet + 1.8 > 512 || blocked(x, feet, z)) continue;
       return new THREE.Vector3(x, feet, z);
     }
   }
@@ -241,7 +241,7 @@ export class Throwables {
         record.velocity.y -= THROWABLES[record.item].gravity * step;
         const to = from.clone().addScaledVector(record.velocity, step),
           a = worldToAxial(to.x, to.z);
-        if (!world.loaded(a.q, a.r) || to.y < 0 || to.y > 90) {
+        if (!world.loaded(a.q, a.r) || to.y < 0 || to.y > 512) {
           this.remove(record);
           if (record.item === 'pearl') this.callbacks.miss?.();
           break;

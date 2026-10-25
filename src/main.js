@@ -103,6 +103,9 @@ import { stampEndArena } from './end-arena.js';
 import { Fishing } from './fishing.js';
 import { Boats, BOAT_EYE } from './boats.js';
 import { Movement } from './movement.js';
+import { Glider } from './glider.js';
+import { FlightEffects } from './flight-effects.js';
+import { END_GATEWAYS } from './flight-data.js';
 import { GameAudio } from './audio.js';
 import { itemIcon as icon } from './icons.js';
 const soundFX = new GameAudio();
@@ -118,7 +121,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.35 — SIX PILLARS, ONE DRAGON</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.36 — WINGS OVER THE END</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -149,6 +152,11 @@ try {
 }
 const camera = graphics.camera;
 const motion = new Movement();
+const glider = new Glider();
+const flightEffects = new FlightEffects(graphics.scene, (event) =>
+  soundFX.play(event),
+);
+let rocketCooldown = 0;
 const projectiles = new Projectiles(graphics.scene);
 const fireballs = new Fireballs(graphics.scene, {
   sound: (kind) => soundFX.play(kind),
@@ -223,6 +231,11 @@ bossPanel.id = 'boss-hud';
 bossPanel.className = 'hidden';
 bossPanel.innerHTML = `<b id="boss-name"></b><progress id="boss-health" max="200" value="200" aria-label="末影龙生命"></progress><div id="boss-crystals">${Array.from({ length: 6 }, (_, i) => `<span data-boss-crystal="${i}" title="末地水晶 ${i + 1}">${icon('endCrystal')}</span>`).join('')}</div>`;
 $('#hud').append(bossPanel);
+const flightStatus = document.createElement('div');
+flightStatus.id = 'flight-status';
+flightStatus.className = 'hidden';
+flightStatus.innerHTML = `${icon('elytra')}<span id="flight-label"></span><progress id="flight-boost" max="1.5" value="0" aria-label="烟花助推剩余时间"></progress>`;
+$('#combat-status').before(flightStatus);
 let workstationItems = newWorkstationItems(),
   pendingStationEffects = [];
 const smithState = { name: '' };
@@ -380,6 +393,7 @@ const inventoryControls = new InventoryControls(inventorySession, {
     ),
   ],
   quickMove: quickMoveInventory,
+  quickMoveAll: quickMoveMatching,
   swapHotbar,
   drop: dropInventoryStack,
   settle: settleInventoryCursor,
@@ -567,6 +581,20 @@ function resolveInventorySlot(ref) {
 }
 const packRefs = (start = 0, end = INVENTORY_SLOTS) =>
   Array.from({ length: end - start }, (_, i) => 'pack:' + (i + start));
+function quickMoveMatching(ref, stack) {
+  if (!stack) return;
+  const kind = ref.split(':')[0];
+  const destinations = new Set(quickMoveDestinations(ref, stack));
+  const refs = inventoryControls.options.visible().filter((candidate) => {
+    if (candidate.split(':')[0] !== kind) return false;
+    // When quick-move goes between the player's rows, keep the destination
+    // rows out of this batch so items cannot be moved straight back again.
+    if (destinations.has(candidate)) return false;
+    const slot = resolveInventorySlot(candidate);
+    return !slot?.output && sameStack(slot?.get(), stack);
+  });
+  for (const candidate of refs) quickMoveInventory(candidate);
+}
 function quickMoveInventory(ref) {
   if (ref === 'craft:output') {
     doCraft({ shiftKey: true });
@@ -575,6 +603,12 @@ function quickMoveInventory(ref) {
   const source = resolveInventorySlot(ref),
     stack = source?.get();
   if (!stack) return;
+  moveSlot(
+    source,
+    quickMoveDestinations(ref, stack).map(resolveInventorySlot).filter(Boolean),
+  );
+}
+function quickMoveDestinations(ref, stack) {
   let refs;
   if (!ref.startsWith('pack:')) refs = [...packRefs(9), ...packRefs(0, 9)];
   else if (overlay === '#station-overlay' && currentChest())
@@ -620,7 +654,7 @@ function quickMoveInventory(ref) {
   }
   if (!refs?.length)
     refs = Number(ref.split(':')[1]) < 9 ? packRefs(9) : packRefs(0, 9);
-  moveSlot(source, refs.map(resolveInventorySlot).filter(Boolean));
+  return refs;
 }
 function swapHotbar(ref, index) {
   const destination = 'pack:' + index;
@@ -705,12 +739,15 @@ function setSpawn() {
   spawn.set(p.x, Math.max(4, world.surface(0, 0)) + 0.03, p.z);
 }
 function playerFeet() {
-  return camera.position.y - 1.65;
+  return camera.position.y - playerEyeHeight();
+}
+function playerEyeHeight() {
+  return glider.lowProfile ? 0.4 : 1.65;
 }
 function solidAt(x, y, z) {
   return world.pointSolid(x, y, z);
 }
-function collides(x, feet, z) {
+function collides(x, feet, z, standing = false) {
   if (boats.bodyBlocked(x, feet, z)) return true;
   for (const [dx, dz] of [
     [0, 0],
@@ -721,11 +758,16 @@ function collides(x, feet, z) {
     [0.17, 0.17],
     [-0.17, -0.17],
   ])
-    for (const dy of [0.005, 0.85, 1.77])
+    for (const dy of glider.lowProfile && !standing
+      ? [0.005, 0.3, 0.57]
+      : [0.005, 0.85, 1.77])
       if (solidAt(x + dx, feet + dy, z + dz)) return true;
   return false;
 }
 function safeSpawn() {
+  glider.reset();
+  flightEffects.clear();
+  rocketCooldown = 0;
   dragonFight.clearAttacks();
   graphics.stepOffset = 0;
   throwables.clear();
@@ -812,6 +854,9 @@ function startGame(mode = false, save = null) {
     }
   }
   survival = new Survival(save?.survival);
+  glider.load(save?.flight);
+  flightEffects.clear();
+  rocketCooldown = 0;
   experience.loadPlayer(save?.experience || { seed });
   combat.reset();
   stopEating(true);
@@ -831,6 +876,8 @@ function startGame(mode = false, save = null) {
   hunger = save?.hunger ?? 20;
   time = save?.time ?? 105;
   creative = save?.creative ?? mode;
+  if (creative) glider.stop();
+  else if (!wornElytra() || wearValue(wornElytra().wear) <= 1) glider.stop();
   crops = new Map(data.crops);
   chests = new Map(data.chests);
   respawnPoint = data.respawn || null;
@@ -885,6 +932,7 @@ function captureDimension() {
   dimensionStates[dimension] = {
     ...world.serialize(),
     dragon: dragonFight.serialize(),
+    crawling: glider.lowProfile,
     fauna: fauna.serialize(),
     drops: drops.serialize(),
     experienceOrbs: experience.serialize(),
@@ -971,11 +1019,15 @@ function travel(to) {
   throwHeldItem = null;
   bowCharge = 0;
   captureDimension();
+  glider.reset();
+  flightEffects.clear();
+  rocketCooldown = 0;
   boats.load();
   const seed = world.seed;
   world.clearLoaded();
   dimension = to;
   const data = dimensionStates[to] || { edits: [], crops: [], chests: [] };
+  glider.lowProfile = data.crawling === true;
   world = new World(seed, to, {
     edits: data.edits,
     blockStates: data.blockStates,
@@ -1064,6 +1116,7 @@ function saveData() {
     workstations: structuredClone(workstationItems),
     selected,
     survival: survival.serialize(),
+    flight: glider.serialize(),
     experience: experience.serializePlayer(),
     weather: weather.serialize(),
     creative,
@@ -1856,6 +1909,155 @@ function useFishingRod() {
   saveGame();
   return true;
 }
+function wornElytra() {
+  const stack = pack.gear[GEAR_SLOTS.indexOf('chest')];
+  return ITEMS[stack?.item]?.glider ? stack : null;
+}
+function startGliding() {
+  if (glider.active) return true;
+  const stack = wornElytra();
+  if (
+    !playing ||
+    overlay ||
+    creative ||
+    grounded ||
+    boats.riding ||
+    !stack ||
+    wearValue(stack.wear) <= 1 ||
+    playerFluidAt(playerFeet() + 0.12) ||
+    onLadder()
+  )
+    return false;
+  const low = glider.lowProfile;
+  glider.start(yaw, motion.x + motion.kickX, vy, motion.z + motion.kickZ);
+  if (!low) {
+    camera.position.y -= 1.25;
+    graphics.stepOffset = (graphics.stepOffset || 0) - 1.25;
+  }
+  combat.reset();
+  fishing.clear();
+  motion.jumpBuffer = 0;
+  soundFX.play('elytraOpen');
+  return true;
+}
+function stopGliding() {
+  if (!glider.active) return;
+  vy = glider.vy;
+  motion.x = glider.vx;
+  motion.z = glider.vz;
+  motion.kickX = motion.kickZ = motion.jumpBuffer = 0;
+  glider.stop();
+}
+function useRocket() {
+  if (heldItem() !== 'fireworkRocket') return false;
+  if (rocketCooldown > 0) return true;
+  if (glider.active) {
+    if (!glider.rocket()) return true;
+  } else {
+    const point = target?.point
+      ? target.point
+          .clone()
+          .addScaledVector(target.normal || new THREE.Vector3(0, 1, 0), 0.12)
+      : camera.position
+          .clone()
+          .add(new THREE.Vector3(0, -playerEyeHeight() + 0.4, 0));
+    flightEffects.launch(point);
+  }
+  if (!creative) inventory.fireworkRocket--;
+  rocketCooldown = glider.active ? 0.5 : 0.35;
+  if (foodInputs.has('mouse')) throwHeldItem = 'fireworkRocket';
+  graphics.swing();
+  soundFX.play('rocket');
+  updateHUD();
+  saveGame();
+  return true;
+}
+function updateFlightHUD() {
+  const stack = wornElytra();
+  flightStatus.classList.toggle(
+    'hidden',
+    !hasGame || (!stack && !glider.lowProfile),
+  );
+  if (!stack && !glider.lowProfile) return;
+  const wear = stack ? wearValue(stack.wear) : 0;
+  $('#flight-label').textContent = glider.active
+    ? `滑翔 ${Math.round(glider.speed)} m/s · 耐久 ${wear}/432 · 烟花右键助推`
+    : creative
+      ? '创造飞行 · 空格上升 / Shift 下降'
+      : glider.lowProfile
+        ? '低姿态移动 · 到开阔处自动站起'
+        : wear <= 1
+          ? '鞘翅已破损 · 用幻翼膜在铁砧修复'
+          : `鞘翅 ${wear}/432 · 跳起后再次按空格展开`;
+  $('#flight-boost').value = glider.boost;
+  $('#flight-boost').classList.toggle(
+    'hidden',
+    !glider.active || glider.boost <= 0,
+  );
+}
+function useEndGateway(q, r) {
+  if (dimension !== 'end' || !dragonFight.state?.victories) {
+    toast('击败末影龙后，折跃门才会回应。');
+    return;
+  }
+  const source = END_GATEWAYS.findIndex((g) => g.q === q && g.r === r);
+  if (source < 0) return;
+  const destination = END_GATEWAYS[1 - source];
+  const origin = worldToAxial(camera.position.x, camera.position.z);
+  world.ensureAround(destination.q, destination.r);
+  let landing = null;
+  for (const [dq, dr] of [[-1, 0], ...DIRECTIONS]) {
+    const a = destination.q + dq,
+      b = destination.r + dr,
+      p = axialToWorld(a, b);
+    const floor = findFloor(world, p.x, p.z, world.surface(a, b), {
+      step: 1,
+      drop: 5,
+    });
+    if (floor !== null && !collides(p.x, floor + 0.01, p.z, true)) {
+      landing = { ...p, y: floor };
+      break;
+    }
+  }
+  if (!landing) {
+    world.ensureAround(origin.q, origin.r);
+    toast('另一侧出口被挡住了，清理后再试。');
+    return;
+  }
+  boats.riding = null;
+  fishing.clear();
+  stopEating(true);
+  combat.reset();
+  glider.reset();
+  motion.reset();
+  flightEffects.clear();
+  projectiles.clear();
+  throwables.clear();
+  fireballs.clear();
+  dragonFight.clearAttacks();
+  camera.position.set(landing.x, landing.y + 1.66, landing.z);
+  vy = 0;
+  grounded = false;
+  mining = bowCharge = 0;
+  leftDown = false;
+  target = creatureTarget = villagerTarget = boatTarget = null;
+  graphics.stepOffset = 0;
+  const a = worldToAxial(landing.x, landing.z);
+  graphics.sync(a.q, a.r, true);
+  fauna.sync(camera);
+  syncDecor();
+  damageCooldown = 2;
+  $('#travel span').textContent = source === 0 ? '外圈浮岛' : '中央祭坛';
+  $('#travel').classList.add('active');
+  setTimeout(() => $('#travel').classList.remove('active'), 900);
+  soundFX.play('portal');
+  toast(
+    source === 0
+      ? '外圈浮岛 · 顺着紫珀塔的梯子登上末地船，船舱有鞘翅和烟花。'
+      : '已回到中央祭坛。',
+  );
+  saveGame();
+}
 function useEndCrystal() {
   if (heldItem() !== 'endCrystal') return false;
   if (
@@ -1978,7 +2180,9 @@ function resolveThrow(impact) {
     if (owner !== survival) return;
   }
   if (item === 'pearl') {
-    const destination = pearlDestination(world, impact, collides);
+    const destination = pearlDestination(world, impact, (x, y, z) =>
+      collides(x, y, z, true),
+    );
     if (!destination) {
       toast('珍珠破碎了，但落点没有足够的容身空间。');
       return;
@@ -1988,6 +2192,8 @@ function resolveThrow(impact) {
     boatTarget = creatureTarget = villagerTarget = target = null;
     fishing.clear();
     stopEating(true);
+    glider.reset();
+    flightEffects.clear();
     combat.reset();
     motion.reset();
     vy = 0;
@@ -2073,6 +2279,7 @@ function place() {
   }
   if (useFishingRod() || useBoatItem()) return;
   if (interactCreature() || drinkMilk() || useGoldenApple()) return;
+  if (useRocket()) return;
   if (useThrowable()) return;
   if (useGlassBottle()) return;
   if (heldItem() === 'boneMeal' && target) {
@@ -2592,6 +2799,7 @@ function interact(preferContext = false) {
         'ladder',
         'portal',
         'endportal',
+        'endGateway',
         'bed',
         'workbench',
         'furnace',
@@ -2606,7 +2814,7 @@ function interact(preferContext = false) {
   if (
     !contextual &&
     !target?.crop &&
-    (useFishingRod() || useBoatItem() || useThrowable())
+    (useFishingRod() || useBoatItem() || useRocket() || useThrowable())
   )
     return;
   if (FOODS[heldItem()] && !contextual) {
@@ -2623,6 +2831,10 @@ function interact(preferContext = false) {
   if (!target) return;
   const { q, y, r, type } = target,
     k = key(q, y, r);
+  if (type === 'endGateway') {
+    useEndGateway(q, r);
+    return;
+  }
   if (['door', 'doorTop', 'gate'].includes(type)) {
     toggleBuilding(q, y, r);
     return;
@@ -3340,18 +3552,26 @@ function hurt(amount, cause = 'combat', source = null) {
   ) {
     const protection = equipment.protection();
     for (const id of Object.values(equipment.armor))
-      wearItem(id, Math.max(1, Math.ceil(amount / 4)), true);
+      if (ITEMS[id].armor)
+        wearItem(id, Math.max(1, Math.ceil(amount / 4)), true);
     amount *= 1 - protection * 0.04;
   }
   if (!['void', 'hunger'].includes(cause))
     amount *= 1 - enchantedProtection * 0.04;
   if (cause !== 'void') amount = survival.absorb(amount);
   if (source && !boats.riding && !blocked) {
-    motion.kick(
-      camera.position.x - source.x,
-      camera.position.z - source.z,
-      cause === 'explosion' ? 5 : 3.5,
-    );
+    if (glider.active)
+      glider.kick(
+        camera.position.x - source.x,
+        camera.position.z - source.z,
+        cause === 'explosion' ? 5 : 3.5,
+      );
+    else
+      motion.kick(
+        camera.position.x - source.x,
+        camera.position.z - source.z,
+        cause === 'explosion' ? 5 : 3.5,
+      );
     if (grounded && !playerFluidAt(playerFeet() + 0.12)) {
       vy = Math.max(vy, 2.6);
       grounded = false;
@@ -3616,7 +3836,7 @@ function attack() {
   attackCooldown = item?.cooldown || 0.45;
   attackPeriod = attackCooldown;
   if (!creative) survival.exhaust(0.1);
-  const critical = !grounded && vy < -1 && !creative;
+  const critical = !grounded && vy < -1 && !creative && !glider.active;
   graphics.swing();
   hitMob(
     mob,
@@ -3667,8 +3887,83 @@ function releaseBow() {
   beep(240, 0.05, 'triangle');
   wearItem('bow');
 }
+function moveGlider(dt) {
+  const owner = survival;
+  const movement = glider.update(dt, yaw, pitch);
+  if (movement.wear) {
+    wearItem('elytra', movement.wear, true);
+    if (wearValue(wornElytra()?.wear) <= 1) {
+      stopGliding();
+      toast('鞘翅已破损！落地后用幻翼膜修复。');
+    }
+  }
+  const steps = Math.max(
+    1,
+    Math.ceil(
+      Math.max(
+        Math.abs(movement.dx),
+        Math.abs(movement.dy),
+        Math.abs(movement.dz),
+      ) / 0.12,
+    ),
+  );
+  const delta = {
+    x: movement.dx / steps,
+    y: movement.dy / steps,
+    z: movement.dz / steps,
+  };
+  grounded = false;
+  for (let step = 0; step < steps; step++)
+    for (const axis of ['x', 'z', 'y']) {
+      const amount = delta[axis];
+      if (!amount) continue;
+      const x = camera.position.x + (axis === 'x' ? amount : 0),
+        z = camera.position.z + (axis === 'z' ? amount : 0),
+        feet = playerFeet() + (axis === 'y' ? amount : 0);
+      if (!collides(x, feet, z)) camera.position[axis] += amount;
+      else {
+        const velocity =
+          axis === 'x' ? glider.vx : axis === 'y' ? glider.vy : glider.vz;
+        delta[axis] = 0;
+        if (axis === 'y' && amount < 0) {
+          grounded = true;
+          if (velocity < -13) hurt(Math.floor((-velocity - 12) * 0.6), 'fall');
+          if (owner !== survival) return;
+          stopGliding();
+          vy = 0;
+          glider.vy = 0;
+        } else {
+          if (axis === 'x') glider.vx *= -0.08;
+          else if (axis === 'z') glider.vz *= -0.08;
+          else glider.vy = -1;
+          const damage = Math.floor(Math.max(0, Math.abs(velocity) * 0.5 - 3));
+          if (damage > 0) hurt(damage, 'flyWall');
+          if (owner !== survival) return;
+        }
+      }
+    }
+  if (camera.position.y > 160) {
+    camera.position.y = 160;
+    glider.vy = Math.min(0, glider.vy);
+  }
+  vy = glider.active ? glider.vy : vy;
+  moved = 0;
+  survival.exhaust(dt * 0.01);
+  camera.rotation.set(pitch, yaw, glider.active ? glider.bank : 0);
+  const fov = glider.active
+    ? 72 + Math.min(14, glider.speed * 0.35) + (glider.boost > 0 ? 3 : 0)
+    : 72;
+  camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 6));
+  camera.updateProjectionMatrix();
+  $('#underwater').style.display = 'none';
+  if (camera.position.y < -12) {
+    damageCooldown = 0;
+    hurt(20, 'void');
+  }
+}
 function movePlayer(dt) {
   if (boats.riding) {
+    glider.reset();
     if (keys.has('ShiftLeft') || keys.has('ShiftRight')) {
       keys.delete('ShiftLeft');
       keys.delete('ShiftRight');
@@ -3691,6 +3986,15 @@ function movePlayer(dt) {
     if (!creative) survival.exhaust(distance * 0.02);
     return;
   }
+  if (
+    !glider.active &&
+    glider.lowProfile &&
+    !collides(camera.position.x, playerFeet(), camera.position.z, true)
+  ) {
+    glider.lowProfile = false;
+    camera.position.y += 1.25;
+    graphics.stepOffset = (graphics.stepOffset || 0) + 1.25;
+  }
   const survivalBeforeMove = survival;
   const startX = camera.position.x,
     startZ = camera.position.z;
@@ -3699,6 +4003,15 @@ function movePlayer(dt) {
   const swimming = !!feetFluid,
     fly = creative,
     climbing = !creative && onLadder();
+  if (glider.active) {
+    const stack = wornElytra();
+    if (fly || swimming || climbing || !stack || wearValue(stack.wear) <= 1)
+      stopGliding();
+    else {
+      moveGlider(dt);
+      return;
+    }
+  }
   let forward = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0),
     side = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
   const norm = Math.hypot(forward, side);
@@ -3712,6 +4025,7 @@ function movePlayer(dt) {
       forward > 0 &&
       hunger > 6 &&
       !fly &&
+      !glider.lowProfile &&
       !sneaking &&
       !combat.raised &&
       !foodUse,
@@ -3719,11 +4033,13 @@ function movePlayer(dt) {
       ? 10
       : swimming
         ? LIQUIDS[feetFluid.type].speed
-        : sneaking
-          ? 2.1
-          : sprint
-            ? 7
-            : 4.8;
+        : glider.lowProfile
+          ? 1.5
+          : sneaking
+            ? 2.1
+            : sprint
+              ? 7
+              : 4.8;
   const footCell = worldToAxial(camera.position.x, camera.position.z);
   const soulSlow =
     !fly &&
@@ -3780,6 +4096,7 @@ function movePlayer(dt) {
           step: 0.6,
           drop: 0.04,
           wet: true,
+          height: glider.lowProfile ? 0.6 : 1.8,
         });
         if (
           floor !== null &&
@@ -3839,7 +4156,7 @@ function movePlayer(dt) {
             blocked = mid;
           else clear = mid;
         }
-        camera.position.y = clear + 1.65;
+        camera.position.y = clear + playerEyeHeight();
         if (vy < 0) {
           grounded = true;
           if (vy < -13) hurt(Math.floor((-vy - 12) * 0.6), 'fall');
@@ -4088,6 +4405,7 @@ document.addEventListener('click', (e) => {
 });
 $('#mode-toggle').onclick = () => {
   creative = !creative;
+  if (creative) stopGliding();
   if (!creative && collides(camera.position.x, playerFeet(), camera.position.z))
     safeSpawn();
   $('#mode-toggle').textContent = creative ? '切换生存探索' : '切换自由建造';
@@ -4320,7 +4638,7 @@ document.addEventListener('keydown', (e) => {
     selected = Number(e.code.slice(5)) - 1;
     updateHUD();
   }
-  if (e.code === 'Space') motion.jump();
+  if (e.code === 'Space' && !startGliding()) motion.jump();
   keys.add(e.code);
 });
 document.addEventListener('keyup', (e) => {
@@ -4368,7 +4686,7 @@ if (isTouch) {
   $('#world').style.touchAction = 'none';
   document.querySelectorAll('[data-key]').forEach((b) => {
     b.onpointerdown = (e) => {
-      if (b.dataset.key === 'Space') motion.jump();
+      if (b.dataset.key === 'Space' && !startGliding()) motion.jump();
       keys.add(b.dataset.key);
       b.setPointerCapture(e.pointerId);
     };
@@ -4442,12 +4760,17 @@ function frame(now) {
       soundFX.play('ambient', dimension);
     }
     attackCooldown = Math.max(0, attackCooldown - dt);
+    rocketCooldown = Math.max(0, rocketCooldown - dt);
     damageCooldown = Math.max(0, damageCooldown - dt);
-    combat.update(dt, keys.has('KeyR') && !!equipment.offhand && !foodUse);
+    combat.update(
+      dt,
+      keys.has('KeyR') && !!equipment.offhand && !foodUse && !glider.active,
+    );
     if (combat.raised) bowCharge = 0;
     boats.update(dt, world, keys);
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
     for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
+    flightEffects.update(dt, world, camera, glider);
     updateSurvival(dt);
     updateEating(dt);
     world.fluids.step(dt);
@@ -4499,6 +4822,7 @@ function frame(now) {
           'bed',
           'portal',
           'endportal',
+          'endGateway',
           'spawner',
           'door',
           'doorTop',
@@ -4622,7 +4946,9 @@ function frame(now) {
         combat.raised
       )
         throwHeldItem = null;
-      else if (throwables.ready(throwHeldItem)) useThrowable();
+      else if (throwHeldItem === 'fireworkRocket') {
+        if (rocketCooldown <= 0) useRocket();
+      } else if (throwables.ready(throwHeldItem)) useThrowable();
     }
     $('#boat-status').classList.toggle('hidden', !boats.riding);
     if (boats.riding)
@@ -4698,6 +5024,8 @@ function frame(now) {
   graphics.nightVision = Math.min(1, night / 10);
   updateExperienceHUD();
   combatHUD();
+  updateFlightHUD();
+  graphics.gliding = glider.active;
   graphics.frame(
     playing ? dt : 0,
     time,

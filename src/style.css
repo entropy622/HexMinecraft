@@ -1856,6 +1856,25 @@ button.secondary {
   opacity: 0.2;
   filter: grayscale(1);
 }
+#flight-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-bottom: 4px;
+  color: #e0daee;
+  font: 11px monospace;
+  text-shadow: 2px 2px #18202b;
+}
+#flight-status .block-icon {
+  width: 22px;
+  height: 22px;
+}
+#flight-boost {
+  width: 54px;
+  height: 7px;
+  accent-color: #e6c482;
+}
 #selected-name {
   font-size: 12px;
   margin-bottom: 6px;
@@ -3350,8 +3369,15 @@ input:focus-visible {
   outline: 2px solid #f7df93;
   outline-offset: -3px;
 }
-.drag-target .stack-count {
+.drag-target > :not(.drag-preview) {
   visibility: hidden;
+}
+.drag-preview {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
 }
 .drag-count {
   color: #fff28c;

@@ -11,6 +11,7 @@ import {
 export function repairMaterial(id) {
   const def = ITEMS[id];
   if (!def?.durability) return null;
+  if (def.repair) return def.repair;
   if (def.armorSlot)
     return id.startsWith('leather')
       ? 'leather'

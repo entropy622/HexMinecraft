@@ -23,7 +23,7 @@ export function validDrops(state) {
         Math.abs(d.position[0]) < 2e9 &&
         Math.abs(d.position[2]) < 2e9 &&
         d.position[1] >= -100 &&
-        d.position[1] < 150 &&
+        d.position[1] < 512 &&
         vec(d.velocity) &&
         d.velocity.every((v) => Math.abs(v) < 100) &&
         Number.isFinite(d.life) &&

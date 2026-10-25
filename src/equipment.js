@@ -79,15 +79,19 @@ export class Equipment {
     const level = enchantmentsOf(stack.wear).unbreaking || 0;
     let cost = Math.ceil(amount);
     if (level) {
-      const chance = ITEMS[id].armorSlot
-        ? 0.6 + 0.4 / (level + 1)
-        : 1 / (level + 1);
+      const chance =
+        ITEMS[id].armorSlot && !ITEMS[id].glider
+          ? 0.6 + 0.4 / (level + 1)
+          : 1 / (level + 1);
       cost = 0;
       for (let i = 0; i < Math.ceil(amount); i++)
         if (Math.random() < chance) cost++;
     }
     if (!cost) return false;
-    const next = wearValue(stack.wear) - cost;
+    const next = Math.max(
+      ITEMS[id].durabilityFloor || 0,
+      wearValue(stack.wear) - cost,
+    );
     if (next > 0)
       stack.wear =
         typeof stack.wear === 'object' ? { ...stack.wear, value: next } : next;

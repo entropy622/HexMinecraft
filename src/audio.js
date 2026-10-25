@@ -129,6 +129,16 @@ export class GameAudio {
     } else if (event === 'doorOpen' || event === 'doorClose') {
       this.noise(0.09, 0.08, 480);
       this.tone(event === 'doorOpen' ? 190 : 125, 0.12, 'triangle', 0.05);
+    } else if (event === 'elytraOpen') {
+      this.noise(0.2, 0.07, 2100);
+    } else if (event === 'glideWind') {
+      this.noise(0.26, 0.025, 1300);
+    } else if (event === 'rocket') {
+      this.noise(0.3, 0.1, 1900);
+      this.tone(480, 0.13, 'sine', 0.025);
+    } else if (event === 'fireworkBurst') {
+      this.noise(0.3, 0.1, 2700);
+      this.tone(720, 0.17, 'sine', 0.035);
     } else if (event === 'throw') {
       this.noise(0.09, 0.09, 1800);
       this.tone(240 + Math.random() * 65, 0.07, 'triangle', 0.04);
