@@ -84,6 +84,8 @@ export class Fluids {
       cells = this.chunks.get(ck);
     if (!cells) return;
     if (equal(cells.get(k), f)) return;
+    // Level animation does not change this cell's optical properties.
+    if (cells.get(k)?.type !== f?.type) this.world.lightRevision++;
     if (f) cells.set(k, { ...f });
     else cells.delete(k);
     if (record) {

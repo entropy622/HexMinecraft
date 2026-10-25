@@ -1,4 +1,5 @@
 import { applySkylight } from './skylight.js';
+import { VoxelLight } from './voxel-light.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
 import { buildingMesh } from './building-graphics.js';
@@ -91,6 +92,8 @@ export class Graphics {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+    applySkylight(this.foliageMaterial, this.weatherUniforms);
+    applySkylight(this.glassMaterial, this.weatherUniforms);
     this.ray = new THREE.Raycaster();
     this.ray.far = 7;
     this.outline = new THREE.LineSegments(
@@ -218,6 +221,7 @@ export class Graphics {
       emissive: '#8c470e',
       emissiveIntensity: 0.45,
     });
+    applySkylight(this.torchMaterial, this.weatherUniforms);
     this.hand = new THREE.Group();
     const sleeve = new THREE.Mesh(
       new THREE.BoxGeometry(0.18, 0.22, 0.48),
@@ -273,6 +277,11 @@ export class Graphics {
   }
   build(world, q = 0, r = 0) {
     this.world = world;
+    this.voxelLight = new VoxelLight(world);
+    this.voxelLight.update(0, true);
+    this.fluidRenderer.voxelLight = this.voxelLight;
+    this.relightQueue = new Set();
+    this.caveSky = null;
     this.fluidRenderer.clear();
     for (const mesh of this.chunks.values()) {
       mesh.traverse((o) => o.geometry?.dispose());
@@ -550,23 +559,15 @@ export class Graphics {
       plants = { p: [], c: [], uv: [], sky: [], rain: [] },
       torches = { p: [], c: [], uv: [], sky: [], rain: [] };
     let out = solid,
-      skylight = 1,
       rainExposure = 0;
-    const roofs = new Map();
     const shaped = [];
     const rainRoofs = new Map();
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
         for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
           const type = world.get(q, y, r);
-          if (type && !BLOCKS[type].nonSolid && !rainRoofs.has(q + ',' + r))
+          if (type && !BLOCKS[type].nonSolid) {
             rainRoofs.set(q + ',' + r, y);
-          if (
-            type &&
-            !BLOCKS[type].nonSolid &&
-            !['leaves', 'glass'].includes(type)
-          ) {
-            roofs.set(q + ',' + r, y);
             break;
           }
         }
@@ -574,7 +575,7 @@ export class Graphics {
     const tri = (verts, uvs, tile, shade = 1, ao = [1, 1, 1]) => {
       for (let i = 0; i < 3; i++) {
         out.p.push(...verts[i]);
-        out.sky.push(skylight);
+        out.sky.push(1);
         out.rain.push(rainExposure);
         out.uv.push(...this.textures.uv(tile, ...uvs[i]));
         out.c.push(shade * ao[i], shade * ao[i], shade * ao[i]);
@@ -593,10 +594,6 @@ export class Graphics {
             shaped.push([q, y, r]);
             continue;
           }
-          skylight = Math.max(
-            0.12,
-            1 - Math.max(0, (roofs.get(q + ',' + r) || 0) - y) * 0.22,
-          );
           rainExposure =
             world.dimension === 'overworld' &&
             rainRoofs.get(q + ',' + r) === y &&
@@ -837,6 +834,7 @@ export class Graphics {
       foliage.receiveShadow = true;
       mesh.add(foliage);
     }
+    this.voxelLight.relight(mesh);
     this.renderer.shadowMap.needsUpdate = true;
   }
   updateBlock(q, y, r) {
@@ -867,6 +865,7 @@ export class Graphics {
         type === 'furnace' && this.world.furnaces.get(k)?.burn > 0
           ? '#ff9d47'
           : BLOCKS[type]?.light;
+    if (this.lights.get(k)?.color !== color) this.voxelLight.dirty = true;
     if (!color) {
       this.lights.delete(k);
       return;
@@ -1021,6 +1020,17 @@ export class Graphics {
     }
   }
   frame(dt, time, playing, moving, mining, weather = null, columns = null) {
+    if (this.voxelLight.update(dt))
+      for (const k of this.chunks.keys()) this.relightQueue.add(k);
+    let relit = 0;
+    for (const k of this.relightQueue) {
+      this.relightQueue.delete(k);
+      const mesh = this.chunks.get(k);
+      if (mesh) this.voxelLight.relight(mesh);
+      const fluid = this.fluidRenderer.meshes.get(k);
+      if (fluid) this.voxelLight.relight(fluid);
+      if (++relit >= 6) break;
+    }
     this.weatherEffects.frame(
       dt,
       time,
@@ -1072,6 +1082,15 @@ export class Graphics {
     this.fluidRenderer.frame(time, sky, horizon);
     this.scene.background.copy(horizon);
     this.scene.fog.color.copy(horizon);
+    // Outdoor distance haze must not turn a sealed cave sky-blue.
+    const localSky = this.voxelLight.atPosition(this.camera.position);
+    this.caveSky = THREE.MathUtils.damp(
+      this.caveSky ?? localSky,
+      localSky,
+      3,
+      dt,
+    );
+    this.scene.fog.color.multiplyScalar(0.035 + this.caveSky * 0.965);
     this.sky.position.copy(this.camera.position);
     this.sky.material.uniforms.zenith.value.copy(sky);
     this.sky.material.uniforms.horizon.value.copy(horizon);

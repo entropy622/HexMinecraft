@@ -1,28 +1,43 @@
 import { ShaderChunk, Color } from 'three';
 
-// Reduce sky fill under solid ceilings while leaving point-light illumination intact.
-export function applySkylight(material) {
-  const uniforms = {
+// Shared weather uniforms; terrain receives persistent voxel light instead of
+// unoccluded point lights selected by distance to the camera.
+export function applySkylight(material, sharedUniforms) {
+  const uniforms = sharedUniforms || {
     terrainWetness: { value: 0 },
     wetSky: { value: new Color('#7c96a5') },
   };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader =
-      `attribute float skylight; attribute float rainExposure;
-      varying float vSkylight; varying float vWetTop; varying vec3 wetPosition;\n${shader.vertexShader}`.replace(
+      `attribute float skylight; attribute float rainExposure; attribute vec3 blocklight;
+      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 wetPosition;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vSkylight = skylight;
+        vBlockLight = blocklight;
         vWetTop = rainExposure * max(0.0, normal.y);
         wetPosition = (modelMatrix * vec4(position, 1.0)).xyz;`,
       );
-    const lighting = ShaderChunk.lights_fragment_begin.replace(
-      'irradiance += getHemisphereLightIrradiance',
-      'irradiance += vSkylight * getHemisphereLightIrradiance',
-    );
+    const lighting = ShaderChunk.lights_fragment_begin
+      .replace(
+        'getPointLightInfo( pointLight, geometryPosition, directLight );',
+        'getPointLightInfo( pointLight, geometryPosition, directLight ); directLight.color = vec3(0.0);',
+      )
+      .replace(
+        'getDirectionalLightInfo( directionalLight, directLight );',
+        'getDirectionalLightInfo( directionalLight, directLight ); directLight.color *= smoothstep(0.45, 0.95, vSkylight);',
+      )
+      .replace(
+        'vec3 irradiance = getAmbientLightIrradiance( ambientLightColor );',
+        'vec3 irradiance = vec3(0.025) + vBlockLight * 3.8;',
+      )
+      .replace(
+        'irradiance += getHemisphereLightIrradiance',
+        'irradiance += vSkylight * getHemisphereLightIrradiance',
+      );
     shader.fragmentShader =
-      `varying float vSkylight; varying float vWetTop; varying vec3 wetPosition;
+      `varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 wetPosition;
       uniform float terrainWetness; uniform vec3 wetSky;\n${shader.fragmentShader}`
         .replace('#include <lights_fragment_begin>', lighting)
         .replace(
@@ -37,6 +52,6 @@ export function applySkylight(material) {
         #include <opaque_fragment>`,
         );
   };
-  material.customProgramCacheKey = () => 'hex-skylight-wet-v2';
+  material.customProgramCacheKey = () => 'hex-colored-voxel-wet-v3';
   return uniforms;
 }

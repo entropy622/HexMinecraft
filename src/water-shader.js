@@ -9,7 +9,9 @@ export function shadeWater(material) {
   };
   material.shininess = 110;
   material.specular.set('#a3d3e6');
+  const lightShader = material.onBeforeCompile;
   material.onBeforeCompile = (shader) => {
+    lightShader(shader);
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader =
       `varying vec3 waterPosition; varying float waterTop;\n${shader.vertexShader}`.replace(
@@ -34,11 +36,11 @@ export function shadeWater(material) {
         float fresnel = 0.03 + 0.52 * pow(1.0 - max(0.0, dot(normal, normalize(vViewPosition))), 4.0);
         vec3 viewDirection = normalize(cameraPosition - waterPosition);
         vec3 reflectedSky = mix(waterHorizon, waterSky, clamp(viewDirection.y, 0.0, 1.0));
-        outgoingLight = mix(outgoingLight, reflectedSky, fresnel * waterTop);
+        outgoingLight = mix(outgoingLight, reflectedSky * vSkylight, fresnel * waterTop * vSkylight);
         diffuseColor.a = min(0.94, diffuseColor.a + fresnel * waterTop);
         #include <opaque_fragment>`,
         );
   };
-  material.customProgramCacheKey = () => 'hex-water-sky-v1';
+  material.customProgramCacheKey = () => 'hex-water-voxel-v2';
   return uniforms;
 }

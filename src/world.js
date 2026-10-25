@@ -52,6 +52,7 @@ export class World {
     this.seed = seed;
     this.dimension = dimension;
     this.blocks = new Map();
+    this.lightRevision = 0;
     this.heights = new Map();
     this.chunks = new Map();
     this.edits = new Map();
@@ -162,6 +163,7 @@ export class World {
     );
   }
   setState(q, y, r, state) {
+    this.lightRevision++;
     if (this.get(q, y, r) === 'doorTop') y--;
     this.blockStates.set(key(q, y, r), {
       facing: state.facing,
@@ -197,6 +199,7 @@ export class World {
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);
     const previous = this.get(q, y, r);
+    if (previous !== type) this.lightRevision++;
     this.shapeCache.clear();
     if (record && previous !== type) this.blockStates.delete(k);
     if (this.loaded(q, r)) {
@@ -218,6 +221,7 @@ export class World {
   generateChunk(cq, cr) {
     const ck = `${cq},${cr}`;
     if (this.chunks.has(ck)) return;
+    this.lightRevision++;
     this.chunks.set(ck, true);
     const put = (q, y, r, t) => {
       if (y >= 0 && y < WORLD_HEIGHT) this.blocks.set(key(q, y, r), t);
@@ -353,6 +357,7 @@ export class World {
     return true;
   }
   unloadChunk(cq, cr) {
+    this.lightRevision++;
     this.fluids.unload(cq, cr);
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -369,6 +374,7 @@ export class World {
     this.shapeCache.clear();
   }
   clearLoaded() {
+    this.lightRevision++;
     this.fluids.clear();
     this.blocks.clear();
     this.spawners.clear();

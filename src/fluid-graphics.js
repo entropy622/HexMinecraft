@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { shadeWater } from './water-shader.js';
+import { applySkylight } from './skylight.js';
 import { axialToWorld, DIRECTIONS } from './core.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
 const corners = Array.from({ length: 6 }, (_, i) => [
@@ -28,6 +29,7 @@ export class FluidRenderer {
           type === 'lava' ? '#a83708' : type === 'glow' ? '#3ebf94' : '#000000',
         emissiveMap: type === 'water' ? null : map,
       });
+      applySkylight(this.materials[type]);
     }
     this.waterUniforms = shadeWater(this.materials.water);
   }
@@ -144,6 +146,14 @@ export class FluidRenderer {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(d.p, 3));
         geo.setAttribute('uv', new THREE.Float32BufferAttribute(d.uv, 2));
+        geo.setAttribute(
+          'skylight',
+          new THREE.Float32BufferAttribute(new Float32Array(d.p.length / 3), 1),
+        );
+        geo.setAttribute(
+          'rainExposure',
+          new THREE.Float32BufferAttribute(new Float32Array(d.p.length / 3), 1),
+        );
         geo.computeVertexNormals();
         geo.computeBoundingSphere();
         const mesh = new THREE.Mesh(geo, this.materials[type]);
@@ -152,6 +162,7 @@ export class FluidRenderer {
       }
     this.group.add(group);
     this.meshes.set(k, group);
+    this.voxelLight?.relight(group);
   }
   frame(time, sky, horizon) {
     this.waterUniforms.waterTime.value = time;
