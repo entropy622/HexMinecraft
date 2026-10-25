@@ -1,5 +1,6 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 export const blockTextures = {
+  bookshelf: ['mcl_books_bookshelf_top', 'default_bookshelf'],
   deepslate: ['mcl_deepslate_top', 'mcl_deepslate'],
   gold: ['mcl_core_gold_ore'],
   copper: ['mcl_copper_ore'],
@@ -34,6 +35,14 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  sapling: 'default_sapling',
+  carrot: 'farming_carrot',
+  potato: 'farming_potato',
+  bakedPotato: 'farming_potato_baked',
+  sugarCane: 'mcl_core_reeds',
+  sugar: 'mcl_core_sugar',
+  paper: 'default_paper',
+  book: 'default_book',
   goldIngot: 'default_gold_ingot',
   copperIngot: 'mcl_copper_ingot',
   goldenApple: 'mcl_core_apple_golden',
@@ -91,6 +100,32 @@ export const itemTextures = {
 export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
+const plantTextures = {
+  wheat: [
+    'mcl_farming_wheat_stage_0',
+    'mcl_farming_wheat_stage_2',
+    'mcl_farming_wheat_stage_5',
+    'mcl_farming_wheat_stage_7',
+  ],
+  carrot: [
+    'farming_carrot_1',
+    'farming_carrot_2',
+    'farming_carrot_3',
+    'farming_carrot_4',
+  ],
+  potato: [
+    'mcl_farming_potatoes_stage_0',
+    'mcl_farming_potatoes_stage_1',
+    'mcl_farming_potatoes_stage_2',
+    'mcl_farming_potatoes_stage_3',
+  ],
+  sapling: ['default_sapling'],
+  sugarCane: ['mcl_core_reeds'],
+};
+export const plantImage = (kind, stage) => {
+  const names = plantTextures[kind];
+  return names && images.get(names[Math.min(stage, names.length - 1)]);
+};
 export const itemImage = (id) => images.get(itemTextures[id]);
 export const bowImage = (stage) =>
   images.get(stage < 0 ? 'mcl_bows_bow' : 'mcl_bows_bow_' + stage);
@@ -98,6 +133,7 @@ export async function loadTexturePack() {
   const names = new Set([
     ...Object.values(blockTextures).flat(),
     ...Object.values(itemTextures),
+    ...Object.values(plantTextures).flat(),
     'mcl_core_grass_block_side_overlay',
     'mcl_bows_bow_0',
     'mcl_bows_bow_1',

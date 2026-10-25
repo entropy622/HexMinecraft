@@ -22,6 +22,8 @@ import {
 import { Fauna } from './fauna.js';
 import { ItemDrops } from './item-drops.js';
 import { Weather, WeatherColumns, WEATHER } from './weather.js';
+import { PLANTS, plantForItem } from './farming-data.js';
+import { plantingIssue, growthConditions, treePlan } from './farming.js';
 import { INVENTORY_SLOTS, usedSlots, roomFor, stackSize } from './inventory.js';
 import { MOBS } from './mob-data.js';
 import { Graphics } from './graphics.js';
@@ -47,7 +49,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.11 — UNDER CHANGING SKIES</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.12 — ROOTS AND HARVESTS</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -317,7 +319,7 @@ function syncDecor() {
         !world.get(p.q, p.y + 1, p.r) &&
         !crops.has(k)
       )
-        crops.set(k, time - 95);
+        crops.set(k, { kind: p.kind, age: PLANTS[p.kind].seconds });
     }
     for (const p of f.chests) {
       const k = key(p.q, p.y, p.r),
@@ -346,9 +348,9 @@ function syncDecor() {
         chests.set(k, { ...p.loot });
     }
   }
-  for (const [k, t] of crops) {
+  for (const [k, plant] of crops) {
     const [q, , r] = k.split(',').map(Number);
-    if (world.loaded(q, r)) graphics.crop(k, time - t);
+    if (world.loaded(q, r)) graphics.crop(k, plant);
   }
 }
 function travel(to) {
@@ -435,7 +437,7 @@ function saveData() {
     }
   captureDimension();
   return {
-    version: 4,
+    version: 5,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -841,6 +843,13 @@ function mine(dt) {
     mining = 0;
     return;
   }
+  if (target.crop) {
+    harvestPlant(target.crop, true);
+    target = null;
+    leftDown = false;
+    mining = 0;
+    return;
+  }
   const data = BLOCKS[target.type];
   const held = heldItem(),
     stats = miningStats(target.type, held);
@@ -877,14 +886,13 @@ function mine(dt) {
     if (type === 'leaves') {
       if (Math.random() < 0.3) dropAt('apple', 1, q, y, r);
       if (Math.random() < 0.45) dropAt('seed', 1, q, y, r);
+      if (Math.random() < 0.2) dropAt('sapling', 1, q, y, r);
     }
     if (type === 'grass' && Math.random() < 0.35) dropAt('seed', 1, q, y, r);
     hunger = Math.max(0, hunger - 0.022);
   }
   if (crops.has(k)) {
-    crops.delete(k);
-    graphics.removeCrop(k);
-    dropAt('seed', 1, q, y + 1, r);
+    harvestPlant(k, true);
   }
   if (chests.has(k)) {
     for (const [id, n] of Object.entries(chests.get(k))) {
@@ -976,6 +984,10 @@ function place() {
     interact();
     return;
   }
+  if (plantForItem(heldItem()) && target) {
+    interact();
+    return;
+  }
   if (heldItem() === 'cake') {
     eat();
     return;
@@ -1002,9 +1014,7 @@ function place() {
   world.set(q, y, r, id);
   const cropBelow = key(q, y - 1, r);
   if (crops.has(cropBelow)) {
-    crops.delete(cropBelow);
-    graphics.removeCrop(cropBelow);
-    if (!creative) inventory.seed = (inventory.seed || 0) + 1;
+    harvestPlant(cropBelow, true, 2);
   }
   if (!creative) inventory[id]--;
   graphics.updateBlock(q, y, r);
@@ -1012,6 +1022,172 @@ function place() {
   soundFX.play('place', id);
   graphics.swing();
   updateHUD();
+}
+function cropConditions(k, plant) {
+  const [q, y, r] = k.split(',').map(Number);
+  return growthConditions(
+    world,
+    plant,
+    q,
+    y,
+    r,
+    time,
+    weather,
+    weatherColumns,
+    [...graphics.lights.values()].filter(
+      (l) => l.type === 'torch' || l.type === 'lantern',
+    ),
+  );
+}
+function harvestPlant(k, uproot = false, lift = 1) {
+  const plant = crops.get(k);
+  if (!plant) return false;
+  const def = PLANTS[plant.kind],
+    mature = plant.age >= def.seconds;
+  const [q, y, r] = k.split(',').map(Number);
+  const products = mature ? { ...def.yield } : { [def.seed]: 1 };
+  if (def.perennial && mature && !uproot) {
+    plant.age = 0;
+    products[def.seed]--;
+    graphics.crop(k, plant);
+  } else {
+    crops.delete(k);
+    graphics.removeCrop(k);
+  }
+  if (!creative)
+    for (const [id, n] of Object.entries(products))
+      dropAt(id, n, q, y + lift, r);
+  graphics.swing();
+  soundFX.play('break', 'leaves');
+  return true;
+}
+function growTree(k) {
+  const [q, y, r] = k.split(',').map(Number);
+  const occupied = (a, b, c) => {
+    const p = axialToWorld(a, c);
+    if (
+      Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 1.25 &&
+      b < camera.position.y + 0.15 &&
+      b + 1 > playerFeet()
+    )
+      return true;
+    return creatures.some(
+      (m) =>
+        Math.hypot(p.x - m.mesh.position.x, p.z - m.mesh.position.z) < 1.3 &&
+        b < m.mesh.position.y + MOBS[m.kind].height &&
+        b + 1 > m.mesh.position.y,
+    );
+  };
+  const cells = treePlan(world, q, y, r, occupied);
+  if (!cells) return false;
+  crops.delete(k);
+  graphics.removeCrop(k);
+  const chunks = new Set();
+  for (const [a, b, c, type] of cells) {
+    world.set(a, b, c, type);
+    for (const [dq, dr] of [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [-1, 1],
+      [-1, 0],
+      [0, -1],
+      [1, -1],
+    ])
+      chunks.add(graphics.chunkKey(a + dq, c + dr));
+  }
+  for (const ck of chunks) if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
+  weatherColumns.update(1, world);
+  graphics.renderer.shadowMap.needsUpdate = true;
+  return true;
+}
+function updatePlants(dt) {
+  for (const [k, plant] of crops) {
+    const [q, y, r] = k.split(',').map(Number);
+    if (!world.loaded(q, r)) continue;
+    const def = PLANTS[plant.kind];
+    if (
+      !def.soil.includes(world.get(q, y, r)) ||
+      world.get(q, y + 1, r) ||
+      world.fluids.get(q, y + 1, r) ||
+      (def.perennial &&
+        [2, 3].some(
+          (h) => world.get(q, y + h, r) || world.fluids.get(q, y + h, r),
+        ))
+    ) {
+      harvestPlant(k, true, world.get(q, y + 1, r) ? 2 : 1);
+      continue;
+    }
+    const status = cropConditions(k, plant);
+    plant.age = Math.min(def.seconds, plant.age + dt * status.rate);
+    if (def.tree && plant.age >= def.seconds && status.rate > 0) growTree(k);
+    else graphics.crop(k, plant);
+  }
+}
+function interactPlant(k) {
+  const [q, y, r] = k.split(',').map(Number),
+    plant = crops.get(k);
+  if (plant) {
+    const def = PLANTS[plant.kind];
+    if (heldItem() === 'boneMeal') {
+      if (def.tree) {
+        if (!growTree(k)) {
+          toast('树苗上方需要六格高度、两格树冠空间，且不能挡住玩家或动物。');
+          return true;
+        }
+      } else if (plant.age < def.seconds) {
+        if (plantingIssue(world, plant.kind, q, y, r)) {
+          toast('先恢复植物需要的土地和水。');
+          return true;
+        }
+        plant.age = def.seconds;
+        graphics.crop(k, plant);
+      } else {
+        toast('作物已成熟，换下骨粉后按 E 收获。');
+        return true;
+      }
+      if (!creative) inventory.boneMeal--;
+      updateHUD();
+      toast(def.tree ? '树苗长成了橡树。' : def.name + '已成熟，按 E 收获。');
+      return true;
+    }
+    if (plant.age >= def.seconds && !def.tree) {
+      harvestPlant(k);
+      toast(
+        def.perennial
+          ? '收取上段甘蔗，根部会继续生长。'
+          : '收获' + def.name + '，可用种子或蔬菜重新播种。',
+      );
+      return true;
+    }
+    const status = cropConditions(k, plant);
+    toast(
+      def.name +
+        ' · ' +
+        Math.floor((plant.age / def.seconds) * 100) +
+        '% · ' +
+        (def.tree && plant.age >= def.seconds
+          ? '空间不足，清理上方并退开'
+          : status.reason),
+    );
+    return true;
+  }
+  const kind = plantForItem(heldItem());
+  if (!kind) return false;
+  const issue = plantingIssue(world, kind, q, y, r);
+  if (issue) {
+    toast(issue);
+    return true;
+  }
+  crops.set(k, { kind, age: 0 });
+  if (!creative) inventory[PLANTS[kind].seed]--;
+  graphics.crop(k, crops.get(k));
+  soundFX.play('place', 'grass');
+  updateHUD();
+  toast(
+    '种下' + PLANTS[kind].name + ' · ' + cropConditions(k, crops.get(k)).reason,
+  );
+  return true;
 }
 function interact() {
   if (!playing) return;
@@ -1076,55 +1252,24 @@ function interact() {
     renderChest();
     return;
   }
-  if (crops.has(k)) {
-    if (time - crops.get(k) < 90 && heldItem() === 'boneMeal') {
-      if (!creative) inventory.boneMeal--;
-      crops.set(k, time - 90);
-      graphics.crop(k, 90);
-      toast('骨粉让麦穗成熟了 · E 收获');
-      updateHUD();
-      return;
-    }
-    if (time - crops.get(k) < 90) {
-      toast(
-        `麦苗还在生长 · ${Math.min(99, Math.floor(((time - crops.get(k)) / 90) * 100))}%`,
-      );
-      return;
-    }
-    crops.delete(k);
-    graphics.removeCrop(k);
-    dropAt('wheat', 2, q, y + 1, r);
-    dropAt('seed', 2, q, y + 1, r);
-    beep(600, 0.12);
-    toast('收获小麦 ×2、麦种 ×2');
-    return;
-  }
+  if (interactPlant(k)) return;
   if (['grass', 'dirt', 'farmland'].includes(type)) {
-    if (type !== 'farmland' && !creative && ITEMS[heldItem()]?.kind !== 'hoe') {
-      toast('请先手持锄头，再对土地按 E。');
+    if (type === 'farmland') {
+      toast('手持麦种、胡萝卜或马铃薯，按 E 或右键播种。');
       return;
     }
-    if (type !== 'farmland') {
-      if (world.get(q, y + 1, r)) {
-        toast('先清理土地上方的方块。');
-        return;
-      }
-      world.set(q, y, r, 'farmland');
-      wearItem(heldItem());
-      graphics.updateBlock(q, y, r);
-      toast('土地已翻耕。再次按 E 播种。');
+    if (!creative && ITEMS[heldItem()]?.kind !== 'hoe') {
+      toast('手持锄头按 E 翻耕；树苗可直接种在泥土或草地上。');
       return;
     }
-    if (!creative && (inventory.seed || 0) < 1) {
-      toast('需要麦种。采集树叶和草地可以找到种子。');
+    if (world.get(q, y + 1, r) || world.fluids.get(q, y + 1, r)) {
+      toast('先清理土地上方的空间。');
       return;
     }
-    if (world.get(q, y + 1, r)) return;
-    if (!creative) inventory.seed--;
-    crops.set(k, time);
-    graphics.crop(k, 0);
-    updateHUD();
-    toast('已播种。约 90 秒后可按 E 收获小麦。');
+    world.set(q, y, r, 'farmland');
+    wearItem(heldItem());
+    graphics.updateBlock(q, y, r);
+    toast('已翻耕。手持种子或蔬菜播种，三格内的水可以灌溉。');
     return;
   }
   openOverlay('#craft-overlay');
@@ -1252,10 +1397,13 @@ function eat() {
   for (const [id, value] of [
     ['cake', 12],
     ['cooked', 9],
+    ['bakedPotato', 6],
+    ['carrot', 4],
+    ['potato', 1],
     ['bread', 7],
     ['apple', 4],
     ['meat', 2],
-  ])
+  ].sort(([a], [b]) => Number(b === heldItem()) - Number(a === heldItem())))
     if ((inventory[id] || 0) > 0) {
       if (hunger >= 20 && health >= 20) {
         toast('你已经吃饱了。');
@@ -1269,7 +1417,7 @@ function eat() {
       updateHUD();
       return;
     }
-  toast('没有食物了。树叶会掉落苹果，也可以种麦、狩猎。');
+  toast('没有食物了。树叶会掉落苹果，也可以种植蔬菜、烤马铃薯或狩猎。');
 }
 function hurt(amount, cause = 'combat') {
   if (creative || damageCooldown > 0) return;
@@ -1311,18 +1459,7 @@ function updateWeather(dt) {
   weatherColumns.update(dt, world);
   weatherGrowthTimer += dt;
   if (weatherGrowthTimer < 1) return;
-  if (dimension === 'overworld' && weather.rain > 0.15) {
-    for (const [k, planted] of crops) {
-      if (time - planted >= 90) continue;
-      const [q, y, r] = k.split(',').map(Number);
-      const column = weatherColumns.get(world, q, r);
-      if (column.roof <= y + 1 && !['雪原', '沙漠'].includes(column.biome))
-        crops.set(
-          k,
-          Math.max(0, planted - weatherGrowthTimer * weather.rain * 0.5),
-        );
-    }
-  }
+  updatePlants(weatherGrowthTimer);
   weatherGrowthTimer = 0;
 }
 function hitMob(mob, amount, direction) {
@@ -1431,8 +1568,7 @@ function explode(center) {
         chestWear.delete(k);
         furnaceJobs.delete(k);
         for (const cropKey of [k, key(q, y - 1, r)]) {
-          crops.delete(cropKey);
-          graphics.removeCrop(cropKey);
+          harvestPlant(cropKey, true);
         }
         for (const [a, b] of [
           [0, 0],
@@ -2209,6 +2345,12 @@ function frame(now) {
           ? ' · E 交互'
           : '')
       : '';
+    if (target?.crop && crops.has(target.crop)) {
+      const plant = crops.get(target.crop),
+        def = PLANTS[plant.kind];
+      $('#target').textContent =
+        `${def.name} · ${Math.floor((plant.age / def.seconds) * 100)}% · E ${plant.age >= def.seconds && !def.tree ? '收获' : '查看 / 骨粉催熟'} · 左键拔除`;
+    }
     villagers.frame(dt, time, camera);
     villagerTarget = villagers.target(camera, target?.distance ?? Infinity);
     if (villagerTarget) {
@@ -2384,7 +2526,7 @@ if (import.meta.env.DEV)
     },
     step: (dt) => {
       time += dt;
-      for (const [k, t] of crops) graphics.crop(k, time - t);
+      for (const [k, plant] of crops) graphics.crop(k, plant);
     },
     give: (id, n) => {
       inventory[id] = n;

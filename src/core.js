@@ -4,6 +4,7 @@ import {
   EXPLORATION_RECIPES,
 } from './exploration-data.js';
 import { GEAR, GEAR_RECIPES } from './gear-data.js';
+import { FARM_BLOCKS, FARM_ITEMS, FARM_RECIPES } from './farming-data.js';
 export const SQRT3 = Math.sqrt(3);
 export const DIRECTIONS = [
   [1, 0],
@@ -14,6 +15,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...FARM_BLOCKS,
   ...EXPLORATION_BLOCKS,
   grass: {
     name: '草地',
@@ -144,6 +146,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...FARM_ITEMS,
   ...EXPLORATION_ITEMS,
   ...BLOCKS,
   emerald: { name: '绿宝石', color: '#59d982' },
@@ -560,7 +563,7 @@ export class World {
     }
   }
 }
-RECIPES.push(...GEAR_RECIPES, ...EXPLORATION_RECIPES);
+RECIPES.push(...GEAR_RECIPES, ...EXPLORATION_RECIPES, ...FARM_RECIPES);
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (
     (!recipe.station || station) &&

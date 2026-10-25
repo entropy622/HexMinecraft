@@ -17,6 +17,11 @@ export const ROLES = {
       { cost: { emerald: 1 }, give: { bread: 5 } },
       { cost: { egg: 8 }, give: { emerald: 1 } },
       { cost: { leather: 6 }, give: { emerald: 1 } },
+      { cost: { emerald: 1 }, give: { carrot: 4 } },
+      { cost: { emerald: 1 }, give: { potato: 4 } },
+      { cost: { emerald: 1 }, give: { sugarCane: 3 } },
+      { cost: { carrot: 12 }, give: { emerald: 1 } },
+      { cost: { potato: 12 }, give: { emerald: 1 } },
     ],
   },
   smith: {
@@ -105,7 +110,11 @@ export function features(v) {
         if (hexDistance(a, b) <= 2) {
           const p = { q: v.q + x + a, y: v.h - 1, r: v.r + z + b };
           if (!a && !b) water.push(p);
-          else crops.push(p);
+          else
+            crops.push({
+              ...p,
+              kind: x < 0 ? 'wheat' : a < 0 ? 'carrot' : 'potato',
+            });
         }
   for (const [x, z, role] of houses)
     chests.push({
@@ -116,7 +125,7 @@ export function features(v) {
         role === 'smith'
           ? { coal: 4, iron: 2 }
           : role === 'merchant'
-            ? { apple: 3, seed: 4 }
+            ? { apple: 3, seed: 4, sapling: 2, sugarCane: 3 }
             : { wheat: 3, bread: 2 },
     });
   return { crops, water, chests };

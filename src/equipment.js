@@ -62,9 +62,14 @@ export class Equipment {
 }
 export function miningStats(block, held) {
   const item = ITEMS[held];
-  const kind = ['wood', 'planks', 'workbench', 'chest', 'crimsonwood'].includes(
-    block,
-  )
+  const kind = [
+    'wood',
+    'planks',
+    'workbench',
+    'chest',
+    'crimsonwood',
+    'bookshelf',
+  ].includes(block)
     ? 'axe'
     : ['grass', 'dirt', 'sand', 'snow', 'farmland', 'sandstone'].includes(block)
       ? 'shovel'

@@ -1,5 +1,6 @@
 import { applySkylight } from './skylight.js';
 import { WeatherEffects } from './weather-graphics.js';
+import { createPlant, plantStage } from './plant-graphics.js';
 import { createPostprocessing } from './postprocessing.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
@@ -834,6 +835,7 @@ export class Graphics {
       [
         ...this.terrain.children,
         ...this.portalMeshes.values(),
+        ...this.cropMeshes.values(),
         ...(includeLiquids ? this.fluidRenderer.group.children : []),
       ],
       true,
@@ -841,6 +843,22 @@ export class Graphics {
     if (!hit) {
       this.outline.visible = false;
       return null;
+    }
+    if (hit.object.userData.plant) {
+      const plant = hit.object.userData.plant;
+      const p = axialToWorld(plant.q, plant.r);
+      this.outline.position.set(p.x, plant.y + 1 + plant.height / 2, p.z);
+      this.outline.scale.set(0.7, plant.height, 0.7);
+      this.outline.visible = true;
+      return {
+        q: plant.q,
+        y: plant.y,
+        r: plant.r,
+        type: this.world.get(plant.q, plant.y, plant.r),
+        crop: plant.k,
+        place: { q: plant.q, y: plant.y + 1, r: plant.r },
+        distance: hit.distance,
+      };
     }
     if (hit.object.userData.liquid) {
       const pt = hit.point.clone().addScaledVector(hit.face.normal, -0.02),
@@ -913,32 +931,18 @@ export class Graphics {
       });
     }
   }
-  crop(k, age) {
-    let g = this.cropMeshes.get(k);
-    if (!g) {
-      const [q, y, r] = k.split(',').map(Number),
-        p = axialToWorld(q, r);
-      g = new THREE.Group();
-      g.position.set(p.x, y + 1, p.z);
-      for (let i = 0; i < 5; i++) {
-        const stalk = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.05, 0.025, 0.65, 3),
-          new THREE.MeshLambertMaterial({ color: '#d5bd66' }),
-        );
-        stalk.position.set(
-          Math.sin(i * 2.4) * 0.38,
-          0.33,
-          Math.cos(i * 2.4) * 0.38,
-        );
-        g.add(stalk);
-      }
-      this.decor.add(g);
-      this.cropMeshes.set(k, g);
-    }
-    g.scale.y = 0.15 + Math.min(age / 90, 1) * 0.85;
-    g.children.forEach((s) =>
-      s.material.color.set(age >= 90 ? '#e3bd62' : '#8daf65'),
-    );
+  crop(k, plant) {
+    const g = this.cropMeshes.get(k);
+    if (
+      g &&
+      g.userData.kind === plant.kind &&
+      g.userData.stage === plantStage(plant)
+    )
+      return;
+    if (g) this.removeCrop(k);
+    const group = createPlant(k, plant);
+    this.decor.add(group);
+    this.cropMeshes.set(k, group);
   }
   removeCrop(k) {
     const g = this.cropMeshes.get(k);

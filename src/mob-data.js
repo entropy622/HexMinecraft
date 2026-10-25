@@ -22,6 +22,7 @@ export const MOBS = {
     hp: 10,
     speed: 0.7,
     food: 'apple',
+    foods: ['apple', 'carrot', 'potato'],
     height: 1.05,
     color: '#e6a2a0',
     drops: { meat: 3 },

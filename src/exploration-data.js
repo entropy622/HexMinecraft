@@ -163,6 +163,7 @@ export const EXPLORATION_RECIPES = [
   ),
 ];
 export const SMELTING = {
+  bakedPotato: { input: 'potato', seconds: 6 },
   ingot: { input: 'iron', seconds: 8 },
   goldIngot: { input: 'gold', seconds: 10 },
   copperIngot: { input: 'copper', seconds: 6 },

@@ -253,7 +253,7 @@ export class Fauna {
         message: '装满一桶牛奶',
       };
     }
-    if (item === def.food) {
+    if ((def.foods || [def.food]).includes(item)) {
       if (m.baby) {
         m.baby = Math.max(0, m.baby - 45);
         return { consume: item, message: '幼崽吃饱了，成长加快。' };
@@ -275,7 +275,7 @@ export class Fauna {
       return { give: { egg: count }, message: '收集鸡蛋 ×' + count };
     }
     return {
-      message: `${def.name} · 手持${{ wheat: '小麦', seed: '麦种', apple: '苹果' }[def.food]}吸引并按 E 喂食`,
+      message: `${def.name} · 手持${m.kind === 'pig' ? '胡萝卜 / 马铃薯 / 苹果' : { wheat: '小麦', seed: '麦种', apple: '苹果' }[def.food]}吸引并按 E 喂食`,
     };
   }
   update(dt, time, camera, held, creative, weather = null) {
@@ -421,7 +421,8 @@ export class Fauna {
         !creative &&
         (m.kind !== 'spider' || night || m.anger > 0);
       const dist = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
-      const attracted = !def.hostile && held === def.food && dist < 12;
+      const attracted =
+        !def.hostile && (def.foods || [def.food]).includes(held) && dist < 12;
       let speed = def.speed;
       if (m.flee > 0 && !def.hostile) {
         m.angle = Math.atan2(p.x - camera.position.x, p.z - camera.position.z);

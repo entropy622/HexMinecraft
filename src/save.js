@@ -1,11 +1,12 @@
 import { validFauna } from './fauna.js';
 import { validDrops } from './item-drops.js';
 import { validWeather } from './weather.js';
+import { validPlant } from './farming-data.js';
 import { validEquipment, validWear } from './equipment.js';
 import { LIQUIDS } from './fluids.js';
 import { ITEMS, BLOCKS, canEquip } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v4';
+export const SAVE_KEY = 'hexwild-save-v5';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -39,7 +40,7 @@ const inventory = (inv) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 4 ||
+    s.version !== 5 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -141,13 +142,7 @@ export function validateSave(s) {
     if (
       !Array.isArray(d.crops) ||
       d.crops.length > 1e5 ||
-      d.crops.some(
-        (e) =>
-          !Array.isArray(e) ||
-          !cell(e[0]) ||
-          !Number.isFinite(e[1]) ||
-          e[1] < 0,
-      )
+      d.crops.some((e) => !Array.isArray(e) || !cell(e[0]) || !validPlant(e[1]))
     )
       throw Error('农田数据无效');
     if (
