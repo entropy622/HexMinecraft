@@ -1,9 +1,10 @@
 import { validFauna } from './fauna.js';
+import { validDrops } from './item-drops.js';
 import { validEquipment, validWear } from './equipment.js';
 import { LIQUIDS } from './fluids.js';
 import { ITEMS, BLOCKS, canEquip } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v3';
+export const SAVE_KEY = 'hexwild-save-v4';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -37,7 +38,7 @@ const inventory = (inv) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 3 ||
+    s.version !== 4 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -76,6 +77,11 @@ export function validateSave(s) {
     }
     if (d.fauna !== undefined && !validFauna(d.fauna))
       throw Error('动物存档无效');
+    if (
+      !validDrops(d.drops) ||
+      (d.lastDeath !== null && !position(d.lastDeath))
+    )
+      throw Error('掉落物数据无效');
     if (
       d.fluids !== undefined &&
       (!Array.isArray(d.fluids) ||

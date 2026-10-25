@@ -20,6 +20,8 @@ import {
   canCraft,
 } from './core.js';
 import { Fauna } from './fauna.js';
+import { ItemDrops } from './item-drops.js';
+import { INVENTORY_SLOTS, usedSlots, roomFor, stackSize } from './inventory.js';
 import { MOBS } from './mob-data.js';
 import { Graphics } from './graphics.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
@@ -44,7 +46,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.5 — NEIGHBORS IN THE WILD</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.10 — WHAT WE LEAVE BEHIND</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -54,9 +56,9 @@ $('#app').innerHTML = `
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="吃东西">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
- <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <span class="tiny">/ 点击材料或工具装入快捷栏；点击护甲穿戴</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><p class="panel-note">工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
- <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹<br>地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
+ <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b> <span class="tiny">/ 点击选择；点击护甲穿戴；Shift 点击丢出一组</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><div class="pack-actions"><button id="drop-held">丢出手持物 ×1</button><button id="drop-mode" aria-pressed="false">点击丢弃：关</button></div><p class="panel-note">Q 丢出 1 件 / Ctrl+Q 丢出一组 · 靠近地面物品自动拾取 · 工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
 
@@ -76,9 +78,12 @@ try {
 const camera = graphics.camera;
 const motion = new Movement();
 const projectiles = new Projectiles(graphics.scene);
+const drops = new ItemDrops(graphics.scene, graphics.textures);
+let lastDeath = null;
+let discardMode = false;
 const fauna = new Fauna(graphics.scene, graphics.textures, {
   damage: (amount) => hurt(amount),
-  drop: addItem,
+  drop: (id, n, position) => drops.spawn(id, n, position),
   notice: toast,
   explode,
   fuse: () => beep(75, 0.3, 'sawtooth', 0.04),
@@ -255,6 +260,8 @@ function startGame(mode = false, save = null) {
   );
   camera.rotation.set(pitch, yaw, 0);
   fauna.load(world, data.fauna);
+  drops.load(data.drops);
+  lastDeath = data.lastDeath || null;
   fauna.sync(camera);
   creatureTarget = null;
   syncDecor();
@@ -276,6 +283,8 @@ function captureDimension() {
   dimensionStates[dimension] = {
     ...world.serialize(),
     fauna: fauna.serialize(),
+    drops: drops.serialize(),
+    lastDeath,
     crops: [...crops],
     chests: [...chests],
     chestWear: [...chestWear],
@@ -390,6 +399,8 @@ function travel(to) {
   graphics.build(world, a.q, a.r);
   if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
   fauna.load(world, data.fauna);
+  drops.load(data.drops);
+  lastDeath = data.lastDeath || null;
   fauna.sync(camera);
   creatureTarget = null;
   syncDecor();
@@ -413,7 +424,7 @@ function saveData() {
     }
   captureDimension();
   return {
-    version: 3,
+    version: 4,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -500,6 +511,9 @@ function openOverlay(id) {
   }
 }
 function closeOverlay() {
+  discardMode = false;
+  $('#drop-mode').textContent = '点击丢弃：关';
+  $('#drop-mode').setAttribute('aria-pressed', 'false');
   document
     .querySelectorAll('.overlay')
     .forEach((e) => e.classList.add('hidden'));
@@ -523,6 +537,7 @@ function nearbyType(type, radius = 5) {
   return false;
 }
 function renderCraft() {
+  containInventory();
   const station = creative || nearbyType('workbench');
   $('#recipes').innerHTML = RECIPES.map(
     (r, i) =>
@@ -567,11 +582,25 @@ function renderCraft() {
           id !== 'bedrock') ||
         (inventory[id] || 0) > 0,
     )
+    .flatMap(([id, item]) =>
+      Array.from(
+        { length: creative ? 1 : Math.ceil(inventory[id] / stackSize(id)) },
+        (_, index) => [id, item, index],
+      ),
+    )
     .map(
-      ([id, item]) =>
-        `<button class="inv-item ${hotbar[selected] === id ? 'selected' : ''}" data-item="${id}" title="${canEquip(id) ? '装入快捷栏 ' + (selected + 1) : item.name}">${icon(id)}<span>${item.name}</span><b>${creative ? '∞' : inventory[id] || 0}</b>${durabilityBar(id)}${item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}</button>`,
+      ([id, item, index]) =>
+        `<button class="inv-item ${hotbar[selected] === id ? 'selected' : ''}" data-item="${id}" data-index="${index}" title="${item.name} · 点击选择；Shift 点击丢出一组${item.durability ? ' · 耐久 ' + (equipment.wear[id]?.[index] ?? item.durability) + '/' + item.durability : ''}">${icon(id)}<span>${item.name}</span><b>${creative ? '∞' : Math.min(stackSize(id), inventory[id] - index * stackSize(id))}</b>${item.durability && !creative ? '<i class="durability"><i style="width:' + ((equipment.wear[id]?.[index] ?? item.durability) / item.durability) * 100 + '%;background:#82bd58"></i></i>' : ''}${index === 0 && item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}</button>`,
     )
     .join('');
+  if (!creative)
+    $('#inventory').innerHTML +=
+      '<span class="inv-item empty-slot" aria-hidden="true"></span>'.repeat(
+        Math.max(0, INVENTORY_SLOTS - usedSlots(inventory)),
+      );
+  $('#pack-capacity').textContent = creative
+    ? '无限材料'
+    : `${usedSlots(inventory)} / ${INVENTORY_SLOTS} 格`;
 }
 function doCraft() {
   const recipe = RECIPES[selectedRecipe];
@@ -614,6 +643,7 @@ function wearItem(id, amount = 1) {
   updateHUD();
 }
 function updateHUD() {
+  containInventory();
   equipment.sync(inventory, creative);
   if (heldItem() !== 'bow') bowCharge = 0;
   tool = miningStats('', heldItem()).tier;
@@ -681,7 +711,7 @@ function updateHUD() {
   );
   graphics.setHeld(heldItem());
 }
-function addItem(id, n = 1) {
+function pickupNotice(id, n) {
   const popup = document.createElement('div');
   popup.className = 'pickup';
   popup.innerHTML =
@@ -689,11 +719,103 @@ function addItem(id, n = 1) {
   $('#pickups').append(popup);
   while ($('#pickups').children.length > 4) $('#pickups').firstChild.remove();
   setTimeout(() => popup.remove(), 2400);
-  inventory[id] = Math.min(
-    ITEMS[id]?.durability ? 256 : 1000000,
-    (inventory[id] || 0) + n,
+}
+function addItem(id, n = 1) {
+  const taken = Math.min(
+    n,
+    creative
+      ? (ITEMS[id]?.durability ? 256 : 1e6) - (inventory[id] || 0)
+      : roomFor(inventory, id),
   );
+  inventory[id] = (inventory[id] || 0) + taken;
+  if (taken > 0) pickupNotice(id, taken);
+  if (taken < n) {
+    drops.spawn(id, n - taken, [
+      camera.position.x,
+      playerFeet() + 0.5,
+      camera.position.z,
+    ]);
+    toast('背包已满，多余物品留在脚边。Q 丢出手持物，或存入箱子。');
+  }
   updateHUD();
+  return taken;
+}
+function collectDrop(d, capacityOnly = false) {
+  const n = Math.min(
+    d.count,
+    creative
+      ? (ITEMS[d.item]?.durability ? 256 : 1e6) - (inventory[d.item] || 0)
+      : roomFor(inventory, d.item),
+  );
+  if (capacityOnly || n <= 0) return Math.max(0, n);
+  // Transfer from a copy: the entity slices its remaining durability after collection.
+  transferWear(
+    structuredClone(d.wear),
+    equipment.wear,
+    d.item,
+    n,
+    d.count,
+    inventory[d.item] || 0,
+  );
+  inventory[d.item] = (inventory[d.item] || 0) + n;
+  pickupNotice(d.item, n);
+  beep(720 + Math.random() * 180, 0.06, 'sine', 0.025);
+  updateHUD();
+  return n;
+}
+function containInventory() {
+  if (creative || usedSlots(inventory) <= INVENTORY_SLOTS) return;
+  // Also covers crafting, trading and bucket swaps that change stack occupancy.
+  let remaining = INVENTORY_SLOTS;
+  for (const [id, count] of Object.entries(inventory)) {
+    const keep = Math.min(count, remaining * stackSize(id));
+    remaining -= Math.ceil(keep / stackSize(id));
+    if (keep < count) {
+      const wear = ITEMS[id]?.durability
+        ? { [id]: (equipment.wear[id] || []).slice(keep) }
+        : {};
+      drops.spawn(
+        id,
+        count - keep,
+        [camera.position.x, playerFeet() + 0.5, camera.position.z],
+        wear,
+      );
+      inventory[id] = keep;
+      if (equipment.wear[id])
+        equipment.wear[id].length = Math.min(keep, equipment.wear[id].length);
+    }
+  }
+  toast('背包容量不足，多余物品已落在脚边。');
+}
+function throwItem(wholeStack = false, explicitId = null, offset = 0) {
+  const id = explicitId || heldItem();
+  if (!id || !(inventory[id] > 0)) return;
+  const n = Math.min(inventory[id] - offset, wholeStack ? stackSize(id) : 1),
+    wear = {};
+  if (n <= 0) return;
+  if (ITEMS[id].durability) {
+    const values = Array.from(
+      { length: inventory[id] },
+      (_, i) => equipment.wear[id]?.[i] ?? ITEMS[id].durability,
+    );
+    wear[id] = values.splice(offset, n);
+    equipment.wear[id] = values;
+  }
+  inventory[id] -= n;
+  const direction = camera.getWorldDirection(new THREE.Vector3());
+  const p = camera.position.clone();
+  drops.spawn(id, n, p.toArray(), wear, [
+    direction.x * 5,
+    direction.y * 3 + 2,
+    direction.z * 5,
+  ]);
+  updateHUD();
+  if (overlay === '#craft-overlay') renderCraft();
+  saveGame();
+}
+function dropAt(id, n, q, y, r, wear = {}) {
+  const p = axialToWorld(q, r);
+  drops.spawn(id, n, [p.x, y + 0.5, p.z], wear);
 }
 function mine(dt) {
   if (!target?.type || target.fluid || villagerTarget || creatureTarget) {
@@ -732,38 +854,33 @@ function mine(dt) {
   soundFX.play('break', type);
   wearItem(held, ITEMS[held]?.kind === 'sword' ? 2 : 1);
   if (!creative) {
-    addItem(data.drop || type);
+    dropAt(data.drop || type, 1, q, y, r);
     if (type === 'leaves') {
-      if (Math.random() < 0.3) addItem('apple');
-      if (Math.random() < 0.45) addItem('seed');
+      if (Math.random() < 0.3) dropAt('apple', 1, q, y, r);
+      if (Math.random() < 0.45) dropAt('seed', 1, q, y, r);
     }
-    if (type === 'grass' && Math.random() < 0.35) addItem('seed');
+    if (type === 'grass' && Math.random() < 0.35) dropAt('seed', 1, q, y, r);
     hunger = Math.max(0, hunger - 0.022);
   }
   if (crops.has(k)) {
     crops.delete(k);
     graphics.removeCrop(k);
-    addItem('seed');
+    dropAt('seed', 1, q, y + 1, r);
   }
   if (chests.has(k)) {
     for (const [id, n] of Object.entries(chests.get(k))) {
-      transferWear(
-        chestWear.get(k) || {},
-        equipment.wear,
-        id,
-        n,
-        n,
-        inventory[id] || 0,
-      );
-      addItem(id, n);
+      const wear = ITEMS[id]?.durability
+        ? { [id]: chestWear.get(k)?.[id] || [] }
+        : {};
+      dropAt(id, n, q, y, r, wear);
     }
     chestWear.delete(k);
     chests.delete(k);
   }
   const job = furnaceJobs.get(k);
   if (job?.paid) {
-    addItem(job.input);
-    addItem('coal');
+    dropAt(job.input, 1, q, y, r);
+    dropAt('coal', 1, q, y, r);
   }
   furnaceJobs.delete(k);
   mining = 0;
@@ -956,8 +1073,8 @@ function interact() {
     }
     crops.delete(k);
     graphics.removeCrop(k);
-    addItem('wheat', 2);
-    addItem('seed', 2);
+    dropAt('wheat', 2, q, y + 1, r);
+    dropAt('seed', 2, q, y + 1, r);
     beep(600, 0.12);
     toast('收获小麦 ×2、麦种 ×2');
     return;
@@ -1148,10 +1265,20 @@ function hurt(amount, cause = 'combat') {
   setTimeout(() => ($('#damage').style.opacity = '0'), 250);
   soundFX.play('hurt');
   if (health <= 0) {
+    refundJobs();
+    lastDeath = [camera.position.x, playerFeet() + 0.4, camera.position.z];
+    for (const [id, n] of Object.entries(inventory)) {
+      const wear = ITEMS[id]?.durability
+        ? { [id]: equipment.wear[id] || [] }
+        : {};
+      drops.spawn(id, n, lastDeath, wear, null, 600);
+    }
+    inventory = {};
+    equipment = new Equipment();
     safeSpawn();
     health = 20;
     hunger = 12;
-    toast('你在出生点醒来。背包已保留，带点食物再出发吧。');
+    toast('你在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。');
     saveGame();
   }
   updateHUD();
@@ -1214,6 +1341,7 @@ function drinkMilk() {
   return true;
 }
 function explode(center) {
+  syncDecor();
   const origin = worldToAxial(center.x, center.z),
     changed = new Set();
   const distance = center.distanceTo(
@@ -1246,6 +1374,19 @@ function explode(center) {
           k = key(q, y, r);
         if (!type || type === 'bedrock' || type === 'obsidian') continue;
         world.set(q, y, r, null);
+        if (!creative && Math.random() < 0.6)
+          dropAt(BLOCKS[type].drop || type, 1, q, y, r);
+        for (const [id, n] of Object.entries(chests.get(k) || {})) {
+          const wear = ITEMS[id]?.durability
+            ? { [id]: chestWear.get(k)?.[id] || [] }
+            : {};
+          dropAt(id, n, q, y, r, wear);
+        }
+        const job = furnaceJobs.get(k);
+        if (job?.paid) {
+          dropAt(job.input, 1, q, y, r);
+          dropAt('coal', 1, q, y, r);
+        }
         chests.delete(k);
         world.structureFeatures.add('chest:' + k);
         chestWear.delete(k);
@@ -1441,8 +1582,11 @@ function movePlayer(dt) {
   if (feetFluid && LIQUIDS[feetFluid.type].damage)
     hurt(LIQUIDS[feetFluid.type].damage, 'burn');
   if (camera.position.y < -12) {
-    safeSpawn();
-    hurt(6, 'void');
+    if (creative) safeSpawn();
+    else {
+      damageCooldown = 0;
+      hurt(20, 'void');
+    }
   }
   $('#underwater').style.display = headFluid ? 'block' : 'none';
   $('#underwater').style.background = headFluid
@@ -1532,6 +1676,22 @@ function drawMap(canvas, full = false) {
       ctx.fillText(v.name, cx + p.x * scale, cy + p.z * scale + 15);
     }
   }
+  if (lastDeath) {
+    ctx.fillStyle = '#ff8c83';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 22px monospace';
+    const dx = Math.max(14, Math.min(w - 14, cx + lastDeath[0] * scale));
+    const dz = Math.max(38, Math.min(h - 38, cy + lastDeath[2] * scale));
+    ctx.fillText('×', dx, dz);
+    if (full) {
+      ctx.font = '12px sans-serif';
+      ctx.fillText(
+        `上次死亡 · Y ${Math.floor(lastDeath[1])} · ${Math.round(Math.hypot(lastDeath[0] - camera.position.x, lastDeath[2] - camera.position.z))}m`,
+        dx,
+        dz + 16,
+      );
+    }
+  }
   const x = cx + camera.position.x * scale,
     y = cy + camera.position.z * scale;
   ctx.save();
@@ -1603,8 +1763,23 @@ $('#recipes').onclick = (e) => {
   }
 };
 $('#craft-button').onclick = doCraft;
+$('#drop-held').onclick = () => throwItem();
+$('#drop-mode').onclick = () => {
+  discardMode = !discardMode;
+  $('#drop-mode').textContent =
+    '点击丢弃：' + (discardMode ? '开（每次 1 件）' : '关');
+  $('#drop-mode').setAttribute('aria-pressed', String(discardMode));
+};
 $('#inventory').onclick = (e) => {
   const b = e.target.closest('[data-item]');
+  if (b && (e.shiftKey || discardMode)) {
+    throwItem(
+      e.shiftKey,
+      b.dataset.item,
+      Number(b.dataset.index) * stackSize(b.dataset.item),
+    );
+    return;
+  }
   if (b && ITEMS[b.dataset.item].armorSlot) {
     equipment.equip(b.dataset.item, inventory, creative);
     updateHUD();
@@ -1649,6 +1824,7 @@ document.addEventListener('click', (e) => {
       n = Math.min(
         10,
         from[id] || 0,
+        st || creative ? Infinity : roomFor(inventory, id),
         ITEMS[id]?.durability ? 256 - (to[id] || 0) : 1e6,
       );
     const storageWear = chestWear.get(stationKey) || {};
@@ -1835,6 +2011,11 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyF') {
     eat();
+    return;
+  }
+  if (e.code === 'KeyQ') {
+    throwItem(e.ctrlKey);
+    e.preventDefault();
     return;
   }
   if (
@@ -2027,6 +2208,7 @@ function frame(now) {
                 : ' · E 喂养 / 互动');
     }
     updateMobs(dt);
+    drops.update(dt, world, camera, collectDrop);
     projectiles.update(
       dt,
       world,
@@ -2056,7 +2238,7 @@ function frame(now) {
       if (job.remaining <= 0) {
         addItem(job.output);
         furnaceJobs.delete(k);
-        toast(`${ITEMS[job.output].name}已完成，收入背包。`);
+        toast(`${ITEMS[job.output].name}已完成；背包满时留在脚边。`);
         beep(600, 0.2);
       }
     }

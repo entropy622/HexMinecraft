@@ -714,6 +714,37 @@ button svg {
 .inv-item.selected {
   border-color: var(--gold);
 }
+
+#inventory {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+#inventory .empty-slot {
+  min-height: 68px;
+  opacity: 0.38;
+  background: #292c27;
+  box-shadow:
+    inset 2px 2px #151914,
+    inset -2px -2px #69715b;
+}
+#pack-capacity {
+  color: #e7ce8a;
+  margin: 0 10px;
+  font-size: 12px;
+}
+.pack-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+#drop-mode[aria-pressed='true'] {
+  background: #714636;
+  color: #fff3dc;
+}
+@media (max-width: 620px) {
+  #inventory {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 .panel-note {
   font-size: 10px;
   color: var(--muted);
@@ -1928,6 +1959,7 @@ input:focus-visible {
 .durability i {
   display: block;
   height: 100%;
+  background: #82bd58;
 }
 .inv-item:has(.durability) {
   padding-bottom: 13px;

@@ -222,7 +222,12 @@ export class Fauna {
         delete drops.pearl;
         drops.ember = 1;
       }
-      for (const [id, n] of Object.entries(drops)) this.callbacks.drop(id, n);
+      for (const [id, n] of Object.entries(drops))
+        this.callbacks.drop(id, n, [
+          m.mesh.position.x,
+          m.mesh.position.y + 0.5,
+          m.mesh.position.z,
+        ]);
     }
     this.remove(m);
   }
