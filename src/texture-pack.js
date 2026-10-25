@@ -156,6 +156,8 @@ export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
 const mobTextures = [
+  'mobs_mc_enderman',
+  'mobs_mc_enderman_eyes',
   'mobs_mc_cow',
   'mobs_mc_pig',
   'mobs_mc_sheep',

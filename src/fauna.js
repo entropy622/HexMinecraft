@@ -3,6 +3,8 @@ import { axialToWorld, worldToAxial, hash } from './core.js';
 import { MOBS, ANIMALS, HOSTILES } from './mob-data.js';
 import { createMob, disposeMob, animateMob } from './mob-graphics.js';
 import { flyingClear, updateNetherFlier } from './nether-mobs.js';
+import { updateEnderman, teleportEnderman } from './endermen.js';
+import { ENDERMAN_BLOCKS } from './enderman-data.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
 export class Fauna {
@@ -27,7 +29,10 @@ export class Fauna {
     this.syncTimer = this.hostileTimer = 0;
   }
   remember(m) {
-    if (MOBS[m.kind].hostile) return;
+    if (MOBS[m.kind].hostile && !(m.kind === 'enderman' && m.carried)) {
+      this.records.delete(m.id);
+      return;
+    }
     const record = {
       id: m.id,
       kind: m.kind,
@@ -35,6 +40,7 @@ export class Fauna {
       hp: m.hp,
       angle: m.angle,
       eggs: m.eggs,
+      ...(m.kind === 'enderman' ? { carried: m.carried } : {}),
     };
     for (const field of timers) record[field] = m[field];
     this.records.set(m.id, record);
@@ -83,6 +89,7 @@ export class Fauna {
     return m;
   }
   remove(m) {
+    if (m.carried) this.callbacks.drop(m.carried, 1, m.mesh.position.toArray());
     this.records.delete(m.id);
     const index = this.active.indexOf(m);
     if (index >= 0) this.active.splice(index, 1);
@@ -241,13 +248,34 @@ export class Fauna {
     }
     return spawned;
   }
-  hit(m, damage, direction, loot = true) {
+  dodge(m) {
+    if (!m || m.kind !== 'enderman' || !this.active.includes(m)) return false;
+    if (!this.creative && m.anger <= 0)
+      this.callbacks.mobSound?.('endermanAngry', m.mesh.position);
+    if (!this.creative) m.anger = 60;
+    if (this.camera) teleportEnderman(this, m, this.camera);
+    return true;
+  }
+  hit(m, damage, direction, loot = true, provoked = true) {
     m.hp -= damage;
     m.hit = 0.3;
     m.flee = 3;
-    m.anger = 12;
+    if (provoked) {
+      if (m.kind === 'enderman' && m.anger <= 0)
+        this.callbacks.mobSound?.('endermanAngry', m.mesh.position);
+      m.anger = m.kind === 'enderman' ? 60 : 12;
+    }
     this.nudge(m, direction);
-    if (m.hp > 0) return;
+    if (m.hp > 0) {
+      if (
+        m.kind === 'enderman' &&
+        provoked &&
+        this.camera &&
+        Math.random() < 0.25
+      )
+        teleportEnderman(this, m, this.camera);
+      return;
+    }
     if (loot && !m.baby) {
       this.callbacks.experience?.(
         MOBS[m.kind].experience ||
@@ -255,6 +283,7 @@ export class Fauna {
         [m.mesh.position.x, m.mesh.position.y + 0.5, m.mesh.position.z],
       );
       const drops = { ...MOBS[m.kind].drops };
+      if (m.kind === 'enderman' && Math.random() < 0.5) delete drops.pearl;
       if (m.kind === 'sheep' && m.wool > 0) delete drops.wool;
       if (m.kind === 'crawler' && this.world.dimension === 'nether') {
         delete drops.pearl;
@@ -317,6 +346,8 @@ export class Fauna {
     };
   }
   update(dt, time, camera, held, creative, weather = null) {
+    this.camera = camera;
+    this.creative = creative;
     const world = this.world,
       night =
         world.dimension !== 'overworld' ||
@@ -393,14 +424,23 @@ export class Fauna {
           radius = 13 + Math.random() * 12;
         const q = center.q + Math.round(Math.cos(angle) * radius),
           r = center.r + Math.round(Math.sin(angle) * radius);
+        const endermen = this.active.filter(
+          (m) => m.kind === 'enderman',
+        ).length;
         const kind =
           world.dimension === 'overworld'
-            ? HOSTILES[Math.floor(Math.random() * HOSTILES.length)]
-            : world.dimension === 'nether' &&
-                Math.random() < 0.4 &&
-                this.active.filter((m) => m.kind === 'ghast').length < 2
-              ? 'ghast'
-              : 'crawler';
+            ? endermen < 3 && Math.random() < 0.12
+              ? 'enderman'
+              : HOSTILES[Math.floor(Math.random() * HOSTILES.length)]
+            : world.dimension === 'end'
+              ? endermen < 6 && Math.random() < 0.75
+                ? 'enderman'
+                : 'crawler'
+              : world.dimension === 'nether' &&
+                  Math.random() < 0.4 &&
+                  this.active.filter((m) => m.kind === 'ghast').length < 2
+                ? 'ghast'
+                : 'crawler';
         const p = axialToWorld(q, r),
           y = MOBS[kind].flying
             ? Math.min(42, world.terrainHeight(q, r) + 5 + Math.random() * 6)
@@ -469,6 +509,10 @@ export class Fauna {
       }
       if (def.flying) {
         updateNetherFlier(this, m, dt, time, camera, creative);
+        continue;
+      }
+      if (m.kind === 'enderman') {
+        updateEnderman(this, m, dt, time, camera, creative, night, weather);
         continue;
       }
       const aggressive =
@@ -622,7 +666,8 @@ export function validFauna(state) {
   return state.mobs.every((m) => {
     if (
       !m ||
-      !ANIMALS.includes(m.kind) ||
+      (!ANIMALS.includes(m.kind) &&
+        !(m.kind === 'enderman' && ENDERMAN_BLOCKS.includes(m.carried))) ||
       !Number.isSafeInteger(m.id) ||
       m.id < 1 ||
       m.id >= state.nextId ||

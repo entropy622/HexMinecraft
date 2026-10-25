@@ -142,31 +142,30 @@ export class Projectiles {
         }
         for (const mob of arrow.owner === 'hostile' ? [] : creatures) {
           if (!mob.mesh.visible) continue;
-          sphere.center
-            .copy(mob.mesh.position)
-            .add(
-              new THREE.Vector3(
-                0,
-                (MOBS[mob.kind].hitHeight || MOBS[mob.kind].height * 0.5) *
-                  (mob.baby ? 0.6 : 1),
-                0,
-              ),
-            );
-          sphere.radius =
-            (MOBS[mob.kind].hitRadius ||
-              (mob.kind === 'chicken' ? 0.32 : 0.6)) * (mob.baby ? 0.55 : 1);
-          if (ray.intersectSphere(sphere, point)) {
-            const d = previous.distanceTo(point);
-            if (d <= length && d < distance) {
-              nearest = mob;
-              distance = d;
+          const def = MOBS[mob.kind];
+          for (const height of def.hitHeights || [
+            def.hitHeight || def.height * 0.5,
+          ]) {
+            sphere.center
+              .copy(mob.mesh.position)
+              .add(new THREE.Vector3(0, height * (mob.baby ? 0.6 : 1), 0));
+            sphere.radius =
+              (MOBS[mob.kind].hitRadius ||
+                (mob.kind === 'chicken' ? 0.32 : 0.6)) * (mob.baby ? 0.55 : 1);
+            if (ray.intersectSphere(sphere, point)) {
+              const d = previous.distanceTo(point);
+              if (d <= length && d < distance) {
+                nearest = mob;
+                distance = d;
+              }
             }
           }
         }
         if (nearest) {
-          onHit(nearest, arrow.damage, direction);
-          this.remove(arrow);
-          break;
+          if (onHit(nearest, arrow.damage, direction) !== 'dodged') {
+            this.remove(arrow);
+            break;
+          }
         }
         const fluid = world.fluids.get(a.q, Math.floor(p.y), a.r);
         if (fluid) arrow.velocity.multiplyScalar(Math.exp(-step * 3));

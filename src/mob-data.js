@@ -1,4 +1,17 @@
 export const MOBS = {
+  enderman: {
+    name: '末影人',
+    hp: 40,
+    speed: 0.75,
+    height: 2.95,
+    hitHeights: [0.55, 1.35, 2.15, 2.65],
+    hitRadius: 0.43,
+    hostile: true,
+    neutral: true,
+    color: '#81639b',
+    experience: 5,
+    drops: { pearl: 1 },
+  },
   blaze: {
     name: '烈焰人',
     hp: 20,

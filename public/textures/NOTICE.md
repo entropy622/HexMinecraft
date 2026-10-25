@@ -123,6 +123,15 @@ collision, six-direction teleport placement, hatching, particles and synthesized
 sounds are original code. No upstream projectile source, model or audio is
 redistributed.
 
+Version 0.33 adds unmodified `mobs_mc_enderman.png` and
+`mobs_mc_enderman_eyes.png` from the same VoxeLibre revision. They are
+**CC BY-SA 4.0 mob media**, based on Pixel Perfection by XSSheep with
+modifications credited to MysticTempest in
+[the preserved mob-media notice](VOXELIBRE-MOBS-MEDIA.md).
+Runtime UV views retain CC BY-SA 4.0. The tall six-sided rig, facial animation,
+carried block, AI, teleport particles, persistence and synthesized sounds are
+original code; no upstream model, mob source or sound recording is included.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

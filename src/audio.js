@@ -134,6 +134,15 @@ export class GameAudio {
       this.tone(240 + Math.random() * 65, 0.07, 'triangle', 0.04);
     } else if (event === 'snowImpact' || event === 'eggImpact') {
       this.noise(0.12, 0.11, event === 'snowImpact' ? 2400 : 1100);
+    } else if (event === 'endermanAngry') {
+      this.noise(0.55, 0.07, 550);
+      [95, 143, 205].forEach((n, i) =>
+        this.tone(n, 0.55 - i * 0.1, 'sawtooth', 0.016, i * 0.03),
+      );
+    } else if (event === 'endermanTeleport') {
+      this.noise(0.16, 0.065, 1600);
+      this.tone(380, 0.16, 'sine', 0.045);
+      this.tone(170, 0.2, 'sine', 0.04, 0.07);
     } else if (event === 'pearlTeleport') {
       this.noise(0.28, 0.08, 850);
       [440, 220, 110].forEach((n, i) =>

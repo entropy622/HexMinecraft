@@ -114,7 +114,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.32 — INTO THE DISTANCE</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.33 — WHEN YOU LOOK AWAY</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -164,7 +164,7 @@ const fireballs = new Fireballs(graphics.scene, {
   hit: (mob, amount, direction, owned) => {
     const a = worldToAxial(mob.mesh.position.x, mob.mesh.position.z);
     graphics.burst(a.q, mob.mesh.position.y + 1, a.r, MOBS[mob.kind].color);
-    fauna.hit(mob, amount, direction, owned);
+    fauna.hit(mob, amount, direction, owned, owned);
   },
   explode: (point, owned, excludeId) =>
     explode(point, {
@@ -187,6 +187,7 @@ const fireballs = new Fireballs(graphics.scene, {
 });
 const throwables = new Throwables(graphics.scene, {
   impact: resolveThrow,
+  dodge: (mob) => fauna.dodge(mob),
   miss: () => toast('珍珠离开了已加载区域，未能传送。'),
 });
 const drops = new ItemDrops(graphics.scene, graphics.textures);
@@ -254,6 +255,23 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
   fireball: (kind, from, to, id) => fireballs.shoot(kind, from, to, id),
   mobSound: (kind, position) => {
     if (position.distanceTo(camera.position) < 30) soundFX.play(kind);
+  },
+  moveBlock: endermanBlockChange,
+  endermanMote: (point) => throwables.burst(point, 'pearl', 1),
+  endermanTeleport: (from, to) => {
+    throwables.burst(
+      from.clone().add(new THREE.Vector3(0, 1.3, 0)),
+      'pearl',
+      18,
+    );
+    throwables.burst(to.clone().add(new THREE.Vector3(0, 1.3, 0)), 'pearl', 18);
+    if (
+      Math.min(
+        from.distanceTo(camera.position),
+        to.distanceTo(camera.position),
+      ) < 30
+    )
+      soundFX.play('endermanTeleport');
   },
   shoot: (from, to) => {
     const aim = to.clone().sub(from);
@@ -2135,6 +2153,35 @@ function maintainBuildings() {
     }
   }
 }
+function endermanBlockChange(q, y, r, type) {
+  const k = key(q, y, r),
+    previous = world.get(q, y, r);
+  if (crops.has(k) || crops.has(key(q, y - 1, r))) return false;
+  const point = axialToWorld(q, r);
+  if (
+    type &&
+    (boats.intersectsCell(point.x, y, point.z) ||
+      [...villagers.residents.values()].some(
+        (n) =>
+          Math.hypot(n.mesh.position.x - point.x, n.mesh.position.z - point.z) <
+            1.3 &&
+          y < n.mesh.position.y + 1.9 &&
+          y + 1 > n.mesh.position.y,
+      ))
+  )
+    return false;
+  world.set(q, y, r, type, false);
+  if (type && collides(camera.position.x, playerFeet(), camera.position.z)) {
+    world.set(q, y, r, previous, false);
+    return false;
+  }
+  world.set(q, y, r, type);
+  graphics.updateBlock(q, y, r);
+  maintainBuildings();
+  if (Math.hypot(point.x - camera.position.x, point.z - camera.position.z) < 20)
+    soundFX.play(type ? 'place' : 'break', type || previous);
+  return true;
+}
 villagers.openDoor = (q, y, r) => toggleBuilding(q, y, r, true);
 function onLadder() {
   const a = worldToAxial(camera.position.x, camera.position.z),
@@ -3169,7 +3216,8 @@ function updateWeather(dt) {
   updatePlants(weatherGrowthTimer);
   weatherGrowthTimer = 0;
 }
-function hitMob(mob, amount, direction) {
+function hitMob(mob, amount, direction, source = 'melee') {
+  if (source === 'arrow' && fauna.dodge(mob)) return 'dodged';
   const p = mob.mesh.position,
     a = worldToAxial(p.x, p.z);
   graphics.burst(a.q, p.y, a.r, MOBS[mob.kind].color);
@@ -3257,6 +3305,7 @@ function explode(center, settings = {}) {
         mob,
         settings.mobDamage ?? 12,
         mob.mesh.position.clone().sub(center).normalize(),
+        !!settings.playerOwned,
         !!settings.playerOwned,
       );
   const reach = Math.ceil(radius / 1.5);
@@ -4262,13 +4311,16 @@ function frame(now) {
           ? ' · 即将爆炸！'
           : def.flying && m.charge > 0
             ? ' · 正在蓄力！'
-            : def.hostile
-              ? ''
-              : m.love > 0
-                ? ' · ♥ 寻找伙伴'
-                : m.kind === 'chicken' && m.eggs > 0
-                  ? ' · E 收集鸡蛋 ×' + m.eggs
-                  : ' · E 喂养 / 互动');
+            : m.kind === 'enderman'
+              ? (m.anger > 0 ? ' · 已被激怒！' : ' · 中立 · 避免直视双眼') +
+                (m.carried ? ' · 搬着' + BLOCKS[m.carried].name : '')
+              : def.hostile
+                ? ''
+                : m.love > 0
+                  ? ' · ♥ 寻找伙伴'
+                  : m.kind === 'chicken' && m.eggs > 0
+                    ? ' · E 收集鸡蛋 ×' + m.eggs
+                    : ' · E 喂养 / 互动');
     }
     if (boatTarget && !creatureTarget && !villagerTarget) {
       $('#target').classList.remove('hidden');
@@ -4289,7 +4341,7 @@ function frame(now) {
       world,
       creatures,
       camera,
-      hitMob,
+      (mob, amount, direction) => hitMob(mob, amount, direction, 'arrow'),
       () => addItem('arrow'),
       (amount, source) => hurt(amount, 'projectile', source),
     );

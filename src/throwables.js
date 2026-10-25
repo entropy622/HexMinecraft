@@ -190,12 +190,15 @@ export class Throwables {
       if (!mob.mesh.visible) continue;
       const def = MOBS[mob.kind],
         size = mob.baby ? 0.55 : 1;
-      check(
-        mob.mesh.position,
-        (def.hitHeight || def.height * 0.5) * size,
-        (def.hitRadius || (mob.kind === 'chicken' ? 0.32 : 0.6)) * size,
-        mob,
-      );
+      for (const height of def.hitHeights || [
+        def.hitHeight || def.height * 0.5,
+      ])
+        check(
+          mob.mesh.position,
+          height * size,
+          (def.hitRadius || (mob.kind === 'chicken' ? 0.32 : 0.6)) * size,
+          mob,
+        );
     }
     for (const resident of residents.values())
       if (resident.mesh.visible) check(resident.mesh.position, 0.9, 0.55);
@@ -249,7 +252,11 @@ export class Throwables {
           residents,
           boats,
         );
-        if (entity && (!impact || entity.distance < impact.distance))
+        if (
+          entity &&
+          (!impact || entity.distance < impact.distance) &&
+          !this.callbacks.dodge?.(entity.mob)
+        )
           impact = entity;
         if (impact) {
           // Remove first: teleport damage may clear the world during callback.

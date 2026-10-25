@@ -2,10 +2,12 @@ import * as THREE from 'three';
 import { MOBS } from './mob-data.js';
 import { createNetherMob } from './nether-mob-graphics.js';
 import { MobRig, skinBox, skinTile, animateRig } from './mob-skins.js';
+import { createEnderman } from './enderman-graphics.js';
 
 const full = skinTile();
 const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
 export function createMob(kind, textures) {
+  if (kind === 'enderman') return createEnderman(textures);
   if (MOBS[kind].flying) return createNetherMob(kind, textures);
   const rig = new MobRig(),
     legs = [],
