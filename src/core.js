@@ -17,6 +17,7 @@ import { CITY_BLOCKS, CITY_RECIPES } from './end-city-data.js';
 import { CHORUS_BLOCKS, CHORUS_ITEMS, CHORUS_RECIPES } from './chorus-data.js';
 import { WOOD_BLOCKS, WOOD_ITEMS, WOOD_RECIPES } from './wood-data.js';
 import { recipeMaterials } from './wood-ingredients.js';
+import { applyMiningHardness } from './mining-data.js';
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import {
   IGNITION_BLOCKS,
@@ -182,8 +183,8 @@ export const BLOCKS = {
     name: '黑曜石',
     color: '#544d6d',
     side: '#302d44',
-    hardness: 2.5,
-    tool: 3,
+    hardness: 50,
+    tool: 4,
   },
   diamond: {
     name: '钻石矿',
@@ -215,6 +216,7 @@ export const BLOCKS = {
     hardness: Infinity,
   },
 };
+applyMiningHardness(BLOCKS);
 export const ITEMS = {
   ...IGNITION_ITEMS,
   ...WOOD_ITEMS,

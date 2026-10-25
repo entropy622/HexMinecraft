@@ -1,6 +1,6 @@
 import { ITEMS } from './core.js';
 import { GEAR_SLOTS } from './inventory.js';
-import { woodKey } from './wood-data.js';
+export { miningStats } from './mining.js';
 import {
   enchantmentsOf,
   validWearEntry,
@@ -108,59 +108,6 @@ export class Equipment {
       ),
     );
   }
-}
-export function miningStats(block, held, enchant = {}) {
-  block = ITEMS[block]?.base || block;
-  block = ITEMS[block]?.foliage
-    ? 'leaves'
-    : ITEMS[block]?.wooden
-      ? 'planks'
-      : woodKey(block);
-  const item = ITEMS[held];
-  const kind =
-    block === 'hayBale'
-      ? 'hoe'
-      : [
-            'wood',
-            'planks',
-            'workbench',
-            'chest',
-            'crimsonwood',
-            'bookshelf',
-            'door',
-            'doorTop',
-            'fence',
-            'gate',
-            'ladder',
-            'chorusPlant',
-            'chorusFlower',
-            'chorusFlowerDead',
-          ].includes(block)
-        ? 'axe'
-        : [
-              'grass',
-              'dirt',
-              'sand',
-              'gravel',
-              'snow',
-              'farmland',
-              'sandstone',
-              'soulSand',
-            ].includes(block)
-          ? 'shovel'
-          : ['leaves', 'shroom', 'bed'].includes(block)
-            ? null
-            : 'pick';
-  return {
-    tier: item?.kind === 'pick' ? item.tier : 0,
-    speed:
-      block === 'leaves' && item?.kind === 'shears'
-        ? 15
-        : item?.kind === kind
-          ? [1, 2, 3.2, 4.5, 6.2][item.tier] *
-            (1 + 0.18 * (enchant.efficiency || 0) ** 2)
-          : 1,
-  };
 }
 export function validWear(wear, inventory) {
   return (

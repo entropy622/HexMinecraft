@@ -31,15 +31,19 @@ const enchantWeights = {
   protection: 1,
   power: 1,
   unbreaking: 2,
+  aquaAffinity: 2,
+  respiration: 2,
 };
 const grindXP = (entry) =>
   Object.entries(enchantmentsOf(entry)).reduce(
     (sum, [key, rank]) =>
       sum +
-      (key === 'unbreaking'
-        ? 5 + 8 * (rank - 1)
-        : 1 +
-          (['sharpness', 'protection'].includes(key) ? 11 : 10) * (rank - 1)),
+      (key === 'respiration'
+        ? 10 + 10 * (rank - 1)
+        : key === 'unbreaking'
+          ? 5 + 8 * (rank - 1)
+          : 1 +
+            (['sharpness', 'protection'].includes(key) ? 11 : 10) * (rank - 1)),
     0,
   );
 

@@ -328,6 +328,7 @@ export async function loadTexturePack() {
     'mcl_campfires_soul_campfire_fire',
     'mcl_campfires_particle_1',
     'mcl_portals_portal',
+    'crack_anylength',
   ]);
   await Promise.allSettled(
     [...names].map(

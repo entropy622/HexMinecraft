@@ -40,12 +40,14 @@ export function enchantOffers(item, seed, shelves) {
     const count = tier === 2 ? 2 : 1;
     for (const key of keys.slice(0, count)) {
       const max = ENCHANTS[key].max;
-      const minimum =
+      const minimum = Math.min(
+        max,
         tier === 0
           ? 1
           : tier === 1
             ? Math.max(1, max - 2)
-            : Math.max(2, max - 2);
+            : Math.max(2, max - 2),
+      );
       const ceiling =
         tier === 0 ? Math.min(2, max) : tier === 1 ? Math.max(1, max - 1) : max;
       enchants[key] =

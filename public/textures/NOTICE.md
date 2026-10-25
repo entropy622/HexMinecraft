@@ -19,6 +19,14 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.48 adds the unmodified `crack_anylength.png` from the same revision
+and CC BY-SA 3.0 media license. This 16 × 160 image contains ten progressive
+digging overlays. Runtime frame crops retain CC BY-SA 3.0, as do the fragments
+sampled from the existing block tiles. Actual hex-face extraction, part overlays,
+alpha masking and particle motion are original code and geometry; no upstream
+mining code is included. The collection now contains 265 PNGs: 244 under CC BY-SA
+3.0 and 21 under CC BY-SA 4.0.
+
 Version 0.47 adds four unmodified images from the same revision and CC BY-SA
 3.0 media license: `default_gravel.png`, `default_flint.png`,
 `mcl_fire_flint_and_steel.png`, and `mcl_portals_portal.png` (eight 16 × 16

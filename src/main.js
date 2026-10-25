@@ -124,6 +124,7 @@ import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
 import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack, textureURL } from './texture-pack.js';
 import { Equipment, miningStats } from './equipment.js';
+import { miningRate } from './mining.js';
 import { Projectiles } from './projectiles.js';
 import { Throwables, pearlDestination } from './throwables.js';
 import { THROWABLES } from './throwable-data.js';
@@ -156,7 +157,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.47 — SPARKS BETWEEN WORLDS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.48 — ECHOES OF THE PICK</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -411,6 +412,7 @@ let yaw = 0,
   target = null,
   mining = 0,
   miningKey = '',
+  creativeMineDelay = 0,
   leftDown = false,
   keys = new Set(),
   selectedRecipe = 0,
@@ -926,6 +928,7 @@ function startGame(mode = false, save = null) {
   stopEating(true);
   weather = new Weather(save?.weather);
   weatherGrowthTimer = 0;
+  creativeMineDelay = 0;
   portalExposure = portalCooldown = 0;
   $('#portal-overlay').style.opacity = 0;
   graphics.weatherEffects.flash = 0;
@@ -1681,24 +1684,36 @@ function mine(dt) {
     mining = 0;
     return;
   }
-  if (!creative && (data.tool || 0) > stats.tier) {
+  const k = key(target.q, target.y, target.r);
+  const actionKey = `${k}:${target.type}:${selected}:${held}`;
+  if (actionKey !== miningKey) {
     mining = 0;
-    if (leftDown && miningKey !== key(target.q, target.y, target.r)) {
-      toast(`开采${data.name}需要${ITEMS['pick' + data.tool].name}`);
-      miningKey = key(target.q, target.y, target.r);
-    }
+    miningKey = actionKey;
+    if (!creative && !stats.harvest)
+      toast(
+        `${data.name}需要${stats.requiredTool === 'pick' ? ITEMS['pick' + stats.requiredTier].name : '铲子'}才能获得掉落物；当前工具只能缓慢破坏。`,
+      );
+  }
+  if (creative && creativeMineDelay > 0) {
+    mining = 0;
     return;
   }
-  const k = key(target.q, target.y, target.r);
-  if (k !== miningKey) {
-    mining = 0;
-    miningKey = k;
-  }
-  mining += dt * (creative ? 12 : stats.speed);
+  const helmet = equipment.armor.head;
+  mining = creative
+    ? data.hardness
+    : mining +
+      dt *
+        miningRate(stats, {
+          underwater: survivalSubmerged,
+          grounded,
+          aquaAffinity: !!helmet && equipment.rank(helmet, 'aquaAffinity') > 0,
+        });
   $('#mine-progress i').style.width =
-    `${Math.min(100, (mining / data.hardness) * 100)}%`;
+    `${data.hardness > 0 ? Math.min(100, (mining / data.hardness) * 100) : 100}%`;
   if (mining < data.hardness) return;
   const { q, y, r, type } = target;
+  if (creative) creativeMineDelay = 0.2;
+  graphics.swing();
   const natural = !world.edits.has(k);
   if (isChorus(type)) {
     harvestChorusBlock(q, y, r, true, !creative);
@@ -1708,7 +1723,7 @@ function mine(dt) {
     return;
   }
   if (BLOCKS[type].shape) {
-    removeBuilding(q, y, r, !creative);
+    removeBuilding(q, y, r, !creative && stats.harvest);
     wearItem(held);
     mining = 0;
     target = null;
@@ -1716,17 +1731,17 @@ function mine(dt) {
   }
   if (isStorage(type)) syncDecor();
   const packed = ITEMS[type]?.portable ? packStorage(k, type) : null;
+  graphics.blockBreak(target);
   world.set(q, y, r, null);
   graphics.updateBlock(q, y, r);
   if (type === 'obsidian') refreshNetherPortals();
-  graphics.burst(q, y, r, data.color);
   soundFX.play('break', type);
   wearItem(held, ITEMS[held]?.kind === 'sword' ? 2 : 1);
   if (packed && (!creative || packed.contents.some(Boolean))) {
     const point = axialToWorld(q, r);
     drops.spawnStack(packed, [point.x, y + 0.5, point.z]);
   }
-  if (!creative) {
+  if (!creative && stats.harvest) {
     if (!packed && !data.foliage)
       dropAt(
         type === 'gravel' && Math.random() < 0.1
@@ -1764,8 +1779,8 @@ function mine(dt) {
       for (const stack of leafDrops(type, ITEMS[held]?.kind === 'shears'))
         dropAt(stack.item, stack.count, q, y, r);
     if (type === 'grass' && Math.random() < 0.35) dropAt('seed', 1, q, y, r);
-    survival.exhaust(0.02);
   }
+  if (!creative) survival.exhaust(0.02);
   if (crops.has(k)) {
     harvestPlant(k, true);
   }
@@ -2689,6 +2704,9 @@ function removeBuilding(q, y, r, drop = true) {
     item = doorLower(type);
   const count =
     BLOCKS[type]?.shape === 'slab' && world.state(q, y, r).double ? 2 : 1;
+  graphics.blockBreak({ q, y, r, type });
+  if (doorUpper(type) && world.get(q, y + 1, r) === doorUpper(type))
+    graphics.blockBreak({ q, y: y + 1, r, type: doorUpper(type) });
   if (isCampfire(type) && !creative) {
     for (const slot of world.campfires.get(key(q, y, r))?.slots || [])
       if (slot) dropAt(slot.item, 1, q, y, r);
@@ -2705,7 +2723,7 @@ function removeBuilding(q, y, r, drop = true) {
       y,
       r,
     );
-  soundFX.play('break', 'wood');
+  soundFX.play('break', BLOCKS[type]?.base || type);
 }
 function toggleBuilding(q, y, r, open = null) {
   if (isDoorTop(world.get(q, y, r))) y--;
@@ -3932,6 +3950,9 @@ function updateSurvival(dt) {
   const owner = survival;
   const damage = owner.tick(dt, vitals, {
     submerged: survivalSubmerged,
+    respiration: equipment.armor.head
+      ? equipment.rank(equipment.armor.head, 'respiration')
+      : 0,
     campfire: campfireHeat(
       world,
       camera.position.x,
@@ -5349,6 +5370,7 @@ function frame(now) {
       soundFX.play('ambient', dimension);
     }
     attackCooldown = Math.max(0, attackCooldown - dt);
+    creativeMineDelay = Math.max(0, creativeMineDelay - dt);
     rocketCooldown = Math.max(0, rocketCooldown - dt);
     chorusCooldown = Math.max(0, chorusCooldown - dt);
     if (pendingChorusUse) {
@@ -5397,11 +5419,20 @@ function frame(now) {
       $('#mine-progress i').style.width = (bowCharge / 1.1) * 100 + '%';
     } else if (leftDown) {
       if (!attackBoat() && !attack()) mine(dt);
+      else mining = 0;
     } else {
       mining = 0;
       miningKey = '';
       $('#mine-progress i').style.width = '0';
     }
+    if (
+      graphics.miningFeedback(
+        mining > 0 ? target : null,
+        mining / (BLOCKS[target?.type]?.hardness || Infinity),
+        dt,
+      )
+    )
+      soundFX.play('dig', target.type);
     $('#target').classList.toggle('hidden', !target?.type);
     $('#target').textContent = target?.type
       ? (target.fluid

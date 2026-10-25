@@ -169,7 +169,11 @@ export class Survival {
       this.air = 15;
       this.drownTimer = 0;
     } else if (environment.submerged) {
-      this.air = Math.max(0, this.air - dt);
+      this.air = Math.max(
+        0,
+        this.air -
+          dt / (1 + Math.min(3, Math.max(0, environment.respiration || 0))),
+      );
       if (this.air === 0) {
         this.drownTimer += dt;
         if (this.drownTimer >= 2) {

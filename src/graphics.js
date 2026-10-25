@@ -10,6 +10,7 @@ import { isDoor, isTrapdoor } from './building-data.js';
 import { BrewingModels } from './brewing-graphics.js';
 import { CampfireModels } from './campfire-graphics.js';
 import { FallingModels } from './gravity-graphics.js';
+import { MiningEffects } from './mining-graphics.js';
 import { netherSheet } from './nether-portal-graphics.js';
 import { isCampfire } from './campfire-data.js';
 import { VoxelLight } from './voxel-light.js';
@@ -107,6 +108,12 @@ export class Graphics {
     this.brewingModels = new BrewingModels(this.textures);
     this.campfireModels = new CampfireModels(this.scene);
     this.fallingModels = new FallingModels(this.scene, this.textures);
+    this.miningEffects = new MiningEffects(this.scene, this.textures, [
+      this.chestModels,
+      this.enchantingModels,
+      this.smithingModels,
+      this.brewingModels,
+    ]);
     this.netherPortalTexture = new THREE.Texture(
       effectImage('mcl_portals_portal'),
     );
@@ -378,6 +385,7 @@ export class Graphics {
     this.leafParticles.clear();
     this.campfireModels.reset();
     this.fallingModels.clear();
+    this.miningEffects.clear();
     this.stepOffset = 0;
     this.shapeOutline.visible = false;
     this.world = world;
@@ -550,6 +558,12 @@ export class Graphics {
   }
   swing() {
     this.swingTime = 0.28;
+  }
+  miningFeedback(target, progress, dt) {
+    return this.miningEffects.update(this.world, target, progress, dt);
+  }
+  blockBreak(target) {
+    this.miningEffects.shatter(this.world, target);
   }
   setHeld(id) {
     if (id === 'shield' && this.shieldEquipped) id = null;
@@ -1201,7 +1215,14 @@ export class Graphics {
           r: block.r + directions[0].r,
         };
       }
-      return { ...block, place, distance: hit.distance };
+      return {
+        ...block,
+        place,
+        distance: hit.distance,
+        point: hit.point.clone(),
+        normal,
+        renderObject: hit.object,
+      };
     }
     let shaped = hit.object.userData.shaped;
     if (hit.object.userData.cutBlocks) {
@@ -1284,6 +1305,7 @@ export class Graphics {
         point: hit.point.clone(),
         normal: normal.clone(),
         hitHeight: hit.point.y - Math.floor(hit.point.y),
+        renderObject: hit.object,
         place,
       };
     }
@@ -1363,6 +1385,7 @@ export class Graphics {
       point: hit.point.clone(),
       normal: hit.face.normal.clone(),
       hitHeight: hit.point.y - Math.floor(hit.point.y),
+      renderObject: hit.object,
     };
   }
   burst(q, y, r, color) {
@@ -1646,17 +1669,28 @@ export class Graphics {
       }
     }
     this.hand.visible = playing;
+    if (!playing) this.miningEffects.hide();
+    this.miningEffects.particles.frame(
+      playing ? dt : 0,
+      this.world,
+      this.camera,
+    );
+    const digging = mining && this.miningEffects.overlay.visible;
+    this.digPhase = digging ? ((this.digPhase || 0) + dt * 4) % 1 : 0;
+    const digSwing = Math.sin(this.digPhase * Math.PI);
     applyEnchantGlow(this.held, this.heldEnchanted, time);
     applyEnchantGlow(this.shield, this.shieldEnchanted, time);
     this.swingTime = Math.max(0, (this.swingTime || 0) - dt);
-    this.hand.rotation.x = mining
-      ? Math.sin(time * 22) * 0.55
+    this.hand.rotation.x = digging
+      ? digSwing * 0.85 - 0.15
       : this.swingTime > 0
         ? Math.sin((this.swingTime / 0.28) * Math.PI) * 0.7
         : 0;
     this.hand.rotation.z =
-      (moving ? Math.sin(time * 5.5) * 0.035 : 0) - (this.bowDraw || 0) * 0.13;
-    this.hand.position.z = -0.65 + (this.bowDraw || 0) * 0.09;
+      (moving ? Math.sin(time * 5.5) * 0.035 : 0) -
+      (this.bowDraw || 0) * 0.13 -
+      digSwing * 0.12;
+    this.hand.position.z = -0.65 + (this.bowDraw || 0) * 0.09 - digSwing * 0.06;
     this.outline.material.opacity = mining
       ? 0.65 + Math.sin(time * 22) * 0.3
       : 0.8;

@@ -54,6 +54,16 @@ export const ENCHANTS = {
   },
   power: { name: '力量', max: 5, accepts: (item) => item.kind === 'bow' },
   unbreaking: { name: '耐久', max: 3, accepts: (item) => !!item.durability },
+  aquaAffinity: {
+    name: '水下速掘',
+    max: 1,
+    accepts: (item) => item.armorSlot === 'head',
+  },
+  respiration: {
+    name: '水下呼吸',
+    max: 3,
+    accepts: (item) => item.armorSlot === 'head',
+  },
 };
 export const enchantmentsOf = (entry) =>
   typeof entry === 'object' && entry ? entry.enchant || {} : {};
