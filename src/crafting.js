@@ -271,13 +271,17 @@ export function quickCraft(pack, grid, preferred, station = true, limit = 64) {
   let count = 0,
     recipeId = null;
   const remainders = [];
+  const outputOrder = [
+    ...Array.from({ length: 9 }, (_, i) => 8 - i),
+    ...Array.from({ length: 27 }, (_, i) => 35 - i),
+  ];
   for (let batch = 0; batch < limit; batch++) {
     const matches = craftingMatches(grid, station);
     const match = matches.find((m) => m.index === preferred) || matches[0];
     if (!match || (recipeId && match.recipe.id !== recipeId)) break;
     const output = craftingResult(match),
       draft = new PlayerInventory(pack.serialize());
-    if (draft.insertStack(output) !== output.count) break;
+    if (draft.insertStack(output, outputOrder) !== output.count) break;
     const next = structuredClone(grid),
       returns = consumeCrafting(next, match);
     for (const s of returns) {

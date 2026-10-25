@@ -92,8 +92,9 @@ export class ContainerSession {
       this.origin = ref;
       return true;
     }
-    // Output slots reject deposits, but can still top up an existing cursor.
-    if (old && sameStack(old, this.cursor) && slot.output) {
+    // A slot that rejects deposits can still top up a matching cursor. This
+    // also covers empty buckets left in a furnace's fuel slot after burning.
+    if (old && sameStack(old, this.cursor) && !slotLimit(slot, this.cursor)) {
       const room = stackSize(old.item) - this.cursor.count;
       const taken = takeSlot(slot, room);
       if (taken) {

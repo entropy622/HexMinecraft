@@ -104,7 +104,11 @@ export class InventoryControls {
     }
     const button = e.target.closest('[data-inv-slot]');
     if (!button) {
-      if (this.session.cursor && e.target.matches('.overlay')) {
+      if (
+        this.session.cursor &&
+        e.button !== 1 &&
+        e.target.matches('.overlay')
+      ) {
         e.preventDefault();
         this.dropCursor(e.button === 2 ? 1 : Infinity);
       }
@@ -170,6 +174,7 @@ export class InventoryControls {
       this.lastClick?.button === 0 &&
       this.lastClick?.ref === ref &&
       now - this.lastClick.time < 250 &&
+      !old &&
       this.session.cursor?.item === this.lastClick.item
     ) {
       this.session.gather(this.options.visible());
@@ -275,8 +280,9 @@ export class InventoryControls {
     const action =
       (['Space', 'Enter'].includes(e.code) &&
         e.target.matches('[data-inv-slot]')) ||
-      (/^Digit[1-9]$/.test(e.code) && !this.session.cursor) ||
-      e.code === 'KeyQ';
+      ((/^Digit[1-9]$/.test(e.code) || e.code === 'KeyF') &&
+        !this.session.cursor) ||
+      (e.code === 'KeyQ' && !this.session.cursor);
     if (action) {
       this.gesture = null;
       this.lastClick = null;
@@ -292,10 +298,12 @@ export class InventoryControls {
     } else if (/^Digit[1-9]$/.test(e.code) && !this.session.cursor) {
       handled = true;
       this.options.swapHotbar(ref, Number(e.code.slice(5)) - 1);
+    } else if (e.code === 'KeyF' && !this.session.cursor) {
+      handled = true;
+      this.options.swapOffhand(ref);
     } else if (e.code === 'KeyQ') {
       handled = true;
-      if (this.session.cursor) this.dropCursor(e.ctrlKey ? Infinity : 1);
-      else {
+      if (!this.session.cursor) {
         const stack = takeSlot(
           this.session.resolve(ref),
           e.ctrlKey || this.session.resolve(ref)?.whole ? Infinity : 1,

@@ -2,6 +2,7 @@ export const DEFAULT_POST_SETTINGS = {
   occlusion: 0.6,
   antialias: true,
   bloom: 0.24,
+  clouds: true,
 };
 export function postSettings(raw) {
   const settings = { ...DEFAULT_POST_SETTINGS };
@@ -9,6 +10,7 @@ export function postSettings(raw) {
   if (Number.isFinite(raw.occlusion))
     settings.occlusion = Math.max(0, Math.min(1, raw.occlusion));
   if (typeof raw.antialias === 'boolean') settings.antialias = raw.antialias;
+  if (typeof raw.clouds === 'boolean') settings.clouds = raw.clouds;
   if (Number.isFinite(raw.bloom))
     settings.bloom = Math.max(0, Math.min(0.5, raw.bloom));
   return settings;

@@ -68,7 +68,7 @@ export function validStack(s) {
 export const acceptsGear = (slot, stack) =>
   !stack ||
   (slot === 'offhand'
-    ? !!ITEMS[stack.item]?.offhand
+    ? !!ITEMS[stack.item]
     : ITEMS[stack.item]?.armorSlot === slot);
 export function validPlayerInventory(data) {
   return !!(
@@ -163,16 +163,18 @@ export class PlayerInventory {
     }
     return moved;
   }
-  insertStack(stack) {
+  insertStack(stack, order = this.slots.map((_, i) => i)) {
     let moved = 0;
     const size = stackSize(stack.item);
-    for (const old of this.slots) {
+    for (const i of order) {
+      const old = this.slots[i];
       if (!sameStack(old, stack)) continue;
       const n = Math.min(stack.count - moved, size - old.count);
       old.count += n;
       moved += n;
     }
-    for (let i = 0; i < this.slots.length && moved < stack.count; i++) {
+    for (const i of order) {
+      if (moved === stack.count) break;
       if (this.slots[i]) continue;
       const n = Math.min(stack.count - moved, size);
       this.slots[i] = copyStack(stack, n);
@@ -199,8 +201,12 @@ export class PlayerInventory {
     return this.slots.filter((s) => s?.item === id);
   }
   active(id) {
+    // Stored offhand tools must not lend their enchantments to the main hand.
+    const worn = this.gear.find(
+      (s, i) => s?.item === id && (i < 4 || ITEMS[id]?.offhand),
+    );
     return (
-      this.gear.find((s) => s?.item === id) ||
+      worn ||
       (this.slots[this.selected]?.item === id
         ? this.slots[this.selected]
         : this.copies(id)[0])

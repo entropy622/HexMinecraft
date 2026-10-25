@@ -7,12 +7,14 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+import { cloudFieldGLSL } from './cloud-field.js';
 
 const vertexShader = /* glsl */ `
 varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
 `;
 const volumeShader = /* glsl */ `
+${cloudFieldGLSL}
 varying vec2 vUv;
 uniform sampler2D sceneDepth;
 uniform highp sampler2DShadow airShadow;
@@ -88,6 +90,8 @@ void main() {
   float phase = (1.0 - g * g) / pow(max(0.08, 1.0 + g * g - 2.0 * g * cosine), 1.5);
   vec3 scattering = vec3(0.0);
   float transmission = 1.0;
+  // One cloud-field sample per ray keeps the half-resolution fog pass bounded.
+  float cloudSun = hexCloudShadow(airCameraPosition + direction * distance * 0.5);
   for (int i = 0; i < AIR_STEPS; i++) {
     float t = (float(i) + jitter) * stepLength;
     vec3 position = airCameraPosition + direction * t;
@@ -100,7 +104,7 @@ void main() {
     float density = airDensity * exp(clamp(-(position.y - airBaseHeight) * airFalloff, -8.0, 1.4));
     density *= 0.65 + airNoise(position.xz * 0.09 + vec2(airTime * 0.018, -airTime * 0.012)) * 0.7;
     float attenuation = exp(-density * stepLength);
-    float sun = airSunVisibility(position, sky);
+    float sun = airSunVisibility(position, sky) * cloudSun;
     vec3 source = airHorizon * (0.025 + sky * airAmbient) + block * 0.85 +
       airSunColor * airSunPower * sun * (0.12 + phase * 0.18);
     scattering += transmission * (1.0 - attenuation) * source;
@@ -142,7 +146,14 @@ void main() {
 `;
 
 export class AtmospherePass extends Pass {
-  constructor(camera, sun, atmosphere, lightUniforms, sceneFrame) {
+  constructor(
+    camera,
+    sun,
+    atmosphere,
+    lightUniforms,
+    sceneFrame,
+    cloudUniforms = {},
+  ) {
     super();
     this.camera = camera;
     this.sun = sun;
@@ -164,6 +175,7 @@ export class AtmospherePass extends Pass {
       uniforms: {
         ...atmosphere.uniforms,
         ...lightUniforms,
+        ...cloudUniforms,
         ...shared,
         airShadow: { value: null },
         airShadowMatrix: { value: new Matrix4() },

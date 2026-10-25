@@ -17,6 +17,7 @@ export function createPostprocessing(
   atmosphere,
   lightUniforms,
   settings,
+  cloudUniforms,
 ) {
   const target = new WebGLRenderTarget(innerWidth, innerHeight, {
     type: HalfFloatType,
@@ -35,7 +36,14 @@ export function createPostprocessing(
   composer.addPass(frame);
   composer.addPass(contact);
   composer.addPass(
-    new AtmospherePass(camera, sun, atmosphere, lightUniforms, frame),
+    new AtmospherePass(
+      camera,
+      sun,
+      atmosphere,
+      lightUniforms,
+      frame,
+      cloudUniforms,
+    ),
   );
   composer.addPass(bloom);
   // Three.js SMAA operates in linear-sRGB, before the final display conversion.

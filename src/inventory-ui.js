@@ -59,7 +59,7 @@ export function stackContent(s, ghost = '') {
 export function inventorySlot(stack, ref, ghost = '') {
   return `<button class="mc-slot ${stack ? '' : 'empty'} ${enchantLabel(stack?.wear) ? 'enchanted' : ''}" data-inv-slot="${ref}" aria-label="${escape(stack ? stackTitle(stack).replaceAll('\n', ' · ') + ' ×' + stack.count : ghost || '空格')}" type="button">${stackContent(stack, ghost)}</button>`;
 }
-export const inventoryHelp = `<p class="inventory-help">左键：整组拿放 · 右键：拿半组 / 放 1 件 · Shift：快速转移<br>按住左键拖过格子均分，右键拖动逐格放 1 件 · 双击归拢同类<br>Shift 双击：批量转移同类物品 · 悬停时 1–9 与快捷栏交换<br>Q 丢 1 件 / Ctrl+Q 丢一组 · 拿着物品点击面板外丢出</p>`;
+export const inventoryHelp = `<p class="inventory-help">左键：整组拿放 · 右键：拿半组 / 放 1 件 · Shift：快速转移<br>按住左键拖过格子均分，右键拖动逐格放 1 件 · 双击空下来的格子归拢同类<br>Shift 双击：批量转移同类物品 · 空游标悬停时 1–9 换快捷栏 / F 换副手<br>空游标悬停时 Q 丢 1 件 / Ctrl+Q 丢一组 · 拿着物品点击面板外：左键丢一组 / 右键丢 1 件<br>副手可放任意物品，按物品上限堆叠；盾牌按 R 使用，其他物品换到主手后使用</p>`;
 export const touchControls = `<div class="inventory-touch-modes" role="group" aria-label="触屏物品操作"><button data-inventory-mode="normal" aria-pressed="true">拿放</button><button data-inventory-mode="single" aria-pressed="false">分半 / 放 1 件</button><button data-inventory-mode="quick" aria-pressed="false">快速转移</button></div>`;
 export function playerSlots(pack, gear = false) {
   return `${gear ? `<div class="equipment-row">${GEAR_SLOTS.map((id, i) => `<label>${ARMOR_SLOTS[id] || '副手'}${inventorySlot(pack.gear[i], 'gear:' + i, id === 'offhand' ? '⬡' : '◇')}</label>`).join('')}</div>` : ''}

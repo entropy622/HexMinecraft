@@ -20,6 +20,8 @@ import { isStorage } from './chests.js';
 import { portableBoxMesh } from './portable-box-graphics.js';
 import { createShield } from './shield-graphics.js';
 import { Atmosphere } from './atmosphere.js';
+import { HexClouds } from './clouds.js';
+import { SkyEnvironment, moonPhase } from './sky-environment.js';
 import { fluidHeight } from './fluids.js';
 import { EnchantingModels, applyEnchantGlow } from './enchanting-graphics.js';
 import { SmithingModels } from './smithing-graphics.js';
@@ -186,107 +188,14 @@ export class Graphics {
     this.shapeOutline.matrixAutoUpdate = false;
     this.shapeOutline.visible = false;
     this.scene.add(this.shapeOutline);
-    this.sky = new THREE.Mesh(
-      new THREE.SphereGeometry(180, 24, 12),
-      new THREE.ShaderMaterial({
-        side: THREE.BackSide,
-        depthWrite: false,
-        uniforms: {
-          zenith: { value: new THREE.Color('#4b91df') },
-          horizon: { value: new THREE.Color('#c0d9ed') },
-          sunDirection: { value: new THREE.Vector3(0, 1, 0) },
-          sunColor: { value: new THREE.Color('#ffe3ad') },
-          sunStrength: { value: 0 },
-        },
-        vertexShader:
-          'varying vec3 skyDirection; void main(){skyDirection=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-        fragmentShader: `
-          uniform vec3 zenith; uniform vec3 horizon;
-          uniform vec3 sunDirection; uniform vec3 sunColor; uniform float sunStrength;
-          varying vec3 skyDirection;
-          void main() {
-            float h = pow(max(normalize(skyDirection).y, 0.0), 0.65);
-            vec3 direction = normalize(skyDirection);
-            float alignment = max(0.0, dot(direction, sunDirection));
-            vec3 scattering = sunColor * (pow(alignment, 12.0) * 0.3 + pow(alignment, 180.0) * 1.4) * sunStrength;
-            gl_FragColor = vec4(mix(horizon, zenith, h) + scattering, 1.0);
-            #include <tonemapping_fragment>
-            #include <colorspace_fragment>
-          }
-        `,
-      }),
-    );
-    this.sky.renderOrder = -10;
-    this.scene.add(this.sky);
-    this.clouds = new THREE.Group();
-    const cloudMat = new THREE.MeshLambertMaterial({
-      color: '#ffffff',
-      fog: false,
-      transparent: true,
-      opacity: 0.88,
-    });
-    this.cloudMaterial = cloudMat;
-    cloudMat.userData.voxelLighting = 'sky';
-    for (let i = 0; i < 20; i++) {
-      const cloud = new THREE.Group();
-      for (let j = 0; j < 4; j++) {
-        const m = new THREE.Mesh(
-          new THREE.CylinderGeometry(5 + (j % 2) * 2, 5 + (j % 2) * 2, 1.2, 6),
-          cloudMat,
-        );
-        m.position.set(j * 3, Math.sin(j) * 0.4, (j % 2) * 2);
-        m.castShadow = true;
-        cloud.add(m);
-      }
-      cloud.position.set(
-        hash(i, 1) * 170 - 85,
-        42 + hash(i, 2) * 8,
-        hash(i, 3) * 150 - 75,
-      );
-      cloud.userData.anchorX = cloud.position.x;
-      cloud.userData.anchorZ = cloud.position.z;
-      this.clouds.add(cloud);
-    }
-    this.scene.add(this.clouds);
-    this.skyObjects = new THREE.Group();
-    this.sunDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(4.5, 6),
-      new THREE.MeshBasicMaterial({ color: '#fff0bd', fog: false }),
-    );
-    this.moonDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(3, 6),
-      new THREE.MeshBasicMaterial({ color: '#d0e5dd', fog: false }),
-    );
-    this.skyObjects.add(this.sunDisk, this.moonDisk);
-    const starPositions = [];
-    for (let i = 0; i < 350; i++) {
-      const angle = hash(i, 712) * Math.PI * 2;
-      const height = hash(i, 914) * 0.95 + 0.04;
-      const radius = Math.sqrt(1 - height * height) * 110;
-      starPositions.push(
-        Math.cos(angle) * radius,
-        height * 110,
-        Math.sin(angle) * radius,
-      );
-    }
-    const starGeometry = new THREE.BufferGeometry();
-    starGeometry.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(starPositions, 3),
-    );
-    this.stars = new THREE.Points(
-      starGeometry,
-      new THREE.PointsMaterial({
-        color: '#e9eed8',
-        size: 0.25,
-        transparent: true,
-        opacity: 0,
-        fog: false,
-        depthWrite: false,
-      }),
-    );
-    this.skyObjects.add(this.stars);
-    this.scene.add(this.skyObjects);
+    this.skyEnvironment = new SkyEnvironment(this.scene);
+    this.sky = this.skyEnvironment.dome;
+    this.skyObjects = this.skyEnvironment.objects;
+    this.sunDisk = this.skyEnvironment.sunDisk;
+    this.moonDisk = this.skyEnvironment.moonDisk;
+    this.stars = this.skyEnvironment.stars;
+    this.cloudSystem = new HexClouds(this.scene);
+    this.clouds = this.cloudSystem.mesh;
     this.decor = new THREE.Group();
     this.scene.add(this.decor);
     this.particles = [];
@@ -340,6 +249,7 @@ export class Graphics {
         this.atmosphere,
         this.dynamicLight.uniforms,
         this.postOptions,
+        this.cloudSystem.uniforms,
       );
     if (!this.usePost && this.composer) {
       disposePostprocessing(this.composer);
@@ -382,6 +292,7 @@ export class Graphics {
     return `${Math.floor(q / 8)},${Math.floor(r / 8)}`;
   }
   build(world, q = 0, r = 0) {
+    this.cloudSystem.clear();
     this.leafParticles.clear();
     this.campfireModels.reset();
     this.fallingModels.clear();
@@ -1487,7 +1398,7 @@ export class Graphics {
     const overworld = this.world?.dimension === 'overworld';
     const elevation = Math.sin(phase * Math.PI * 2);
     const dusk = overworld ? Math.max(0, 1 - Math.abs(elevation) * 3.5) : 0;
-    if (overworld) horizon.lerp(new THREE.Color('#e49a69'), dusk * 0.65);
+    if (overworld) horizon.lerp(new THREE.Color('#e49a69'), dusk * 0.22);
     if (overworld) {
       const grey = new THREE.Color('#263444').lerp(
         new THREE.Color('#7e919b'),
@@ -1542,7 +1453,9 @@ export class Graphics {
           : '#daeaff',
     );
     this.sun.intensity =
-      this.world?.dimension === 'overworld' ? 0.25 + day * 2.0 : 0.5;
+      this.world?.dimension === 'overworld'
+        ? 2.25 * THREE.MathUtils.smoothstep(elevation, 0, 0.16)
+        : 0.5;
     this.sun.position.set(
       this.camera.position.x + Math.cos(phase * Math.PI * 2) * 50,
       this.camera.position.y + Math.max(15, Math.sin(phase * Math.PI * 2) * 60),
@@ -1558,7 +1471,9 @@ export class Graphics {
       );
       if (elevation < 0) {
         this.sun.color.set('#a6bfff');
-        this.sun.intensity = 0.3;
+        this.sun.intensity =
+          (0.08 + moonPhase(time).illumination * 0.22) *
+          THREE.MathUtils.smoothstep(-elevation, 0, 0.18);
       }
     }
     this.sun.target.position.copy(this.camera.position);
@@ -1579,27 +1494,10 @@ export class Graphics {
       );
     this.leafParticles.frame(dt, time, this.leafUniforms.leafWind.value);
     this.hemi.intensity = this.hemi.intensity * (1 - rain * 0.2) + flash * 0.85;
-    this.cloudMaterial.color
-      .set('#ffffff')
-      .lerp(new THREE.Color('#596775'), rain * 0.8);
-    this.cloudMaterial.opacity = 0.88 + rain * 0.1;
-    this.clouds.children.forEach((cloud) =>
-      cloud.scale.set(1 + rain * 0.9, 1 + storm * 1.8, 1 + rain * 0.9),
-    );
     this.shadowTimer = (this.shadowTimer || 0) - dt;
     if (this.shadowTimer <= 0) {
       this.renderer.shadowMap.needsUpdate = true;
       this.shadowTimer = 0.25;
-    }
-    // Wrap only distant clouds. Nearby clouds and their shadows stay anchored
-    // in world space as the player walks, with a slow independent wind drift.
-    for (const cloud of this.clouds.children) {
-      const x = cloud.userData.anchorX + time * 0.04;
-      const z = cloud.userData.anchorZ + time * 0.012;
-      cloud.position.x =
-        x + Math.round((this.camera.position.x - x) / 200) * 200;
-      cloud.position.z =
-        z + Math.round((this.camera.position.z - z) / 200) * 200;
     }
     this.skyObjects.position.copy(this.camera.position);
     this.sunDisk.position.set(
@@ -1615,6 +1513,21 @@ export class Graphics {
     this.sky.material.uniforms.sunStrength.value = overworld
       ? Math.max(0, Math.min(1, elevation * 4 + 0.3)) * (1 - rain)
       : 0;
+    this.skyEnvironment.frame(time, rain);
+    this.cloudSystem.frame({
+      world: this.world,
+      camera: this.camera,
+      time,
+      rain,
+      storm,
+      sky,
+      horizon,
+      sun: this.sun,
+      day,
+      flash,
+      quality: this.quality,
+      enabled: this.postOptions.clouds,
+    });
     this.sunDisk.material.color.set('#fff0bd').multiplyScalar(2.5);
     this.sunDisk.material.transparent = true;
     this.sunDisk.material.opacity = 1 - rain * 0.97;
@@ -1725,6 +1638,7 @@ export class Graphics {
     this.campfireModels.frame(dt, this.world, this.camera);
     this.fallingModels.frame(this.world);
     this.dynamicLight.attach(this.scene);
+    this.cloudSystem.attach(this.scene);
     const cameraHex = worldToAxial(
       this.camera.position.x,
       this.camera.position.z,

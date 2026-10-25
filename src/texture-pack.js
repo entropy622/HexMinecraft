@@ -341,6 +341,7 @@ export async function loadTexturePack() {
     'mcl_campfires_particle_1',
     'mcl_portals_portal',
     'crack_anylength',
+    'mcl_moon_moon_phases',
   ]);
   await Promise.allSettled(
     [...names].map(

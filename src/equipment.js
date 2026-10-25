@@ -25,7 +25,8 @@ export class Equipment {
     );
   }
   get offhand() {
-    return this.pack.gear[4]?.item ?? null;
+    const id = this.pack.gear[4]?.item;
+    return ITEMS[id]?.offhand ? id : null;
   }
   entry(id, index = null) {
     return (

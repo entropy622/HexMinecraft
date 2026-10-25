@@ -19,6 +19,15 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.50 adds the unmodified `mcl_moon_moon_phases.png` from the same
+revision and CC BY-SA 3.0 media license. The 256 × 128 source contains eight
+64-pixel phase frames; Hexwild crops their central 32 × 32 pixels at runtime
+and maps them onto the hexagonal moon. These derived crops retain CC BY-SA 3.0.
+Sky scattering, stars, geometric hex clouds, seeded noise, approximate cloud
+shadows and all interaction code are original; no Photon or Minecraft code is
+included. The collection now contains 278 PNGs: 257 under CC BY-SA 3.0 and 21
+under CC BY-SA 4.0.
+
 Version 0.49 adds twelve unmodified images from the same revision and CC BY-SA
 3.0 media license: `default_cobble.png`, `mcl_cobbled_deepslate.png`,
 `default_coal_lump.png`, `default_diamond.png`, `mcl_raw_ores_raw_iron.png`,
