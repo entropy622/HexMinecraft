@@ -16,6 +16,14 @@ const EMISSION = {
   glow: [7, 15, 12],
 };
 const HEIGHT = 64;
+export const HELD_LIGHTS = {
+  torch: 'torch',
+  lantern: 'lantern',
+  glowstone: 'glowstone',
+  crystal: 'crystal',
+  lavaBucket: 'lava',
+  glowBucket: 'glow',
+};
 const FACE_NORMALS = DIRECTIONS.map(([q, r]) => {
   const p = axialToWorld(q, r);
   return [p.x / Math.sqrt(3), p.z / Math.sqrt(3)];
@@ -27,6 +35,20 @@ export class VoxelLight {
     this.revision = -1;
     this.dirty = true;
     this.timer = 0;
+    this.heldSource = null;
+    this.heldKey = '';
+    this.heldDirty = false;
+  }
+
+  setHeld(item, position) {
+    const type = HELD_LIGHTS[item];
+    const hex = worldToAxial(position.x, position.z);
+    const y = Math.floor(position.y);
+    const nextKey = type ? `${type}:${hex.q},${y},${hex.r}` : '';
+    if (nextKey === this.heldKey) return;
+    this.heldKey = nextKey;
+    this.heldSource = type ? { q: hex.q, y, r: hex.r, type } : null;
+    this.heldDirty = true;
   }
 
   update(dt = 0, force = false) {
@@ -34,12 +56,36 @@ export class VoxelLight {
     if (
       !force &&
       (this.timer > 0 ||
-        (!this.dirty && this.revision === this.world.lightRevision))
+        (!this.dirty &&
+          !this.heldDirty &&
+          this.revision === this.world.lightRevision))
     )
       return false;
-    this.rebuild();
+    if (force || this.dirty || this.revision !== this.world.lightRevision) {
+      this.rebuild();
+      this.baseRGB = this.rgb;
+    }
+    this.rgb = this.baseRGB;
+    if (this.heldSource) {
+      const { q, y, r, type } = this.heldSource;
+      const i = this.index(q, y, r);
+      // Reuse the static sky/occlusion field when only the player moves.
+      // Emit from the occupied cell, not the hand tip that can clip a wall.
+      if (i >= 0 && this.cost[i] < 16) {
+        this.rgb = this.baseRGB.map((channel) => channel.slice());
+        for (let channel = 0; channel < 3; channel++) {
+          const level = EMISSION[type][channel];
+          if (level <= this.rgb[channel][i]) continue;
+          const buckets = Array.from({ length: 16 }, () => []);
+          this.rgb[channel][i] = level;
+          buckets[level].push(i);
+          this.spread(this.rgb[channel], buckets);
+        }
+      }
+    }
     this.timer = 0.25;
     this.dirty = false;
+    this.heldDirty = false;
     this.revision = this.world.lightRevision;
     return true;
   }
@@ -127,8 +173,10 @@ export class VoxelLight {
       const buckets = Array.from({ length: 16 }, () => []),
         field = this.rgb[channel];
       for (const [i, emission] of emitters) {
-        field[i] = emission[channel];
-        buckets[emission[channel]].push(i);
+        if (emission[channel] > field[i]) {
+          field[i] = emission[channel];
+          buckets[emission[channel]].push(i);
+        }
       }
       this.spread(field, buckets);
     }

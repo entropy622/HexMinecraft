@@ -1,5 +1,6 @@
 import { applySkylight } from './skylight.js';
 import { VoxelLight } from './voxel-light.js';
+import { DynamicLight } from './dynamic-light.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
 import { buildingMesh } from './building-graphics.js';
@@ -39,6 +40,7 @@ export class Graphics {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.scene = new THREE.Scene();
+    this.dynamicLight = new DynamicLight();
     this.scene.background = new THREE.Color('#b5d9cf');
     this.scene.fog = new THREE.Fog('#b5d9cf', 22, 44);
     this.camera = new THREE.PerspectiveCamera(
@@ -148,6 +150,7 @@ export class Graphics {
       opacity: 0.88,
     });
     this.cloudMaterial = cloudMat;
+    cloudMat.userData.voxelLighting = 'sky';
     for (let i = 0; i < 20; i++) {
       const cloud = new THREE.Group();
       for (let j = 0; j < 4; j++) {
@@ -210,11 +213,6 @@ export class Graphics {
     this.particles = [];
     this.cropMeshes = new Map();
     this.lights = new Map();
-    this.pointLights = Array.from({ length: 8 }, () => {
-      const light = new THREE.PointLight('#ffd58a', 0, 10, 2);
-      this.scene.add(light);
-      return light;
-    });
     this.torchMaterial = new THREE.MeshLambertMaterial({
       map: this.textures.atlas,
       vertexColors: true,
@@ -279,6 +277,7 @@ export class Graphics {
     this.world = world;
     this.voxelLight = new VoxelLight(world);
     this.voxelLight.update(0, true);
+    this.dynamicLight.upload(this.voxelLight);
     this.fluidRenderer.voxelLight = this.voxelLight;
     this.relightQueue = new Set();
     this.caveSky = null;
@@ -1019,9 +1018,22 @@ export class Graphics {
       this.cropMeshes.delete(k);
     }
   }
-  frame(dt, time, playing, moving, mining, weather = null, columns = null) {
-    if (this.voxelLight.update(dt))
+  frame(
+    dt,
+    time,
+    playing,
+    moving,
+    mining,
+    weather = null,
+    columns = null,
+    renderDt = dt,
+    heldLight = playing ? this.heldKey : null,
+  ) {
+    this.voxelLight.setHeld(heldLight, this.camera.position);
+    if (this.voxelLight.update(renderDt)) {
+      this.dynamicLight.upload(this.voxelLight);
       for (const k of this.chunks.keys()) this.relightQueue.add(k);
+    }
     let relit = 0;
     for (const k of this.relightQueue) {
       this.relightQueue.delete(k);
@@ -1088,7 +1100,7 @@ export class Graphics {
       this.caveSky ?? localSky,
       localSky,
       3,
-      dt,
+      renderDt,
     );
     this.scene.fog.color.multiplyScalar(0.035 + this.caveSky * 0.965);
     this.sky.position.copy(this.camera.position);
@@ -1206,22 +1218,6 @@ export class Graphics {
         }
       }
     }
-    const sources = [...this.lights.values()]
-      .filter((l) => l.position.distanceToSquared(this.camera.position) < 225)
-      .sort(
-        (a, b) =>
-          a.position.distanceToSquared(this.camera.position) -
-          b.position.distanceToSquared(this.camera.position),
-      )
-      .slice(0, 8);
-    this.pointLights.forEach((light, i) => {
-      const source = sources[i];
-      light.intensity = source ? (source.type === 'spawner' ? 1.5 : 6) : 0;
-      if (source) {
-        light.position.copy(source.position);
-        light.color.set(source.color);
-      }
-    });
     this.hand.visible = playing;
     this.swingTime = Math.max(0, (this.swingTime || 0) - dt);
     this.hand.rotation.x = mining
@@ -1236,6 +1232,7 @@ export class Graphics {
       ? 0.65 + Math.sin(time * 22) * 0.3
       : 0.8;
     this.hand.position.y = -0.32 + (moving ? Math.sin(time * 11) * 0.018 : 0);
+    this.dynamicLight.attach(this.scene);
     if (this.usePost) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
   }
