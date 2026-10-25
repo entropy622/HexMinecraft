@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { axialToWorld, worldToAxial, hash } from './core.js';
 import { MOBS, ANIMALS, HOSTILES } from './mob-data.js';
-import { createMob, disposeMob } from './mob-graphics.js';
+import { createMob, disposeMob, animateMob } from './mob-graphics.js';
 import { flyingClear, updateNetherFlier } from './nether-mobs.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
@@ -512,6 +512,8 @@ export class Fauna {
           speed = 1.3;
         }
       }
+      const previousX = p.x,
+        previousZ = p.z;
       const x = p.x + Math.sin(m.angle) * speed * dt,
         z = p.z + Math.cos(m.angle) * speed * dt;
       const y = this.floor(x, z, p.y, m.kind, def.hostile ? 1 : 0.7);
@@ -520,10 +522,17 @@ export class Fauna {
         m.angle += 1.4;
         m.think = 0.5;
       }
-      m.mesh.rotation.y = m.angle + Math.PI;
-      for (let j = 0; j < m.mesh.userData.legs.length; j++)
-        m.mesh.userData.legs[j].rotation.x =
-          Math.sin(time * 7 + j * Math.PI) * Math.min(0.3, speed * 0.25);
+      const turn = m.angle + Math.PI - m.mesh.rotation.y;
+      m.mesh.rotation.y +=
+        Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * 8);
+      animateMob(
+        m,
+        dt,
+        time,
+        camera,
+        aggressive && dist < 20,
+        Math.hypot(p.x - previousX, p.z - previousZ),
+      );
       if (aggressive && dist < 18) {
         const eye = p.clone().add(new THREE.Vector3(0, def.height * 0.8, 0));
         m.sightTimer = (m.sightTimer || 0) - dt;

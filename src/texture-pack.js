@@ -154,6 +154,21 @@ export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
 const mobTextures = [
+  'mobs_mc_cow',
+  'mobs_mc_pig',
+  'mobs_mc_sheep',
+  'mobs_mc_sheep_fur',
+  'mobs_mc_chicken',
+  'mobs_mc_zombie',
+  'mobs_mc_skeleton',
+  'mobs_mc_spider',
+  'mobs_mc_spider_eyes',
+  'vl_stalker_default',
+  'mobs_mc_villager',
+  'mobs_mc_villager_farmer',
+  'mobs_mc_villager_fisherman',
+  'mobs_mc_villager_smith',
+  'mobs_mc_villager_librarian',
   'mobs_mc_ghast',
   'mobs_mc_ghast_firing',
   'mcl_fire_fire_charge',

@@ -1,169 +1,384 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MOBS } from './mob-data.js';
 import { createNetherMob } from './nether-mob-graphics.js';
+import { MobRig, skinBox, skinTile, animateRig } from './mob-skins.js';
 
+const full = skinTile();
+const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
 export function createMob(kind, textures) {
   if (MOBS[kind].flying) return createNetherMob(kind, textures);
-  const def = MOBS[kind],
-    group = new THREE.Group(),
-    legs = [];
-  const skin = new THREE.MeshLambertMaterial({
-    color: def.color,
-    map: textures.single(
-      kind === 'sheep' || kind === 'chicken' ? 'snow:top' : 'stone:top',
-    ),
-  });
-  const dark = new THREE.MeshLambertMaterial({ color: '#343a32' });
-  const light = new THREE.MeshLambertMaterial({ color: '#e8ddba' });
-  const cloth = new THREE.MeshLambertMaterial({
-    color: kind === 'zombie' ? '#4e9392' : '#576e69',
-  });
-  const hex = (radius, height, material, x, y, z, bottom = radius) => {
-    const mesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, bottom, height, 6),
-      material,
-    );
-    mesh.position.set(x, y, z);
-    group.add(mesh);
-    return mesh;
-  };
-  const cube = (w, h, d, material, x, y, z) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-    mesh.position.set(x, y, z);
-    group.add(mesh);
-    return mesh;
-  };
-  const eyes = (y, z, space = 0.12) => {
-    for (const x of [-space, space]) cube(0.08, 0.09, 0.025, dark, x, y, z);
+  const rig = new MobRig(),
+    legs = [],
+    arms = [],
+    wings = [];
+  const file =
+    kind === 'creeper'
+      ? 'vl_stalker_default'
+      : kind === 'crawler'
+        ? null
+        : 'mobs_mc_' + kind;
+  const skin = rig.material(
+    file,
+    kind === 'creeper' ? '#b7e780' : kind === 'crawler' ? '#334852' : '#ffffff',
+  );
+  const plain = rig.material(null, '#39352e'),
+    cream = rig.material(null, '#d8c397');
+  let head,
+    wool = null,
+    headY = 1;
+  const limb = (
+    x,
+    y,
+    z,
+    w,
+    length,
+    d,
+    uv,
+    parent = rig.body,
+    material = skin,
+  ) => {
+    const pivot = rig.pivot(x, y, z, parent);
+    rig.part(w, length, d, uv, material, 0, -length / 2, 0, pivot);
+    return pivot;
   };
   if (['zombie', 'skeleton', 'crawler'].includes(kind)) {
-    hex(
-      kind === 'skeleton' ? 0.17 : 0.29,
-      0.7,
-      kind === 'zombie' ? cloth : skin,
+    const bone = kind === 'skeleton',
+      alien = kind === 'crawler',
+      scale = alien ? 0.78 : 1;
+    const uv = (x, y, w, h, d) => (alien ? full : skinBox(x, y, w, h, d));
+    rig.part(
+      (bone ? 0.33 : 0.53) * scale,
+      0.72 * scale,
+      0.29 * scale,
+      uv(16, 16, 8, 12, 4),
+      skin,
       0,
-      1.05,
+      1.1 * scale,
       0,
     );
-    hex(0.28, 0.43, skin, 0, 1.65, 0);
-    eyes(1.7, -0.245);
-    cube(0.17, 0.06, 0.025, dark, 0, 1.52, -0.245);
+    headY = 1.67 * scale;
+    head = rig.pivot(0, headY, 0);
+    rig.part(
+      0.56 * scale,
+      0.48 * scale,
+      0.48 * scale,
+      uv(0, 0, 8, 8, 8),
+      skin,
+      0,
+      0,
+      0,
+      head,
+    );
     for (const x of [-0.14, 0.14])
-      legs.push(hex(0.095, 0.65, kind === 'zombie' ? cloth : skin, x, 0.35, 0));
-    for (const x of [-0.36, 0.36]) {
-      const arm = hex(0.075, 0.65, skin, x, 1.12, -0.18);
-      arm.rotation.x = -1.1;
-    }
-    if (kind === 'skeleton') {
-      for (let i = 0; i < 4; i++)
-        cube(0.39, 0.045, 0.18, light, 0, 0.85 + i * 0.14, -0.05);
-      const bow = new THREE.Mesh(
-        new THREE.TorusGeometry(0.28, 0.025, 4, 8, Math.PI),
-        new THREE.MeshLambertMaterial({ color: '#92704b' }),
+      legs.push(
+        limb(
+          x * scale,
+          0.76 * scale,
+          0,
+          (bone ? 0.075 : 0.19) * scale,
+          0.74 * scale,
+          0.22 * scale,
+          uv(0, 16, bone ? 2 : 4, 12, bone ? 2 : 4),
+        ),
       );
-      bow.position.set(-0.38, 1.05, -0.5);
-      bow.rotation.z = -Math.PI / 2;
-      group.add(bow);
+    for (const x of bone ? [-0.22, 0.22] : [-0.36, 0.36])
+      arms.push(
+        limb(
+          x * scale,
+          1.43 * scale,
+          0,
+          (bone ? 0.07 : 0.17) * scale,
+          0.67 * scale,
+          0.2 * scale,
+          uv(40, 16, bone ? 2 : 4, 12, bone ? 2 : 4),
+        ),
+      );
+    if (alien) {
+      const glow = rig.material(null, '#b4e9e3', true);
+      glow.color.multiplyScalar(1.6);
+      for (const x of [-0.11, 0.11])
+        rig.solid(
+          0.11,
+          0.035,
+          0.025,
+          glow,
+          x * scale,
+          0.06 * scale,
+          -0.25 * scale,
+          head,
+        );
+    }
+    if (bone) {
+      const bow = rig.pivot(0, -0.6, -0.08, arms[0]);
+      const wood = rig.material(null, '#987047');
+      const arc = new THREE.Mesh(
+        new THREE.TorusGeometry(0.25, 0.025, 4, 8, Math.PI),
+        wood,
+      );
+      arc.rotation.z = -Math.PI / 2;
+      bow.add(arc);
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, -0.25, 0),
+          new THREE.Vector3(0, 0.25, 0),
+        ]),
+        new THREE.LineBasicMaterial({ color: '#d8d0ae' }),
+      );
+      bow.add(line);
     }
   } else if (kind === 'spider') {
-    hex(0.45, 0.35, skin, 0, 0.42, 0.18);
-    hex(0.28, 0.32, skin, 0, 0.42, -0.35);
-    const red = new THREE.MeshBasicMaterial({ color: '#f15343' });
-    for (const x of [-0.12, 0.12]) cube(0.08, 0.06, 0.03, red, x, 0.46, -0.6);
+    rig.part(0.82, 0.4, 0.93, skinBox(0, 12, 16, 8, 12), skin, 0, 0.42, 0.3);
+    rig.part(0.51, 0.3, 0.45, skinBox(0, 0, 10, 8, 12), skin, 0, 0.42, -0.17);
+    headY = 0.45;
+    head = rig.pivot(0, headY, -0.52);
+    const headUV = skinBox(32, 4, 8, 8, 8);
+    rig.part(0.52, 0.34, 0.45, headUV, skin, 0, 0, 0, head);
+    const eyes = rig.material('mobs_mc_spider_eyes', '#ffffff', true);
+    eyes.color.multiplyScalar(1.8);
+    rig.part(0.527, 0.347, 0.457, headUV, eyes, 0, 0, 0, head);
     for (const side of [-1, 1])
       for (let i = 0; i < 4; i++) {
-        const leg = hex(0.035, 0.8, dark, side * 0.45, 0.24, (i - 1.5) * 0.22);
-        leg.rotation.z = side * 0.9;
+        const leg = limb(
+          side * 0.28,
+          0.4,
+          (i - 1.5) * 0.22,
+          0.065,
+          0.4,
+          0.07,
+          skinBox(18, 0, 2, 16, 2),
+        );
+        leg.rotation.z = side * 1.3;
+        leg.userData.restZ = leg.rotation.z;
+        const knee = limb(
+          0,
+          -0.4,
+          0,
+          0.055,
+          0.32,
+          0.06,
+          skinBox(18, 0, 2, 16, 2),
+          leg,
+        );
+        knee.rotation.z = -side * 0.65;
         legs.push(leg);
       }
   } else if (kind === 'creeper') {
-    hex(0.25, 0.8, skin, 0, 0.82, 0);
-    hex(0.32, 0.48, skin, 0, 1.45, 0);
-    eyes(1.52, -0.29);
-    cube(0.12, 0.2, 0.03, dark, 0, 1.33, -0.29);
-    for (const x of [-0.18, 0.18])
-      for (const z of [-0.18, 0.18])
-        legs.push(hex(0.12, 0.33, skin, x, 0.17, z));
+    rig.part(0.45, 0.8, 0.35, full, skin, 0, 0.82, 0);
+    headY = 1.42;
+    head = rig.pivot(0, headY, 0);
+    rig.part(0.62, 0.47, 0.48, full, skin, 0, 0, 0, head);
+    for (const x of [-0.13, 0.13])
+      rig.solid(0.11, 0.11, 0.025, plain, x, 0.085, -0.25, head);
+    rig.solid(0.09, 0.13, 0.025, plain, 0, -0.025, -0.25, head);
+    rig.solid(0.25, 0.07, 0.025, plain, 0, -0.09, -0.25, head);
+    for (const x of [-0.09, 0.09])
+      rig.solid(0.07, 0.11, 0.025, plain, x, -0.145, -0.25, head);
+    for (const z of [-0.17, 0.17])
+      for (const x of [-0.18, 0.18])
+        legs.push(limb(x, 0.35, z, 0.21, 0.33, 0.25, full));
   } else if (kind === 'chicken') {
-    hex(0.27, 0.35, skin, 0, 0.43, 0);
-    hex(0.17, 0.3, skin, 0, 0.72, -0.18);
-    const beak = new THREE.MeshLambertMaterial({ color: '#e8af3c' });
-    cube(0.15, 0.09, 0.16, beak, 0, 0.69, -0.37);
-    cube(
-      0.07,
-      0.12,
-      0.06,
-      new THREE.MeshLambertMaterial({ color: '#b94338' }),
-      0,
-      0.57,
-      -0.33,
-    );
-    eyes(0.77, -0.33, 0.09);
-    for (const x of [-0.12, 0.12])
-      legs.push(hex(0.035, 0.27, beak, x, 0.14, 0));
-    for (const x of [-0.27, 0.27]) cube(0.06, 0.25, 0.35, light, x, 0.43, 0);
-  } else {
-    const body = hex(
-      kind === 'cow' ? 0.42 : 0.37,
-      0.85,
+    rig.part(0.48, 0.43, 0.58, skinBox(0, 9, 6, 8, 6), skin, 0, 0.46, 0.04);
+    headY = 0.72;
+    head = rig.pivot(0, headY, -0.24);
+    rig.part(0.26, 0.34, 0.25, skinBox(0, 0, 4, 6, 3), skin, 0, 0, 0, head);
+    rig.part(
+      0.21,
+      0.1,
+      0.16,
+      skinBox(14, 0, 4, 2, 2),
       skin,
       0,
-      kind === 'cow' ? 0.85 : 0.65,
-      0.05,
+      -0.035,
+      -0.18,
+      head,
     );
-    body.rotation.x = Math.PI / 2;
-    const headY = kind === 'cow' ? 1.15 : kind === 'pig' ? 0.7 : 0.95;
-    hex(0.24, 0.4, skin, 0, headY, -0.5);
-    eyes(headY + 0.07, -0.72);
-    hex(0.15, 0.15, kind === 'pig' ? skin : light, 0, headY - 0.1, -0.68);
-    for (const x of [-0.25, 0.25])
-      for (const z of [-0.26, 0.32])
+    rig.part(
+      0.1,
+      0.12,
+      0.08,
+      skinBox(14, 4, 2, 2, 2),
+      skin,
+      0,
+      -0.15,
+      -0.15,
+      head,
+    );
+    for (const x of [-0.12, 0.12])
+      legs.push(limb(x, 0.27, 0, 0.055, 0.25, 0.07, skinBox(26, 0, 3, 5, 3)));
+    for (const side of [-1, 1]) {
+      const wing = rig.pivot(side * 0.25, 0.59, 0.04);
+      rig.part(
+        0.07,
+        0.28,
+        0.42,
+        skinBox(24, 13, 1, 4, 6),
+        skin,
+        side * 0.02,
+        -0.14,
+        0,
+        wing,
+      );
+      wing.userData.side = side;
+      wings.push(wing);
+    }
+  } else {
+    const cow = kind === 'cow',
+      sheep = kind === 'sheep';
+    const bodyUV = cow
+      ? skinBox(18, 4, 12, 18, 10)
+      : sheep
+        ? skinBox(28, 8, 8, 16, 6)
+        : skinBox(28, 8, 10, 16, 8);
+    rig.part(
+      cow ? 0.86 : 0.68,
+      cow ? 0.74 : 0.6,
+      cow ? 1.18 : 1.0,
+      bodyUV,
+      skin,
+      0,
+      cow ? 0.85 : 0.68,
+      0.06,
+    );
+    headY = cow ? 1.12 : sheep ? 0.94 : 0.75;
+    head = rig.pivot(0, headY, cow ? -0.62 : -0.49);
+    const headUV = cow
+      ? skinBox(0, 0, 8, 8, 6)
+      : sheep
+        ? skinBox(0, 0, 6, 6, 8)
+        : skinBox(0, 0, 8, 8, 8);
+    rig.part(
+      cow ? 0.46 : 0.38,
+      cow ? 0.47 : 0.38,
+      0.42,
+      headUV,
+      skin,
+      0,
+      0,
+      0,
+      head,
+    );
+    if (cow) {
+      for (const side of [-1, 1]) {
+        rig.part(
+          0.065,
+          0.19,
+          0.075,
+          skinTile([22, 0, 2, 4]),
+          cream,
+          side * 0.18,
+          0.29,
+          0.01,
+          head,
+        );
+        rig.part(
+          0.15,
+          0.05,
+          0.14,
+          skinTile([0, 6, 6, 8]),
+          skin,
+          side * 0.27,
+          0.1,
+          -0.02,
+          head,
+        );
+      }
+    }
+    if (kind === 'pig')
+      rig.part(
+        0.22,
+        0.15,
+        0.13,
+        skinBox(16, 16, 4, 3, 1),
+        skin,
+        0,
+        -0.06,
+        -0.25,
+        head,
+      );
+    for (const z of [-0.29, 0.32])
+      for (const x of [-0.22, 0.22])
         legs.push(
-          hex(
-            0.07,
-            kind === 'cow' ? 0.52 : 0.35,
-            dark,
+          limb(
             x,
-            kind === 'cow' ? 0.26 : 0.18,
+            cow ? 0.53 : 0.43,
             z,
+            0.13,
+            cow ? 0.51 : 0.41,
+            0.15,
+            skinBox(0, 16, 4, kind === 'pig' ? 6 : 12, 4),
           ),
         );
-    if (kind === 'cow') {
-      for (const x of [-0.2, 0.2]) hex(0.045, 0.2, light, x, 1.43, -0.5);
-      cube(0.13, 0.18, 0.42, light, 0.34, 0.9, 0.1);
-      cube(0.13, 0.2, 0.28, light, -0.34, 0.8, -0.12);
-    }
-    if (kind === 'sheep') {
-      const wool = hex(0.44, 0.9, light, 0, 0.7, 0.05);
-      wool.rotation.x = Math.PI / 2;
-      group.userData.wool = wool;
+    if (sheep) {
+      wool = rig.pivot(0, 0, 0);
+      const coat = rig.material('mobs_mc_sheep_fur');
+      rig.part(0.93, 0.78, 1.13, bodyUV, coat, 0, 0.72, 0.06, wool);
     }
   }
-  // Batch rigid pieces by material, retaining separate limbs and the removable wool coat.
-  const animated = new Set([...legs, group.userData.wool]);
-  const batches = new Map();
-  for (const child of [...group.children]) {
-    if (animated.has(child)) continue;
-    child.updateMatrix();
-    const parts = batches.get(child.material) || [];
-    parts.push(child.geometry.clone().applyMatrix4(child.matrix));
-    batches.set(child.material, parts);
-    child.geometry.dispose();
-    group.remove(child);
+  if (legs.length === 4)
+    legs.forEach((leg, i) => {
+      leg.userData.phase = i === 0 || i === 3 ? 0 : Math.PI;
+    });
+  return rig.finish({ kind, head, headY, legs, arms, wings, wool });
+}
+export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
+  const data = mob.mesh.userData,
+    p = mob.mesh.position;
+  const dx = camera.position.x - p.x,
+    dz = camera.position.z - p.z,
+    distance = Math.hypot(dx, dz);
+  const look =
+    distance < 7 || aggressive
+      ? {
+          yaw: THREE.MathUtils.clamp(
+            wrap(Math.atan2(dx, dz) + Math.PI - mob.mesh.rotation.y),
+            -0.65,
+            0.65,
+          ),
+          pitch: THREE.MathUtils.clamp(
+            Math.atan2(
+              camera.position.y - p.y - data.headY * (mob.baby ? 0.55 : 1),
+              distance,
+            ),
+            -0.35,
+            0.4,
+          ),
+        }
+      : null;
+  if (mob.kind === 'chicken' && !look && distanceMoved < 0.001) {
+    data.head.rotation.x =
+      Math.min(0, Math.sin(time * 1.8 + mob.id) - 0.55) * 0.25;
   }
-  for (const [material, parts] of batches) {
-    group.add(new THREE.Mesh(mergeGeometries(parts), material));
-    for (const geometry of parts) geometry.dispose();
-  }
-  group.userData.legs = legs;
-  group.traverse((o) => {
-    if (o.isMesh) {
-      o.castShadow = true;
-      o.receiveShadow = true;
-    }
+  const { phase, weight } = animateRig(
+    mob.mesh,
+    dt,
+    time,
+    distanceMoved,
+    look,
+    mob.hit,
+    mob.baby > 0,
+  );
+  data.arms.forEach((arm, i) => {
+    const target =
+      mob.kind === 'skeleton'
+        ? 1.18
+        : aggressive
+          ? 1.35
+          : Math.sin(phase + i * Math.PI) * 0.2 * weight;
+    arm.rotation.x = THREE.MathUtils.damp(arm.rotation.x, target, 8, dt);
   });
-  return group;
+  data.wings.forEach((wing) => {
+    wing.rotation.z =
+      wing.userData.side *
+      (0.08 +
+        Math.sin(time * (mob.flee > 0 ? 18 : 5)) * (mob.flee > 0 ? 0.7 : 0.12));
+  });
+  if (mob.kind === 'spider')
+    data.legs.forEach((leg, i) => {
+      leg.rotation.x *= 0.35;
+      leg.rotation.z =
+        leg.userData.restZ +
+        Math.cos(phase + i * Math.PI * 0.5) * weight * 0.12;
+    });
 }
 export function disposeMob(mesh) {
   const materials = new Set();

@@ -94,6 +94,27 @@ seven tentacles, blaze with three six-rod rings, flight/attack logic, fireball
 geometry, particle trails and synthesized sounds are original implementations.
 No upstream mob model, GPL source code, or sound recording is bundled.
 
+Version 0.31 adds fifteen unmodified files from the same revision:
+
+- **CC BY-SA 4.0 mob media:** `mobs_mc_cow.png`, `mobs_mc_pig.png`,
+  `mobs_mc_sheep.png`, `mobs_mc_sheep_fur.png`, `mobs_mc_chicken.png`,
+  `mobs_mc_zombie.png`, `mobs_mc_skeleton.png`, `mobs_mc_spider.png`,
+  `mobs_mc_spider_eyes.png`, `mobs_mc_villager.png`,
+  `mobs_mc_villager_farmer.png`, `mobs_mc_villager_fisherman.png`,
+  `mobs_mc_villager_smith.png`, and `mobs_mc_villager_librarian.png`.
+  Based on Pixel Perfection by XSSheep; the upstream notice credits
+  MysticTempest for zombie, skeleton, spider/eyes and villager changes,
+  and kingoscargames for the chicken addition. See
+  [the full mob-media notice](VOXELIBRE-MOBS-MEDIA.md) and
+  https://creativecommons.org/licenses/by-sa/4.0/legalcode .
+- `vl_stalker_default.png` follows the upstream general **CC BY-SA 3.0**
+  media terms and is used as a tinted mottled surface, not as a supplied model.
+
+UV-adapted views of the mob skins retain CC BY-SA 4.0; the tinted mottled
+surface retains CC BY-SA 3.0. All supplied PNGs are unmodified. Six-sided
+bevelled bodies, rigs, facial geometry, wool switching and animations are
+original code; no upstream mob or villager model/code is bundled.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.
