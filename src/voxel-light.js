@@ -1,5 +1,6 @@
 import { Float32BufferAttribute } from 'three';
 import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
+import { isDoor } from './building-data.js';
 
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
@@ -135,7 +136,7 @@ export class VoxelLight {
         ? 3
         : type === 'glass'
           ? 1
-          : ['door', 'doorTop'].includes(type)
+          : isDoor(type)
             ? this.world.state(q, y, r).open
               ? 1
               : 16

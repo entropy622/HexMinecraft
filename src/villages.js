@@ -7,6 +7,9 @@ import {
   axialToWorld,
 } from './core.js';
 import { facingFromDirection } from './building-shapes.js';
+import { villagePalette } from './village-palette.js';
+import { doorUpper } from './building-data.js';
+import { pillarAxis } from './pillar-faces.js';
 export const VILLAGE_RADIUS = 12;
 const houses = [
   [7, 0, 'smith'],
@@ -71,6 +74,8 @@ export const ROLES = {
       { cost: { emerald: 1 }, give: { arrow: 16 } },
       { cost: { emerald: 1 }, give: { melonSeed: 3 } },
       { cost: { emerald: 2 }, give: { slimeBall: 3 } },
+      { cost: { birchWood: 16 }, give: { emerald: 1 } },
+      { cost: { spruceWood: 16 }, give: { emerald: 1 } },
     ],
   },
 };
@@ -96,7 +101,7 @@ export function villagesNear(world, q, r, range = 32) {
           : ['麦穗村', '松风村', '石泉村', '琥珀村'][
               Math.floor(hash(x, 413, z, world.seed) * 4)
             ],
-      wall: world.biome(x, z) === '沙漠' ? 'sand' : 'planks',
+      palette: villagePalette(world.biome(x, z)),
     });
   };
   add('starter', starterQ, 0);
@@ -149,7 +154,7 @@ export function features(v) {
         role === 'smith'
           ? { coal: 4, iron: 2 }
           : role === 'merchant'
-            ? { apple: 3, seed: 4, sapling: 2, sugarCane: 3 }
+            ? { apple: 3, seed: 4, [v.palette.sapling]: 2, sugarCane: 3 }
             : { wheat: 3, bread: 2 },
     });
   for (let a = -2; a <= 2; a++)
@@ -160,6 +165,7 @@ export function features(v) {
   return { crops, water, chests };
 }
 export function stampVillage(world, v, cq, cr) {
+  const palette = v.palette;
   const put = (q, y, r, t) => {
     if (
       q < cq * 8 ||
@@ -180,14 +186,14 @@ export function stampVillage(world, v, cq, cr) {
       if (d > 12) continue;
       for (let y = v.h; y < v.h + 9; y++) put(q, y, r, null);
       if (d <= 3 || Math.abs(x) <= 0 || Math.abs(z) <= 0)
-        put(q, v.h - 1, r, 'brick');
+        put(q, v.h - 1, r, palette.foundation);
       for (const [hx, hz, role] of houses) {
         const a = x - hx,
           b = z - hz,
           dist = hexDistance(a, b);
         if (dist > 3) continue;
         if (dist <= 2) {
-          put(q, v.h - 1, r, 'planks');
+          put(q, v.h - 1, r, palette.planks);
           const dir = DIRECTIONS.reduce(
             (best, t) =>
               hexDistance(hx + t[0] * 2, hz + t[1] * 2) <
@@ -197,11 +203,18 @@ export function stampVillage(world, v, cq, cr) {
             DIRECTIONS[0],
           );
           const door = a === dir[0] * 2 && b === dir[1] * 2;
-          if (door)
+          if (door) {
             world.naturalStates.set(key(q, v.h, r), {
               facing: DIRECTIONS.indexOf(dir),
               open: false,
             });
+            const outward = axialToWorld(...dir);
+            world.naturalStates.set(key(q, v.h + 2, r), {
+              facing: 0,
+              open: false,
+              axis: pillarAxis({ x: -outward.z, y: 0, z: outward.x }),
+            });
+          }
           if (dist === 2)
             for (let y = 0; y < 3; y++)
               put(
@@ -210,13 +223,13 @@ export function stampVillage(world, v, cq, cr) {
                 r,
                 door && y < 2
                   ? y === 0
-                    ? 'door'
-                    : 'doorTop'
+                    ? palette.door
+                    : doorUpper(palette.door)
                   : y === 1 && (a === 0 || b === 0)
                     ? 'glass'
                     : a === 0 || b === 0 || a + b === 0
-                      ? 'wood'
-                      : v.wall,
+                      ? palette.log
+                      : palette.wall,
               );
           if (!a && !b)
             put(
@@ -232,7 +245,7 @@ export function stampVillage(world, v, cq, cr) {
           if (role === 'smith' && a === 1 && (b === 0 || b === -1))
             put(q, v.h, r, b === 0 ? 'chippedAnvil' : 'grindstone');
         }
-        const roof = v.wall === 'sand' ? 'sandstone' : 'planks';
+        const roof = palette.roof;
         for (let layer = 0; layer < 3; layer++) {
           if (dist > 3 - layer) continue;
           const edge = dist === 3 - layer;
@@ -250,10 +263,10 @@ export function stampVillage(world, v, cq, cr) {
         if (!a && !b) put(q, v.h + 6, r, roof + 'Slab');
       }
       // A covered communal well, with a reachable water cell below the rim.
-      if (d === 1) put(q, v.h, r, 'brick');
+      if (d === 1) put(q, v.h, r, palette.foundation);
       if (d === 0) {
         put(q, v.h - 1, r, null);
-        put(q, v.h - 2, r, 'brick');
+        put(q, v.h - 2, r, palette.foundation);
         put(q, v.h + 2, r, 'lantern');
       }
       if (
@@ -264,14 +277,14 @@ export function stampVillage(world, v, cq, cr) {
           [0, -2],
         ].some(([a, b]) => x === a && z === b)
       )
-        for (let y = 0; y < 3; y++) put(q, v.h + y, r, 'wood');
-      if (d <= 2) put(q, v.h + 3, r, 'planksSlab');
+        for (let y = 0; y < 3; y++) put(q, v.h + y, r, palette.log);
+      if (d <= 2) put(q, v.h + 3, r, palette.roof + 'Slab');
     }
   const f = features(v);
   for (const p of f.crops) put(p.q, p.y, p.r, 'farmland');
   for (const p of f.water) {
     put(p.q, p.y, p.r, null);
-    put(p.q, p.y - 1, p.r, 'brick');
+    put(p.q, p.y - 1, p.r, palette.foundation);
   }
   // Seal the pond at the edge of the village without replacing house floors.
   for (let a = -3; a <= 3; a++)
@@ -281,7 +294,7 @@ export function stampVillage(world, v, cq, cr) {
           const q = v.q + 5 + a,
             r = v.r + 5 + b,
             y = v.h - depth;
-          if (!world.get(q, y, r)) put(q, y, r, 'brick');
+          if (!world.get(q, y, r)) put(q, y, r, palette.foundation);
         }
   for (const p of f.chests) put(p.q, p.y, p.r, 'chest');
   for (const [x, z] of [
@@ -290,7 +303,7 @@ export function stampVillage(world, v, cq, cr) {
     [3, 3],
     [-4, -4],
   ]) {
-    put(v.q + x, v.h, v.r + z, 'wood');
+    put(v.q + x, v.h, v.r + z, palette.log);
     put(v.q + x, v.h + 1, v.r + z, 'lantern');
   }
 }

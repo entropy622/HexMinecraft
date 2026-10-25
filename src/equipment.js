@@ -111,7 +111,11 @@ export class Equipment {
 }
 export function miningStats(block, held, enchant = {}) {
   block = ITEMS[block]?.base || block;
-  block = ITEMS[block]?.foliage ? 'leaves' : woodKey(block);
+  block = ITEMS[block]?.foliage
+    ? 'leaves'
+    : ITEMS[block]?.wooden
+      ? 'planks'
+      : woodKey(block);
   const item = ITEMS[held];
   const kind = [
     'wood',

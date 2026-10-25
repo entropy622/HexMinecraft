@@ -9,6 +9,7 @@ import { stampChorus } from './chorus.js';
 import { isChorus } from './chorus-data.js';
 import { treeCells } from './tree-layout.js';
 import { LeafDecay } from './leaves.js';
+import { isDoorTop, isFence, isGate, isOpenable } from './building-data.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -189,18 +190,14 @@ export class World {
   }
   solid(q, y, r) {
     const t = this.get(q, y, r);
-    if (['door', 'doorTop', 'gate'].includes(t))
-      return !this.state(q, y, r).open;
+    if (isOpenable(t)) return !this.state(q, y, r).open;
     const below = this.get(q, y - 1, r);
-    if (
-      below === 'fence' ||
-      (below === 'gate' && !this.state(q, y - 1, r).open)
-    )
+    if (isFence(below) || (isGate(below) && !this.state(q, y - 1, r).open))
       return true;
     return !!t && !BLOCKS[t]?.nonSolid;
   }
   state(q, y, r) {
-    if (this.get(q, y, r) === 'doorTop') y--;
+    if (isDoorTop(this.get(q, y, r))) y--;
     const k = key(q, y, r);
     return (
       this.blockStates.get(k) ||
@@ -209,7 +206,7 @@ export class World {
   }
   setState(q, y, r, state) {
     this.lightRevision++;
-    if (this.get(q, y, r) === 'doorTop') y--;
+    if (isDoorTop(this.get(q, y, r))) y--;
     this.blockStates.set(key(q, y, r), {
       facing: state.facing,
       open: state.open,

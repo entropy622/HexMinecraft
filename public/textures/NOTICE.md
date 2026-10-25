@@ -235,6 +235,19 @@ and synthesized sounds are independent implementations. No upstream
 gameplay source, model or sound recording is bundled. Selected media now
 totals 237 PNGs: 216 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
 
+Version 0.44 adds ten unmodified PNGs from the same VoxeLibre revision:
+`mcl_doors_door_birch.png`, `mcl_doors_door_birch_lower.png`,
+`mcl_doors_door_birch_upper.png`, `mcl_doors_door_spruce.png`,
+`mcl_doors_door_spruce_lower.png`, `mcl_doors_door_spruce_upper.png`,
+`mcl_fences_fence_birch.png`, `mcl_fences_fence_gate_birch.png`,
+`mcl_fences_fence_spruce.png` and `mcl_fences_fence_gate_spruce.png`.
+These follow the upstream general **CC BY-SA 3.0** media terms; runtime
+atlas tiles, cutout doors, held/dropped views and their shadows retain
+CC BY-SA 3.0. Door relationships, six-way fence connections, item models
+and regional village palettes are independent implementations. No upstream
+gameplay source or model is included. Selected media now totals 247 PNGs:
+226 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

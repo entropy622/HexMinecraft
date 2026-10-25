@@ -1,11 +1,17 @@
 import { SMELTING } from './exploration-data.js';
 import { WOOD_GROUPS, woodKey } from './wood-data.js';
+import { BUILDING_BLOCKS } from './building-data.js';
 
 export const FUELS = {
   coal: 80,
   charcoal: 80,
   ...Object.fromEntries(
     [...WOOD_GROUPS.wood, ...WOOD_GROUPS.planks].map((id) => [id, 15]),
+  ),
+  ...Object.fromEntries(
+    Object.entries(BUILDING_BLOCKS)
+      .filter(([, def]) => def.wooden && !def.internal)
+      .map(([id, def]) => [id, def.fuel || 15]),
   ),
   lavaBucket: 1000,
 };

@@ -45,6 +45,14 @@ import { leafDrops } from './leaves.js';
 import { ingredientCount, ingredientName } from './wood-ingredients.js';
 import { facingFromDirection, facingAngle } from './building-shapes.js';
 import {
+  isDoorTop,
+  doorLower,
+  doorUpper,
+  isFence,
+  isGate,
+  isOpenable,
+} from './building-data.js';
+import {
   INVENTORY_SLOTS,
   usedSlots,
   roomFor,
@@ -130,7 +138,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.43 — GRAIN AND BEAMS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.44 — WOODLAND HOMES</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -2358,7 +2366,7 @@ function place() {
   if (useEndCrystal()) return;
   if (
     target &&
-    ['door', 'doorTop', 'gate'].includes(target.type) &&
+    isOpenable(target.type) &&
     !keys.has('ControlLeft') &&
     !keys.has('ControlRight')
   ) {
@@ -2558,7 +2566,7 @@ function placeBuilding(type, p) {
       return;
     }
   }
-  if (type === 'door' && !fullSupport(q, y - 1, r, true)) {
+  if (doorUpper(type) && !fullSupport(q, y - 1, r, true)) {
     toast('门需要放在实心地面上。');
     return;
   }
@@ -2578,18 +2586,17 @@ function placeBuilding(type, p) {
     }
     facing = back.i;
   }
-  const cells =
-    type === 'door'
-      ? [
-          [q, y, r, 'door'],
-          [q, y + 1, r, 'doorTop'],
-        ]
-      : [[q, y, r, type]];
+  const cells = doorUpper(type)
+    ? [
+        [q, y, r, type],
+        [q, y + 1, r, doorUpper(type)],
+      ]
+    : [[q, y, r, type]];
   if (
     cells.some(
       ([a, b, c]) => world.get(a, b, c) || world.fluids.get(a, b, c),
     ) ||
-    (['fence', 'gate'].includes(type) &&
+    ((isFence(type) || isGate(type)) &&
       (world.get(q, y + 1, r) || world.fluids.get(q, y + 1, r)))
   ) {
     toast('这里没有足够的建造空间。');
@@ -2632,20 +2639,22 @@ function removeBuilding(q, y, r, drop = true) {
     return;
   }
   if (!BLOCKS[original]?.shape) return;
-  if (original === 'doorTop' && world.get(q, y - 1, r) === 'door') y--;
+  if (isDoorTop(original) && world.get(q, y - 1, r) === doorLower(original))
+    y--;
   const type = world.get(q, y, r),
-    item = type === 'doorTop' ? 'door' : type;
+    item = doorLower(type);
   const count =
     BLOCKS[type]?.shape === 'slab' && world.state(q, y, r).double ? 2 : 1;
   world.set(q, y, r, null);
-  if (type === 'door' && world.get(q, y + 1, r) === 'doorTop')
+  if (doorUpper(type) && world.get(q, y + 1, r) === doorUpper(type))
     world.set(q, y + 1, r, null);
   graphics.updateBlock(q, y, r);
   if (drop) dropAt(item, count, q, y, r);
   soundFX.play('break', 'wood');
 }
 function toggleBuilding(q, y, r, open = null) {
-  if (world.get(q, y, r) === 'doorTop') y--;
+  if (isDoorTop(world.get(q, y, r))) y--;
+  if (!isOpenable(world.get(q, y, r))) return;
   const old = world.state(q, y, r),
     next = { ...old, open: open ?? !old.open };
   if (next.open === old.open) return;
@@ -2684,11 +2693,12 @@ function maintainBuildings() {
     const [q, y, r] = k.split(',').map(Number),
       type = world.get(q, y, r);
     if (
-      type === 'door' &&
-      (!fullSupport(q, y - 1, r, true) || world.get(q, y + 1, r) !== 'doorTop')
+      doorUpper(type) &&
+      (!fullSupport(q, y - 1, r, true) ||
+        world.get(q, y + 1, r) !== doorUpper(type))
     )
       removeBuilding(q, y, r);
-    else if (type === 'doorTop' && world.get(q, y - 1, r) !== 'door')
+    else if (isDoorTop(type) && world.get(q, y - 1, r) !== doorLower(type))
       removeBuilding(q, y, r);
     else if (type === 'ladder') {
       const [dq, dr] = DIRECTIONS[world.state(q, y, r).facing];
@@ -2969,25 +2979,23 @@ function interact(preferContext = false) {
   const contextual =
     villagerTarget ||
     (target &&
-      ([
-        'door',
-        'doorTop',
-        'gate',
-        'ladder',
-        'portal',
-        'endportal',
-        'endGateway',
-        'bed',
-        'workbench',
-        'furnace',
-        'enchantingTable',
-        'brewingStand',
-        ...ANVILS,
-        'grindstone',
-        'chest',
-        'shulkerBox',
-        'farmland',
-      ].includes(target.type) ||
+      (isOpenable(target.type) ||
+        [
+          'ladder',
+          'portal',
+          'endportal',
+          'endGateway',
+          'bed',
+          'workbench',
+          'furnace',
+          'enchantingTable',
+          'brewingStand',
+          ...ANVILS,
+          'grindstone',
+          'chest',
+          'shulkerBox',
+          'farmland',
+        ].includes(target.type) ||
         (plantForItem(heldItem()) && ['grass', 'dirt'].includes(target.type))));
   if (
     !contextual &&
@@ -3013,7 +3021,7 @@ function interact(preferContext = false) {
     useEndGateway(q, r);
     return;
   }
-  if (['door', 'doorTop', 'gate'].includes(type)) {
+  if (isOpenable(type)) {
     toggleBuilding(q, y, r);
     return;
   }
@@ -5105,7 +5113,8 @@ function frame(now) {
           ? LIQUIDS[target.type].name +
             (target.source ? '源 · 右键/E 装桶' : '流 · 无法装桶')
           : BLOCKS[target.type].name) +
-        ([
+        (isOpenable(target.type) ||
+        [
           'workbench',
           'furnace',
           'enchantingTable',
@@ -5120,9 +5129,6 @@ function frame(now) {
           'endportal',
           'endGateway',
           'spawner',
-          'door',
-          'doorTop',
-          'gate',
           'ladder',
         ].includes(target.type)
           ? ' · E 交互'
@@ -5161,6 +5167,8 @@ function frame(now) {
       $('#target').classList.remove('hidden');
       $('#target').textContent =
         villagerTarget.village.name +
+        ' · ' +
+        villagerTarget.village.palette.label +
         ' · ' +
         ROLES[villagerTarget.role].name +
         ' · E 交易';

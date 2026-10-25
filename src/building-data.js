@@ -1,23 +1,56 @@
+import { TREES } from './wood-data.js';
+
+export const WOOD_BUILDINGS = {};
 export const BUILDING_BLOCKS = {
-  door: { name: '橡木门', color: '#bc945d', hardness: 0.6, shape: 'door' },
-  doorTop: {
-    name: '橡木门',
-    color: '#bc945d',
-    hardness: 0.6,
-    shape: 'door',
-    internal: true,
-    drop: 'door',
-  },
-  fence: { name: '橡木围栏', color: '#b78e55', hardness: 0.6, shape: 'fence' },
-  gate: { name: '栅栏门', color: '#b78e55', hardness: 0.6, shape: 'gate' },
   ladder: {
     name: '木梯',
     color: '#c4a575',
     hardness: 0.3,
     shape: 'ladder',
     nonSolid: true,
+    wooden: true,
   },
 };
+for (const [species, label, color] of [
+  ['oak', '橡木', '#bc945d'],
+  ['birch', '白桦木', '#d7c492'],
+  ['spruce', '云杉木', '#8c6c48'],
+]) {
+  const prefix = species === 'oak' ? '' : species;
+  const ids = (WOOD_BUILDINGS[species] = {
+    door: prefix ? prefix + 'Door' : 'door',
+    fence: prefix ? prefix + 'Fence' : 'fence',
+    gate: prefix ? prefix + 'Gate' : 'gate',
+  });
+  const planks = TREES[species].planks;
+  for (const shape of ['door', 'fence', 'gate']) {
+    const id = ids[shape];
+    BUILDING_BLOCKS[id] = {
+      name: label + { door: '门', fence: '围栏', gate: '栅栏门' }[shape],
+      color,
+      hardness: 0.6,
+      shape,
+      planks,
+      wooden: true,
+      fuel: shape === 'door' ? 10 : 15,
+    };
+  }
+  BUILDING_BLOCKS[ids.door].doorUpper = ids.door + 'Top';
+  BUILDING_BLOCKS[ids.door + 'Top'] = {
+    ...BUILDING_BLOCKS[ids.door],
+    doorUpper: null,
+    doorLower: ids.door,
+    internal: true,
+    drop: ids.door,
+  };
+}
+export const isDoor = (type) => BUILDING_BLOCKS[type]?.shape === 'door';
+export const isDoorTop = (type) => !!BUILDING_BLOCKS[type]?.doorLower;
+export const doorLower = (type) => BUILDING_BLOCKS[type]?.doorLower || type;
+export const doorUpper = (type) => BUILDING_BLOCKS[type]?.doorUpper || null;
+export const isFence = (type) => BUILDING_BLOCKS[type]?.shape === 'fence';
+export const isGate = (type) => BUILDING_BLOCKS[type]?.shape === 'gate';
+export const isOpenable = (type) => isDoor(type) || isGate(type);
 const make = (id, count, pattern, desc) => {
   const cost = {};
   for (const item of pattern) if (item) cost[item] = (cost[item] || 0) + 1;
@@ -29,30 +62,14 @@ const make = (id, count, pattern, desc) => {
     desc,
     title: BUILDING_BLOCKS[id].name,
     station: true,
-    exactWood: ['door', 'fence', 'gate', 'planksSlab', 'planksStairs'].includes(
-      id,
-    ),
+    exactWood:
+      ['door', 'fence', 'gate'].includes(BUILDING_BLOCKS[id].shape) ||
+      ['planks', 'birchPlanks', 'sprucePlanks'].includes(
+        BUILDING_BLOCKS[id].base,
+      ),
   };
 };
 export const BUILDING_RECIPES = [
-  make(
-    'door',
-    2,
-    ['planks', 'planks', null, 'planks', 'planks', 'planks', 'planks'],
-    '两格高的木门。放置时面向决定朝向，E 开关。',
-  ),
-  make(
-    'fence',
-    4,
-    ['planks', 'wood', 'planks', null, 'planks', 'wood', 'planks'],
-    '自动向六个方向连接围栏、栅栏门和实心方块，适合牧场。',
-  ),
-  make(
-    'gate',
-    1,
-    ['wood', 'planks', 'wood', null, 'wood', 'planks', 'wood'],
-    'E 开关，为围栏留一个出入口。',
-  ),
   make(
     'ladder',
     6,
@@ -60,6 +77,29 @@ export const BUILDING_RECIPES = [
     '贴在实心墙面，靠近后 W / 空格向上，Shift 向下，Ctrl 停住。',
   ),
 ];
+for (const [species, ids] of Object.entries(WOOD_BUILDINGS)) {
+  const { log, planks } = TREES[species];
+  BUILDING_RECIPES.push(
+    make(
+      ids.door,
+      2,
+      [planks, planks, null, planks, planks, planks, planks],
+      '使用同种木板制作两格高木门；放置时面向决定朝向，右键 / E 开关。',
+    ),
+    make(
+      ids.fence,
+      4,
+      [planks, log, planks, null, planks, log, planks],
+      '使用同种木材，向六个方向连接各树种围栏、栅栏门和实心方块。',
+    ),
+    make(
+      ids.gate,
+      1,
+      [log, planks, log, null, log, planks, log],
+      '使用同种木材制作，右键 / E 开关，为围栏留一个出入口。',
+    ),
+  );
+}
 
 export const CUT_MATERIALS = [
   ['planks', '橡木', '#c6a16c', 0.45],
@@ -77,7 +117,15 @@ for (const [base, name, color, hardness] of CUT_MATERIALS) {
     ['Stairs', 'stairs', '楼梯'],
   ]) {
     const id = base + suffix;
-    BUILDING_BLOCKS[id] = { name: name + label, base, color, hardness, shape };
+    BUILDING_BLOCKS[id] = {
+      name: name + label,
+      base,
+      color,
+      hardness,
+      shape,
+      wooden: ['planks', 'birchPlanks', 'sprucePlanks'].includes(base),
+      fuel: shape === 'slab' ? 7.5 : 15,
+    };
     BUILDING_RECIPES.push(
       make(
         id,

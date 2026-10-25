@@ -6,6 +6,7 @@ import {
 } from './foliage-shader.js';
 import { LeafParticles } from './leaf-particles.js';
 import { pillarFace } from './pillar-faces.js';
+import { isDoor } from './building-data.js';
 import { BrewingModels } from './brewing-graphics.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
@@ -110,6 +111,14 @@ export class Graphics {
       map: this.textures.atlas,
     });
     this.weatherUniforms = applySkylight(this.material);
+    this.doorMaterial = new THREE.MeshLambertMaterial({
+      map: this.textures.atlas,
+      vertexColors: true,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+      shadowSide: THREE.DoubleSide,
+    });
+    applySkylight(this.doorMaterial, this.weatherUniforms);
     this.leafUniforms = foliageUniforms();
     this.leafMaterials = leafMaterials(
       this.textures.atlas,
@@ -544,9 +553,16 @@ export class Graphics {
       return;
     }
     if (
-      ['slab', 'stairs', 'egg', 'rod', 'chorus', 'chorusFlower'].includes(
-        BLOCKS[id]?.shape,
-      )
+      [
+        'slab',
+        'stairs',
+        'egg',
+        'rod',
+        'chorus',
+        'chorusFlower',
+        'fence',
+        'gate',
+      ].includes(BLOCKS[id]?.shape)
     ) {
       const mesh = buildingItemMesh(id, this.textures);
       mesh.scale.setScalar(0.28);
@@ -999,7 +1015,7 @@ export class Graphics {
         r,
         origin,
         this.textures,
-        this.material,
+        isDoor(world.get(q, y, r)) ? this.doorMaterial : this.material,
       );
       if (['slab', 'stairs'].includes(BLOCKS[world.get(q, y, r)].shape))
         cuts.push(building.geometry);
@@ -1155,7 +1171,9 @@ export class Graphics {
     if (shaped) {
       const block = shaped,
         p = axialToWorld(block.q, block.r);
-      const height = ['gate', 'fence'].includes(block.type) ? 1.5 : 1;
+      const height = ['gate', 'fence'].includes(BLOCKS[block.type]?.shape)
+        ? 1.5
+        : 1;
       this.outline.position.set(p.x, block.y + height / 2, p.z);
       this.outline.scale.set(1, height, 1);
       this.outline.visible = true;

@@ -7,6 +7,7 @@ import { enchantmentsOf } from './enchanting-data.js';
 import { buildingItemMesh } from './building-graphics.js';
 import { validStack } from './inventory.js';
 import { portableBoxMesh } from './portable-box-graphics.js';
+import { isDoor } from './building-data.js';
 
 const vec = (p) =>
   Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
@@ -140,9 +141,16 @@ export class ItemDrops {
     }
     if (
       !this.templates.has(id) &&
-      ['slab', 'stairs', 'egg', 'rod', 'chorus', 'chorusFlower'].includes(
-        BLOCKS[id]?.shape,
-      )
+      [
+        'slab',
+        'stairs',
+        'egg',
+        'rod',
+        'chorus',
+        'chorusFlower',
+        'fence',
+        'gate',
+      ].includes(BLOCKS[id]?.shape)
     ) {
       const mesh = buildingItemMesh(id, this.textures);
       mesh.scale.setScalar(0.22);
@@ -151,7 +159,7 @@ export class ItemDrops {
     if (!this.templates.has(id)) {
       let geometry, material;
       const image = itemImage(id);
-      if (BLOCKS[id]) {
+      if (BLOCKS[id] && !isDoor(id)) {
         geometry = new THREE.CylinderGeometry(0.19, 0.19, 0.26, 6);
         material = ['side', 'top', 'top'].map(
           (face) =>

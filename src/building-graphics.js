@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { axialToWorld } from './core.js';
+import { BLOCKS, axialToWorld } from './core.js';
 import { buildingParts } from './building-shapes.js';
 import { cutItemWorld } from './cut-blocks.js';
 
@@ -119,8 +119,14 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
 }
 
 export function buildingItemMesh(type, textures) {
+  const sample = cutItemWorld(type, 1);
+  if (BLOCKS[type]?.shape === 'fence') {
+    const get = sample.get;
+    sample.get = (q, y, r) =>
+      !q && !y && Math.abs(r) === 1 ? type : get(q, y, r);
+  }
   const mesh = buildingMesh(
-    cutItemWorld(type, 1),
+    sample,
     0,
     0,
     0,

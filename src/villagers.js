@@ -4,6 +4,7 @@ import { ROLES } from './villages.js';
 import { createVillager, animateVillager } from './villager-graphics.js';
 import { disposeMob } from './mob-graphics.js';
 import { findFloor } from './grounding.js';
+import { isDoor } from './building-data.js';
 export class Villagers {
   constructor(scene) {
     this.scene = scene;
@@ -66,7 +67,7 @@ export class Villagers {
           a = worldToAxial(x, z),
           h = n.village.h;
         if (
-          this.world.get(a.q, h, a.r) === 'door' &&
+          isDoor(this.world.get(a.q, h, a.r)) &&
           !this.world.state(a.q, h, a.r).open
         )
           this.openDoor?.(a.q, h, a.r);

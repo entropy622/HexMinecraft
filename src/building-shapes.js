@@ -25,6 +25,7 @@ export function buildingParts(world, q, y, r, collision = false) {
     state = world.state(q, y, r);
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
+  const planks = BLOCKS[type]?.planks || 'planks';
   if (shape === 'slab' || shape === 'stairs')
     return cutBlockParts(world, q, y, r);
   if (shape === 'egg')
@@ -118,7 +119,7 @@ export function buildingParts(world, q, y, r, collision = false) {
             polygon: HEX_POLYGON.map(([x, z]) => [x * 0.5, z * 0.5]),
           },
         ];
-  const add = (x, cy, z, w, h, d, turn = 0, tile = 'planks') => {
+  const add = (x, cy, z, w, h, d, turn = 0, tile = planks) => {
     parts.push({
       x: x * Math.cos(angle) + z * Math.sin(angle),
       y: cy,
@@ -159,15 +160,19 @@ export function buildingParts(world, q, y, r, collision = false) {
       h: 1.5,
       d: 0.22,
       angle: 0,
-      tile: 'planks',
+      tile: planks,
     });
     DIRECTIONS.forEach(([dq, dr]) => {
       const neighbor = world.get(q + dq, y, r + dr);
       if (
         !neighbor ||
         BLOCKS[neighbor]?.nonSolid ||
-        neighbor === 'ladder' ||
-        neighbor === 'doorTop'
+        (BLOCKS[neighbor]?.shape &&
+          !['fence', 'gate'].includes(BLOCKS[neighbor].shape) &&
+          !(
+            BLOCKS[neighbor].shape === 'slab' &&
+            world.state(q + dq, y, r + dr).double
+          ))
       )
         return;
       const p = axialToWorld(dq, dr),
@@ -181,7 +186,7 @@ export function buildingParts(world, q, y, r, collision = false) {
           h: collision ? 1.5 : 0.18,
           d: Math.sqrt(3) / 2 + 0.04,
           angle: a,
-          tile: 'planks',
+          tile: planks,
         });
     });
   } else if (shape === 'ladder' && !collision) {

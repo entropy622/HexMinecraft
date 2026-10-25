@@ -1,7 +1,7 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 import { POTIONS } from './brewing-data.js';
-import { CUT_MATERIALS } from './building-data.js';
-import { WOOD_BLOCKS } from './wood-data.js';
+import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
+import { WOOD_BLOCKS, TREES } from './wood-data.js';
 export const blockTextures = {
   strippedOakWood: ['mcl_core_stripped_oak_top', 'mcl_core_stripped_oak_side'],
   strippedBirchWood: [
@@ -80,6 +80,13 @@ export const blockTextures = {
   bedrock: ['mcl_core_bedrock'],
   wool: ['wool_white'],
 };
+for (const species of ['birch', 'spruce']) {
+  const ids = WOOD_BUILDINGS[species],
+    plank = blockTextures[TREES[species].planks][0];
+  blockTextures[ids.door] = [plank, `mcl_doors_door_${species}_lower`];
+  blockTextures[ids.door + 'Top'] = [plank, `mcl_doors_door_${species}_upper`];
+  blockTextures[ids.fence] = blockTextures[ids.gate] = [plank];
+}
 for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Slab'] = blockTextures[base];
   blockTextures[base + 'Stairs'] = blockTextures[base];
@@ -190,6 +197,12 @@ export const itemTextures = {
   waterBucket: 'mcl_buckets_water_bucket',
   lavaBucket: 'mcl_buckets_lava_bucket',
 };
+for (const species of ['birch', 'spruce']) {
+  const ids = WOOD_BUILDINGS[species];
+  itemTextures[ids.door] = `mcl_doors_door_${species}`;
+  itemTextures[ids.fence] = `mcl_fences_fence_${species}`;
+  itemTextures[ids.gate] = `mcl_fences_fence_gate_${species}`;
+}
 export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
