@@ -2,6 +2,7 @@ import {
   STRUCTURE_NAMES,
   structureLoot,
   structurePlants,
+  structureGuards,
 } from './structures.js';
 import {
   EFFECTS,
@@ -97,6 +98,8 @@ import { Projectiles } from './projectiles.js';
 import { Throwables, pearlDestination } from './throwables.js';
 import { THROWABLES } from './throwable-data.js';
 import { Fireballs } from './fireballs.js';
+import { ShulkerBullets } from './shulker-bullets.js';
+import { shulkerAttachment } from './shulkers.js';
 import { DragonFight } from './dragon.js';
 import { END_FLOOR, END_PILLARS } from './end-data.js';
 import { stampEndArena } from './end-arena.js';
@@ -121,7 +124,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.36 — WINGS OVER THE END</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.37 — SHELLS AND SKYWARD SPELLS</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -201,6 +204,21 @@ const throwables = new Throwables(graphics.scene, {
   impact: resolveThrow,
   dodge: (mob) => fauna.dodge(mob),
   miss: () => toast('珍珠离开了已加载区域，未能传送。'),
+});
+const shulkerBullets = new ShulkerBullets(graphics.scene, {
+  sound: (kind) => soundFX.play(kind),
+  spark: (point, count) => throwables.burst(point, 'snowball', count),
+  playerHit: (amount, source) => {
+    const owner = survival,
+      result = hurt(amount, 'projectile', source);
+    if (!creative && owner === survival && result !== 'blocked') {
+      survival.applyEffect('levitation', 10);
+      stopGliding();
+      updateHUD();
+    }
+  },
+  mobHit: (mob, amount, direction) =>
+    fauna.hit(mob, amount, direction, false, false),
 });
 const drops = new ItemDrops(graphics.scene, graphics.textures);
 const experience = new Experience(graphics.scene, (levelUp) =>
@@ -295,6 +313,7 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
   explode,
   fuse: () => beep(75, 0.3, 'sawtooth', 0.04),
   fireball: (kind, from, to, id) => fireballs.shoot(kind, from, to, id),
+  shulkerShot: (from, normal, id) => shulkerBullets.shoot(from, normal, id),
   mobSound: (kind, position) => {
     if (position.distanceTo(camera.position) < 30) soundFX.play(kind);
   },
@@ -765,6 +784,7 @@ function collides(x, feet, z, standing = false) {
   return false;
 }
 function safeSpawn() {
+  shulkerBullets.clear();
   glider.reset();
   flightEffects.clear();
   rocketCooldown = 0;
@@ -868,6 +888,7 @@ function startGame(mode = false, save = null) {
   bowCharge = 0;
   projectiles.clear();
   fireballs.clear();
+  shulkerBullets.clear();
   throwables.clear();
   throwHeldItem = null;
   selected = save?.selected ?? 0;
@@ -981,6 +1002,21 @@ function syncDecor() {
       world.discoveredStructures.add(s.id);
       toast('发现 ' + STRUCTURE_NAMES[s.kind] + ' · 已标记地图');
     }
+    for (const guard of structureGuards(s)) {
+      const id = 'guard:' + key(guard.q, guard.y, guard.r);
+      if (
+        !world.loaded(guard.q, guard.r) ||
+        world.structureFeatures.has(id) ||
+        fauna.active.length >= 80 ||
+        fauna.records.size >= 2048
+      )
+        continue;
+      const cell = axialToWorld(guard.q, guard.r),
+        point = new THREE.Vector3(cell.x, guard.y + 0.005, cell.z);
+      world.structureFeatures.add(id);
+      if (shulkerAttachment(world, point, 0, true))
+        fauna.spawn(guard.kind, point.toArray());
+    }
     for (const p of structureLoot(world, s)) {
       const k = key(p.q, p.y, p.r),
         id = 'chest:' + k;
@@ -1015,6 +1051,7 @@ function travel(to) {
   fishing.clear();
   projectiles.clear();
   fireballs.clear();
+  shulkerBullets.clear();
   throwables.clear();
   throwHeldItem = null;
   bowCharge = 0;
@@ -1924,6 +1961,7 @@ function startGliding() {
     boats.riding ||
     !stack ||
     wearValue(stack.wear) <= 1 ||
+    survival.rank('levitation') ||
     playerFluidAt(playerFeet() + 0.12) ||
     onLadder()
   )
@@ -1984,11 +2022,13 @@ function updateFlightHUD() {
     ? `滑翔 ${Math.round(glider.speed)} m/s · 耐久 ${wear}/432 · 烟花右键助推`
     : creative
       ? '创造飞行 · 空格上升 / Shift 下降'
-      : glider.lowProfile
-        ? '低姿态移动 · 到开阔处自动站起'
-        : wear <= 1
-          ? '鞘翅已破损 · 用幻翼膜在铁砧修复'
-          : `鞘翅 ${wear}/432 · 跳起后再次按空格展开`;
+      : survival.rank('levitation')
+        ? '漂浮中 · 牛奶可解除，效果结束后可展开鞘翅'
+        : glider.lowProfile
+          ? '低姿态移动 · 到开阔处自动站起'
+          : wear <= 1
+            ? '鞘翅已破损 · 用幻翼膜在铁砧修复'
+            : `鞘翅 ${wear}/432 · 跳起后再次按空格展开`;
   $('#flight-boost').value = glider.boost;
   $('#flight-boost').classList.toggle(
     'hidden',
@@ -2034,6 +2074,7 @@ function useEndGateway(q, r) {
   projectiles.clear();
   throwables.clear();
   fireballs.clear();
+  shulkerBullets.clear();
   dragonFight.clearAttacks();
   camera.position.set(landing.x, landing.y + 1.66, landing.z);
   vy = 0;
@@ -2174,6 +2215,7 @@ function useThrowable() {
 }
 function resolveThrow(impact) {
   const { item, point, mob, direction } = impact;
+  if (mob?.bossType === 'shulkerBullet') shulkerBullets.hit(mob);
   if (mob?.bossType === 'crystal') {
     const owner = survival;
     dragonFight.hit(mob, 1, 'thrown', 'crystal');
@@ -2194,6 +2236,7 @@ function resolveThrow(impact) {
     stopEating(true);
     glider.reset();
     flightEffects.clear();
+    shulkerBullets.clear();
     combat.reset();
     motion.reset();
     vy = 0;
@@ -3640,7 +3683,12 @@ function updateWeather(dt) {
   weatherGrowthTimer = 0;
 }
 function hitMob(mob, amount, direction, source = 'melee', part = 'body') {
+  if (mob.bossType === 'shulkerBullet') return shulkerBullets.hit(mob);
   if (mob.bossType) return dragonFight.hit(mob, amount, source, part);
+  if (source === 'arrow' && mob.kind === 'shulker' && (mob.peek || 0) < 0.15) {
+    soundFX.play('shulkerBlock');
+    return 'deflected';
+  }
   if (source === 'arrow' && fauna.dodge(mob)) return 'dodged';
   const p = mob.mesh.position,
     a = worldToAxial(p.x, p.z);
@@ -3806,7 +3854,11 @@ function explode(center, settings = {}) {
 }
 function attack() {
   graphics.ray.setFromCamera(new THREE.Vector2(), camera);
-  const combatants = [...creatures, ...dragonFight.combatants];
+  const combatants = [
+    ...creatures,
+    ...dragonFight.combatants,
+    ...shulkerBullets.combatants,
+  ];
   const meshes = combatants.filter((m) => m.mesh.visible).map((m) => m.mesh);
   const hit = graphics.ray
     .intersectObjects(meshes, true)
@@ -3836,7 +3888,12 @@ function attack() {
   attackCooldown = item?.cooldown || 0.45;
   attackPeriod = attackCooldown;
   if (!creative) survival.exhaust(0.1);
-  const critical = !grounded && vy < -1 && !creative && !glider.active;
+  const critical =
+    !grounded &&
+    vy < -1 &&
+    !creative &&
+    !glider.active &&
+    !survival.rank('levitation');
   graphics.swing();
   hitMob(
     mob,
@@ -4002,10 +4059,18 @@ function movePlayer(dt) {
     headFluid = playerFluidAt(camera.position.y);
   const swimming = !!feetFluid,
     fly = creative,
+    levitating = !creative && survival.rank('levitation') > 0,
     climbing = !creative && onLadder();
   if (glider.active) {
     const stack = wornElytra();
-    if (fly || swimming || climbing || !stack || wearValue(stack.wear) <= 1)
+    if (
+      fly ||
+      swimming ||
+      climbing ||
+      levitating ||
+      !stack ||
+      wearValue(stack.wear) <= 1
+    )
       stopGliding();
     else {
       moveGlider(dt);
@@ -4123,6 +4188,7 @@ function movePlayer(dt) {
     if (
       !swimming &&
       !climbing &&
+      !levitating &&
       motion.takeJump(keys.has('Space'), grounded)
     ) {
       vy = 8.5;
@@ -4130,7 +4196,9 @@ function movePlayer(dt) {
       grounded = false;
       beep(180, 0.04, 'sine', 0.01);
     }
-    if (climbing) {
+    if (levitating) {
+      vy += (survival.rank('levitation') - vy) * (1 - Math.exp(-dt * 4.46));
+    } else if (climbing) {
       vy = sneaking
         ? 0
         : keys.has('ShiftLeft') || keys.has('ShiftRight')
@@ -4159,7 +4227,8 @@ function movePlayer(dt) {
         camera.position.y = clear + playerEyeHeight();
         if (vy < 0) {
           grounded = true;
-          if (vy < -13) hurt(Math.floor((-vy - 12) * 0.6), 'fall');
+          if (vy < -13 && !levitating)
+            hurt(Math.floor((-vy - 12) * 0.6), 'fall');
         }
         vy = 0;
         break;
@@ -4173,6 +4242,10 @@ function movePlayer(dt) {
       );
   }
   const a = worldToAxial(camera.position.x, camera.position.z);
+  if (levitating && camera.position.y > 160) {
+    camera.position.y = 160;
+    vy = 0;
+  }
   if (camera.position.y < -12) {
     if (creative) safeSpawn();
     else {
@@ -4873,18 +4946,22 @@ function frame(now) {
         def.hp +
         (m.kind === 'creeper' && m.fuse > 0
           ? ' · 即将爆炸！'
-          : def.flying && m.charge > 0
-            ? ' · 正在蓄力！'
-            : m.kind === 'enderman'
-              ? (m.anger > 0 ? ' · 已被激怒！' : ' · 中立 · 避免直视双眼') +
-                (m.carried ? ' · 搬着' + BLOCKS[m.carried].name : '')
-              : def.hostile
-                ? ''
-                : m.love > 0
-                  ? ' · ♥ 寻找伙伴'
-                  : m.kind === 'chicken' && m.eggs > 0
-                    ? ' · E 收集鸡蛋 ×' + m.eggs
-                    : ' · E 喂养 / 互动');
+          : m.kind === 'shulker'
+            ? (m.peek || 0) < 0.15
+              ? ' · 闭壳减伤 / 抵挡箭矢'
+              : ' · 开壳射击 · 小心漂浮'
+            : def.flying && m.charge > 0
+              ? ' · 正在蓄力！'
+              : m.kind === 'enderman'
+                ? (m.anger > 0 ? ' · 已被激怒！' : ' · 中立 · 避免直视双眼') +
+                  (m.carried ? ' · 搬着' + BLOCKS[m.carried].name : '')
+                : def.hostile
+                  ? ''
+                  : m.love > 0
+                    ? ' · ♥ 寻找伙伴'
+                    : m.kind === 'chicken' && m.eggs > 0
+                      ? ' · E 收集鸡蛋 ×' + m.eggs
+                      : ' · E 喂养 / 互动');
     }
     if (boatTarget && !creatureTarget && !villagerTarget) {
       $('#target').classList.remove('hidden');
@@ -4896,6 +4973,19 @@ function frame(now) {
     if (fireballs.target(camera, Math.min(4.5, target?.distance ?? Infinity))) {
       $('#target').classList.remove('hidden');
       $('#target').textContent = '恶魂火球 · 空手或近战装备左键击回';
+    }
+    if (
+      shulkerBullets.target(
+        camera,
+        Math.min(
+          4.5,
+          target?.distance ?? Infinity,
+          creatureTarget?.targetDistance ?? Infinity,
+        ),
+      )
+    ) {
+      $('#target').classList.remove('hidden');
+      $('#target').textContent = '潜影弹 · 左键、箭矢或投掷物击落 · 盾牌可格挡';
     }
     updateMobs(dt);
     dragonFight.update(dt, camera, creative);
@@ -4922,7 +5012,7 @@ function frame(now) {
     projectiles.update(
       dt,
       world,
-      [...creatures, ...dragonFight.combatants],
+      [...creatures, ...dragonFight.combatants, ...shulkerBullets.combatants],
       camera,
       (mob, amount, direction, part) =>
         hitMob(mob, amount, direction, 'arrow', part),
@@ -4930,10 +5020,19 @@ function frame(now) {
       (amount, source) => hurt(amount, 'projectile', source),
     );
     fireballs.update(dt, world, creatures, camera);
+    shulkerBullets.update(
+      dt,
+      world,
+      creatures,
+      camera,
+      playerFeet(),
+      glider.lowProfile ? 0.6 : 1.8,
+      creative,
+    );
     throwables.update(
       dt,
       world,
-      [...creatures, ...dragonFight.combatants],
+      [...creatures, ...dragonFight.combatants, ...shulkerBullets.combatants],
       camera,
       villagers.residents,
       boats.records,

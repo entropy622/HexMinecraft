@@ -173,9 +173,18 @@ export class Projectiles {
           }
         }
         if (nearest) {
-          if (
-            onHit(nearest, arrow.damage, direction, nearestPart) !== 'dodged'
-          ) {
+          const result = onHit(nearest, arrow.damage, direction, nearestPart);
+          if (result === 'deflected') {
+            arrow.velocity.multiplyScalar(-0.2);
+            arrow.velocity.y = 0.8;
+            arrow.mesh.position
+              .copy(previous)
+              .addScaledVector(direction, -0.18);
+            arrow.damage = 1;
+            arrow.life = Math.min(arrow.life, 8);
+            break;
+          }
+          if (result !== 'dodged') {
             this.remove(arrow);
             break;
           }

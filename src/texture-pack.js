@@ -62,6 +62,7 @@ for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Stairs'] = blockTextures[base];
 }
 export const itemTextures = {
+  shulkerShell: 'mcl_mobitems_shulker_shell',
   elytra: 'mcl_armor_inv_elytra',
   fireworkRocket: 'vl_fireworks_rocket',
   phantomMembrane: 'vl_mobitems_spectre_membrane',
@@ -166,6 +167,8 @@ export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
 const mobTextures = [
+  'mobs_mc_shulker_purple',
+  'mobs_mc_shulkerbullet',
   'mobs_mc_dragon',
   'mobs_mc_enderman',
   'mobs_mc_enderman_eyes',

@@ -160,6 +160,20 @@ synthesized sounds are original implementations; no upstream model, gameplay
 source or recording is bundled. The selected media now totals 208 PNGs:
 189 under CC BY-SA 3.0 and 19 under CC BY-SA 4.0.
 
+Version 0.37 adds four unmodified PNGs from the same VoxeLibre revision:
+
+- `mcl_mobitems_shulker_shell.png` and `mcl_potions_effect_levitation.png`
+  follow the upstream general **CC BY-SA 3.0** media terms.
+- `mobs_mc_shulker_purple.png` and `mobs_mc_shulkerbullet.png` are
+  **CC BY-SA 4.0 mob media**, based on Pixel Perfection by XSSheep;
+  see the preserved [mob-media notice](VOXELIBRE-MOBS-MEDIA.md).
+
+Runtime skin UV views retain CC BY-SA 4.0. The six-sided shell and animated
+lid/head, eight-surface attachment, teleport rules, homing bullets, levitation
+integration and synthesized sounds are original implementations. No upstream
+mob model, gameplay code or sound recording is bundled. The selected media
+now totals 212 PNGs: 191 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

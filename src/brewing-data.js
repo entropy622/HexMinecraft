@@ -1,4 +1,10 @@
 export const EFFECTS = {
+  levitation: {
+    name: '漂浮',
+    maxRank: 1,
+    color: '#ddd0b4',
+    icon: 'levitation',
+  },
   speed: { name: '迅捷', maxRank: 2, color: '#7cbae5', icon: 'swiftness' },
   strength: { name: '力量', maxRank: 2, color: '#e87069', icon: 'strength' },
   regeneration: {

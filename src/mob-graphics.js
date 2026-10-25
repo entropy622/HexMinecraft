@@ -3,10 +3,12 @@ import { MOBS } from './mob-data.js';
 import { createNetherMob } from './nether-mob-graphics.js';
 import { MobRig, skinBox, skinTile, animateRig } from './mob-skins.js';
 import { createEnderman } from './enderman-graphics.js';
+import { createShulker } from './shulker-graphics.js';
 
 const full = skinTile();
 const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
 export function createMob(kind, textures) {
+  if (kind === 'shulker') return createShulker();
   if (kind === 'enderman') return createEnderman(textures);
   if (MOBS[kind].flying) return createNetherMob(kind, textures);
   const rig = new MobRig(),

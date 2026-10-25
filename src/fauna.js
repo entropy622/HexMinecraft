@@ -5,6 +5,12 @@ import { createMob, disposeMob, animateMob } from './mob-graphics.js';
 import { flyingClear, updateNetherFlier } from './nether-mobs.js';
 import { updateEnderman, teleportEnderman } from './endermen.js';
 import { ENDERMAN_BLOCKS } from './enderman-data.js';
+import {
+  updateShulker,
+  teleportShulker,
+  orientShulker,
+  shulkerHitboxes,
+} from './shulkers.js';
 import { findFloor } from './grounding.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
@@ -30,7 +36,11 @@ export class Fauna {
     this.syncTimer = this.hostileTimer = 0;
   }
   remember(m) {
-    if (MOBS[m.kind].hostile && !(m.kind === 'enderman' && m.carried)) {
+    if (
+      MOBS[m.kind].hostile &&
+      !MOBS[m.kind].persistent &&
+      !(m.kind === 'enderman' && m.carried)
+    ) {
       this.records.delete(m.id);
       return;
     }
@@ -42,6 +52,7 @@ export class Fauna {
       angle: m.angle,
       eggs: m.eggs,
       ...(m.kind === 'enderman' ? { carried: m.carried } : {}),
+      ...(m.kind === 'shulker' ? { attach: m.attach } : {}),
     };
     for (const field of timers) record[field] = m[field];
     this.records.set(m.id, record);
@@ -69,9 +80,15 @@ export class Fauna {
       anger: 0,
     };
     this.active.push(m);
+    if (m.kind === 'shulker') {
+      m.attach = record.attach ?? 0;
+      m.peek = 0;
+      m.hitboxes = () => shulkerHitboxes(m);
+      orientShulker(m);
+    }
     return m;
   }
-  spawn(kind, position, baby = 0) {
+  spawn(kind, position, baby = 0, attach = 0) {
     const m = this.instantiate({
       id: this.nextId++,
       kind,
@@ -85,6 +102,7 @@ export class Fauna {
       milk: 0,
       eggTimer: 100 + Math.random() * 60,
       eggs: 0,
+      ...(kind === 'shulker' ? { attach } : {}),
     });
     this.remember(m);
     return m;
@@ -179,6 +197,7 @@ export class Fauna {
     return mob;
   }
   nudge(m, direction) {
+    if (MOBS[m.kind].stationary) return;
     if (direction) {
       const p = m.mesh.position.clone().addScaledVector(direction, 0.5);
       if (MOBS[m.kind].flying) {
@@ -223,6 +242,7 @@ export class Fauna {
     return true;
   }
   hit(m, damage, direction, loot = true, provoked = true) {
+    if (m.kind === 'shulker' && (m.peek || 0) < 0.15) damage *= 0.2;
     m.hp -= damage;
     m.hit = 0.3;
     m.flee = 3;
@@ -233,6 +253,8 @@ export class Fauna {
     }
     this.nudge(m, direction);
     if (m.hp > 0) {
+      if (m.kind === 'shulker' && m.hp < 15 && provoked && Math.random() < 0.25)
+        teleportShulker(this, m);
       if (
         m.kind === 'enderman' &&
         provoked &&
@@ -250,6 +272,8 @@ export class Fauna {
       );
       const drops = { ...MOBS[m.kind].drops };
       if (m.kind === 'enderman' && Math.random() < 0.5) delete drops.pearl;
+      if (m.kind === 'shulker' && Math.random() < 0.5)
+        delete drops.shulkerShell;
       if (m.kind === 'sheep' && m.wool > 0) delete drops.wool;
       if (m.kind === 'crawler' && this.world.dimension === 'nether') {
         delete drops.pearl;
@@ -477,6 +501,10 @@ export class Fauna {
         updateNetherFlier(this, m, dt, time, camera, creative);
         continue;
       }
+      if (m.kind === 'shulker') {
+        updateShulker(this, m, dt, time, camera, creative);
+        continue;
+      }
       if (m.kind === 'enderman') {
         updateEnderman(this, m, dt, time, camera, creative, night, weather);
         continue;
@@ -633,7 +661,10 @@ export function validFauna(state) {
     if (
       !m ||
       (!ANIMALS.includes(m.kind) &&
+        m.kind !== 'shulker' &&
         !(m.kind === 'enderman' && ENDERMAN_BLOCKS.includes(m.carried))) ||
+      (m.kind === 'shulker' &&
+        (!Number.isInteger(m.attach) || m.attach < 0 || m.attach > 7)) ||
       !Number.isSafeInteger(m.id) ||
       m.id < 1 ||
       m.id >= state.nextId ||

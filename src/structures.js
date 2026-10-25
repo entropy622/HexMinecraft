@@ -308,3 +308,23 @@ export function structurePlants(s) {
       }))
     : [];
 }
+export function structureGuards(s) {
+  const spots =
+    s.kind === 'endship'
+      ? [
+          [-4, 4, 1],
+          [4, 4, 0],
+        ]
+      : s.kind === 'shrine'
+        ? [
+            [-2, 1, 0],
+            [1, 1, -2],
+          ]
+        : [];
+  return spots.map(([q, y, r]) => ({
+    q: s.q + q,
+    y: s.y + y,
+    r: s.r + r,
+    kind: 'shulker',
+  }));
+}

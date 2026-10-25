@@ -1,4 +1,19 @@
 export const MOBS = {
+  shulker: {
+    name: '潜影贝',
+    hp: 30,
+    speed: 0,
+    height: 1,
+    hitHeight: 0.5,
+    hitRadius: 0.53,
+    hostile: true,
+    persistent: true,
+    stationary: true,
+    fireImmune: true,
+    color: '#a776b3',
+    experience: 5,
+    drops: { shulkerShell: 1 },
+  },
   enderman: {
     name: '末影人',
     hp: 40,

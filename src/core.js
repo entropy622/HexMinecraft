@@ -13,6 +13,7 @@ import { SMITHING_BLOCKS, SMITHING_RECIPES } from './smithing-data.js';
 import { THROWING_RECIPES } from './throwable-data.js';
 import { END_BLOCKS, END_ITEMS, END_RECIPES } from './end-data.js';
 import { FLIGHT_BLOCKS, FLIGHT_ITEMS, FLIGHT_RECIPES } from './flight-data.js';
+import { SHULKER_ITEMS } from './shulker-data.js';
 import {
   ENCHANT_BLOCKS,
   ENCHANT_ITEMS,
@@ -165,6 +166,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...SHULKER_ITEMS,
   ...FLIGHT_ITEMS,
   ...END_ITEMS,
   ...BREW_ITEMS,

@@ -129,6 +129,18 @@ export class GameAudio {
     } else if (event === 'doorOpen' || event === 'doorClose') {
       this.noise(0.09, 0.08, 480);
       this.tone(event === 'doorOpen' ? 190 : 125, 0.12, 'triangle', 0.05);
+    } else if (event === 'shulkerOpen' || event === 'shulkerClose') {
+      this.noise(0.16, 0.065, 500);
+      this.tone(event === 'shulkerOpen' ? 265 : 160, 0.18, 'triangle', 0.04);
+    } else if (event === 'shulkerShoot') {
+      this.tone(390, 0.13, 'sine', 0.05);
+      this.tone(690, 0.12, 'triangle', 0.03, 0.04);
+    } else if (event === 'shulkerPop') {
+      this.noise(0.1, 0.06, 2300);
+      this.tone(790, 0.08, 'sine', 0.025);
+    } else if (event === 'shulkerBlock') {
+      this.noise(0.07, 0.07, 850);
+      this.tone(280, 0.1, 'triangle', 0.055);
     } else if (event === 'elytraOpen') {
       this.noise(0.2, 0.07, 2100);
     } else if (event === 'glideWind') {
