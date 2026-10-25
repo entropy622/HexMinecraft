@@ -55,6 +55,16 @@ export const enchantmentsOf = (entry) =>
   typeof entry === 'object' && entry ? entry.enchant || {} : {};
 export const wearValue = (entry) =>
   typeof entry === 'number' ? entry : entry?.value;
+export const repairPenalty = (entry) => entry?.work || 0;
+export const customName = (entry) => entry?.name || '';
+export const cleanName = (name) =>
+  Array.from(
+    String(name || '')
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .trim(),
+  )
+    .slice(0, 24)
+    .join('');
 export const enchantLabel = (entry) =>
   Object.entries(enchantmentsOf(entry))
     .map(
@@ -71,6 +81,14 @@ export function validWearEntry(item, entry) {
     (typeof entry === 'number' ||
       (entry &&
         !Array.isArray(entry) &&
+        (entry.work === undefined ||
+          (Number.isInteger(entry.work) &&
+            entry.work >= 0 &&
+            entry.work <= 63)) &&
+        (entry.name === undefined ||
+          (typeof entry.name === 'string' &&
+            entry.name.length > 0 &&
+            cleanName(entry.name) === entry.name)) &&
         entry.enchant &&
         typeof entry.enchant === 'object' &&
         !Array.isArray(entry.enchant) &&

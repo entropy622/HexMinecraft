@@ -14,6 +14,8 @@ export function createTextures() {
     id + ':side',
   ]);
   names.push(
+    'anvilBase:side',
+    'grindstoneFrame:side',
     'water',
     'lava',
     'tuft',

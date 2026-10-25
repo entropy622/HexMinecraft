@@ -26,6 +26,26 @@ export class Equipment {
   remaining(id, index = 0) {
     return wearValue(this.wear[id]?.[index]) ?? ITEMS[id]?.durability ?? 0;
   }
+  entry(id, index = 0) {
+    return this.wear[id]?.[index] ?? ITEMS[id]?.durability;
+  }
+  name(id, index = 0) {
+    return this.wear[id]?.[index]?.name || ITEMS[id]?.name || '';
+  }
+  replaceCopy(id, index, entry) {
+    this.wear[id] ||= [];
+    while (this.wear[id].length <= index)
+      this.wear[id].push(ITEMS[id].durability);
+    this.wear[id][index] = structuredClone(entry);
+  }
+  removeCopy(id, index, inventory) {
+    const copies = Array.from({ length: inventory[id] }, (_, i) =>
+      this.entry(id, i),
+    );
+    copies.splice(index, 1);
+    this.wear[id] = copies;
+    inventory[id]--;
+  }
   tags(id, index = 0) {
     return enchantmentsOf(this.wear[id]?.[index]);
   }
@@ -37,6 +57,9 @@ export class Equipment {
     while (this.wear[id].length <= index)
       this.wear[id].push(ITEMS[id].durability);
     this.wear[id][index] = {
+      ...(typeof this.entry(id, index) === 'object'
+        ? this.entry(id, index)
+        : {}),
       value: this.remaining(id, index),
       enchant: { ...enchant },
     };
@@ -107,9 +130,10 @@ export class Equipment {
     const next = this.remaining(id) - cost;
     this.wear[id] ||= [];
     if (next > 0) {
-      this.wear[id][0] = Object.keys(this.tags(id)).length
-        ? { value: next, enchant: this.tags(id) }
-        : next;
+      this.wear[id][0] =
+        typeof this.entry(id) === 'object'
+          ? { ...this.entry(id), value: next }
+          : next;
       return false;
     }
     inventory[id]--;

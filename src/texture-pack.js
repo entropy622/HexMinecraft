@@ -1,5 +1,12 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 export const blockTextures = {
+  ironBlock: ['default_steel_block'],
+  anvil: ['mcl_anvils_anvil_top_damaged_0', 'mcl_anvils_anvil_side'],
+  chippedAnvil: ['mcl_anvils_anvil_top_damaged_1', 'mcl_anvils_anvil_side'],
+  damagedAnvil: ['mcl_anvils_anvil_top_damaged_2', 'mcl_anvils_anvil_side'],
+  anvilBase: ['mcl_anvils_anvil_base'],
+  grindstone: ['grindstone_side', 'grindstone_top'],
+  grindstoneFrame: ['grindstone_front'],
   lapisOre: ['mcl_core_lapis_ore'],
   enchantingTable: ['mcl_enchanting_table_top', 'mcl_enchanting_table_side'],
   door: ['default_wood', 'mcl_doors_door_wood_lower'],

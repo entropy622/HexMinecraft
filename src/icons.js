@@ -12,6 +12,7 @@ import {
   BrickWall,
   BedDouble,
   Anvil,
+  Cog,
   Fence,
   Mountain,
   CircleDot,
@@ -38,6 +39,10 @@ import { ITEMS } from './core.js';
 
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
 const symbols = {
+  anvil: Anvil,
+  chippedAnvil: Anvil,
+  damagedAnvil: Anvil,
+  grindstone: Cog,
   emerald: Gem,
   bucket: PaintBucket,
   waterBucket: PaintBucket,
@@ -95,7 +100,16 @@ export function itemIcon(id) {
   if (!cache.has(id)) {
     const tile =
       itemTextures[id] ||
-      (id !== 'grass' && id !== 'leaves' ? blockTextures[id]?.at(-1) : null);
+      (![
+        'grass',
+        'leaves',
+        'anvil',
+        'chippedAnvil',
+        'damagedAnvil',
+        'grindstone',
+      ].includes(id)
+        ? blockTextures[id]?.at(-1)
+        : null);
     if (tile) {
       const shape = blockTextures[id] ? 'block-tile' : 'item-tile';
       const label = ITEMS[id]?.name || id;

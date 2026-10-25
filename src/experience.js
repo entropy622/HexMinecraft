@@ -89,7 +89,7 @@ export class Experience {
   serialize() {
     return structuredClone(this.records);
   }
-  spend(levels) {
+  spend(levels, reroll = false) {
     const level = this.level;
     if (level < levels) return false;
     const progress =
@@ -101,7 +101,7 @@ export class Experience {
         progress *
           (xpForLevel(level - levels + 1) - xpForLevel(level - levels)),
       );
-    this.seed = (this.seed + 1) % 1e9;
+    if (reroll) this.seed = (this.seed + 1) % 1e9;
     return true;
   }
   spawn(value, position) {

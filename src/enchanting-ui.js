@@ -2,6 +2,7 @@ import { ITEMS } from './core.js';
 import { enchantLabel } from './enchanting-data.js';
 import { enchantOffers } from './enchanting.js';
 import { itemIcon as icon } from './icons.js';
+import { escapeHTML as escape } from './ui-text.js';
 
 export function enchantingPanel(
   inventory,
@@ -31,7 +32,7 @@ export function enchantingPanel(
   const offers = selected ? enchantOffers(selected, seed, shelves) : [];
   return `<div class="enchant-heading"><span>等级 <b>${experience.level}</b></span><span>${icon('lapis')} 青金石 <b>${inventory.lapis || 0}</b></span><span>书架 <b>${shelves} / 18</b></span></div>
     <p>选择背包中的一件装备。附魔需要达到等级门槛，只扣除所标示的等级与青金石。两格外放置书架，中间保留两格高的空气通道。</p>
-    <div class="enchant-target">${selected ? `${icon(selected)}<strong>${ITEMS[selected].name}</strong><span>耐久 ${equipment.remaining(selected, state.index)} / ${ITEMS[selected].durability}</span><small>${enchantLabel(current) || '尚未附魔'}</small>` : '<span>先制作或取得一件工具、武器、护甲或盾牌。</span>'}</div>
+    <div class="enchant-target">${selected ? `${icon(selected)}<strong>${escape(equipment.name(selected, state.index))}</strong><span>耐久 ${equipment.remaining(selected, state.index)} / ${ITEMS[selected].durability}</span><small>${enchantLabel(current) || '尚未附魔'}</small>` : '<span>先制作或取得一件工具、武器、护甲或盾牌。</span>'}</div>
     <div class="enchant-offers">${offers
       .map((offer, i) => {
         const enabled =
@@ -47,7 +48,7 @@ export function enchantingPanel(
     <div class="section-label">选择装备副本</div><div class="inventory-grid">${visibleCopies
       .map(({ id, index }) => {
         const label = enchantLabel(equipment.wear[id]?.[index]);
-        return `<button class="inv-item ${label ? 'enchanted' : ''} ${id === selected && index === state.index ? 'selected' : ''}" data-enchant-item="${id}" data-enchant-copy="${index}" title="${label || '未附魔'}">${icon(id)}<span>${ITEMS[id].name}</span><small>${equipment.remaining(id, index)}${label ? ' · ✦' : ''}</small></button>`;
+        return `<button class="inv-item ${label ? 'enchanted' : ''} ${id === selected && index === state.index ? 'selected' : ''}" data-enchant-item="${id}" data-enchant-copy="${index}" title="${label || '未附魔'}">${icon(id)}<span>${escape(equipment.name(id, index))}</span><small>${equipment.remaining(id, index)}${label ? ' · ✦' : ''}</small></button>`;
       })
       .join(
         '',

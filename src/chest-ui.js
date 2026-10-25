@@ -2,7 +2,7 @@ import { ITEMS } from './core.js';
 import { CHEST_SLOTS, inventoryPage } from './chests.js';
 import { INVENTORY_SLOTS, usedSlots } from './inventory.js';
 import { itemIcon as icon } from './icons.js';
-import { enchantLabel, wearValue } from './enchanting-data.js';
+import { enchantLabel, wearValue, customName } from './enchanting-data.js';
 
 const escape = (text) =>
   String(text).replace(
@@ -15,10 +15,10 @@ const escape = (text) =>
 const slotButton = (slot, side, index) => {
   if (!slot) return '<div class="chest-slot empty" aria-hidden="true"></div>';
   const def = ITEMS[slot.item];
-  const title = `${def.name} ×${slot.count}${def.durability ? ` · 耐久 ${wearValue(slot.wear)}/${def.durability}` : ''}${enchantLabel(slot.wear) ? ' · ' + enchantLabel(slot.wear) : ''}`;
+  const title = `${customName(slot.wear) || def.name} ×${slot.count}${def.durability ? ` · 耐久 ${wearValue(slot.wear)}/${def.durability}` : ''}${enchantLabel(slot.wear) ? ' · ' + enchantLabel(slot.wear) : ''}`;
   return `<button class="chest-slot ${enchantLabel(slot.wear) ? 'enchanted' : ''}" data-chest-side="${side}" data-item="${slot.item}" data-index="${index}" data-offset="${slot.offset || 0}" data-count="${slot.count}" title="${escape(title)}" aria-label="${side === 'box' ? '取出' : '存入'} ${escape(title)}">
     ${icon(slot.item)}<b>${slot.count}</b>${def.durability ? `<span class="chest-wear"><i style="width:${(wearValue(slot.wear) / def.durability) * 100}%"></i></span>` : ''}
-    <span class="chest-slot-name">${escape(def.name)}</span></button>`;
+    <span class="chest-slot-name">${escape(customName(slot.wear) || def.name)}</span></button>`;
 };
 
 export function chestPanel(chest, inventory, wear, state, creative) {

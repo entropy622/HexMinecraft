@@ -6,6 +6,8 @@ import { createShield } from './shield-graphics.js';
 import { Atmosphere } from './atmosphere.js';
 import { fluidHeight } from './fluids.js';
 import { EnchantingModels, applyEnchantGlow } from './enchanting-graphics.js';
+import { SmithingModels } from './smithing-graphics.js';
+import { isSmithingStation } from './smithing-data.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
 import { buildingMesh } from './building-graphics.js';
@@ -77,6 +79,7 @@ export class Graphics {
     this.textures = createTextures();
     this.chestModels = new ChestModels(this.textures);
     this.enchantingModels = new EnchantingModels(this.textures);
+    this.smithingModels = new SmithingModels(this.textures);
     sharedTextures = this.textures;
     this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
     this.terrain = new THREE.Group();
@@ -302,6 +305,7 @@ export class Graphics {
     for (const mesh of this.chunks.values()) {
       this.chestModels.release(mesh);
       this.enchantingModels.release(mesh);
+      this.smithingModels.release(mesh);
       mesh.traverse((o) => o.geometry?.dispose());
       this.terrain.remove(mesh);
     }
@@ -347,6 +351,7 @@ export class Graphics {
         if (!wanted.has(k)) {
           this.chestModels.release(mesh);
           this.enchantingModels.release(mesh);
+          this.smithingModels.release(mesh);
           mesh.traverse((o) => o.geometry?.dispose());
           this.terrain.remove(mesh);
           this.chunks.delete(k);
@@ -584,6 +589,7 @@ export class Graphics {
     const shaped = [];
     const chestCells = [];
     const enchantCells = [];
+    const smithCells = [];
     const rainRoofs = new Map();
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -611,6 +617,7 @@ export class Graphics {
         t !== 'glass' &&
         t !== 'chest' &&
         t !== 'enchantingTable' &&
+        !isSmithingStation(t) &&
         !BLOCKS[t]?.nonSolid &&
         !BLOCKS[t]?.shape
       );
@@ -627,6 +634,10 @@ export class Graphics {
           if (type === 'enchantingTable') {
             enchantCells.push([q, y, r]);
             this.updateLight(q, y, r);
+            continue;
+          }
+          if (isSmithingStation(type)) {
+            smithCells.push([q, y, r]);
             continue;
           }
           if (BLOCKS[type].shape) {
@@ -846,6 +857,7 @@ export class Graphics {
     if (mesh) {
       this.chestModels.release(mesh);
       this.enchantingModels.release(mesh);
+      this.smithingModels.release(mesh);
       mesh.geometry.dispose();
       for (const child of [...mesh.children]) {
         child.traverse((o) => o.geometry?.dispose());
@@ -865,6 +877,8 @@ export class Graphics {
       mesh.add(this.chestModels.create(world, q, y, r, origin));
     for (const [q, y, r] of enchantCells)
       mesh.add(this.enchantingModels.create(q, y, r, origin));
+    for (const [q, y, r] of smithCells)
+      mesh.add(this.smithingModels.create(world, q, y, r, origin));
     for (const [q, y, r] of shaped)
       mesh.add(
         buildingMesh(world, q, y, r, origin, this.textures, this.material),
@@ -1375,6 +1389,8 @@ export class Graphics {
     });
     this.atmosphere.attach(this.scene);
     this.enchantingModels.frame(time);
+    if (this.smithingModels.frame(renderDt))
+      this.renderer.shadowMap.needsUpdate = true;
     if (this.chestModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;
     if (this.usePost) this.composer.render(dt);

@@ -8,6 +8,7 @@ import { FARM_BLOCKS, FARM_ITEMS, FARM_RECIPES } from './farming-data.js';
 import { BUILDING_BLOCKS, BUILDING_RECIPES } from './building-data.js';
 import { FISH_ITEMS } from './fishing-data.js';
 import { FOODS } from './survival.js';
+import { SMITHING_BLOCKS, SMITHING_RECIPES } from './smithing-data.js';
 import {
   ENCHANT_BLOCKS,
   ENCHANT_ITEMS,
@@ -23,6 +24,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...SMITHING_BLOCKS,
   ...ENCHANT_BLOCKS,
   ...BUILDING_BLOCKS,
   ...FARM_BLOCKS,
@@ -581,6 +583,7 @@ export class World {
 }
 RECIPES.push(
   ...GEAR_RECIPES,
+  ...SMITHING_RECIPES,
   ...ENCHANT_RECIPES,
   ...EXPLORATION_RECIPES,
   ...FARM_RECIPES,

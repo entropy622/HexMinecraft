@@ -47,6 +47,14 @@ same revision and CC BY-SA 3.0 media license. The hexagonal enchanting pedestal,
 floating open book, orbiting glyphs, experience orbs and enchantment glow are
 original geometry and rendering effects; no upstream models are included.
 
+Version 0.24 adds nine unmodified files from the same revision and CC BY-SA 3.0
+media license: `default_steel_block.png`, `mcl_anvils_anvil_base.png`,
+`mcl_anvils_anvil_side.png`, `mcl_anvils_anvil_top_damaged_0.png`,
+`mcl_anvils_anvil_top_damaged_1.png`, `mcl_anvils_anvil_top_damaged_2.png`,
+`grindstone_front.png`, `grindstone_side.png`, and `grindstone_top.png`.
+The hexagonal anvils, grindstone, supports, axle and processing animations
+are original geometry; no upstream model or GUI artwork is included.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

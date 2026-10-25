@@ -218,6 +218,8 @@ export function stampVillage(world, v, cq, cr) {
                   ? 'workbench'
                   : 'bed',
             );
+          if (role === 'smith' && a === 1 && (b === 0 || b === -1))
+            put(q, v.h, r, b === 0 ? 'chippedAnvil' : 'grindstone');
         }
         for (let layer = 0; layer < 3; layer++)
           if (dist <= 3 - layer) put(q, v.h + 3 + layer, r, 'wood');

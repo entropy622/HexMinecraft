@@ -36,7 +36,11 @@ import { HELD_LIGHTS } from './voxel-light.js';
 import { Survival, FOODS } from './survival.js';
 import { Combat } from './combat.js';
 import { Experience, xpForLevel } from './experience.js';
-import { enchantLabel } from './enchanting-data.js';
+import { enchantLabel, customName } from './enchanting-data.js';
+import { ANVILS, isSmithingStation } from './smithing-data.js';
+import { smithingPlan } from './smithing.js';
+import { smithingPanel, smithingPreview } from './smithing-ui.js';
+import { escapeHTML } from './ui-text.js';
 import { bookshelfPower, enchantOffers } from './enchanting.js';
 import { enchantingPanel } from './enchanting-ui.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
@@ -63,7 +67,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.23 — EXPERIENCE AND ENCHANTMENT</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.24 — FORGE AND RESTORE</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -100,6 +104,16 @@ const experience = new Experience(graphics.scene, (levelUp) =>
   soundFX.play(levelUp ? 'levelUp' : 'xp'),
 );
 const enchantState = { id: null, index: 0, page: 0 };
+const smithState = {
+  id: null,
+  index: 0,
+  right: null,
+  mode: 'material',
+  name: '',
+  slot: 'left',
+  page: 0,
+  amount: 1,
+};
 const boats = new Boats(graphics.scene, graphics.textures, {
   drop: (position) =>
     drops.spawn('boat', 1, [position[0], position[1] + 0.6, position[2]]),
@@ -670,8 +684,8 @@ function renderCraft() {
   $('#recipe-desc').textContent = recipe.desc;
   $('#pattern').innerHTML = recipe.pattern
     .map(
-      (id) =>
-        `<div class="hex-cell ${id && (inventory[id] || 0) < recipe.cost[id] && !creative ? 'missing' : ''}" title="${id ? ITEMS[id].name : '空位'}">${id ? icon(id) : ''}</div>`,
+      (id, index) =>
+        `<div class="hex-cell ${id && (inventory[id] || 0) < recipe.cost[id] && !creative ? 'missing' : ''}" title="${id ? ITEMS[id].name : '空位'}">${id ? icon(id) : ''}${id && recipe.patternCounts?.[index] > 1 ? '<b class="recipe-quantity">×' + recipe.patternCounts[index] + '</b>' : ''}</div>`,
     )
     .join('');
   $('#recipe-cost').innerHTML = Object.entries(recipe.cost)
@@ -694,11 +708,11 @@ function renderCraft() {
     .map(([slot, name]) => {
       const id = equipment.armor[slot];
       const enchant = enchantLabel(equipment.wear[id]?.[0]);
-      return `<button class="${enchant ? 'enchanted' : ''}" data-unequip="${slot}" title="${id ? '点击卸下 ' + ITEMS[id].name + (enchant ? ' · ' + enchant : '') : name}">${id ? icon(id) : '<span class="empty-armor">◇</span>'}<span>${id ? ITEMS[id].name : name}</span>${id ? durabilityBar(id) : ''}</button>`;
+      return `<button class="${enchant ? 'enchanted' : ''}" data-unequip="${slot}" title="${id ? '点击卸下 ' + escapeHTML(equipment.name(id)) + (enchant ? ' · ' + enchant : '') : name}">${id ? icon(id) : '<span class="empty-armor">◇</span>'}<span>${id ? escapeHTML(equipment.name(id)) : name}</span>${id ? durabilityBar(id) : ''}</button>`;
     })
     .join('');
   $('#armor-slots').innerHTML +=
-    `<button class="${Object.keys(equipment.tags(equipment.offhand)).length ? 'enchanted' : ''}" data-unequip-offhand title="${equipment.offhand ? '点击卸下盾牌 · ' + (enchantLabel(equipment.wear[equipment.offhand]?.[0]) || '未附魔') : '点击背包中的盾牌装备'}">${equipment.offhand ? icon(equipment.offhand) : '<span class="empty-armor">⬡</span>'}<span>副手${equipment.offhand ? ' · 盾牌' : ''}</span>${equipment.offhand ? durabilityBar(equipment.offhand) : ''}</button>`;
+    `<button class="${Object.keys(equipment.tags(equipment.offhand)).length ? 'enchanted' : ''}" data-unequip-offhand title="${equipment.offhand ? '点击卸下 ' + escapeHTML(equipment.name(equipment.offhand)) + ' · ' + (enchantLabel(equipment.wear[equipment.offhand]?.[0]) || '未附魔') : '点击背包中的盾牌装备'}">${equipment.offhand ? icon(equipment.offhand) : '<span class="empty-armor">⬡</span>'}<span>副手${equipment.offhand ? ' · 盾牌' : ''}</span>${equipment.offhand ? durabilityBar(equipment.offhand) : ''}</button>`;
   $('#inventory').innerHTML = Object.entries(ITEMS)
     .filter(
       ([id]) =>
@@ -715,7 +729,7 @@ function renderCraft() {
     )
     .map(
       ([id, item, index]) =>
-        `<button class="inv-item ${enchantLabel(equipment.wear[id]?.[index]) ? 'enchanted' : ''} ${hotbar[selected] === id && index === 0 ? 'selected' : ''}" data-item="${id}" data-index="${index}" title="${item.name}${enchantLabel(equipment.wear[id]?.[index]) ? ' · ' + enchantLabel(equipment.wear[id][index]) : ''}${FOODS[id] ? ' · 饱食 +' + FOODS[id].food + ' · 饱和 +' + FOODS[id].saturation : ''} · 点击选择；Shift 点击丢出一组${item.durability ? ' · 耐久 ' + equipment.remaining(id, index) + '/' + item.durability : ''}">${icon(id)}<span>${item.name}</span><b>${creative ? '∞' : Math.min(stackSize(id), inventory[id] - index * stackSize(id))}</b>${item.durability && !creative ? '<i class="durability"><i style="width:' + (equipment.remaining(id, index) / item.durability) * 100 + '%;background:#82bd58"></i></i>' : ''}${index === 0 && item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}${index === 0 && item.offhand && equipment.offhand === id ? '<small>副手中</small>' : ''}</button>`,
+        `<button class="inv-item ${enchantLabel(equipment.wear[id]?.[index]) ? 'enchanted' : ''} ${hotbar[selected] === id && index === 0 ? 'selected' : ''}" data-item="${id}" data-index="${index}" title="${escapeHTML(equipment.name(id, index))}${enchantLabel(equipment.wear[id]?.[index]) ? ' · ' + enchantLabel(equipment.wear[id][index]) : ''}${FOODS[id] ? ' · 饱食 +' + FOODS[id].food + ' · 饱和 +' + FOODS[id].saturation : ''} · 点击选择；Shift 点击丢出一组${item.durability ? ' · 耐久 ' + equipment.remaining(id, index) + '/' + item.durability : ''}">${icon(id)}<span>${escapeHTML(equipment.name(id, index))}</span><b>${creative ? '∞' : Math.min(stackSize(id), inventory[id] - index * stackSize(id))}</b>${item.durability && !creative ? '<i class="durability"><i style="width:' + (equipment.remaining(id, index) / item.durability) * 100 + '%;background:#82bd58"></i></i>' : ''}${index === 0 && item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}${index === 0 && item.offhand && equipment.offhand === id ? '<small>副手中</small>' : ''}</button>`,
     )
     .join('');
   if (!creative)
@@ -798,13 +812,13 @@ function updateHUD() {
     $('#hotbar').innerHTML = hotbar
       .map(
         (id, i) =>
-          `<button class="slot ${i === selected ? 'active' : ''} ${Object.keys(equipment.tags(id)).length ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${ITEMS[id].name} ${creative ? '无限' : inventory[id] || 0} ${enchantLabel(equipment.wear[id]?.[0])}"><span class="slot-inner">${icon(id)}</span><span class="num">${i + 1}</span><span class="count">${creative ? '∞' : inventory[id] || 0}</span>${durabilityBar(id)}</button>`,
+          `<button class="slot ${i === selected ? 'active' : ''} ${Object.keys(equipment.tags(id)).length ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${escapeHTML(equipment.name(id))} ${creative ? '无限' : inventory[id] || 0} ${enchantLabel(equipment.wear[id]?.[0])}"><span class="slot-inner">${icon(id)}</span><span class="num">${i + 1}</span><span class="count">${creative ? '∞' : inventory[id] || 0}</span>${durabilityBar(id)}</button>`,
       )
       .join('');
   }
   const selectedEnchant = enchantLabel(equipment.wear[heldItem()]?.[0]);
   $('#selected-name').textContent =
-    ITEMS[hotbar[selected]].name +
+    equipment.name(heldItem() || hotbar[selected]) +
     (selectedEnchant ? ' · ' + selectedEnchant : '');
   $('#health').textContent = creative
     ? '◇ 自由建造'
@@ -1342,7 +1356,7 @@ function place() {
     return;
   }
   world.set(q, y, r, id);
-  if (id === 'furnace' || id === 'chest') {
+  if (id === 'furnace' || id === 'chest' || isSmithingStation(id)) {
     const center = axialToWorld(q, r);
     world.setState(q, y, r, {
       facing: facingFromDirection(
@@ -1706,6 +1720,8 @@ function interact() {
         'workbench',
         'furnace',
         'enchantingTable',
+        ...ANVILS,
+        'grindstone',
         'chest',
         'farmland',
       ].includes(target.type) ||
@@ -1783,6 +1799,27 @@ function interact() {
     enchantState.page = 0;
     openOverlay('#station-overlay');
     renderEnchanting();
+    return;
+  }
+  if (isSmithingStation(type)) {
+    stationKey = k;
+    tradingWith = null;
+    Object.assign(smithState, {
+      id:
+        ITEMS[heldItem()]?.durability && inventory[heldItem()]
+          ? heldItem()
+          : null,
+      index: 0,
+      right: null,
+      mode: type === 'grindstone' ? 'single' : 'material',
+      name: '',
+      slot: 'left',
+      page: 0,
+      amount: 1,
+    });
+    smithState.name = customName(equipment.entry(smithState.id));
+    openOverlay('#station-overlay');
+    renderSmithing();
     return;
   }
   if (type === 'spawner') {
@@ -1936,14 +1973,155 @@ $('#station-content').addEventListener('click', (e) => {
     return;
   if (!creative) {
     inventory.lapis -= offer.cost;
-    experience.spend(offer.cost);
+    experience.spend(offer.cost, true);
   } else experience.seed = (experience.seed + 1) % 1e9;
   equipment.enchant(id, index, offer.enchants);
   renderEnchanting();
   updateHUD();
   saveGame();
   soundFX.play('enchant');
-  toast(ITEMS[id].name + ' · ' + enchantLabel(equipment.wear[id][index]));
+  toast(
+    equipment.name(id, index) + ' · ' + enchantLabel(equipment.wear[id][index]),
+  );
+});
+function currentSmithing() {
+  const type = stationKey && world.get(...stationKey.split(',').map(Number));
+  return isSmithingStation(type) ? type : null;
+}
+function renderSmithing(previewOnly = false) {
+  const type = currentSmithing();
+  if (!type) return;
+  if (!(inventory[smithState.id] > smithState.index)) {
+    smithState.id =
+      Object.keys(inventory).find(
+        (id) => inventory[id] > 0 && ITEMS[id].durability,
+      ) || null;
+    smithState.index = 0;
+    smithState.right = null;
+    smithState.name = customName(equipment.entry(smithState.id));
+  }
+  const kind = type === 'grindstone' ? type : 'anvil';
+  const plan = smithingPlan(kind, smithState, inventory, equipment, creative);
+  if (previewOnly && $('#smith-preview')) {
+    $('#smith-preview').innerHTML = smithingPreview(plan, experience, creative);
+    return;
+  }
+  $('#station-title').textContent = BLOCKS[type].name;
+  $('#station-content').innerHTML = smithingPanel(
+    kind,
+    inventory,
+    equipment,
+    smithState,
+    plan,
+    experience,
+    creative,
+  );
+}
+$('#station-content').addEventListener('input', (e) => {
+  if (e.target.id !== 'smith-name' || !currentSmithing()) return;
+  smithState.name = e.target.value;
+  renderSmithing(true);
+});
+$('#station-content').addEventListener('click', (e) => {
+  const type = currentSmithing();
+  const button = e.target.closest('button');
+  if (!type || !button || button.disabled) return;
+  const data = button.dataset;
+  if (data.smithMode !== undefined) {
+    smithState.mode = data.smithMode;
+    smithState.right = null;
+    smithState.slot =
+      data.smithMode === 'combine' && smithState.id ? 'right' : 'left';
+    smithState.page = 0;
+  } else if (data.smithSlot !== undefined) {
+    if (data.smithSlot === 'right' && !smithState.id) return;
+    smithState.slot = data.smithSlot;
+    smithState.page = 0;
+  } else if (data.smithPage !== undefined)
+    smithState.page = Number(data.smithPage);
+  else if (data.smithAmount !== undefined)
+    smithState.amount = Number(data.smithAmount);
+  else if (data.smithItem !== undefined) {
+    const id = data.smithItem,
+      index = Number(data.smithCopy);
+    if (
+      !ITEMS[id]?.durability ||
+      !Number.isInteger(index) ||
+      index < 0 ||
+      !(inventory[id] > index)
+    )
+      return;
+    if (smithState.slot === 'right') {
+      if (id !== smithState.id || index === smithState.index) return;
+      smithState.right = index;
+    } else {
+      smithState.id = id;
+      smithState.index = index;
+      smithState.right = null;
+      smithState.name = customName(equipment.entry(id, index));
+      if (smithState.mode === 'combine') {
+        smithState.slot = 'right';
+        smithState.page = 0;
+      }
+    }
+  } else if (data.smithConfirm !== undefined) {
+    const grind = type === 'grindstone';
+    const plan = smithingPlan(
+      grind ? 'grindstone' : 'anvil',
+      smithState,
+      inventory,
+      equipment,
+      creative,
+    );
+    if (!plan.valid || (!creative && experience.level < plan.cost)) return;
+    if (!creative && plan.cost && !experience.spend(plan.cost)) return;
+    let index = plan.index;
+    if (plan.right !== null) {
+      equipment.removeCopy(plan.id, plan.right, inventory);
+      if (plan.right < index) index--;
+    }
+    if (!creative && plan.units) inventory[plan.material] -= plan.units;
+    equipment.replaceCopy(plan.id, index, plan.entry);
+    Object.assign(smithState, {
+      id: plan.id,
+      index,
+      right: null,
+      slot: 'left',
+      name: customName(plan.entry),
+    });
+    const [q, y, r] = stationKey.split(',').map(Number);
+    if (grind)
+      awardXP(plan.xp, [
+        camera.position.x,
+        playerFeet() + 0.5,
+        camera.position.z,
+      ]);
+    let broken = false;
+    if (!grind && !creative && Math.random() < 0.12) {
+      const state = { ...world.state(q, y, r) },
+        next = ANVILS[ANVILS.indexOf(type) + 1] || null;
+      world.set(q, y, r, next);
+      if (next) world.setState(q, y, r, state);
+      else {
+        broken = true;
+        closeOverlay();
+      }
+      graphics.updateBlock(q, y, r);
+    }
+    graphics.smithingModels.use(stationKey);
+    graphics.burst(q, y + 0.5, r, grind ? '#c7be9f' : '#d6bd8c');
+    soundFX.play(grind ? 'grindstone' : broken ? 'anvilBreak' : 'anvil');
+    updateHUD();
+    saveGame();
+    toast(
+      (grind ? '砂轮加工完成' : '铁砧加工完成') +
+        ' · ' +
+        equipment.name(plan.id, index) +
+        (broken ? ' · 铁砧已损坏消失' : ''),
+    );
+    if (broken) return;
+  } else return;
+  renderSmithing();
 });
 function currentFurnace() {
   if (
@@ -3257,13 +3435,17 @@ document.addEventListener(
 );
 document.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
-  if (e.target.id === 'chest-search' && e.code === 'Escape') {
+  if (
+    ['chest-search', 'smith-name'].includes(e.target.id) &&
+    e.code === 'Escape'
+  ) {
     closeOverlay();
     return;
   }
   if (
     overlay === '#station-overlay' &&
     (currentChest() ||
+      currentSmithing() ||
       (stationKey &&
         world.get(...stationKey.split(',').map(Number)) ===
           'enchantingTable')) &&
@@ -3482,6 +3664,8 @@ function frame(now) {
           'workbench',
           'furnace',
           'enchantingTable',
+          ...ANVILS,
+          'grindstone',
           'chest',
           'farmland',
           'bed',

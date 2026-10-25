@@ -2357,6 +2357,160 @@ input:focus-visible {
   border-color: #dcc0f4;
   background: #796144;
 }
+.recipe-quantity {
+  z-index: 2;
+  position: absolute;
+  bottom: 10%;
+  right: 15%;
+  font:
+    bold 12px ui-monospace,
+    monospace;
+  color: #fff1c1;
+  text-shadow: 2px 2px #17291c;
+}
+.smith-modes,
+.smith-amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 11px;
+  color: #d5cfac;
+}
+.station-panel .smith-modes button,
+.station-panel .smith-amount button {
+  margin: 0;
+  padding: 8px 12px;
+  border: 2px solid #717a6d;
+  background: #38483e;
+}
+.station-panel .smith-modes button[aria-pressed='true'],
+.station-panel .smith-amount button[aria-pressed='true'] {
+  border-color: #dfd098;
+  color: #ffebaa;
+  background: #685c3e;
+}
+.smith-inputs {
+  display: grid;
+  grid-template-columns: 1fr 25px 1fr;
+  gap: 8px;
+  align-items: stretch;
+  margin: 14px 0;
+}
+.station-panel .smith-copy,
+.smith-material,
+.smith-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 145px;
+  margin: 0;
+  padding: 10px;
+  border: 3px solid #687461;
+  background: #23362d;
+  box-shadow: inset 3px 3px #0e2119;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.station-panel .smith-copy.selected {
+  border-color: #e2cd8b;
+}
+.smith-copy .block-icon,
+.smith-material .block-icon,
+.smith-result .block-icon {
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+}
+.smith-copy strong,
+.smith-result strong {
+  font-size: 13px;
+  color: #e8dfba;
+}
+.smith-copy small,
+.smith-result small {
+  font-size: 10px;
+  line-height: 1.6;
+  color: #c2c5aa;
+}
+.smith-plus {
+  align-self: center;
+  text-align: center;
+  color: #d8c68c;
+  font-size: 23px;
+}
+.smith-material,
+.smith-empty {
+  color: #9fae95;
+  font-size: 11px;
+}
+.smith-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #d9d0ae;
+  margin: 16px 0;
+}
+.smith-name input {
+  min-width: 0;
+  flex: 1;
+  padding: 9px;
+  border: 2px solid #76816b;
+  border-radius: 0;
+  color: #eadbb7;
+  background: #172920;
+  font: inherit;
+}
+#smith-preview {
+  border: 3px solid #69775d;
+  padding: 12px;
+  margin: 16px 0 24px;
+  background: #2c3d2e;
+  text-align: center;
+}
+.smith-result {
+  border-color: #b4b881;
+  background: #3a4931;
+  min-height: 110px;
+  font-size: 12px;
+}
+.station-panel .smith-cost {
+  color: #bde97e;
+  font-size: 13px;
+  margin: 12px 0 4px;
+}
+.station-panel .smith-cost.unavailable {
+  color: #eca180;
+}
+.station-panel .smith-confirm {
+  margin: 10px 0 0;
+  width: 100%;
+}
+.station-panel .smith-inventory .inv-item {
+  margin: 0;
+  padding: 8px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.smith-inventory .inv-item span:not(.block-icon) {
+  max-width: 120px;
+}
+.armor-slots button {
+  min-width: 0;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+#selected-name {
+  max-width: min(600px, 90vw);
+  margin-left: auto;
+  margin-right: auto;
+  overflow-wrap: anywhere;
+}
 .enchant-pagination {
   display: flex;
   align-items: center;
@@ -2365,6 +2519,7 @@ input:focus-visible {
   font-size: 12px;
 }
 .inv-item.enchanted,
+.smith-result.enchanted,
 .station-panel .chest-slot.enchanted,
 .slot.enchanted,
 .armor-slots button.enchanted {
@@ -2398,6 +2553,7 @@ input:focus-visible {
 }
 @media (prefers-reduced-motion: reduce) {
   .inv-item.enchanted,
+  .smith-result.enchanted,
   .station-panel .chest-slot.enchanted,
   .slot.enchanted,
   .armor-slots button.enchanted {
