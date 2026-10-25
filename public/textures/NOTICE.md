@@ -183,6 +183,15 @@ The geometry, stack contents, storage transactions, content preview and
 synthesized opening/closing sounds are independent implementations; no
 upstream code or model is included. No new source media is added.
 
+Version 0.39 adds four unmodified files from the same VoxeLibre revision:
+`mcl_end_end_bricks.png`, `mcl_end_purpur_pillar.png`,
+`mcl_end_purpur_pillar_top.png` and `mcl_end_end_rod.png`. These use the
+upstream general **CC BY-SA 3.0** media terms; runtime atlas crops and projected
+icons retain CC BY-SA 3.0. The hexagonal city layout, spiral half-steps,
+service shafts, bridges, roofs, rod geometry and loot rules are original.
+No upstream schematic, model or gameplay source is bundled. Selected media
+now totals 216 PNGs: 195 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

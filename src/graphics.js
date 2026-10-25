@@ -527,7 +527,7 @@ export class Graphics {
       this.held.add(mesh);
       return;
     }
-    if (['slab', 'stairs', 'egg'].includes(BLOCKS[id]?.shape)) {
+    if (['slab', 'stairs', 'egg', 'rod'].includes(BLOCKS[id]?.shape)) {
       const mesh = buildingItemMesh(id, this.textures);
       mesh.scale.setScalar(0.28);
       mesh.position.set(0, 0.17, -0.36);
@@ -712,6 +712,7 @@ export class Graphics {
           }
           if (BLOCKS[type].shape) {
             shaped.push([q, y, r]);
+            if (BLOCKS[type].light) this.updateLight(q, y, r);
             continue;
           }
           rainExposure =

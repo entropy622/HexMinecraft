@@ -1,6 +1,13 @@
 import { BLOCKS, DIRECTIONS, hash, hexDistance, key } from './core.js';
 import { FIRST_END_SHIP } from './flight-data.js';
 import { stampEndShip } from './end-ship.js';
+import { FIRST_END_CITY } from './end-city-data.js';
+import {
+  endCityPlan,
+  stampEndCity,
+  endCityLoot,
+  endCityGuards,
+} from './end-city.js';
 
 export const STRUCTURE_NAMES = {
   ruin: '古老瞭望塔',
@@ -9,6 +16,7 @@ export const STRUCTURE_NAMES = {
   fortress: '余烬堡垒',
   shrine: '末地遗址',
   endship: '末地船',
+  endcity: '末地城',
 };
 function descriptor(world, id, q, r, kind) {
   const h = world.terrainHeight(q, r);
@@ -19,7 +27,7 @@ function descriptor(world, id, q, r, kind) {
   )
     return null;
   const underground = kind === 'mine' || kind === 'dungeon';
-  return {
+  const result = {
     id,
     q,
     r,
@@ -30,18 +38,22 @@ function descriptor(world, id, q, r, kind) {
       ? 30
       : kind === 'fortress'
         ? 15
-        : kind === 'endship'
-          ? 12
-          : 8,
+        : kind === 'endcity'
+          ? 34
+          : kind === 'endship'
+            ? 12
+            : 8,
     material:
       kind === 'fortress'
         ? 'netherbrick'
-        : kind === 'shrine' || kind === 'endship'
+        : kind === 'shrine' || kind === 'endship' || kind === 'endcity'
           ? 'purpur'
           : world.biome(q, r) === '沙漠'
             ? 'sandstone'
             : 'mossybrick',
   };
+  if (kind === 'endcity') result.city = endCityPlan(world, result);
+  return result;
 }
 export function structuresNear(world, q, r, range = 32) {
   world.structureCache ||= new Map();
@@ -64,8 +76,10 @@ export function structuresNear(world, q, r, range = 32) {
     get('starter-ruin', -18, 14, 'ruin');
     get('starter-mine', -32, -16, 'mine');
   }
-  if (world.dimension === 'end')
+  if (world.dimension === 'end') {
     get('endship-first', FIRST_END_SHIP.q, FIRST_END_SHIP.r, 'endship');
+    get('endcity-first', FIRST_END_CITY.q, FIRST_END_CITY.r, 'endcity');
+  }
   const reach = Math.ceil((range + 32) / 96);
   for (let x = Math.floor(q / 96) - reach; x <= Math.floor(q / 96) + reach; x++)
     for (
@@ -79,6 +93,10 @@ export function structuresNear(world, q, r, range = 32) {
           b = z * 96 + 24 + Math.floor(hash(x, 426, z, world.seed) * 30);
         const empty =
           hash(x, 891, z, world.seed) < 0.23 ||
+          (world.dimension === 'end' &&
+            (hexDistance(a - FIRST_END_CITY.q, b - FIRST_END_CITY.r) < 58 ||
+              hexDistance(a - FIRST_END_SHIP.q, b - FIRST_END_SHIP.r) < 40 ||
+              hexDistance(a, b) < 32)) ||
           (world.dimension === 'overworld' &&
             (hexDistance(a + 18, b - 14) < 48 ||
               hexDistance(a + 32, b + 16) < 48 ||
@@ -91,9 +109,11 @@ export function structuresNear(world, q, r, range = 32) {
           world.dimension === 'nether'
             ? 'fortress'
             : world.dimension === 'end'
-              ? hash(x, 913, z, world.seed) > 0.5
-                ? 'endship'
-                : 'shrine'
+              ? hash(x, 913, z, world.seed) > 0.3
+                ? 'endcity'
+                : hash(x, 915, z, world.seed) > 0.5
+                  ? 'endship'
+                  : 'shrine'
               : ['ruin', 'mine', 'dungeon'][
                   Math.floor(hash(x, 157, z, world.seed) * 3)
                 ];
@@ -113,6 +133,7 @@ export function structuresNear(world, q, r, range = 32) {
   return result;
 }
 export function structureLoot(world, s) {
+  if (s.kind === 'endcity') return endCityLoot(world, s);
   if (s.kind === 'endship')
     return [
       {
@@ -179,6 +200,10 @@ export function stampStructure(world, s, cq, cr) {
   };
   if (s.kind === 'endship') {
     stampEndShip(world, s, put);
+    return;
+  }
+  if (s.kind === 'endcity') {
+    stampEndCity(world, s, put);
     return;
   }
   const block = (dq, dy, dr, type) => put(s.q + dq, s.y + dy, s.r + dr, type);
@@ -309,6 +334,7 @@ export function structurePlants(s) {
     : [];
 }
 export function structureGuards(s) {
+  if (s.kind === 'endcity') return endCityGuards(s);
   const spots =
     s.kind === 'endship'
       ? [

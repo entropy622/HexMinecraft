@@ -1,5 +1,5 @@
 import { ITEMS, axialToWorld } from './core.js';
-import { stackSize, validStack } from './inventory.js';
+import { stackSize, validStack, copyStack } from './inventory.js';
 
 export const CHEST_SLOTS = 27;
 export const isStorage = (id) => !!ITEMS[id]?.storage;
@@ -31,11 +31,17 @@ export const validChest = (chest, portable = false) =>
       validStack(stack) && (!portable || !ITEMS[stack?.item]?.portable),
   );
 
-export function newChest(loot = {}) {
+export function newChest(loot = {}, stacks = []) {
   const chest = Array(CHEST_SLOTS).fill(null);
   for (const [item, count] of Object.entries(loot)) {
     if (insertChest(chest, item, count) !== count)
       throw new Error('Generated chest loot exceeds its capacity');
+  }
+  for (const stack of stacks) {
+    const index = chest.findIndex((slot) => !slot);
+    if (index < 0 || !validStack(stack))
+      throw new Error('Invalid structure treasure stack');
+    chest[index] = copyStack(stack);
   }
   return chest;
 }

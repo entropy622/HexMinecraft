@@ -4,6 +4,7 @@ import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
 const EMISSION = {
+  endRod: [15, 14, 15],
   torch: [14, 11, 7],
   lantern: [15, 13, 9],
   glowstone: [15, 13, 9],
@@ -19,6 +20,7 @@ const EMISSION = {
 };
 const HEIGHT = 64;
 export const HELD_LIGHTS = {
+  endRod: 'endRod',
   torch: 'torch',
   lantern: 'lantern',
   glowstone: 'glowstone',

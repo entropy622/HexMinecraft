@@ -124,7 +124,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.38 — A WORLD IN YOUR POCKET</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.39 — CITIES ABOVE THE VOID</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -994,8 +994,10 @@ function syncDecor() {
   for (const s of world.structures(a.q, a.r, 32)) {
     if (
       !world.discoveredStructures.has(s.id) &&
-      hexDistance(a.q - s.q, a.r - s.r) < 11 &&
-      Math.abs(playerFeet() - s.y) < 7
+      hexDistance(a.q - s.q, a.r - s.r) < (s.kind === 'endcity' ? 20 : 11) &&
+      (s.kind === 'endcity'
+        ? playerFeet() >= s.y - 4 && playerFeet() <= s.y + 30
+        : Math.abs(playerFeet() - s.y) < 7)
     ) {
       world.discoveredStructures.add(s.id);
       toast('发现 ' + STRUCTURE_NAMES[s.kind] + ' · 已标记地图');
@@ -1021,7 +1023,7 @@ function syncDecor() {
       if (!world.loaded(p.q, p.r) || world.structureFeatures.has(id)) continue;
       world.structureFeatures.add(id);
       if (world.get(p.q, p.y, p.r) === 'chest' && !chests.has(k))
-        chests.set(k, newChest(p.loot));
+        chests.set(k, newChest(p.loot, p.stacks));
     }
     for (const p of structurePlants(s)) {
       const k = key(p.q, p.y, p.r),
@@ -2100,7 +2102,7 @@ function useEndGateway(q, r) {
   soundFX.play('portal');
   toast(
     source === 0
-      ? '外圈浮岛 · 顺着紫珀塔的梯子登上末地船，船舱有鞘翅和烟花。'
+      ? '外圈浮岛 · 梯子通往末地船，船头连桥通向 Q 66 / R −16 的末地城。'
       : '已回到中央祭坛。',
   );
   saveGame();
@@ -4337,7 +4339,12 @@ function drawMap(canvas, full = false) {
     if (!world.discoveredStructures.has(s.id)) continue;
     const p = axialToWorld(s.q, s.r);
     ctx.fillStyle =
-      s.kind === 'dungeon' || s.kind === 'mine' ? '#c9abe9' : '#e9b56b';
+      s.kind === 'dungeon' ||
+      s.kind === 'mine' ||
+      s.kind === 'endcity' ||
+      s.kind === 'endship'
+        ? '#c9abe9'
+        : '#e9b56b';
     ctx.font = full ? '17px monospace' : '13px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('◆', cx + p.x * scale, cy + p.z * scale);

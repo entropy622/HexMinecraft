@@ -13,6 +13,7 @@ import { SMITHING_BLOCKS, SMITHING_RECIPES } from './smithing-data.js';
 import { THROWING_RECIPES } from './throwable-data.js';
 import { END_BLOCKS, END_ITEMS, END_RECIPES } from './end-data.js';
 import { FLIGHT_BLOCKS, FLIGHT_ITEMS, FLIGHT_RECIPES } from './flight-data.js';
+import { CITY_BLOCKS, CITY_RECIPES } from './end-city-data.js';
 import {
   SHULKER_ITEMS,
   SHULKER_BLOCKS,
@@ -33,6 +34,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...CITY_BLOCKS,
   ...SHULKER_BLOCKS,
   ...FLIGHT_BLOCKS,
   ...END_BLOCKS,
@@ -437,6 +439,7 @@ RECIPES.push(
   ...END_RECIPES,
   ...FLIGHT_RECIPES,
   ...SHULKER_RECIPES,
+  ...CITY_RECIPES,
 );
 export function axialToWorld(q, r) {
   return { x: SQRT3 * (q + r / 2), z: 1.5 * r };

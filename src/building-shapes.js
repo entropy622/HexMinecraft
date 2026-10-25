@@ -42,6 +42,27 @@ export function buildingParts(world, q, y, r, collision = false) {
       polygon: HEX_POLYGON.map(([x, z]) => [x * radius, z * radius]),
     }));
   const parts = [];
+  if (shape === 'rod')
+    return [
+      {
+        x: 0,
+        y: 0.055,
+        z: 0,
+        h: 0.11,
+        angle: 0,
+        tile: 'purpur',
+        polygon: HEX_POLYGON.map(([x, z]) => [x * 0.19, z * 0.19]),
+      },
+      {
+        x: 0,
+        y: 0.48,
+        z: 0,
+        h: 0.78,
+        angle: 0,
+        tile: 'endRod',
+        polygon: HEX_POLYGON.map(([x, z]) => [x * 0.065, z * 0.065]),
+      },
+    ];
   if (shape === 'gateway')
     return collision
       ? []

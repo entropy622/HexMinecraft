@@ -2,6 +2,9 @@
 import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS } from './building-data.js';
 export const blockTextures = {
+  endstoneBricks: ['mcl_end_end_bricks'],
+  purpurPillar: ['mcl_end_purpur_pillar_top', 'mcl_end_purpur_pillar'],
+  endRod: ['mcl_end_end_rod'],
   shulkerBox: ['mobs_mc_shulker_purple'],
   dragonEgg: ['mcl_end_dragon_egg'],
   brewingStand: ['mcl_brewing_top', 'mcl_brewing_side'],
@@ -289,6 +292,7 @@ export function paintPackTile(ctx, id, top) {
     names && images.get(names[top ? 0 : Math.min(1, names.length - 1)]);
   if (!image) return;
   ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, 16, 16);
   if (id === 'shulkerBox') {
     if (top) ctx.drawImage(image, 16, 0, 16, 16, 0, 0, 16, 16);
     else {
@@ -297,7 +301,6 @@ export function paintPackTile(ctx, id, top) {
     }
     return;
   }
-  ctx.clearRect(0, 0, 16, 16);
   ctx.drawImage(image, 0, 0, 16, 16);
   if (id === 'leaves' || (id === 'grass' && top)) {
     ctx.globalCompositeOperation = 'multiply';
