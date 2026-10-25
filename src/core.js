@@ -1,3 +1,8 @@
+import {
+  EXPLORATION_BLOCKS,
+  EXPLORATION_ITEMS,
+  EXPLORATION_RECIPES,
+} from './exploration-data.js';
 import { GEAR, GEAR_RECIPES } from './gear-data.js';
 export const SQRT3 = Math.sqrt(3);
 export const DIRECTIONS = [
@@ -9,6 +14,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...EXPLORATION_BLOCKS,
   grass: {
     name: '草地',
     color: '#7eaa62',
@@ -45,7 +51,13 @@ export const BLOCKS = {
   },
   brick: { name: '石砖', color: '#bcc4b7', side: '#8e9d94', hardness: 0.8 },
   glass: { name: '琥珀玻璃', color: '#edcc88', side: '#b89762', hardness: 0.3 },
-  lantern: { name: '萤灯', color: '#ffdf92', side: '#e7b259', hardness: 0.3 },
+  lantern: {
+    name: '萤灯',
+    color: '#ffdf92',
+    side: '#e7b259',
+    hardness: 0.3,
+    light: '#ffd58a',
+  },
   workbench: {
     name: '工作台',
     color: '#e0b87b',
@@ -132,6 +144,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...EXPLORATION_ITEMS,
   ...BLOCKS,
   emerald: { name: '绿宝石', color: '#59d982' },
   bucket: { name: '铁桶', color: '#c8d1d5', bucket: 'empty' },
@@ -547,7 +560,7 @@ export class World {
     }
   }
 }
-RECIPES.push(...GEAR_RECIPES);
+RECIPES.push(...GEAR_RECIPES, ...EXPLORATION_RECIPES);
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (
     (!recipe.station || station) &&

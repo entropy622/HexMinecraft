@@ -1,5 +1,16 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 export const blockTextures = {
+  deepslate: ['mcl_deepslate_top', 'mcl_deepslate'],
+  gold: ['mcl_core_gold_ore'],
+  copper: ['mcl_copper_ore'],
+  goldBlock: ['default_gold_block'],
+  copperBlock: ['mcl_copper_block_cut'],
+  mossybrick: ['default_mossycobble'],
+  sandstone: ['mcl_core_sandstone_top', 'mcl_core_sandstone_normal'],
+  netherbrick: ['mcl_nether_nether_brick'],
+  purpur: ['mcl_end_purpur_block'],
+  spawner: ['mob_spawner'],
+  torch: ['default_tree'],
   grass: ['mcl_core_grass_block_top', 'default_dirt'],
   dirt: ['default_dirt'],
   stone: ['default_stone'],
@@ -23,6 +34,10 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  goldIngot: 'default_gold_ingot',
+  copperIngot: 'mcl_copper_ingot',
+  goldenApple: 'mcl_core_apple_golden',
+  torch: 'default_torch_on_floor',
   shears: 'default_tool_shears',
   leather: 'mcl_mobitems_leather',
   feather: 'mcl_mobitems_feather',

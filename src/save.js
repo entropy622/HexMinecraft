@@ -65,6 +65,15 @@ export function validateSave(s) {
       )
     )
       throw Error('地形数据无效');
+    for (const field of ['structureFeatures', 'discoveredStructures']) {
+      if (
+        d[field] !== undefined &&
+        (!Array.isArray(d[field]) ||
+          d[field].length > 200000 ||
+          d[field].some((v) => typeof v !== 'string' || v.length > 120))
+      )
+        throw Error('遗迹数据无效');
+    }
     if (d.fauna !== undefined && !validFauna(d.fauna))
       throw Error('动物存档无效');
     if (

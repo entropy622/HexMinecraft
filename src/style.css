@@ -1991,3 +1991,21 @@ input:focus-visible {
     font-size: 10px;
   }
 }
+
+.smelting-recipe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 10px 0;
+  padding: 10px;
+  text-align: left;
+}
+.smelting-recipe .block-icon {
+  flex: 0 0 26px;
+  height: 26px;
+}
+.smelting-recipe small {
+  margin-left: auto;
+  color: #e7c782;
+}

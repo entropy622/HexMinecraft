@@ -1,3 +1,4 @@
+import { structuresNear, stampStructure } from './structures.js';
 import { villagesNear, villageAt, stampVillage, features } from './villages.js';
 import { Fluids } from './fluids.js';
 import { BLOCKS, DIRECTIONS, noise, hash, hexDistance, key } from './core.js';
@@ -46,6 +47,9 @@ export class World {
     this.edits = new Map();
     this.editChunks = new Map();
     this.center = null;
+    this.spawners = new Set();
+    this.structureFeatures = new Set(options.structureFeatures || []);
+    this.discoveredStructures = new Set(options.discoveredStructures || []);
     this.villageExclusions = new Set(options.villageExclusions || []);
     this.villageFeatures = new Set(options.villageFeatures || []);
     this.villageTrades = new Map(options.villageTrades || []);
@@ -71,6 +75,9 @@ export class World {
   }
   villages(q, r, range = 32) {
     return villagesNear(this, q, r, range);
+  }
+  structures(q, r, range = 32) {
+    return structuresNear(this, q, r, range);
   }
   villageSources(cq, cr) {
     return this.villages(cq * 8 + 4, cr * 8 + 4, 8)
@@ -100,6 +107,8 @@ export class World {
   }
   tree(q, r) {
     if (villageAt(this, q, r, 3)) return false;
+    if (this.structures(q, r, 0).some((s) => hexDistance(q - s.q, r - s.r) < 8))
+      return false;
     if (this.dimension === 'end' || hexDistance(q, r) < 5)
       return q === 3 && r === 0 && this.dimension === 'overworld';
     const b = this.biome(q, r),
@@ -123,6 +132,8 @@ export class World {
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);
     if (this.loaded(q, r)) {
+      if (type === 'spawner') this.spawners.add(k);
+      else this.spawners.delete(k);
       if (type) this.blocks.set(k, type);
       else this.blocks.delete(k);
     }
@@ -175,7 +186,9 @@ export class World {
                     ? biome === '沙漠'
                       ? 'sand'
                       : 'dirt'
-                    : 'stone';
+                    : y < 6
+                      ? 'deepslate'
+                      : 'stone';
           const ore = hash(q, y, r, this.seed);
           if (
             y > 1 &&
@@ -184,11 +197,13 @@ export class World {
               0.76
           )
             continue;
-          if (t === 'stone' && y > 1) {
-            if (ore > 0.992 && y < 12) t = 'diamond';
+          if (['stone', 'deepslate'].includes(t) && y > 1) {
+            if (ore > 0.994 && y < 10) t = 'diamond';
+            else if (ore > 0.981 && y < 11) t = 'gold';
             else if (ore > 0.967) t = 'crystal';
             else if (ore > 0.927) t = 'iron';
-            else if (ore > 0.865) t = 'coal';
+            else if (ore > 0.89) t = 'copper';
+            else if (ore > 0.835) t = 'coal';
           }
           if (this.dimension === 'nether' && y > 1 && ore > 0.97)
             t = 'glowstone';
@@ -238,7 +253,11 @@ export class World {
         }
     for (const v of this.villages(cq * 8 + 4, cr * 8 + 4, 8))
       stampVillage(this, v, cq, cr);
+    for (const s of this.structures(cq * 8 + 4, cr * 8 + 4, 8))
+      stampStructure(this, s, cq, cr);
     for (const [k, t] of this.editChunks.get(ck) || []) {
+      if (t === 'spawner') this.spawners.add(k);
+      else this.spawners.delete(k);
       if (t) this.blocks.set(k, t);
       else this.blocks.delete(k);
     }
@@ -265,13 +284,18 @@ export class World {
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
         this.heights.delete(`${q},${r}`);
-        for (let y = 0; y < 64; y++) this.blocks.delete(key(q, y, r));
+        for (let y = 0; y < 64; y++) {
+          const k = key(q, y, r);
+          this.blocks.delete(k);
+          this.spawners.delete(k);
+        }
       }
     this.chunks.delete(`${cq},${cr}`);
   }
   clearLoaded() {
     this.fluids.clear();
     this.blocks.clear();
+    this.spawners.clear();
     this.heights.clear();
     this.chunks.clear();
     this.center = null;
@@ -294,6 +318,8 @@ export class World {
   serialize() {
     return {
       edits: [...this.edits],
+      structureFeatures: [...this.structureFeatures],
+      discoveredStructures: [...this.discoveredStructures],
       fluids: this.fluids.serialize(),
       villageExclusions: [...this.villageExclusions],
       villageFeatures: [...this.villageFeatures],

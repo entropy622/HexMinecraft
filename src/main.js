@@ -1,3 +1,5 @@
+import { STRUCTURE_NAMES, structureLoot } from './structures.js';
+import { SMELTING } from './exploration-data.js';
 import { features as villageFeatures, ROLES, trade } from './villages.js';
 import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
@@ -54,7 +56,7 @@ $('#app').innerHTML = `
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <span class="tiny">/ 点击材料或工具装入快捷栏；点击护甲穿戴</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><p class="panel-note">工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
  <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
- <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄<br>地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
+ <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹<br>地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
 
@@ -214,6 +216,8 @@ function startGame(mode = false, save = null) {
     villageExclusions: data.villageExclusions,
     villageFeatures: data.villageFeatures,
     villageTrades: data.villageTrades,
+    structureFeatures: data.structureFeatures,
+    discoveredStructures: data.discoveredStructures,
     load: false,
   });
   inventory = save ? { ...save.inventory } : { dirt: 12, apple: 3, seed: 3 };
@@ -305,6 +309,24 @@ function syncDecor() {
         chests.set(k, { ...p.loot });
     }
   }
+  for (const s of world.structures(a.q, a.r, 32)) {
+    if (
+      !world.discoveredStructures.has(s.id) &&
+      hexDistance(a.q - s.q, a.r - s.r) < 11 &&
+      Math.abs(playerFeet() - s.y) < 7
+    ) {
+      world.discoveredStructures.add(s.id);
+      toast('发现 ' + STRUCTURE_NAMES[s.kind] + ' · 已标记地图');
+    }
+    for (const p of structureLoot(world, s)) {
+      const k = key(p.q, p.y, p.r),
+        id = 'chest:' + k;
+      if (!world.loaded(p.q, p.r) || world.structureFeatures.has(id)) continue;
+      world.structureFeatures.add(id);
+      if (world.get(p.q, p.y, p.r) === 'chest' && !chests.has(k))
+        chests.set(k, { ...p.loot });
+    }
+  }
   for (const [k, t] of crops) {
     const [q, , r] = k.split(',').map(Number);
     if (world.loaded(q, r)) graphics.crop(k, time - t);
@@ -326,6 +348,8 @@ function travel(to) {
     villageExclusions: data.villageExclusions,
     villageFeatures: data.villageFeatures,
     villageTrades: data.villageTrades,
+    structureFeatures: data.structureFeatures,
+    discoveredStructures: data.discoveredStructures,
     load: false,
   });
   crops = new Map(data.crops);
@@ -701,6 +725,7 @@ function mine(dt) {
     `${Math.min(100, (mining / data.hardness) * 100)}%`;
   if (mining < data.hardness) return;
   const { q, y, r, type } = target;
+  if (type === 'chest') syncDecor();
   world.set(q, y, r, null);
   graphics.updateBlock(q, y, r);
   graphics.burst(q, y, r, data.color);
@@ -810,7 +835,7 @@ function flushFluidChanges() {
 }
 function place() {
   if (!playing) return;
-  if (interactCreature() || drinkMilk()) return;
+  if (interactCreature() || drinkMilk() || useGoldenApple()) return;
   if (heldItem() === 'boneMeal' && target) {
     interact();
     return;
@@ -854,7 +879,7 @@ function place() {
 }
 function interact() {
   if (!playing) return;
-  if (interactCreature() || drinkMilk()) return;
+  if (interactCreature() || drinkMilk() || useGoldenApple()) return;
   if (villagerTarget) {
     tradingWith = villagerTarget;
     openOverlay('#station-overlay');
@@ -903,7 +928,12 @@ function interact() {
     renderFurnace();
     return;
   }
+  if (type === 'spawner') {
+    toast('在五格内放置火把或萤灯压制刷怪，也可用石镐拆除。');
+    return;
+  }
   if (type === 'chest') {
+    syncDecor();
     stationKey = k;
     openOverlay('#station-overlay');
     renderChest();
@@ -1013,17 +1043,39 @@ function renderFurnace() {
   const job = furnaceJobs.get(stationKey);
   $('#station-title').textContent = '六棱熔炉';
   $('#station-content').innerHTML =
-    `<p>一份煤燃烧八秒，熔炼一份铁矿，或烤熟一份生肉。<br>铁矿 ${inventory.iron || 0} · 煤 ${inventory.coal || 0} · 生肉 ${inventory.meat || 0}<br>${job ? `炉火正旺：${ITEMS[job.output].name}，剩余 ${Math.ceil(job.remaining)} 秒（关闭面板后继续）` : '加入原料，让炉火亮起来。'}</p><button class="primary" data-smelt="ingot" ${job || (!creative && (!(inventory.iron > 0) || !(inventory.coal > 0))) ? 'disabled' : ''}>熔炼铁锭</button><button data-smelt="cooked" ${job || (!creative && (!(inventory.meat > 0) || !(inventory.coal > 0))) ? 'disabled' : ''}>烤制肉排</button><p class="panel-note">完成后自动收入背包。离开游戏或拆除熔炉时，未完成的材料会退回。</p>`;
+    '<p>每次消耗 1 份煤和 1 份原料。煤炭 ' +
+    (inventory.coal || 0) +
+    '</p>' +
+    (job
+      ? '<p>炉火正旺：' +
+        ITEMS[job.output].name +
+        ' · 剩余 ' +
+        Math.ceil(job.remaining) +
+        ' 秒</p>'
+      : '<p>选择一种原料开始熔炼。</p>') +
+    Object.entries(SMELTING)
+      .map(
+        ([output, recipe]) =>
+          `<button class="smelting-recipe" data-smelt="${output}" ${job || (!creative && (!(inventory[recipe.input] > 0) || !(inventory.coal > 0))) ? 'disabled' : ''}>${icon(recipe.input)}${ITEMS[recipe.input].name} ${inventory[recipe.input] || 0} → ${icon(output)}${ITEMS[output].name}<small>${recipe.seconds} 秒</small></button>`,
+      )
+      .join('') +
+    '<p class="panel-note">关闭面板后继续工作。完成后收入背包；离开游戏或拆除熔炉会退回未完成的材料。</p>';
 }
 function smelt(output) {
-  if (furnaceJobs.has(stationKey)) return;
-  const input = output === 'ingot' ? 'iron' : 'meat';
+  const recipe = SMELTING[output];
+  if (!recipe || furnaceJobs.has(stationKey)) return;
+  const input = recipe.input;
   if (!creative && (!(inventory[input] > 0) || !(inventory.coal > 0))) return;
   if (!creative) {
     inventory[input]--;
     inventory.coal--;
   }
-  furnaceJobs.set(stationKey, { output, input, remaining: 8, paid: !creative });
+  furnaceJobs.set(stationKey, {
+    output,
+    input,
+    remaining: recipe.seconds,
+    paid: !creative,
+  });
   beep(180, 0.2, 'sawtooth', 0.015);
   renderFurnace();
   updateHUD();
@@ -1135,6 +1187,19 @@ function interactCreature() {
   saveGame();
   return true;
 }
+function useGoldenApple() {
+  if (heldItem() !== 'goldenApple') return false;
+  if (health >= 20 && hunger >= 20) {
+    toast('你现在状态很好，留着金苹果吧。');
+    return true;
+  }
+  if (!creative) inventory.goldenApple--;
+  health = Math.min(20, health + 8);
+  hunger = Math.min(20, hunger + 8);
+  toast('金苹果 · 生命 +8 · 饱食 +8');
+  updateHUD();
+  return true;
+}
 function drinkMilk() {
   if (heldItem() !== 'milkBucket') return false;
   if (!creative) {
@@ -1182,6 +1247,7 @@ function explode(center) {
         if (!type || type === 'bedrock' || type === 'obsidian') continue;
         world.set(q, y, r, null);
         chests.delete(k);
+        world.structureFeatures.add('chest:' + k);
         chestWear.delete(k);
         furnaceJobs.delete(k);
         for (const cropKey of [k, key(q, y - 1, r)]) {
@@ -1437,6 +1503,23 @@ function drawMap(canvas, full = false) {
       ctx.fillText('◈', cx + p.x * scale, cy + p.z * scale);
     }
   const at = worldToAxial(camera.position.x, camera.position.z);
+  for (const s of world.structures(at.q, at.r, full ? 65 : 35)) {
+    if (!world.discoveredStructures.has(s.id)) continue;
+    const p = axialToWorld(s.q, s.r);
+    ctx.fillStyle =
+      s.kind === 'dungeon' || s.kind === 'mine' ? '#c9abe9' : '#e9b56b';
+    ctx.font = full ? '17px monospace' : '13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('◆', cx + p.x * scale, cy + p.z * scale);
+    if (full) {
+      ctx.font = '11px sans-serif';
+      ctx.fillText(
+        STRUCTURE_NAMES[s.kind],
+        cx + p.x * scale,
+        cy + p.z * scale + 15,
+      );
+    }
+  }
   for (const v of world.villages(at.q, at.r, full ? 65 : 35)) {
     if (!world.loaded(v.q, v.r)) continue;
     const p = axialToWorld(v.q, v.r);
@@ -1899,6 +1982,7 @@ function frame(now) {
           'bed',
           'portal',
           'endportal',
+          'spawner',
         ].includes(target.type)
           ? ' · E 交互'
           : '')

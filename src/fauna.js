@@ -14,7 +14,7 @@ export class Fauna {
     this.regions = new Set();
     this.nextId = 1;
     this.ray = new THREE.Raycaster();
-    this.syncTimer = this.hostileTimer = 0;
+    this.syncTimer = this.hostileTimer = this.spawnerTimer = 0;
   }
   load(world, state = {}) {
     for (const m of this.active) disposeMob(m.mesh);
@@ -278,6 +278,57 @@ export class Fauna {
       night = world.dimension !== 'overworld' || time % 600 >= 300;
     this.syncTimer -= dt;
     this.hostileTimer -= dt;
+    this.spawnerTimer -= dt;
+    if (this.spawnerTimer <= 0 && !creative) {
+      this.spawnerTimer = 8;
+      for (const k of world.spawners) {
+        if (
+          this.active.length >= 80 ||
+          this.active.filter((m) => MOBS[m.kind].hostile).length >= 14
+        )
+          break;
+        const [q, y, r] = k.split(',').map(Number),
+          p = axialToWorld(q, r),
+          center = new THREE.Vector3(p.x, y, p.z);
+        if (center.distanceTo(camera.position) > 16) continue;
+        let lit = false;
+        for (let dq = -3; dq <= 3 && !lit; dq++)
+          for (let dr = -3; dr <= 3 && !lit; dr++)
+            for (let dy = -3; dy <= 3; dy++) {
+              const type = world.get(q + dq, y + dy, r + dr);
+              if (type === 'torch' || type === 'lantern') {
+                const light = axialToWorld(q + dq, r + dr);
+                if (Math.hypot(light.x - p.x, dy, light.z - p.z) <= 5)
+                  lit = true;
+              }
+            }
+        if (
+          lit ||
+          this.active.filter(
+            (m) =>
+              MOBS[m.kind].hostile && m.mesh.position.distanceTo(center) < 7,
+          ).length >= 4
+        )
+          continue;
+        const kind =
+          world.dimension === 'overworld'
+            ? ['zombie', 'skeleton', 'spider'][
+                Math.floor(hash(q, 17, r, world.seed) * 3)
+              ]
+            : 'crawler';
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const cell = axialToWorld(
+            q + Math.round(Math.random() * 4 - 2),
+            r + Math.round(Math.random() * 4 - 2),
+          );
+          const floor = this.floor(cell.x, cell.z, y, kind, 1);
+          if (floor !== null) {
+            this.spawn(kind, [cell.x, floor, cell.z]);
+            break;
+          }
+        }
+      }
+    }
     if (this.syncTimer <= 0) {
       this.sync(camera);
       this.syncTimer = 1;

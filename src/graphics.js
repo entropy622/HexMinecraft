@@ -1,3 +1,4 @@
+import { applySkylight } from './skylight.js';
 import { createPostprocessing } from './postprocessing.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
@@ -71,6 +72,7 @@ export class Graphics {
       vertexColors: true,
       map: this.textures.atlas,
     });
+    applySkylight(this.material);
     this.foliageMaterial = new THREE.MeshLambertMaterial({
       map: this.textures.atlas,
       alphaTest: 0.5,
@@ -200,6 +202,17 @@ export class Graphics {
     this.particles = [];
     this.cropMeshes = new Map();
     this.lights = new Map();
+    this.pointLights = Array.from({ length: 8 }, () => {
+      const light = new THREE.PointLight('#ffd58a', 0, 10, 2);
+      this.scene.add(light);
+      return light;
+    });
+    this.torchMaterial = new THREE.MeshLambertMaterial({
+      map: this.textures.atlas,
+      vertexColors: true,
+      emissive: '#8c470e',
+      emissiveIntensity: 0.45,
+    });
     this.hand = new THREE.Group();
     const sleeve = new THREE.Mesh(
       new THREE.BoxGeometry(0.18, 0.22, 0.48),
@@ -317,7 +330,6 @@ export class Graphics {
       for (const [k, g] of this.lights) {
         const [x, , z] = k.split(',').map(Number);
         if (!wanted.has(this.chunkKey(x, z))) {
-          this.decor.remove(g);
           this.lights.delete(k);
         }
       }
@@ -337,7 +349,7 @@ export class Graphics {
       for (const ck of wanted)
         for (const [k, t] of this.world.editChunks.get(ck) || []) {
           const [x, y, z] = k.split(',').map(Number);
-          if (t === 'lantern') this.updateLight(x, y, z);
+          if (BLOCKS[t]?.light) this.updateLight(x, y, z);
           if (t === 'portal' || t === 'endportal') this.portal(x, y, z, t);
         }
     }
@@ -455,6 +467,16 @@ export class Graphics {
     );
     block.position.set(0, 0.17, -0.36);
     this.held.add(block);
+    if (id === 'torch') {
+      block.geometry.dispose();
+      block.geometry = new THREE.CylinderGeometry(0.035, 0.035, 0.45, 6);
+      const flame = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.055, 0.11, 6),
+        new THREE.MeshBasicMaterial({ color: '#ffcc72' }),
+      );
+      flame.position.y = 0.25;
+      block.add(flame);
+    }
     if (ITEMS[id]?.bucket) {
       block.geometry.dispose();
       for (const m of material) m.dispose();
@@ -494,13 +516,31 @@ export class Graphics {
     const [cq, cr] = k.split(',').map(Number),
       world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
-    const solid = { p: [], c: [], uv: [] },
-      glass = { p: [], c: [], uv: [] },
-      plants = { p: [], c: [], uv: [] };
-    let out = solid;
+    const solid = { p: [], c: [], uv: [], sky: [] },
+      glass = { p: [], c: [], uv: [], sky: [] },
+      plants = { p: [], c: [], uv: [], sky: [] },
+      torches = { p: [], c: [], uv: [], sky: [] };
+    let out = solid,
+      skylight = 1;
+    const roofs = new Map();
+    for (let q = cq * 8; q < cq * 8 + 8; q++)
+      for (let r = cr * 8; r < cr * 8 + 8; r++) {
+        for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
+          const type = world.get(q, y, r);
+          if (
+            type &&
+            !BLOCKS[type].nonSolid &&
+            !['leaves', 'glass'].includes(type)
+          ) {
+            roofs.set(q + ',' + r, y);
+            break;
+          }
+        }
+      }
     const tri = (verts, uvs, tile, shade = 1, ao = [1, 1, 1]) => {
       for (let i = 0; i < 3; i++) {
         out.p.push(...verts[i]);
+        out.sky.push(skylight);
         out.uv.push(...this.textures.uv(tile, ...uvs[i]));
         out.c.push(shade * ao[i], shade * ao[i], shade * ao[i]);
       }
@@ -513,7 +553,60 @@ export class Graphics {
       for (let r = cr * 8; r < cr * 8 + 8; r++)
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
-          if (!type || BLOCKS[type].nonSolid) continue;
+          if (!type) continue;
+          skylight = Math.max(
+            0.12,
+            1 - Math.max(0, (roofs.get(q + ',' + r) || 0) - y) * 0.22,
+          );
+          if (BLOCKS[type].light) this.updateLight(q, y, r);
+          if (type === 'torch') {
+            out = torches;
+            const p = axialToWorld(q, r),
+              x = p.x - origin.x,
+              z = p.z - origin.z;
+            for (const [radius, bottom, top, tile] of [
+              [0.07, 0, 0.55, 'wood:side'],
+              [0.115, 0.55, 0.75, 'lantern:top'],
+            ]) {
+              for (let i = 0; i < 6; i++) {
+                const a = corners[i],
+                  b = corners[(i + 1) % 6];
+                const v0 = [x + a[0] * radius, y + bottom, z + a[1] * radius],
+                  v1 = [x + b[0] * radius, y + bottom, z + b[1] * radius],
+                  v2 = [x + b[0] * radius, y + top, z + b[1] * radius],
+                  v3 = [x + a[0] * radius, y + top, z + a[1] * radius];
+                tri(
+                  [v0, v2, v1],
+                  [
+                    [0, 0],
+                    [1, 1],
+                    [1, 0],
+                  ],
+                  tile,
+                );
+                tri(
+                  [v0, v3, v2],
+                  [
+                    [0, 0],
+                    [0, 1],
+                    [1, 1],
+                  ],
+                  tile,
+                );
+                tri(
+                  [[x, y + top, z], v2, v3],
+                  [
+                    [0.5, 0.5],
+                    [1, 0],
+                    [0, 0],
+                  ],
+                  tile,
+                );
+              }
+            }
+            continue;
+          }
+          if (BLOCKS[type].nonSolid) continue;
           out = type === 'glass' ? glass : solid;
           const abs = axialToWorld(q, r),
             x = abs.x - origin.x,
@@ -646,6 +739,7 @@ export class Graphics {
       g.setAttribute('position', new THREE.Float32BufferAttribute(data.p, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(data.c, 3));
       g.setAttribute('uv', new THREE.Float32BufferAttribute(data.uv, 2));
+      g.setAttribute('skylight', new THREE.Float32BufferAttribute(data.sky, 1));
       g.computeVertexNormals();
       g.computeBoundingSphere();
       return g;
@@ -667,6 +761,8 @@ export class Graphics {
     mesh.position.set(origin.x, 0, origin.z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    if (torches.p.length)
+      mesh.add(new THREE.Mesh(geometry(torches), this.torchMaterial));
     if (glass.p.length)
       mesh.add(new THREE.Mesh(geometry(glass), this.glassMaterial));
     if (plants.p.length) {
@@ -699,18 +795,19 @@ export class Graphics {
     this.updateLight(q, y, r);
   }
   updateLight(q, y, r) {
-    const k = `${q},${y},${r}`;
-    if (this.lights.has(k)) {
-      this.decor.remove(this.lights.get(k));
+    const k = q + ',' + y + ',' + r,
+      type = this.world.get(q, y, r),
+      color = BLOCKS[type]?.light;
+    if (!color) {
       this.lights.delete(k);
+      return;
     }
-    if (this.world.get(q, y, r) === 'lantern' && this.lights.size < 24) {
-      const p = axialToWorld(q, r),
-        light = new THREE.PointLight('#ffd58a', 5, 9, 2);
-      light.position.set(p.x, y + 1.3, p.z);
-      this.lights.set(k, light);
-      this.decor.add(light);
-    }
+    const p = axialToWorld(q, r);
+    this.lights.set(k, {
+      position: new THREE.Vector3(p.x, y + 0.85, p.z),
+      color,
+      type,
+    });
   }
   target(includeLiquids = false) {
     this.ray.setFromCamera(new THREE.Vector2(), this.camera);
@@ -957,6 +1054,22 @@ export class Graphics {
         }
       }
     }
+    const sources = [...this.lights.values()]
+      .filter((l) => l.position.distanceToSquared(this.camera.position) < 225)
+      .sort(
+        (a, b) =>
+          a.position.distanceToSquared(this.camera.position) -
+          b.position.distanceToSquared(this.camera.position),
+      )
+      .slice(0, 8);
+    this.pointLights.forEach((light, i) => {
+      const source = sources[i];
+      light.intensity = source ? (source.type === 'spawner' ? 1.5 : 6) : 0;
+      if (source) {
+        light.position.copy(source.position);
+        light.color.set(source.color);
+      }
+    });
     this.hand.visible = playing;
     this.swingTime = Math.max(0, (this.swingTime || 0) - dt);
     this.hand.rotation.x = mining

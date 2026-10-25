@@ -66,7 +66,7 @@ export function miningStats(block, held) {
     block,
   )
     ? 'axe'
-    : ['grass', 'dirt', 'sand', 'snow', 'farmland'].includes(block)
+    : ['grass', 'dirt', 'sand', 'snow', 'farmland', 'sandstone'].includes(block)
       ? 'shovel'
       : ['leaves', 'shroom', 'bed'].includes(block)
         ? null

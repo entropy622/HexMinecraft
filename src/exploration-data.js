@@ -1,0 +1,170 @@
+export const EXPLORATION_BLOCKS = {
+  deepslate: {
+    name: '深板岩',
+    color: '#52545a',
+    side: '#42434b',
+    hardness: 1.8,
+    tool: 1,
+  },
+  gold: {
+    name: '金矿',
+    color: '#dbc26d',
+    side: '#8e825b',
+    hardness: 1.6,
+    tool: 3,
+  },
+  copper: {
+    name: '铜矿',
+    color: '#c08c69',
+    side: '#718d7c',
+    hardness: 1.3,
+    tool: 2,
+  },
+  goldBlock: {
+    name: '金块',
+    color: '#f3cd58',
+    side: '#bd982d',
+    hardness: 1.2,
+    tool: 3,
+  },
+  copperBlock: {
+    name: '切制铜块',
+    color: '#c58760',
+    side: '#946349',
+    hardness: 1.1,
+    tool: 2,
+  },
+  mossybrick: {
+    name: '苔石砖',
+    color: '#7f9069',
+    side: '#65745d',
+    hardness: 1.2,
+  },
+  sandstone: { name: '砂岩', color: '#d6bf85', side: '#b49b68', hardness: 0.9 },
+  netherbrick: {
+    name: '下界砖',
+    color: '#593841',
+    side: '#3f2833',
+    hardness: 1.4,
+  },
+  purpur: { name: '紫珀块', color: '#b48eaf', side: '#8b6b89', hardness: 1.3 },
+  spawner: {
+    name: '刷怪笼',
+    color: '#696388',
+    side: '#393447',
+    hardness: 3,
+    tool: 2,
+    drop: 'crystal',
+    light: '#b58bd6',
+  },
+  torch: {
+    name: '火把',
+    color: '#ffc871',
+    side: '#8d6035',
+    hardness: 0.1,
+    nonSolid: true,
+    light: '#ffbc69',
+  },
+};
+export const EXPLORATION_ITEMS = {
+  goldIngot: { name: '金锭', color: '#edc456' },
+  copperIngot: { name: '铜锭', color: '#c88c60' },
+  goldenApple: { name: '金苹果', color: '#f2ca57', use: true },
+};
+const recipe = (id, count, pattern, title, desc, station = false) => {
+  const cost = {};
+  for (const item of pattern) if (item) cost[item] = (cost[item] || 0) + 1;
+  return { id, count, pattern, cost, title, desc, station };
+};
+export const EXPLORATION_RECIPES = [
+  recipe(
+    'torch',
+    4,
+    ['coal', null, null, 'wood', null, null, null],
+    '照亮矿道',
+    '火把照亮附近，也能压制五格内的刷怪笼。',
+  ),
+  recipe(
+    'mossybrick',
+    4,
+    ['stone', 'stone', 'leaves', null, 'stone', null, null],
+    '被森林遗忘的石墙',
+    '带苔藓的六棱石材。',
+  ),
+  recipe(
+    'sandstone',
+    4,
+    ['sand', 'sand', null, 'sand', null, 'sand', null],
+    '沙漠建筑',
+    '将细沙压实为砂岩。',
+  ),
+  recipe(
+    'netherbrick',
+    4,
+    ['netherrack', 'netherrack', null, 'netherrack', null, 'netherrack', null],
+    '余烬城墙',
+    '暗红色的堡垒材料。',
+  ),
+  recipe(
+    'purpur',
+    4,
+    ['endstone', 'endstone', 'pearl', null, 'endstone', null, null],
+    '虚空中的紫色',
+    '末地石与珍珠合成紫珀块。',
+    true,
+  ),
+  recipe(
+    'copperBlock',
+    4,
+    [
+      'copperIngot',
+      'copperIngot',
+      'copperIngot',
+      null,
+      'copperIngot',
+      'copperIngot',
+      'copperIngot',
+    ],
+    '铜色屋顶',
+    '切制铜块，为家增添温暖的金属色。',
+    true,
+  ),
+  recipe(
+    'goldBlock',
+    1,
+    [
+      'goldIngot',
+      'goldIngot',
+      'goldIngot',
+      null,
+      'goldIngot',
+      'goldIngot',
+      'goldIngot',
+    ],
+    '黄金收藏',
+    '六锭熔铸一枚六棱金块。',
+    true,
+  ),
+  recipe(
+    'goldenApple',
+    1,
+    [
+      'goldIngot',
+      'goldIngot',
+      'goldIngot',
+      'apple',
+      'goldIngot',
+      'goldIngot',
+      'goldIngot',
+    ],
+    '深处的回报',
+    '恢复 8 点生命与 8 点饱食。',
+    true,
+  ),
+];
+export const SMELTING = {
+  ingot: { input: 'iron', seconds: 8 },
+  goldIngot: { input: 'gold', seconds: 10 },
+  copperIngot: { input: 'copper', seconds: 6 },
+  cooked: { input: 'meat', seconds: 8 },
+};
