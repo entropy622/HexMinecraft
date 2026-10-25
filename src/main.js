@@ -32,7 +32,6 @@ import {
   hexDistance,
   key,
   hash,
-  canCraft,
 } from './core.js';
 import { Fauna } from './fauna.js';
 import { ItemDrops } from './item-drops.js';
@@ -53,9 +52,25 @@ import {
 import { ContainerSession, moveSlot, takeSlot } from './container-actions.js';
 import { InventoryControls } from './inventory-controls.js';
 import {
+  newCraftingGrid,
+  recipeCells,
+  craftingMatches,
+  craftingResult,
+  craftingStock,
+  fillCraftingRecipe,
+  consumeCrafting,
+  returnCraftingGrid,
+  transformCraftingGrid,
+  quickCraft,
+} from './crafting.js';
+import {
+  workshopPanel,
+  craftingGridHTML,
+  recipeBookHTML,
+} from './crafting-ui.js';
+import {
   playerSlots,
   creativePalette,
-  inventoryHelp,
   stackContent,
   stackTitle,
 } from './inventory-ui.js';
@@ -95,7 +110,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.27 — EVERY STACK HAS A PLACE</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.28 — THE HONEYCOMB WORKSHOP</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -105,7 +120,7 @@ $('#app').innerHTML = `
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="按住食用或饮用">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="fire-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
- <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b></div><div id="inventory"></div>${inventoryHelp}<div class="inventory-touch-modes" role="group" aria-label="触屏物品操作"><button data-inventory-mode="normal" aria-pressed="true">拿放</button><button data-inventory-mode="single" aria-pressed="false">分半 / 放 1 件</button><button data-inventory-mode="quick" aria-pressed="false">快速转移</button></div></div></div></section>
+ ${workshopPanel()}
  <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 柔影与晨雾</option></select></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="antialias-toggle">边缘抗锯齿</label><input id="antialias-toggle" type="checkbox" checked></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加近景柔影、体积光束与抗锯齿，显卡开销较高；细节可单独调整。均衡与流畅使用轻量高度雾。画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>食用或饮用 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>R</kbd>按住举起副手盾牌</span><span><kbd>随身照明</kbd>手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
@@ -251,6 +266,11 @@ let saveTimer = 0,
   stationKey = null,
   moved = 0,
   simulationAccumulator = 0;
+let craftingGrid = newCraftingGrid(),
+  craftingReturns = [];
+let showCraftGuide = true,
+  recipeBookOpen = innerWidth >= 700,
+  craftingPreviewOnly = false;
 const spawn = new THREE.Vector3();
 equipment.bind(pack);
 const inventorySession = new ContainerSession(resolveInventorySlot);
@@ -272,7 +292,9 @@ const inventoryControls = new InventoryControls(inventorySession, {
   swapHotbar,
   drop: dropInventoryStack,
   settle: settleInventoryCursor,
-  changed: () => {
+  changed: (refs) => {
+    if (refs?.some((ref) => ref?.startsWith('craft:')))
+      craftingPreviewOnly = false;
     updateHUD();
     refreshInventoryPanel();
     saveGame();
@@ -299,44 +321,30 @@ function resolveInventorySlot(ref) {
   if (typeof ref !== 'string') return null;
   const [kind, name] = ref.split(':'),
     index = Number(name);
-  if (kind === 'recipe' && name === 'output')
+  if (kind === 'craft' && name === 'output')
     return {
-      get: () => {
-        const recipe = RECIPES[selectedRecipe];
-        if (
-          !creative &&
-          !canCraft(recipe, inventory, tool, nearbyType('workbench'))
-        )
-          return null;
-        return {
-          item: recipe.id,
-          count: recipe.count,
-          ...(ITEMS[recipe.id].durability
-            ? { wear: ITEMS[recipe.id].durability }
-            : {}),
-        };
-      },
+      get: () => craftingResult(currentCraftingMatch()),
       set: () => {},
       accepts: () => false,
       output: true,
       whole: true,
+      collect: false,
       taken: () => {
-        const recipe = RECIPES[selectedRecipe];
-        if (!creative) {
-          for (const [id, n] of Object.entries(recipe.cost)) inventory[id] -= n;
-          for (const [id, n] of Object.entries(recipe.returns || {}))
-            inventory[id] = (inventory[id] || 0) + n;
-        }
+        const match = currentCraftingMatch();
+        if (!match) return;
+        craftingReturns.push(...consumeCrafting(craftingGrid, match));
         soundFX.play('craft');
       },
     };
-  if (kind === 'pack' || kind === 'gear' || kind === 'box') {
+  if (['pack', 'gear', 'box', 'craft'].includes(kind)) {
     const list =
       kind === 'pack'
         ? pack.slots
         : kind === 'gear'
           ? pack.gear
-          : currentChest();
+          : kind === 'craft'
+            ? craftingGrid
+            : currentChest();
     if (!list || !Number.isInteger(index) || index < 0 || index >= list.length)
       return null;
     return {
@@ -412,7 +420,7 @@ function resolveInventorySlot(ref) {
 const packRefs = (start = 0, end = INVENTORY_SLOTS) =>
   Array.from({ length: end - start }, (_, i) => 'pack:' + (i + start));
 function quickMoveInventory(ref) {
-  if (ref === 'recipe:output') {
+  if (ref === 'craft:output') {
     doCraft({ shiftKey: true });
     return;
   }
@@ -609,6 +617,8 @@ function startGame(mode = false, save = null) {
   hotbar = pack.hotbar;
   inventorySession.cursor = structuredClone(save?.inventory.cursor ?? null);
   inventorySession.origin = null;
+  craftingGrid = structuredClone(save?.crafting || newCraftingGrid());
+  craftingReturns = [];
   if (!save) {
     if (mode)
       HOTBAR.forEach((id, i) => {
@@ -856,11 +866,12 @@ function saveData() {
   const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 9,
+    version: 10,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
     inventory: savedInventory,
+    crafting: structuredClone(craftingGrid),
     selected,
     survival: survival.serialize(),
     experience: experience.serializePlayer(),
@@ -912,6 +923,8 @@ function lock() {
 }
 function openOverlay(id) {
   settleInventoryCursor();
+  if (overlay === '#craft-overlay' && id !== '#craft-overlay')
+    settleCraftingGrid();
   combat.reset();
   stopEating(true);
   closeChestLid();
@@ -951,6 +964,7 @@ function openOverlay(id) {
 }
 function closeOverlay() {
   settleInventoryCursor();
+  settleCraftingGrid();
   closeChestLid();
   document
     .querySelectorAll('.overlay')
@@ -977,45 +991,99 @@ function nearbyType(type, radius = 5) {
     }
   return false;
 }
+function currentCraftingMatch() {
+  const matches = craftingMatches(
+    craftingGrid,
+    creative || nearbyType('workbench'),
+  );
+  return matches.find((m) => m.index === selectedRecipe) || matches[0] || null;
+}
+function renderRecipeBook() {
+  const station = creative || nearbyType('workbench');
+  $('#recipes').innerHTML = recipeBookHTML(
+    craftingStock(pack, craftingGrid),
+    craftingPreviewOnly
+      ? selectedRecipe
+      : (currentCraftingMatch()?.index ?? selectedRecipe),
+    station,
+    $('#recipe-search').value,
+    $('#recipe-available').checked,
+    creative,
+  );
+}
 function renderCraft() {
   containInventory();
   const paletteQuery = $('#creative-search')?.value || '';
   const paletteOpen = $('.creative-palette')?.open ?? true;
   const paletteScroll = $('.palette-grid')?.scrollTop || 0;
-  const station = creative || nearbyType('workbench');
-  $('#recipes').innerHTML = RECIPES.map(
-    (r, i) =>
-      `<button class="recipe ${i === selectedRecipe ? 'active' : ''}" data-recipe="${i}">${icon(r.id)}<span>${ITEMS[r.id].name}<small>${r.station ? '工作台配方' : '随身合成'} · ×${r.count}</small></span></button>`,
-  ).join('');
-  const recipe = RECIPES[selectedRecipe];
+  const recipeScroll = $('#recipes').scrollTop;
+  const station = creative || nearbyType('workbench'),
+    match = currentCraftingMatch();
+  const reference = RECIPES[selectedRecipe],
+    recipe = craftingPreviewOnly ? reference : match?.recipe || reference;
+  const guide = showCraftGuide
+    ? (!craftingPreviewOnly && match?.cells) || recipeCells(reference)
+    : null;
+  const stock = craftingStock(pack, craftingGrid);
+  renderRecipeBook();
+  $('#recipes').scrollTop = recipeScroll;
+  $('#recipe-book').hidden = !recipeBookOpen;
+  $('.workshop-layout').classList.toggle('book-closed', !recipeBookOpen);
+  $('#recipe-book-toggle').setAttribute(
+    'aria-expanded',
+    String(recipeBookOpen),
+  );
   $('#recipe-title').textContent = recipe.title;
   $('#recipe-desc').textContent = recipe.desc;
-  $('#pattern').innerHTML = recipe.pattern
-    .map(
-      (id, index) =>
-        `<div class="hex-cell ${id && (inventory[id] || 0) < recipe.cost[id] && !creative ? 'missing' : ''}" title="${id ? ITEMS[id].name : '空位'}">${id ? icon(id) : ''}${id && recipe.patternCounts?.[index] > 1 ? '<b class="recipe-quantity">×' + recipe.patternCounts[index] + '</b>' : ''}</div>`,
-    )
-    .join('');
+  $('#craft-context').textContent = station
+    ? '工作台 · 七格合成'
+    : '随身 · 七格合成';
+  $('#pattern').innerHTML = craftingGridHTML(craftingGrid, guide);
   $('#recipe-cost').innerHTML = Object.entries(recipe.cost)
     .map(
       ([id, n]) =>
-        `<span class="${(inventory[id] || 0) < n && !creative ? 'missing' : ''}">${ITEMS[id].name} ${creative ? '∞' : inventory[id] || 0} / ${n}</span>`,
+        `<span class="${(stock[id] || 0) < n && !creative ? 'missing' : ''}">${icon(id)} ${ITEMS[id].name} ${creative ? '∞' : stock[id] || 0} / ${n}</span>`,
     )
     .join('');
-  $('#craft-button').disabled =
-    !creative && !canCraft(recipe, inventory, tool, station);
-  $('#craft-button').textContent =
-    `合成 ${ITEMS[recipe.id].name} ×${recipe.count}`;
-  $('#craft-button').dataset.invSlot = 'recipe:output';
+  const output = craftingResult(match);
+  $('#craft-button').disabled = !output;
   $('#craft-button').innerHTML =
-    icon(recipe.id) +
-    `<span>${ITEMS[recipe.id].name} ×${recipe.count}<small>点击拿取 · Shift 批量合成到背包</small></span>`;
+    stackContent(output) || '<span class="slot-ghost">?</span>';
+  $('#craft-button').setAttribute(
+    'aria-label',
+    output
+      ? stackTitle(output).replaceAll('\n', ' · ') + ' ×' + output.count
+      : '合成产物：尚无匹配配方',
+  );
+  $('#craft-product-name').textContent = output
+    ? ITEMS[output.item].name + ' ×' + output.count
+    : '等待摆料';
+  const alternatives = craftingMatches(craftingGrid, station);
+  const locked = !station && craftingMatches(craftingGrid, true).length > 0;
+  $('#craft-match').innerHTML =
+    alternatives.length > 1
+      ? '<span>可合成：</span>' +
+        alternatives
+          .map(
+            (m) =>
+              `<button data-craft-choice="${m.index}" aria-pressed="${m.index === match.index}">${icon(m.recipe.id)}${ITEMS[m.recipe.id].name} ×${m.recipe.count}</button>`,
+          )
+          .join('')
+      : locked
+        ? '图案正确，需要附近的工作台'
+        : output
+          ? craftingPreviewOnly
+            ? '当前网格产物：' + ITEMS[output.item].name + ' · 参考配方尚未填料'
+            : '图案匹配 · 取出产物时扣料'
+          : craftingGrid.some(Boolean)
+            ? '按提示补齐材料，或自由尝试新的图案'
+            : '放入材料，或点击配方册自动填料';
+  $('#fill-recipe').disabled = !!reference.station && !station;
+  $('#craft-guide').checked = showCraftGuide;
   $('#station-note').textContent =
-    recipe.station && !station
-      ? '需要在工作台 5 格范围内'
-      : station
-        ? '六格环绕，一格居中。每次合成，都是新的可能。'
-        : '随身合成 · 制作工作台以解锁更多配方';
+    reference.station && !station
+      ? '此配方需要 5 格内的工作台'
+      : 'Shift 点击配方 / 填料：填入尽可能多的批次';
   $('#inventory').innerHTML =
     playerSlots(pack, true) + (creative ? creativePalette() : '');
   if (creative) {
@@ -1026,46 +1094,65 @@ function renderCraft() {
       b.hidden = !b.dataset.search.includes(paletteQuery.trim().toLowerCase());
     });
   }
-  const query = $('#recipe-search').value.trim();
-  document
-    .querySelectorAll('[data-recipe]')
-    .forEach((b) =>
-      b.classList.toggle('hidden', !b.textContent.includes(query)),
-    );
   $('#pack-capacity').textContent =
     `${usedSlots(inventory)} / ${INVENTORY_SLOTS} 格`;
 }
-function doCraft(event) {
-  const recipe = RECIPES[selectedRecipe],
-    station = creative || nearbyType('workbench');
-  let crafted = 0;
-  const limit = event?.shiftKey ? stackSize(recipe.id) : recipe.count;
-  while (crafted + recipe.count <= limit) {
-    if (!creative && !canCraft(recipe, inventory, tool, station)) break;
-    // Work on a snapshot first so a full pack never eats recipe ingredients.
-    const draft = new PlayerInventory(pack.serialize());
-    draft.selected = selected;
-    if (!creative)
-      for (const [id, n] of Object.entries(recipe.cost)) draft.consume(id, n);
-    if (draft.room(recipe.id) < recipe.count) break;
-    let fits = true;
-    if (!creative)
-      for (const [id, n] of Object.entries(recipe.returns || {}))
-        if (draft.insert(id, n) !== n) fits = false;
-    if (!fits || draft.insert(recipe.id, recipe.count) !== recipe.count) break;
-    pack.slots = draft.slots;
-    crafted += recipe.count;
+function selectCraftRecipe(index, all = false) {
+  if (!Number.isInteger(index) || !RECIPES[index]) return;
+  inventoryControls.cancel();
+  selectedRecipe = index;
+  craftingPreviewOnly = false;
+  const recipe = RECIPES[index];
+  if (recipe.station && !creative && !nearbyType('workbench')) {
+    craftingPreviewOnly = true;
+    toast('需要在工作台 5 格范围内；已显示配方提示。');
+  } else {
+    const result = fillCraftingRecipe(
+      pack,
+      craftingGrid,
+      recipe,
+      all,
+      creative,
+    );
+    if (!result.ok) {
+      craftingPreviewOnly = true;
+      toast(
+        result.reason === 'missing'
+          ? '材料不足。淡色图标仅为提示，不会消耗物品。'
+          : '背包放不下原有材料，先腾出空间或手动调整网格。',
+      );
+    } else soundFX.play('pickup');
   }
-  if (!crafted) {
-    toast('材料不足、需要工作台，或背包空间不足。');
+  updateHUD();
+  renderCraft();
+  inventoryControls.refresh();
+  saveGame();
+}
+function doCraft(event) {
+  const result = quickCraft(
+    pack,
+    craftingGrid,
+    selectedRecipe,
+    creative || nearbyType('workbench'),
+    event?.shiftKey ? 64 : 1,
+  );
+  if (!result.count) {
+    toast('没有可取出的产物，或背包空间不足。');
     return;
   }
+  craftingReturns.push(...result.remainders);
   soundFX.play('craft');
   graphics.swing();
-  toast(`已制作 ${ITEMS[recipe.id].name} ×${crafted}`);
-  renderCraft();
   updateHUD();
+  renderCraft();
   saveGame();
+  toast(`已合成 ${ITEMS[result.item].name} ×${result.count}`);
+}
+function settleCraftingGrid() {
+  containInventory();
+  returnCraftingGrid(pack, craftingGrid);
+  for (const stack of craftingGrid) if (stack) dropInventoryStack(stack, false);
+  craftingGrid.fill(null);
 }
 
 function heldItem() {
@@ -1211,6 +1298,11 @@ function collectDrop(d, capacityOnly = false) {
   return n;
 }
 function containInventory() {
+  for (const stack of craftingReturns.splice(0)) {
+    const moved = pack.insert(stack.item, stack.count, [stack.wear]);
+    if (moved < stack.count)
+      dropInventoryStack({ ...stack, count: stack.count - moved }, false);
+  }
   const overflow = pack.overflow.splice(0);
   for (const stack of overflow) dropInventoryStack(stack, false);
   if (overflow.length) toast('背包已满，多余物品落在脚边。');
@@ -2825,6 +2917,8 @@ function hurt(amount, cause = 'combat', source = null) {
     for (const stack of [
       ...pack.slots,
       ...pack.gear,
+      ...craftingGrid,
+      ...craftingReturns,
       inventorySession.cursor,
     ].filter(Boolean)) {
       const wear = ITEMS[stack.item].durability
@@ -2833,6 +2927,8 @@ function hurt(amount, cause = 'combat', source = null) {
       drops.spawn(stack.item, stack.count, lastDeath, wear, null, 600);
     }
     inventorySession.cursor = null;
+    craftingGrid = newCraftingGrid();
+    craftingReturns = [];
     const lostXP = Math.min(100, experience.level * 7);
     experience.total = experience.fraction = 0;
     awardXP(lostXP, lastDeath);
@@ -3377,11 +3473,50 @@ $('#resume').onclick = () => {
 };
 $('#recipes').onclick = (e) => {
   const b = e.target.closest('[data-recipe]');
+  if (b) selectCraftRecipe(Number(b.dataset.recipe), e.shiftKey);
+};
+$('#fill-recipe').onclick = (e) =>
+  selectCraftRecipe(selectedRecipe, e.shiftKey);
+$('#craft-clear').onclick = () => {
+  inventoryControls.cancel();
+  craftingPreviewOnly = false;
+  const remaining = returnCraftingGrid(pack, craftingGrid);
+  updateHUD();
+  renderCraft();
+  inventoryControls.refresh();
+  saveGame();
+  if (remaining) toast('背包空间不足，剩余材料留在网格。');
+};
+for (const [id, mirror] of [
+  ['craft-rotate', false],
+  ['craft-mirror', true],
+]) {
+  $('#' + id).onclick = () => {
+    inventoryControls.cancel();
+    craftingPreviewOnly = false;
+    transformCraftingGrid(craftingGrid, mirror);
+    renderCraft();
+    inventoryControls.refresh();
+    saveGame();
+  };
+}
+$('#craft-match').onclick = (e) => {
+  const b = e.target.closest('[data-craft-choice]');
   if (b) {
-    selectedRecipe = Number(b.dataset.recipe);
+    selectedRecipe = Number(b.dataset.craftChoice);
+    craftingPreviewOnly = false;
     renderCraft();
   }
 };
+$('#recipe-book-toggle').onclick = () => {
+  recipeBookOpen = !recipeBookOpen;
+  renderCraft();
+};
+$('#craft-guide').onchange = (e) => {
+  showCraftGuide = e.target.checked;
+  renderCraft();
+};
+$('#recipe-available').onchange = renderRecipeBook;
 $('#hotbar').onclick = (e) => {
   const b = e.target.closest('[data-slot]');
   if (b) {
@@ -3497,14 +3632,7 @@ document.querySelectorAll('[data-dimension]').forEach(
     }),
 );
 document.addEventListener('pointerdown', () => soundFX.unlock());
-$('#recipe-search').oninput = () => {
-  const query = $('#recipe-search').value.trim();
-  document
-    .querySelectorAll('[data-recipe]')
-    .forEach((b) =>
-      b.classList.toggle('hidden', !b.textContent.includes(query)),
-    );
-};
+$('#recipe-search').oninput = renderRecipeBook;
 $('#sensitivity').oninput = (e) => (sensitivity = Number(e.target.value));
 $('#sound-toggle').onclick = () => {
   sound = !sound;
@@ -3566,6 +3694,11 @@ document.addEventListener(
 );
 document.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
+  if (
+    overlay === '#craft-overlay' &&
+    (e.code === 'Tab' || (e.code === 'Space' && e.target.matches('button')))
+  )
+    return;
   if (
     ['recipe-search', 'creative-search', 'smith-name'].includes(e.target.id) &&
     e.code === 'Escape'
@@ -4045,10 +4178,7 @@ if (import.meta.env.DEV)
       inventory[id] = n;
       updateHUD();
     },
-    selectRecipe: (i) => {
-      selectedRecipe = i;
-      renderCraft();
-    },
+    selectRecipe: (i) => selectCraftRecipe(i),
     setTarget: (t) => (target = t),
     teleport: (q, y, r) => {
       const p = axialToWorld(q, r);

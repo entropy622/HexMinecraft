@@ -186,7 +186,7 @@ export class InventoryControls {
     const ref = this.refAt(e.clientX, e.clientY);
     if (g.moved && g.refs.length > 1) this.session.distribute(g.refs, g.right);
     else if (ref === g.ref) this.session.click(g.ref, g.right);
-    this.changed();
+    this.changed(g.refs);
   }
   clearPreview() {
     document.querySelectorAll('.drag-target').forEach((b) => {
@@ -266,18 +266,22 @@ export class InventoryControls {
         ? this.session.resolve(this.hover)?.get()
         : null;
     this.tooltip.replaceChildren();
-    if (!stack) {
+    const hint =
+      this.active() && !this.session.cursor && this.hover
+        ? document.querySelector(
+            `.overlay:not(.hidden) [data-inv-slot="${this.hover}"]`,
+          )?.dataset.invHint
+        : '';
+    if (!stack && !hint) {
       this.tooltip.hidden = true;
       return;
     }
     this.tooltip.hidden = false;
-    stackTitle(stack)
-      .split('\n')
-      .forEach((line, i) => {
-        const el = document.createElement(i ? 'span' : 'strong');
-        el.textContent = line;
-        this.tooltip.append(el);
-      });
+    (stack ? stackTitle(stack) : hint).split('\n').forEach((line, i) => {
+      const el = document.createElement(i ? 'span' : 'strong');
+      el.textContent = line;
+      this.tooltip.append(el);
+    });
     const { x, y } = this.position;
     this.tooltip.style.left =
       Math.max(4, Math.min(x + 18, innerWidth - this.tooltip.offsetWidth - 8)) +
@@ -288,8 +292,8 @@ export class InventoryControls {
         Math.min(y - 12, innerHeight - this.tooltip.offsetHeight - 8),
       ) + 'px';
   }
-  changed() {
-    this.options.changed();
+  changed(refs = [this.hover]) {
+    this.options.changed(refs);
     this.refresh();
     this.status.textContent = this.session.cursor
       ? '拿着 ' +

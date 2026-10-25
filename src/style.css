@@ -3419,3 +3419,466 @@ input:focus-visible {
     animation: none;
   }
 }
+/* Interactive seven-cell workshop, with the bag visible alongside the recipe book. */
+.workshop-panel {
+  width: min(880px, 96vw);
+}
+.workshop-panel .panel-head {
+  padding: 12px 18px;
+}
+.workshop-panel .panel-head h2 {
+  margin-top: 3px;
+  font-size: 22px;
+}
+.workshop-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.workshop-header-actions > button:not(.close) {
+  padding: 7px 10px;
+  border: 2px solid #7b846b;
+  font-size: 11px;
+}
+.workshop-layout {
+  display: grid;
+  grid-template-columns: 195px minmax(0, 1fr);
+}
+.workshop-layout.book-closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+#recipe-book[hidden] {
+  display: none;
+}
+.workshop-main {
+  min-width: 0;
+}
+.workshop-panel .recipe-sidebar {
+  min-width: 0;
+}
+.workshop-panel .recipe-list {
+  max-height: min(640px, calc(90dvh - 160px));
+  padding: 7px;
+}
+.workshop-panel #recipe-search {
+  margin: 10px 8px 0;
+  width: calc(100% - 16px);
+  padding: 8px;
+}
+.recipe-filter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px;
+  font-size: 10px;
+  color: #b9c6b1;
+}
+.recipe-filter input,
+.craft-guide-row input {
+  accent-color: #b8ca85;
+}
+.workshop-panel .recipe {
+  min-height: 41px;
+  gap: 7px;
+  padding: 7px;
+  font-size: 11px;
+}
+.workshop-panel .recipe .block-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 26px;
+}
+.recipe.unavailable {
+  opacity: 0.48;
+}
+.recipe.unavailable:hover,
+.recipe.unavailable.active {
+  opacity: 1;
+}
+.recipe.can-fill::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  margin-left: auto;
+  background: #a6c97b;
+  box-shadow: 1px 1px #1d2717;
+}
+.recipe-empty {
+  font-size: 11px;
+  line-height: 1.8;
+  padding: 10px;
+  color: #b3baa8;
+}
+.workshop-panel .craft-main {
+  padding: 12px 16px 10px;
+}
+.craft-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.workshop-panel .craft-title h3 {
+  margin: 0;
+  font-size: 16px;
+  text-align: left;
+}
+#craft-context {
+  color: #abb9a5;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.workshop-panel #recipe-desc {
+  margin-top: 5px;
+  font-size: 10px;
+  min-height: 18px;
+}
+.craft-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 25px;
+  padding: 8px 0 0;
+}
+.craft-grid {
+  --craft-scale: 1;
+  position: relative;
+  flex-shrink: 0;
+  width: calc(154px * var(--craft-scale));
+  height: calc(176px * var(--craft-scale));
+}
+.workshop-panel .craft-grid .craft-cell {
+  position: absolute;
+  width: calc(56px * var(--craft-scale));
+  height: calc(64px * var(--craft-scale));
+  aspect-ratio: auto;
+  clip-path: var(--hex);
+  background-color: #a5a691;
+  box-shadow: none;
+  padding: 5px;
+  isolation: isolate;
+}
+.craft-cell::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  clip-path: var(--hex);
+  background: #4a5147;
+  z-index: -1;
+}
+.workshop-panel .craft-cell:hover,
+.workshop-panel .craft-cell:focus-visible {
+  background-color: #eee1a3;
+  outline: 0;
+}
+.workshop-panel .craft-cell:hover::before,
+.workshop-panel .craft-cell:focus-visible::before {
+  background-color: #78816c;
+}
+.workshop-panel .craft-cell.insufficient {
+  background-color: #d9a468;
+}
+.craft-grid .craft-cell:nth-child(1) {
+  left: 0;
+  top: calc(28px * var(--craft-scale));
+}
+.craft-grid .craft-cell:nth-child(2) {
+  left: calc(49px * var(--craft-scale));
+  top: 0;
+}
+.craft-grid .craft-cell:nth-child(3) {
+  left: calc(98px * var(--craft-scale));
+  top: calc(28px * var(--craft-scale));
+}
+.craft-grid .craft-cell:nth-child(4) {
+  left: calc(49px * var(--craft-scale));
+  top: calc(56px * var(--craft-scale));
+}
+.craft-grid .craft-cell:nth-child(5) {
+  left: 0;
+  top: calc(84px * var(--craft-scale));
+}
+.craft-grid .craft-cell:nth-child(6) {
+  left: calc(49px * var(--craft-scale));
+  top: calc(112px * var(--craft-scale));
+}
+.craft-grid .craft-cell:nth-child(7) {
+  left: calc(98px * var(--craft-scale));
+  top: calc(84px * var(--craft-scale));
+}
+.craft-cell .stack-count,
+.craft-cell .drag-count {
+  right: 12px;
+  bottom: 11px;
+  font-size: 12px;
+}
+.craft-cell .stack-wear {
+  bottom: 12px;
+  left: 21%;
+  width: 58%;
+}
+.workshop-panel .craft-cell.drag-target {
+  background-color: #ffe49b;
+}
+.workshop-panel .craft-cell.drag-target::before {
+  background-color: #82866e;
+}
+.craft-ghost {
+  position: absolute;
+  inset: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.23;
+  pointer-events: none;
+}
+.craft-ghost .block-icon {
+  width: 80%;
+  height: 80%;
+  filter: grayscale(0.3);
+}
+.craft-ghost b {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  font: bold 11px monospace;
+}
+.craft-arrow {
+  font-size: 26px;
+  color: #d1c487;
+  text-shadow: 2px 2px #111;
+}
+.craft-product {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 86px;
+}
+.craft-product > span,
+.craft-product > small {
+  font-size: 10px;
+  color: #b2bfaa;
+  line-height: 1.6;
+}
+.craft-product strong {
+  color: #e6dfbc;
+  font-size: 11px;
+  font-weight: 400;
+}
+.workshop-panel #craft-button {
+  width: 68px;
+  height: 68px;
+  min-width: 68px;
+  padding: 5px;
+  margin: 0;
+}
+.workshop-panel #craft-button .block-icon {
+  width: 43px;
+  height: 43px;
+}
+.workshop-panel #craft-button:disabled {
+  opacity: 0.4;
+}
+#craft-match {
+  min-height: 18px;
+  margin-top: 4px;
+  color: #c3cbaa;
+  font-size: 11px;
+}
+#craft-match button {
+  padding: 3px 5px;
+  margin: 3px;
+  border: 1px solid #7c8970;
+  font-size: 10px;
+}
+#craft-match button[aria-pressed='true'] {
+  background: #657343;
+  border-color: #cbd399;
+}
+#craft-match .block-icon {
+  width: 15px;
+  height: 15px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.workshop-panel .recipe-cost {
+  margin: 5px 0 8px;
+  gap: 5px 12px;
+  min-height: 16px;
+}
+.workshop-panel .recipe-cost > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.workshop-panel .recipe-cost .block-icon {
+  width: 15px;
+  height: 15px;
+}
+.craft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+}
+.craft-actions button {
+  border: 2px solid #747d63;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+.craft-actions button:disabled {
+  opacity: 0.4;
+}
+.craft-guide-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 9px;
+  font-size: 10px;
+  color: #aab89d;
+}
+.craft-guide-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.workshop-panel .inventory-section {
+  padding: 10px 14px 12px;
+}
+.workshop-panel .section-label {
+  margin-bottom: 7px;
+}
+.workshop-panel .mc-grid,
+.workshop-panel .pack-label {
+  max-width: 448px;
+}
+.workshop-panel .pack-label {
+  margin-top: 9px;
+  font-size: 11px;
+}
+.workshop-panel .equipment-row {
+  gap: 12px;
+  margin: 5px 0;
+}
+.workshop-panel .equipment-row label {
+  width: 36px;
+  font-size: 9px;
+}
+.workshop-panel .equipment-row .mc-slot {
+  margin-top: 3px;
+}
+.workshop-panel .stack-count {
+  font-size: 13px;
+}
+.workshop-help {
+  margin: 10px auto 0;
+  max-width: 448px;
+  font-size: 10px;
+  color: #aebca5;
+}
+.workshop-help summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.workshop-help .inventory-help {
+  font-size: 10px;
+  margin: 7px 0;
+}
+@media (max-height: 800px) {
+  .workshop-panel .panel-head {
+    padding: 8px 14px;
+  }
+  .workshop-panel .panel-head h2 {
+    font-size: 19px;
+  }
+  .workshop-panel .eyebrow {
+    font-size: 9px;
+  }
+  .craft-grid {
+    --craft-scale: 0.82;
+  }
+  .workshop-panel .craft-main {
+    padding-top: 9px;
+  }
+  .workshop-panel .craft-title h3 {
+    font-size: 14px;
+  }
+  .workshop-panel #recipe-desc {
+    margin-top: 3px;
+  }
+  .craft-stage {
+    padding-top: 3px;
+    gap: 20px;
+  }
+  .craft-guide-row {
+    margin-top: 6px;
+  }
+}
+@media (max-width: 700px) {
+  .workshop-panel {
+    width: 96vw;
+  }
+  .workshop-layout {
+    display: block;
+    position: relative;
+  }
+  .workshop-panel .recipe-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 5;
+    width: min(250px, 80vw);
+    overflow-y: auto;
+    background: #252d26;
+    border-right: 3px solid #92977e;
+    box-shadow: 5px 0 #0005;
+  }
+  .workshop-panel .recipe-list {
+    max-height: none;
+  }
+  .workshop-panel .recipe small {
+    display: block;
+  }
+  .workshop-panel .recipe .block-icon {
+    width: 23px;
+    height: 25px;
+  }
+  .workshop-panel .panel-head {
+    padding: 9px 10px;
+  }
+  .workshop-panel .panel-head h2 {
+    font-size: 19px;
+  }
+  .workshop-header-actions {
+    gap: 6px;
+  }
+  .workshop-panel .craft-main {
+    padding: 10px 8px 7px;
+  }
+  .workshop-panel .inventory-section {
+    padding: 8px 7px 10px;
+  }
+  .workshop-panel .craft-title {
+    gap: 5px;
+  }
+  .workshop-panel .craft-title h3 {
+    font-size: 13px;
+  }
+  #craft-context {
+    font-size: 9px;
+  }
+  .craft-stage {
+    gap: min(18px, 3vw);
+  }
+  .craft-guide-row {
+    justify-content: center;
+  }
+  .craft-actions button {
+    padding: 5px 6px;
+  }
+}

@@ -9,10 +9,11 @@ import { validDrops } from './item-drops.js';
 import { validWeather } from './weather.js';
 import { validPlant } from './farming-data.js';
 import { validPlayerInventory } from './inventory.js';
+import { validCraftingGrid } from './crafting.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v9';
+export const SAVE_KEY = 'hexwild-save-v10';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -35,12 +36,13 @@ const position = (p) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 9 ||
+    s.version !== 10 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
     !Object.hasOwn(DIMENSIONS, s.dimension) ||
     !validPlayerInventory(s.inventory) ||
+    !validCraftingGrid(s.crafting) ||
     !Number.isInteger(s.selected) ||
     s.selected < 0 ||
     s.selected > 8 ||

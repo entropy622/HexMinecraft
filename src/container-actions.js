@@ -144,6 +144,7 @@ export class ContainerSession {
       for (const ref of refs) {
         const slot = this.resolve(ref),
           old = slot?.get();
+        if (slot?.collect === false) continue;
         if (
           !sameStack(old, this.cursor) ||
           old.count < stackSize(old.item) !== partial

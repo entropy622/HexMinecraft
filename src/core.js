@@ -221,11 +221,11 @@ export const HOTBAR = [
 export const RECIPES = [
   {
     id: 'planks',
-    count: 8,
+    count: 4,
     title: '从一棵树开始',
     desc: '轻巧温暖的建筑材料。',
-    pattern: [null, 'wood', null, 'wood', null, null, null],
-    cost: { wood: 2 },
+    pattern: [null, null, null, 'wood', null, null, null],
+    cost: { wood: 1 },
   },
   {
     id: 'workbench',

@@ -27,7 +27,7 @@ recipe(
   ['planks', 'ingot', 'planks', 'planks', 'planks', 'planks', 'planks'],
   1,
   true,
-  '点击背包中的盾牌装备到副手。按住 R 举盾，阻挡正面近战与箭矢，减轻正面爆炸；举盾时移动变慢。',
+  '将盾牌放入副手格，或在背包中 Shift 点击装备。按住 R 举盾，阻挡正面近战与箭矢，减轻正面爆炸；举盾时移动变慢。',
 );
 recipe(
   'boat',
