@@ -115,6 +115,14 @@ surface retains CC BY-SA 3.0. All supplied PNGs are unmodified. Six-sided
 bevelled bodies, rigs, facial geometry, wool switching and animations are
 original code; no upstream mob or villager model/code is bundled.
 
+Version 0.32 adds the unmodified `mcl_throwing_ender_pearl.png` and
+`mcl_throwing_snowball.png` from the same VoxeLibre revision, under its general
+CC BY-SA 3.0 media terms. These icons are used in inventory, held sprites,
+dropped items and projectiles; the existing egg icon is reused. Ballistics,
+collision, six-direction teleport placement, hatching, particles and synthesized
+sounds are original code. No upstream projectile source, model or audio is
+redistributed.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

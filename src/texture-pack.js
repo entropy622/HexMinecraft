@@ -56,6 +56,8 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  pearl: 'mcl_throwing_ender_pearl',
+  snowball: 'mcl_throwing_snowball',
   ghastTear: 'mcl_mobitems_ghast_tear',
   blazeRod: 'vl_mobitems_flaming_rod',
   ember: 'vl_mobitems_flaming_powder',

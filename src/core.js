@@ -10,6 +10,7 @@ import { FISH_ITEMS } from './fishing-data.js';
 import { FOODS } from './survival.js';
 import { BREW_BLOCKS, BREW_ITEMS, BREW_RECIPES } from './brewing-data.js';
 import { SMITHING_BLOCKS, SMITHING_RECIPES } from './smithing-data.js';
+import { THROWING_RECIPES } from './throwable-data.js';
 import {
   ENCHANT_BLOCKS,
   ENCHANT_ITEMS,
@@ -177,7 +178,8 @@ export const ITEMS = {
   pick2: { name: '石镐', color: '#a9b8b3' },
   pick3: { name: '铁镐', color: '#e5d8c5' },
   pick4: { name: '钻石镐', color: '#83dce7' },
-  pearl: { name: '末影珍珠', color: '#77c4ba' },
+  pearl: { name: '末影珍珠', color: '#77c4ba', use: true },
+  snowball: { name: '雪球', color: '#e6f4ff', use: true },
   ember: { name: '烈焰粉', color: '#f5ad61' },
   sword: { name: '铁剑', color: '#c6d9dc' },
   hoe: { name: '锄头', color: '#bdbda4' },
@@ -192,7 +194,7 @@ export const ITEMS = {
   arrow: { name: '箭矢', color: '#c5b48a' },
   leather: { name: '皮革', color: '#a87542' },
   feather: { name: '羽毛', color: '#ede7d5' },
-  egg: { name: '鸡蛋', color: '#e5d5b9' },
+  egg: { name: '鸡蛋', color: '#e5d5b9', use: true },
   bone: { name: '骨头', color: '#e4ddc9' },
   boneMeal: { name: '骨粉', color: '#ece8d7', use: true },
   gunpowder: { name: '火药', color: '#69696c' },
@@ -412,6 +414,7 @@ RECIPES.push(
     cost: { waterBucket: 1, crystal: 2 },
     station: true,
   },
+  ...THROWING_RECIPES,
 );
 export function axialToWorld(q, r) {
   return { x: SQRT3 * (q + r / 2), z: 1.5 * r };

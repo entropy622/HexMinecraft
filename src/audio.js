@@ -129,6 +129,16 @@ export class GameAudio {
     } else if (event === 'doorOpen' || event === 'doorClose') {
       this.noise(0.09, 0.08, 480);
       this.tone(event === 'doorOpen' ? 190 : 125, 0.12, 'triangle', 0.05);
+    } else if (event === 'throw') {
+      this.noise(0.09, 0.09, 1800);
+      this.tone(240 + Math.random() * 65, 0.07, 'triangle', 0.04);
+    } else if (event === 'snowImpact' || event === 'eggImpact') {
+      this.noise(0.12, 0.11, event === 'snowImpact' ? 2400 : 1100);
+    } else if (event === 'pearlTeleport') {
+      this.noise(0.28, 0.08, 850);
+      [440, 220, 110].forEach((n, i) =>
+        this.tone(n, 0.18, 'sine', 0.06, i * 0.04),
+      );
     } else if (event === 'portal') {
       [130.81, 196, 261.63, 392].forEach((n, i) =>
         this.tone(n, 0.75, 'sine', 0.09, i * 0.09),

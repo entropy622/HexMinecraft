@@ -5,6 +5,7 @@ import { enchantLabel, customName, wearValue } from './enchanting-data.js';
 import { potionDescription } from './brewing-data.js';
 import { FOODS } from './survival.js';
 import { itemIcon as icon } from './icons.js';
+import { THROWABLES } from './throwable-data.js';
 import { escapeHTML as escape } from './ui-text.js';
 
 export function stackTitle(s) {
@@ -14,6 +15,7 @@ export function stackTitle(s) {
     customName(s.wear) || item.name,
     enchantLabel(s.wear),
     potionDescription(s.item),
+    THROWABLES[s.item]?.hint,
     item.durability ? `耐久 ${wearValue(s.wear)} / ${item.durability}` : '',
     item.armor ? `护甲 +${item.armor}` : '',
     FOODS[s.item] && !item.potion

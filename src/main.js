@@ -93,6 +93,8 @@ import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack, textureURL } from './texture-pack.js';
 import { Equipment, miningStats } from './equipment.js';
 import { Projectiles } from './projectiles.js';
+import { Throwables, pearlDestination } from './throwables.js';
+import { THROWABLES } from './throwable-data.js';
 import { Fireballs } from './fireballs.js';
 import { Fishing } from './fishing.js';
 import { Boats, BOAT_EYE } from './boats.js';
@@ -112,7 +114,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.31 — FAMILIAR FACES</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.32 — INTO THE DISTANCE</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -182,6 +184,10 @@ const fireballs = new Fireballs(graphics.scene, {
     graphics.burst(a.q, point.y, a.r, '#efb34c');
   },
   returned: () => toast('以牙还牙！恶魂被击回的火球击败了。'),
+});
+const throwables = new Throwables(graphics.scene, {
+  impact: resolveThrow,
+  miss: () => toast('珍珠离开了已加载区域，未能传送。'),
 });
 const drops = new ItemDrops(graphics.scene, graphics.textures);
 const experience = new Experience(graphics.scene, (levelUp) =>
@@ -264,6 +270,7 @@ let survival = new Survival(),
 const foodInputs = new Set();
 const combat = new Combat();
 let attackPeriod = 0.45;
+let throwHeldItem = null;
 
 let world = new World(624),
   pack = new PlayerInventory(),
@@ -672,6 +679,8 @@ function collides(x, feet, z) {
   return false;
 }
 function safeSpawn() {
+  throwables.clear();
+  throwHeldItem = null;
   boats.riding = null;
   fishing.clear();
   if (respawnPoint) {
@@ -765,6 +774,8 @@ function startGame(mode = false, save = null) {
   bowCharge = 0;
   projectiles.clear();
   fireballs.clear();
+  throwables.clear();
+  throwHeldItem = null;
   selected = save?.selected ?? 0;
   selectedRecipe = 0;
   health = save?.health ?? 20;
@@ -905,6 +916,8 @@ function travel(to) {
   fishing.clear();
   projectiles.clear();
   fireballs.clear();
+  throwables.clear();
+  throwHeldItem = null;
   bowCharge = 0;
   captureDimension();
   boats.load();
@@ -1318,7 +1331,7 @@ function updateHUD() {
       .slice(0, 9)
       .map(
         (stack, i) =>
-          `<button class="slot ${i === selected ? 'active' : ''} ${enchantLabel(stack?.wear) ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${escapeHTML(stack ? stackTitle(stack).replaceAll('\n', ' · ') : '空格')}">${stackContent(stack)}<span class="num">${i + 1}</span></button>`,
+          `<button class="slot ${i === selected ? 'active' : ''} ${enchantLabel(stack?.wear) ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${escapeHTML(stack ? stackTitle(stack).replaceAll('\n', ' · ') : '空格')}">${stackContent(stack)}${THROWABLES[stack?.item] ? '<i class="item-cooldown" aria-hidden="true"></i>' : ''}<span class="num">${i + 1}</span></button>`,
       )
       .join('');
   }
@@ -1498,12 +1511,16 @@ function mine(dt) {
   wearItem(held, ITEMS[held]?.kind === 'sword' ? 2 : 1);
   if (!creative) {
     dropAt(
-      data.drop || type,
-      type === 'lapisOre'
-        ? 4 + Math.floor(Math.random() * 6)
-        : type === 'redstoneOre'
-          ? 4 + Math.floor(Math.random() * 2)
-          : 1,
+      type === 'snow' && ITEMS[held]?.kind === 'shovel'
+        ? 'snowball'
+        : data.drop || type,
+      type === 'snow' && ITEMS[held]?.kind === 'shovel'
+        ? 4
+        : type === 'lapisOre'
+          ? 4 + Math.floor(Math.random() * 6)
+          : type === 'redstoneOre'
+            ? 4 + Math.floor(Math.random() * 2)
+            : 1,
       q,
       y,
       r,
@@ -1784,11 +1801,105 @@ function useFishingRod() {
   saveGame();
   return true;
 }
+function useThrowable() {
+  const item = heldItem();
+  if (!THROWABLES[item]) return false;
+  if (combat.raised || foodUse || !throwables.ready(item)) return true;
+  if (!pack.slots[selected]?.count) return true;
+  const inherited = boats.riding
+    ? new THREE.Vector3(boats.riding.vx, 0, boats.riding.vz)
+    : new THREE.Vector3(
+        motion.x,
+        grounded ? 0 : Math.max(-8, Math.min(8, vy)),
+        motion.z,
+      );
+  if (
+    !throwables.shoot(
+      item,
+      camera.position,
+      camera.getWorldDirection(new THREE.Vector3()),
+      inherited,
+    )
+  ) {
+    toast('空中的投掷物太多了，稍等片刻。');
+    return true;
+  }
+  if (!creative) inventory[item]--;
+  if (foodInputs.has('mouse')) throwHeldItem = item;
+  mining = bowCharge = 0;
+  graphics.swing();
+  soundFX.play('throw');
+  updateHUD();
+  saveGame();
+  return true;
+}
+function resolveThrow(impact) {
+  const { item, point, mob, direction } = impact;
+  if (item === 'pearl') {
+    const destination = pearlDestination(world, impact, collides);
+    if (!destination) {
+      toast('珍珠破碎了，但落点没有足够的容身空间。');
+      return;
+    }
+    const origin = camera.position.clone().add(new THREE.Vector3(0, -0.65, 0));
+    boats.riding = null;
+    boatTarget = creatureTarget = villagerTarget = target = null;
+    fishing.clear();
+    stopEating(true);
+    combat.reset();
+    motion.reset();
+    vy = 0;
+    grounded = false;
+    leftDown = false;
+    mining = bowCharge = 0;
+    camera.position.copy(destination);
+    camera.position.y += 1.65;
+    const a = worldToAxial(destination.x, destination.z);
+    graphics.sync(a.q, a.r, true);
+    throwables.burst(origin, 'pearl', 22);
+    throwables.burst(
+      destination.clone().add(new THREE.Vector3(0, 0.8, 0)),
+      'pearl',
+      22,
+    );
+    soundFX.play('pearlTeleport');
+    toast(
+      creative
+        ? '珍珠传送！'
+        : '珍珠传送 · 消耗 5 生命，可受保护附魔和吸收生命减免',
+    );
+    // Pearl damage is its own cost and cannot be skipped by recent damage.
+    damageCooldown = 0;
+    hurt(5, 'pearl');
+    updateHUD();
+    saveGame();
+    return;
+  }
+  soundFX.play(item === 'snowball' ? 'snowImpact' : 'eggImpact');
+  if (mob && fauna.active.includes(mob)) {
+    if (item === 'snowball' && mob.kind === 'blaze') hitMob(mob, 3, direction);
+    else fauna.nudge(mob, direction);
+  }
+  if (item === 'egg' && Math.random() < 1 / 8) {
+    const count = Math.random() < 1 / 32 ? 4 : 1;
+    const spawned = fauna.hatch(
+      point.clone().addScaledVector(impact.normal, 0.4),
+      count,
+    );
+    if (spawned) {
+      toast(
+        spawned === 1
+          ? '蛋壳裂开，一只小鸡探出头来！'
+          : `一颗蛋孵出了 ${spawned} 只小鸡！`,
+      );
+      saveGame();
+    }
+  }
+}
 function place() {
   if (!playing) return;
   if (combat.raised) return;
   if (foodUse) stopEating();
-  if (useFishingRod() || useBoatItem()) return;
   if (
     target &&
     ['door', 'doorTop', 'gate'].includes(target.type) &&
@@ -1798,7 +1909,28 @@ function place() {
     toggleBuilding(target.q, target.y, target.r);
     return;
   }
+  if (
+    !keys.has('ControlLeft') &&
+    !keys.has('ControlRight') &&
+    (villagerTarget ||
+      (target &&
+        [
+          'workbench',
+          'furnace',
+          'brewingStand',
+          'enchantingTable',
+          ...ANVILS,
+          'grindstone',
+          'chest',
+          'bed',
+        ].includes(target.type)))
+  ) {
+    interact(true);
+    return;
+  }
+  if (useFishingRod() || useBoatItem()) return;
   if (interactCreature() || drinkMilk() || useGoldenApple()) return;
+  if (useThrowable()) return;
   if (useGlassBottle()) return;
   if (heldItem() === 'boneMeal' && target) {
     interact();
@@ -2190,15 +2322,15 @@ function interactPlant(k) {
   );
   return true;
 }
-function interact() {
+function interact(preferContext = false) {
   if (!playing) return;
   combat.reset();
   if (foodUse) stopEating();
-  if (boats.riding && heldItem() === 'fishingRod') {
+  if (!preferContext && boats.riding && heldItem() === 'fishingRod') {
     useFishingRod();
     return;
   }
-  if (interactBoat() || useFishingRod() || useBoatItem()) return;
+  if (!preferContext && interactBoat()) return;
   if (interactCreature()) return;
   const contextual =
     villagerTarget ||
@@ -2221,6 +2353,12 @@ function interact() {
         'farmland',
       ].includes(target.type) ||
         (plantForItem(heldItem()) && ['grass', 'dirt'].includes(target.type))));
+  if (
+    !contextual &&
+    !target?.crop &&
+    (useFishingRod() || useBoatItem() || useThrowable())
+  )
+    return;
   if (FOODS[heldItem()] && !contextual) {
     eat(foodInputs.has('mouse') ? 'mouse' : 'tap');
     return;
@@ -2231,7 +2369,7 @@ function interact() {
     renderTrade();
     return;
   }
-  if ((!contextual && useGlassBottle()) || useBucket()) return;
+  if (!contextual && (useGlassBottle() || useBucket())) return;
   if (!target) return;
   const { q, y, r, type } = target,
     k = key(q, y, r);
@@ -2881,6 +3019,12 @@ function survivalHUD() {
 }
 
 function combatHUD() {
+  document.querySelectorAll('#hotbar .item-cooldown').forEach((overlay) => {
+    const item = pack.slots[Number(overlay.parentElement.dataset.slot)]?.item;
+    const remaining =
+      (throwables.cooldowns[item] || 0) / (THROWABLES[item]?.cooldown || 1);
+    overlay.style.height = `${Math.min(1, remaining) * 100}%`;
+  });
   const shieldStatus = $('#shield-status');
   shieldStatus.classList.toggle('hidden', !equipment.offhand);
   shieldStatus.classList.toggle('impact', combat.impact > 0.05);
@@ -3800,6 +3944,7 @@ $('#world').addEventListener('mousedown', (e) => {
 document.addEventListener('mouseup', (e) => {
   if (e.button === 2) {
     foodInputs.delete('mouse');
+    throwHeldItem = null;
     if (foodUse?.source === 'mouse') stopEating();
   }
   if (e.button !== 0) return;
@@ -4149,6 +4294,24 @@ function frame(now) {
       (amount, source) => hurt(amount, 'projectile', source),
     );
     fireballs.update(dt, world, creatures, camera);
+    throwables.update(
+      dt,
+      world,
+      creatures,
+      camera,
+      villagers.residents,
+      boats.records,
+    );
+    if (throwHeldItem) {
+      if (
+        !foodInputs.has('mouse') ||
+        heldItem() !== throwHeldItem ||
+        foodUse ||
+        combat.raised
+      )
+        throwHeldItem = null;
+      else if (throwables.ready(throwHeldItem)) useThrowable();
+    }
     $('#boat-status').classList.toggle('hidden', !boats.riding);
     if (boats.riding)
       $('#boat-status').textContent =
@@ -4170,9 +4333,13 @@ function frame(now) {
               : '按住左键拉弓') +
             ' · 箭矢 ' +
             (creative ? '∞' : inventory.arrow || 0)
-          : attackCooldown > 0
-            ? '挥击恢复中'
-            : '';
+          : THROWABLES[heldItem()]
+            ? throwables.ready(heldItem())
+              ? THROWABLES[heldItem()].hint
+              : `${ITEMS[heldItem()].name} · 冷却 ${throwables.cooldowns[heldItem()].toFixed(1)} 秒`
+            : attackCooldown > 0
+              ? '挥击恢复中'
+              : '';
     simulationAccumulator += dt;
     if (simulationAccumulator > 0.5) {
       simulationAccumulator = 0;

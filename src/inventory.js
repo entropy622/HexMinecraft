@@ -10,7 +10,7 @@ export const stackSize = (id) =>
   (ITEMS[id]?.bucket && id !== 'bucket') ||
   id === 'milkBucket'
     ? 1
-    : id === 'bucket' || id === 'egg' || id === 'pearl'
+    : id === 'bucket' || id === 'egg' || id === 'pearl' || id === 'snowball'
       ? 16
       : 64;
 const stores = new WeakMap();

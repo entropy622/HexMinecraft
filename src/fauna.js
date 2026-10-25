@@ -205,11 +205,7 @@ export class Fauna {
       object = object.parent;
     return this.active.find((m) => m.mesh === object) || null;
   }
-  hit(m, damage, direction, loot = true) {
-    m.hp -= damage;
-    m.hit = 0.3;
-    m.flee = 3;
-    m.anger = 12;
+  nudge(m, direction) {
     if (direction) {
       const p = m.mesh.position.clone().addScaledVector(direction, 0.5);
       if (MOBS[m.kind].flying) {
@@ -219,6 +215,38 @@ export class Fauna {
         if (y !== null) m.mesh.position.set(p.x, y, p.z);
       }
     }
+  }
+  hatch(point, count) {
+    let spawned = 0;
+    const positions = [
+      [0, 0],
+      ...Array.from({ length: 6 }, (_, i) => [
+        Math.cos((i * Math.PI) / 3) * 0.65,
+        Math.sin((i * Math.PI) / 3) * 0.65,
+      ]),
+    ];
+    for (const [dx, dz] of positions) {
+      if (
+        spawned >= count ||
+        this.records.size >= 2048 ||
+        this.active.length >= 72
+      )
+        break;
+      const x = point.x + dx,
+        z = point.z + dz;
+      const y = this.floor(x, z, point.y, 'chicken');
+      if (y === null) continue;
+      this.spawn('chicken', [x, y, z], 180);
+      spawned++;
+    }
+    return spawned;
+  }
+  hit(m, damage, direction, loot = true) {
+    m.hp -= damage;
+    m.hit = 0.3;
+    m.flee = 3;
+    m.anger = 12;
+    this.nudge(m, direction);
     if (m.hp > 0) return;
     if (loot && !m.baby) {
       this.callbacks.experience?.(
