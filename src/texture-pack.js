@@ -2,6 +2,9 @@
 import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS } from './building-data.js';
 export const blockTextures = {
+  chorusPlant: ['mcl_end_chorus_plant'],
+  chorusFlower: ['mcl_end_chorus_flower'],
+  chorusFlowerDead: ['mcl_end_chorus_flower_dead'],
   endstoneBricks: ['mcl_end_end_bricks'],
   purpurPillar: ['mcl_end_purpur_pillar_top', 'mcl_end_purpur_pillar'],
   endRod: ['mcl_end_end_rod'],
@@ -66,6 +69,8 @@ for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Stairs'] = blockTextures[base];
 }
 export const itemTextures = {
+  chorusFruit: 'mcl_end_chorus_fruit',
+  poppedChorusFruit: 'mcl_end_chorus_fruit_popped',
   shulkerShell: 'mcl_mobitems_shulker_shell',
   elytra: 'mcl_armor_inv_elytra',
   fireworkRocket: 'vl_fireworks_rocket',

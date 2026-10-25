@@ -14,6 +14,7 @@ import { THROWING_RECIPES } from './throwable-data.js';
 import { END_BLOCKS, END_ITEMS, END_RECIPES } from './end-data.js';
 import { FLIGHT_BLOCKS, FLIGHT_ITEMS, FLIGHT_RECIPES } from './flight-data.js';
 import { CITY_BLOCKS, CITY_RECIPES } from './end-city-data.js';
+import { CHORUS_BLOCKS, CHORUS_ITEMS, CHORUS_RECIPES } from './chorus-data.js';
 import {
   SHULKER_ITEMS,
   SHULKER_BLOCKS,
@@ -34,6 +35,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...CHORUS_BLOCKS,
   ...CITY_BLOCKS,
   ...SHULKER_BLOCKS,
   ...FLIGHT_BLOCKS,
@@ -179,6 +181,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...CHORUS_ITEMS,
   ...SHULKER_ITEMS,
   ...FLIGHT_ITEMS,
   ...END_ITEMS,
@@ -440,6 +443,7 @@ RECIPES.push(
   ...FLIGHT_RECIPES,
   ...SHULKER_RECIPES,
   ...CITY_RECIPES,
+  ...CHORUS_RECIPES,
 );
 export function axialToWorld(q, r) {
   return { x: SQRT3 * (q + r / 2), z: 1.5 * r };

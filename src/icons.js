@@ -104,7 +104,9 @@ export function itemIcon(id) {
   if (!cache.has(id)) {
     if (
       ITEMS[id]?.portable ||
-      ['slab', 'stairs', 'egg', 'rod'].includes(ITEMS[id]?.shape)
+      ['slab', 'stairs', 'egg', 'rod', 'chorus', 'chorusFlower'].includes(
+        ITEMS[id]?.shape,
+      )
     ) {
       cache.set(id, cutBlockIcon(id));
       return cache.get(id);

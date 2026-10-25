@@ -110,6 +110,8 @@ import { Glider } from './glider.js';
 import { FlightEffects } from './flight-effects.js';
 import { END_GATEWAYS } from './flight-data.js';
 import { GameAudio } from './audio.js';
+import { growChorus, harvestChorus } from './chorus.js';
+import { isChorus, isChorusFlower } from './chorus-data.js';
 import { itemIcon as icon } from './icons.js';
 const soundFX = new GameAudio();
 
@@ -124,7 +126,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.39 — CITIES ABOVE THE VOID</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.40 — FRUIT BETWEEN PLACES</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -160,6 +162,8 @@ const flightEffects = new FlightEffects(graphics.scene, (event) =>
   soundFX.play(event),
 );
 let rocketCooldown = 0;
+let chorusCooldown = 0,
+  pendingChorusUse = null;
 const projectiles = new Projectiles(graphics.scene);
 const fireballs = new Fireballs(graphics.scene, {
   sound: (kind) => soundFX.play(kind),
@@ -782,6 +786,8 @@ function collides(x, feet, z, standing = false) {
   return false;
 }
 function safeSpawn() {
+  chorusCooldown = 0;
+  pendingChorusUse = null;
   shulkerBullets.clear();
   glider.reset();
   flightEffects.clear();
@@ -835,6 +841,7 @@ function startGame(mode = false, save = null) {
     blockStates: data.blockStates,
     furnaces: data.furnaces,
     brewing: data.brewing,
+    chorus: data.chorus,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
     villageFeatures: data.villageFeatures,
@@ -875,6 +882,7 @@ function startGame(mode = false, save = null) {
   glider.load(save?.flight);
   flightEffects.clear();
   rocketCooldown = 0;
+  chorusCooldown = 0;
   experience.loadPlayer(save?.experience || { seed });
   combat.reset();
   stopEating(true);
@@ -1070,6 +1078,7 @@ function travel(to) {
     blockStates: data.blockStates,
     furnaces: data.furnaces,
     brewing: data.brewing,
+    chorus: data.chorus,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
     villageFeatures: data.villageFeatures,
@@ -1476,7 +1485,7 @@ function updateHUD() {
       .slice(0, 9)
       .map(
         (stack, i) =>
-          `<button class="slot ${i === selected ? 'active' : ''} ${enchantLabel(stack?.wear) ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${escapeHTML(stack ? stackTitle(stack).replaceAll('\n', ' · ') : '空格')}">${stackContent(stack)}${THROWABLES[stack?.item] ? '<i class="item-cooldown" aria-hidden="true"></i>' : ''}<span class="num">${i + 1}</span></button>`,
+          `<button class="slot ${i === selected ? 'active' : ''} ${enchantLabel(stack?.wear) ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${escapeHTML(stack ? stackTitle(stack).replaceAll('\n', ' · ') : '空格')}">${stackContent(stack)}${THROWABLES[stack?.item] || stack?.item === 'chorusFruit' ? '<i class="item-cooldown" aria-hidden="true"></i>' : ''}<span class="num">${i + 1}</span></button>`,
       )
       .join('');
   }
@@ -1643,6 +1652,13 @@ function mine(dt) {
   if (mining < data.hardness) return;
   const { q, y, r, type } = target;
   const natural = !world.edits.has(k);
+  if (isChorus(type)) {
+    harvestChorusBlock(q, y, r, true, !creative);
+    wearItem(held);
+    mining = 0;
+    target = null;
+    return;
+  }
   if (BLOCKS[type].shape) {
     removeBuilding(q, y, r, !creative);
     wearItem(held);
@@ -2484,6 +2500,16 @@ function placeBuilding(type, p) {
     return;
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
+  if (type === 'chorusFlower') {
+    if (!['endstone', 'chorusPlant'].includes(world.get(q, y - 1, r))) {
+      toast('紫颂花需要末地石或紫颂枝干支撑。');
+      return;
+    }
+    if (world.chorus.size >= 4096) {
+      toast('附近已种下很多紫颂花，先等待一些长成。');
+      return;
+    }
+  }
   if (type === 'door' && !fullSupport(q, y - 1, r, true)) {
     toast('门需要放在实心地面上。');
     return;
@@ -2542,6 +2568,8 @@ function placeBuilding(type, p) {
     return;
   }
   for (const [a, b, c, t] of cells) world.set(a, b, c, t);
+  if (type === 'chorusFlower')
+    world.chorus.set(key(q, y, r), { stage: 0, time: 0 });
   if (crops.has(key(q, y - 1, r))) harvestPlant(key(q, y - 1, r), true, 3);
   if (!creative) inventory[type]--;
   graphics.updateBlock(q, y, r);
@@ -2551,6 +2579,10 @@ function placeBuilding(type, p) {
 }
 function removeBuilding(q, y, r, drop = true) {
   const original = world.get(q, y, r);
+  if (isChorus(original)) {
+    harvestChorusBlock(q, y, r, false, drop);
+    return;
+  }
   if (!BLOCKS[original]?.shape) return;
   if (original === 'doorTop' && world.get(q, y - 1, r) === 'door') y--;
   const type = world.get(q, y, r),
@@ -2742,6 +2774,7 @@ function growTree(k) {
   return true;
 }
 function updatePlants(dt) {
+  applyChorusChanges(growChorus(world, dt, growthOccupied), !creative);
   for (const [k, plant] of crops) {
     const [q, y, r] = k.split(',').map(Number);
     if (!world.loaded(q, r)) continue;
@@ -2763,6 +2796,38 @@ function updatePlants(dt) {
     if (def.tree && plant.age >= def.seconds && status.rate > 0) growTree(k);
     else graphics.crop(k, plant);
   }
+}
+function growthOccupied(q, y, r) {
+  const p = axialToWorld(q, r);
+  if (
+    Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 1.25 &&
+    y < camera.position.y + 0.15 &&
+    y + 1 > playerFeet()
+  )
+    return true;
+  return [...creatures, ...villagers.residents.values()].some(
+    (m) =>
+      Math.hypot(p.x - m.mesh.position.x, p.z - m.mesh.position.z) < 1.3 &&
+      y < m.mesh.position.y + (MOBS[m.kind]?.height || 1.9) &&
+      y + 1 > m.mesh.position.y,
+  );
+}
+function applyChorusChanges(output, drop = true) {
+  if (!output.changed.length) return;
+  const chunks = new Set();
+  for (const { q, r } of output.changed)
+    for (const [dq, dr] of [[0, 0], ...DIRECTIONS])
+      chunks.add(graphics.chunkKey(q + dq, r + dr));
+  for (const ck of chunks) if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
+  if (drop)
+    for (const p of output.drops) dropAt(p.item, p.count, p.q, p.y, p.r);
+  weatherColumns.update(1, world);
+  graphics.renderer.shadowMap.needsUpdate = true;
+}
+function harvestChorusBlock(q, y, r, direct, drop) {
+  applyChorusChanges(harvestChorus(world, q, y, r, direct), drop);
+  graphics.burst(q, y, r, '#ac82b3');
+  soundFX.play('break', 'wood');
 }
 function interactPlant(k) {
   const [q, y, r] = k.split(',').map(Number),
@@ -3358,15 +3423,64 @@ function spillChest(k) {
 }
 function stopEating(clearInputs = false) {
   foodUse = null;
+  pendingChorusUse = null;
   if (clearInputs) foodInputs.clear();
   if (graphics) {
     graphics.eating = 0;
     graphics.setHeld(heldItem());
   }
 }
+function teleportChorusFruit() {
+  const origin = camera.position.clone(),
+    feet = playerFeet();
+  let destination = null;
+  for (let i = 0; i < 16; i++) {
+    const x = origin.x + (Math.random() * 2 - 1) * 8,
+      z = origin.z + (Math.random() * 2 - 1) * 8,
+      y = Math.max(1, Math.min(62, feet + (Math.random() * 2 - 1) * 8));
+    const floor = findFloor(world, x, z, y, { step: 0, drop: 8, height: 1.8 });
+    if (
+      floor === null ||
+      Math.abs(floor - feet) > 8 ||
+      collides(x, floor + 0.01, z, true)
+    )
+      continue;
+    const a = worldToAxial(x, z);
+    if (growthOccupied(a.q, floor, a.r)) continue;
+    destination = new THREE.Vector3(x, floor + 1.66, z);
+    break;
+  }
+  if (!destination) {
+    toast('紫颂果 · 附近没有可安全落脚的位置。');
+    return;
+  }
+  boats.riding = null;
+  fishing.clear();
+  glider.reset();
+  flightEffects.clear();
+  combat.reset();
+  motion.reset();
+  camera.position.copy(destination);
+  graphics.stepOffset = 0;
+  graphics.sync(
+    worldToAxial(destination.x, destination.z).q,
+    worldToAxial(destination.x, destination.z).r,
+    true,
+  );
+  vy = 0;
+  grounded = false;
+  leftDown = false;
+  mining = bowCharge = 0;
+  target = creatureTarget = villagerTarget = boatTarget = null;
+  throwables.burst(origin, 'pearl', 18);
+  throwables.burst(destination, 'pearl', 18);
+  soundFX.play('pearlTeleport');
+  toast('紫颂果 · 折跃到附近地面');
+}
 function canEat(item) {
   return (
     FOODS[item] &&
+    (item !== 'chorusFruit' || chorusCooldown <= 0) &&
     (creative || inventory[item] > 0) &&
     (creative || hunger < 20 || FOODS[item].always)
   );
@@ -3381,6 +3495,10 @@ function eat(source = 'tap', chosen = null) {
           .filter((id) => !FOODS[id].always && inventory[id] > 0)
           .sort((a, b) => FOODS[b].saturation - FOODS[a].saturation)[0]);
   if (!canEat(item)) {
+    if (item === 'chorusFruit' && chorusCooldown > 0) {
+      toast('紫颂果还在冷却，稍等片刻。');
+      return false;
+    }
     toast(
       item
         ? '已经吃饱了，等饥饿后再吃。'
@@ -3429,6 +3547,12 @@ function updateEating(dt) {
     if (!pack.slots[selected]) hotbar[selected] = FOODS[use.item].container;
   }
   stopEating();
+  if (use.item === 'chorusFruit') {
+    chorusCooldown = 1;
+    teleportChorusFruit();
+    if (use.source !== 'tap' && foodInputs.has(use.source))
+      pendingChorusUse = use.source;
+  }
   updateHUD();
   saveGame();
   if (use.item === 'goldenApple')
@@ -3550,7 +3674,9 @@ function combatHUD() {
   document.querySelectorAll('#hotbar .item-cooldown').forEach((overlay) => {
     const item = pack.slots[Number(overlay.parentElement.dataset.slot)]?.item;
     const remaining =
-      (throwables.cooldowns[item] || 0) / (THROWABLES[item]?.cooldown || 1);
+      item === 'chorusFruit'
+        ? chorusCooldown
+        : (throwables.cooldowns[item] || 0) / (THROWABLES[item]?.cooldown || 1);
     overlay.style.height = `${Math.min(1, remaining) * 100}%`;
   });
   const shieldStatus = $('#shield-status');
@@ -4862,6 +4988,13 @@ function frame(now) {
     }
     attackCooldown = Math.max(0, attackCooldown - dt);
     rocketCooldown = Math.max(0, rocketCooldown - dt);
+    chorusCooldown = Math.max(0, chorusCooldown - dt);
+    if (pendingChorusUse) {
+      if (!foodInputs.has(pendingChorusUse) || heldItem() !== 'chorusFruit')
+        pendingChorusUse = null;
+      else if (!foodUse && chorusCooldown <= 0)
+        eat(pendingChorusUse, 'chorusFruit');
+    }
     damageCooldown = Math.max(0, damageCooldown - dt);
     combat.update(
       dt,
@@ -4939,6 +5072,16 @@ function frame(now) {
         def = PLANTS[plant.kind];
       $('#target').textContent =
         `${def.name} · ${Math.floor((plant.age / def.seconds) * 100)}% · E ${plant.age >= def.seconds && !def.tree ? '收获' : '查看 / 骨粉催熟'} · 左键拔除`;
+    }
+    if (target && isChorus(target.type)) {
+      const growth = world.chorus.get(key(target.q, target.y, target.r));
+      $('#target').textContent =
+        BLOCKS[target.type].name +
+        (growth
+          ? ` · 生长 ${growth.stage + 1}/5 · 无需水与光照`
+          : isChorusFlower(target.type)
+            ? ' · 直接采集可再种植'
+            : ' · 掉落紫颂果 · 先采花再收枝');
     }
     villagers.frame(dt, time, camera);
     villagerTarget = villagers.target(

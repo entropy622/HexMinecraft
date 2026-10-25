@@ -5,6 +5,8 @@ import { END_FLOOR } from './end-data.js';
 import { stampEndArena } from './end-arena.js';
 import { FIRST_END_SHIP } from './flight-data.js';
 import { FIRST_END_CITY } from './end-city-data.js';
+import { stampChorus } from './chorus.js';
+import { isChorus } from './chorus-data.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -67,6 +69,8 @@ export class World {
     this.blockStates = new Map();
     this.naturalStates = new Map();
     this.shapeCache = new Map();
+    this.chorus = new Map(options.chorus || []);
+    this.chorusPending = new Set();
     this.structureFeatures = new Set(options.structureFeatures || []);
     this.discoveredStructures = new Set(options.discoveredStructures || []);
     this.villageExclusions = new Set(options.villageExclusions || []);
@@ -276,6 +280,16 @@ export class World {
       else this.blocks.delete(k);
     }
     if (record && this.loaded(q, r)) this.fluids.changedBlock(q, y, r);
+    if (type !== 'chorusFlower') this.chorus.delete(k);
+    if (this.loaded(q, r) && previous !== type) {
+      for (const [a, b, c] of [
+        [q, y, r],
+        [q, y - 1, r],
+        [q, y + 1, r],
+        ...DIRECTIONS.map(([dq, dr]) => [q + dq, y, r + dr]),
+      ])
+        if (isChorus(this.get(a, b, c))) this.chorusPending.add(key(a, b, c));
+    }
     if (record) {
       this.edits.set(k, type || null);
       const ck = chunkKey(q, r);
@@ -403,12 +417,14 @@ export class World {
                     );
             }
         }
+    stampChorus(this, cq, cr);
     for (const v of this.villages(cq * 8 + 4, cr * 8 + 4, 8))
       stampVillage(this, v, cq, cr);
     for (const s of this.structures(cq * 8 + 4, cr * 8 + 4, 8))
       stampStructure(this, s, cq, cr);
     stampEndArena(this, cq, cr);
     for (const [k, t] of this.editChunks.get(ck) || []) {
+      if (isChorus(t)) this.chorusPending.add(k);
       if (BLOCKS[t]?.shape) this.buildings.add(k);
       else this.buildings.delete(k);
       if (t === 'spawner') this.spawners.add(k);
@@ -447,6 +463,7 @@ export class World {
           this.spawners.delete(k);
           this.buildings.delete(k);
           this.naturalStates.delete(k);
+          this.chorusPending.delete(k);
         }
       }
     this.chunks.delete(`${cq},${cr}`);
@@ -461,6 +478,7 @@ export class World {
     this.naturalStates.clear();
     this.shapeCache.clear();
     this.heights.clear();
+    this.chorusPending.clear();
     this.chunks.clear();
     this.center = null;
   }
@@ -485,6 +503,7 @@ export class World {
       blockStates: [...this.blockStates],
       furnaces: [...this.furnaces],
       brewing: [...this.brewing],
+      chorus: [...this.chorus],
       structureFeatures: [...this.structureFeatures],
       discoveredStructures: [...this.discoveredStructures],
       fluids: this.fluids.serialize(),

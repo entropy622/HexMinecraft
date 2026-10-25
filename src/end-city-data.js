@@ -34,8 +34,8 @@ export const CITY_RECIPES = [
     count: 4,
     station: true,
     title: '浮城里的微光',
-    desc: '烈焰棒与紫珀制成四根末地烛。细小的六棱白光源，也可以手持照明。',
-    pattern: [null, 'blazeRod', null, 'purpur', null, null, null],
-    cost: { blazeRod: 1, purpur: 1 },
+    desc: '烈焰棒与爆裂紫颂果制成四根末地烛。细小的六棱白光源，也可以手持照明。',
+    pattern: [null, 'blazeRod', null, 'poppedChorusFruit', null, null, null],
+    cost: { blazeRod: 1, poppedChorusFruit: 1 },
   },
 ];

@@ -123,6 +123,9 @@ export function miningStats(block, held, enchant = {}) {
     'fence',
     'gate',
     'ladder',
+    'chorusPlant',
+    'chorusFlower',
+    'chorusFlowerDead',
   ].includes(block)
     ? 'axe'
     : [

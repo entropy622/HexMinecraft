@@ -19,6 +19,13 @@ export function stackTitle(s) {
     item.glider ? '放入胸甲格 · 空中再次按空格展开 · 俯冲加速、抬头爬升' : '',
     s.item === 'fireworkRocket' ? '滑翔中右键 / E 助推 · 地面使用可放烟花' : '',
     s.item === 'phantomMembrane' ? '铁砧修复鞘翅 · 每片恢复最多 108 耐久' : '',
+    s.item === 'chorusFruit'
+      ? '可饱腹食用 · 随机折跃到附近地面 · 熔炉可烧成爆裂紫颂果'
+      : '',
+    s.item === 'chorusFlower'
+      ? '种在末地石或紫颂枝干上 · 自然分枝，无需水与光照'
+      : '',
+    s.item === 'poppedChorusFruit' ? '用于制作紫珀与末地烛' : '',
     item.portable
       ? `已用 ${s.contents?.filter(Boolean).length || 0}/${PORTABLE_SLOTS} 格 · 拆除保留物品`
       : '',

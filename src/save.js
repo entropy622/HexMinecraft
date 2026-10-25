@@ -207,6 +207,27 @@ export function validateSave(s) {
       throw Error('农田数据无效');
     const editedTypes = new Map(d.edits);
     if (
+      d.chorus !== undefined &&
+      (!Array.isArray(d.chorus) ||
+        d.chorus.length > 4096 ||
+        d.chorus.some(
+          (entry) =>
+            !Array.isArray(entry) ||
+            entry.length !== 2 ||
+            !cell(entry[0]) ||
+            editedTypes.get(entry[0]) !== 'chorusFlower' ||
+            !entry[1] ||
+            !Number.isInteger(entry[1].stage) ||
+            entry[1].stage < 0 ||
+            entry[1].stage > 4 ||
+            !Number.isFinite(entry[1].time) ||
+            entry[1].time < 0 ||
+            entry[1].time >= 20,
+        ) ||
+        new Set(d.chorus.map((entry) => entry[0])).size !== d.chorus.length)
+    )
+      throw Error('紫颂花生长数据无效');
+    if (
       !Array.isArray(d.chests) ||
       d.chests.length > 1e5 ||
       d.chests.some(

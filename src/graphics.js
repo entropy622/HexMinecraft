@@ -527,7 +527,11 @@ export class Graphics {
       this.held.add(mesh);
       return;
     }
-    if (['slab', 'stairs', 'egg', 'rod'].includes(BLOCKS[id]?.shape)) {
+    if (
+      ['slab', 'stairs', 'egg', 'rod', 'chorus', 'chorusFlower'].includes(
+        BLOCKS[id]?.shape,
+      )
+    ) {
       const mesh = buildingItemMesh(id, this.textures);
       mesh.scale.setScalar(0.28);
       mesh.position.set(0, 0.17, -0.36);

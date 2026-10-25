@@ -1,5 +1,6 @@
 import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
 import { cutBlockParts, polygonContains, HEX_POLYGON } from './cut-blocks.js';
+import { isChorus } from './chorus-data.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -42,6 +43,46 @@ export function buildingParts(world, q, y, r, collision = false) {
       polygon: HEX_POLYGON.map(([x, z]) => [x * radius, z * radius]),
     }));
   const parts = [];
+  if (shape === 'chorus' || shape === 'chorusFlower') {
+    const flower = shape === 'chorusFlower';
+    parts.push({
+      x: 0,
+      y: flower ? 0.52 : 0.5,
+      z: 0,
+      h: flower ? 0.76 : 1,
+      angle: 0,
+      tile: type,
+      polygon: HEX_POLYGON.map(([x, z]) => [
+        x * (flower ? 0.43 : 0.23),
+        z * (flower ? 0.43 : 0.23),
+      ]),
+    });
+    if (flower)
+      parts.push({
+        x: 0,
+        y: 0.1,
+        z: 0,
+        h: 0.2,
+        angle: 0,
+        tile: 'chorusPlant',
+        polygon: HEX_POLYGON.map(([x, z]) => [x * 0.17, z * 0.17]),
+      });
+    DIRECTIONS.forEach(([dq, dr]) => {
+      if (!isChorus(world.get(q + dq, y, r + dr))) return;
+      const p = axialToWorld(dq, dr);
+      parts.push({
+        x: p.x / 4,
+        y: 0.5,
+        z: p.z / 4,
+        w: 0.32,
+        h: 0.32,
+        d: Math.sqrt(3) / 2 + 0.05,
+        angle: Math.atan2(p.x, p.z),
+        tile: 'chorusPlant',
+      });
+    });
+    return parts;
+  }
   if (shape === 'rod')
     return [
       {

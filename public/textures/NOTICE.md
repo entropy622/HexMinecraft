@@ -192,6 +192,17 @@ service shafts, bridges, roofs, rod geometry and loot rules are original.
 No upstream schematic, model or gameplay source is bundled. Selected media
 now totals 216 PNGs: 195 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
 
+Version 0.40 adds five unmodified files from the same VoxeLibre revision:
+`mcl_end_chorus_plant.png`, `mcl_end_chorus_flower.png`,
+`mcl_end_chorus_flower_dead.png`, `mcl_end_chorus_fruit.png` and
+`mcl_end_chorus_fruit_popped.png`, under the upstream general
+**CC BY-SA 3.0** media terms. Runtime atlas crops, hexagonal model UV views
+and projected item icons retain CC BY-SA 3.0. The six-way plant network,
+generation, growth, detachment, persistence and fruit teleport rules are
+independent implementations; no upstream gameplay source or model is bundled.
+Selected media now totals 221 PNGs: 200 under CC BY-SA 3.0 and 21 under
+CC BY-SA 4.0.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.
