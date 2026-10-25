@@ -163,6 +163,8 @@ export const EXPLORATION_RECIPES = [
   ),
 ];
 export const SMELTING = {
+  charcoal: { input: 'wood', seconds: 8 },
+  glass: { input: 'sand', seconds: 8 },
   bakedPotato: { input: 'potato', seconds: 6 },
   ingot: { input: 'iron', seconds: 8 },
   goldIngot: { input: 'gold', seconds: 10 },

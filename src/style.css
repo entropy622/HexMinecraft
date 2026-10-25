@@ -2052,20 +2052,135 @@ input:focus-visible {
   }
 }
 
-.smelting-recipe {
+.furnace-controls {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+.furnace-controls button {
+  padding: 6px 16px;
+}
+.furnace-controls button[aria-pressed='true'] {
+  color: #ffe1a0;
+  background: #6d4931;
+  border-color: #e7ba6f;
+}
+.furnace-machine {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  margin: 24px 0;
+  padding: 24px 12px;
+  background: #282a29;
+  border: 4px solid #555650;
+  box-shadow:
+    inset 3px 3px #171a19,
+    inset -3px -3px #737267;
+}
+.furnace-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.furnace-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  min-height: 84px;
+  padding: 8px;
+  border: 3px solid #77776b;
+  border-radius: 0;
+  background: #171c1b;
+  box-shadow: inset 3px 3px #090e0d;
+}
+.furnace-slot .block-icon {
+  width: 36px;
+  height: 36px;
+}
+.furnace-slot b {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  color: #fff6da;
+  text-shadow: 2px 2px #111;
+}
+.furnace-slot small {
+  margin-top: 4px;
+  font-size: 11px;
+}
+.furnace-slot:disabled {
+  opacity: 0.65;
+}
+.furnace-output {
+  border-color: #bb9860;
+}
+.furnace-process {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 180px;
+  text-align: center;
+}
+.furnace-process small {
+  color: #c8bd9c;
+  font-size: 11px;
+}
+.furnace-progress {
+  height: 20px;
+  background: #121816;
+  border: 3px solid #77776b;
+}
+.furnace-progress i {
+  display: block;
+  height: 100%;
+  background: #f1c66e;
+  box-shadow: inset 0 3px #ffe4a0;
+}
+.furnace-heat {
+  position: relative;
+  width: 24px;
+  height: 28px;
+  background: #171a19;
+  clip-path: polygon(
+    50% 0,
+    70% 35%,
+    85% 16%,
+    100% 65%,
+    85% 100%,
+    15% 100%,
+    0 65%,
+    24% 28%,
+    32% 58%
+  );
+}
+.furnace-heat i {
+  position: absolute;
+  bottom: 0;
   width: 100%;
-  margin: 10px 0;
-  padding: 10px;
-  text-align: left;
+  background: linear-gradient(#ffe18a, #ed6a28);
 }
-.smelting-recipe .block-icon {
-  flex: 0 0 26px;
-  height: 26px;
+[data-furnace-deposit] small {
+  color: #d3b77c;
+  font-size: 11px;
 }
-.smelting-recipe small {
-  margin-left: auto;
-  color: #e7c782;
+@media (max-width: 540px) {
+  .furnace-machine {
+    gap: 10px;
+    padding: 16px 6px;
+  }
+  .furnace-slot {
+    width: 68px;
+    min-height: 76px;
+  }
+  .furnace-process {
+    width: 110px;
+    font-size: 12px;
+  }
 }

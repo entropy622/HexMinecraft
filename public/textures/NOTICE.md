@@ -19,6 +19,10 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.14 additionally uses the unmodified `default_furnace_front.png`,
+`default_furnace_side.png`, and `mcl_core_charcoal.png` from the same revision
+and license. The existing active furnace front is used only while burning.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

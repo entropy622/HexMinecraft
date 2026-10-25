@@ -72,6 +72,7 @@ export class World {
     this.fluids = new Fluids(this, options.fluids);
     if (options.edits) this.applyEdits(options.edits);
     this.blockStates = new Map(options.blockStates || []);
+    this.furnaces = new Map(options.furnaces || []);
     if (options.load !== false) this.ensureAround(0, 0);
   }
   biome(q, r) {
@@ -397,6 +398,7 @@ export class World {
     return {
       edits: [...this.edits],
       blockStates: [...this.blockStates],
+      furnaces: [...this.furnaces],
       structureFeatures: [...this.structureFeatures],
       discoveredStructures: [...this.discoveredStructures],
       fluids: this.fluids.serialize(),

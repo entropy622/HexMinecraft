@@ -33,13 +33,16 @@ export const blockTextures = {
   obsidian: ['default_obsidian'],
   snow: ['default_snow'],
   workbench: ['crafting_workbench_top', 'crafting_workbench_side'],
-  furnace: ['default_furnace_top', 'default_furnace_front_active'],
+  furnace: ['default_furnace_top', 'default_furnace_front'],
+  furnaceLit: ['default_furnace_top', 'default_furnace_front_active'],
+  furnaceCasing: ['default_furnace_top', 'default_furnace_side'],
   farmland: ['mcl_farming_farmland_wet', 'default_dirt'],
   glowstone: ['mcl_nether_glowstone'],
   bedrock: ['mcl_core_bedrock'],
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  charcoal: 'mcl_core_charcoal',
   door: 'doors_item_wood',
   fence: 'mcl_fences_fence_oak',
   gate: 'mcl_fences_fence_gate_oak',

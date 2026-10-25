@@ -1,3 +1,4 @@
+import { validFurnace } from './furnaces.js';
 import { validFauna } from './fauna.js';
 import { validDrops } from './item-drops.js';
 import { validWeather } from './weather.js';
@@ -87,6 +88,19 @@ export function validateSave(s) {
         ))
     )
       throw Error('建筑朝向或开关状态无效');
+    if (
+      d.furnaces !== undefined &&
+      (!Array.isArray(d.furnaces) ||
+        d.furnaces.length > 200000 ||
+        d.furnaces.some(
+          (e) =>
+            !Array.isArray(e) ||
+            e.length !== 2 ||
+            !cell(e[0]) ||
+            !validFurnace(e[1]),
+        ))
+    )
+      throw Error('熔炉数据无效');
     for (const field of ['structureFeatures', 'discoveredStructures']) {
       if (
         d[field] !== undefined &&

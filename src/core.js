@@ -148,6 +148,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  charcoal: { name: '木炭', color: '#45413c' },
   ...FARM_ITEMS,
   ...EXPLORATION_ITEMS,
   ...BLOCKS,

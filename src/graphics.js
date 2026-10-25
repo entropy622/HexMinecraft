@@ -355,7 +355,7 @@ export class Graphics {
       for (const ck of wanted)
         for (const [k, t] of this.world.editChunks.get(ck) || []) {
           const [x, y, z] = k.split(',').map(Number);
-          if (BLOCKS[t]?.light) this.updateLight(x, y, z);
+          if (BLOCKS[t]?.light || t === 'furnace') this.updateLight(x, y, z);
           if (t === 'portal' || t === 'endportal') this.portal(x, y, z, t);
         }
     }
@@ -580,7 +580,8 @@ export class Graphics {
             !['沙漠', '雪原'].includes(world.biome(q, r))
               ? 1
               : 0;
-          if (BLOCKS[type].light) this.updateLight(q, y, r);
+          if (BLOCKS[type].light || type === 'furnace')
+            this.updateLight(q, y, r);
           if (type === 'torch') {
             out = torches;
             const p = axialToWorld(q, r),
@@ -703,7 +704,13 @@ export class Graphics {
                 [1, 1],
                 [1, 0],
               ],
-              type + ':side',
+              type === 'furnace'
+                ? i === world.state(q, y, r).facing
+                  ? world.furnaces.get(q + ',' + y + ',' + r)?.burn > 0
+                    ? 'furnaceLit:side'
+                    : 'furnace:side'
+                  : 'furnaceCasing:side'
+                : type + ':side',
               shade,
               [bottom, cornerAO(j, y + 1), bottom],
             );
@@ -714,7 +721,13 @@ export class Graphics {
                 [0, 1],
                 [1, 1],
               ],
-              type + ':side',
+              type === 'furnace'
+                ? i === world.state(q, y, r).facing
+                  ? world.furnaces.get(q + ',' + y + ',' + r)?.burn > 0
+                    ? 'furnaceLit:side'
+                    : 'furnace:side'
+                  : 'furnaceCasing:side'
+                : type + ':side',
               shade,
               [bottom, cornerAO(i, y + 1), cornerAO(j, y + 1)],
             );
@@ -827,7 +840,10 @@ export class Graphics {
   updateLight(q, y, r) {
     const k = q + ',' + y + ',' + r,
       type = this.world.get(q, y, r),
-      color = BLOCKS[type]?.light;
+      color =
+        type === 'furnace' && this.world.furnaces.get(k)?.burn > 0
+          ? '#ff9d47'
+          : BLOCKS[type]?.light;
     if (!color) {
       this.lights.delete(k);
       return;

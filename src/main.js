@@ -1,5 +1,6 @@
 import { STRUCTURE_NAMES, structureLoot } from './structures.js';
-import { SMELTING } from './exploration-data.js';
+import { FUELS, newFurnace, smeltingRecipe, tickFurnace } from './furnaces.js';
+import { furnacePanel, updateFurnacePanel } from './furnace-ui.js';
 import { features as villageFeatures, ROLES, trade } from './villages.js';
 import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
@@ -51,7 +52,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.13 — HOMES AND HOMESTEADS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.14 — KEEP THE FIRE BURNING</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -116,7 +117,7 @@ let world = new World(624),
   time = 105;
 let crops = new Map(),
   chests = new Map(),
-  furnaceJobs = new Map(),
+  furnaceAmount = 8,
   creatures = fauna.active,
   hasGame = false,
   playing = false,
@@ -225,6 +226,7 @@ function startGame(mode = false, save = null) {
   world = new World(seed, dimension, {
     edits: data.edits,
     blockStates: data.blockStates,
+    furnaces: data.furnaces,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
     villageFeatures: data.villageFeatures,
@@ -253,7 +255,6 @@ function startGame(mode = false, save = null) {
   chests = new Map(data.chests);
   chestWear = new Map(data.chestWear || []);
   respawnPoint = data.respawn || null;
-  furnaceJobs = new Map();
   const pos = save?.position;
   if (pos) {
     const a = worldToAxial(pos[0], pos[2]);
@@ -358,7 +359,6 @@ function syncDecor() {
 }
 function travel(to) {
   if (!hasGame || !DIMENSIONS[to] || to === dimension) return false;
-  refundJobs();
   projectiles.clear();
   bowCharge = 0;
   captureDimension();
@@ -369,6 +369,7 @@ function travel(to) {
   world = new World(seed, to, {
     edits: data.edits,
     blockStates: data.blockStates,
+    furnaces: data.furnaces,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
     villageFeatures: data.villageFeatures,
@@ -434,11 +435,6 @@ function travel(to) {
 
 function saveData() {
   const savedInventory = { ...inventory };
-  for (const job of furnaceJobs.values())
-    if (job.paid) {
-      savedInventory[job.input] = (savedInventory[job.input] || 0) + 1;
-      savedInventory.coal = (savedInventory.coal || 0) + 1;
-    }
   captureDimension();
   return {
     version: 5,
@@ -530,6 +526,8 @@ function openOverlay(id) {
   }
 }
 function closeOverlay() {
+  if (hasGame && overlay === '#station-overlay' && $('#furnace-progress'))
+    saveGame();
   discardMode = false;
   $('#drop-mode').textContent = '点击丢弃：关';
   $('#drop-mode').setAttribute('aria-pressed', 'false');
@@ -915,12 +913,7 @@ function mine(dt) {
     chestWear.delete(k);
     chests.delete(k);
   }
-  const job = furnaceJobs.get(k);
-  if (job?.paid) {
-    dropAt(job.input, 1, q, y, r);
-    dropAt('coal', 1, q, y, r);
-  }
-  furnaceJobs.delete(k);
+  spillFurnace(k);
   mining = 0;
   target = null;
 }
@@ -1036,6 +1029,16 @@ function place() {
     return;
   }
   world.set(q, y, r, id);
+  if (id === 'furnace') {
+    const center = axialToWorld(q, r);
+    world.setState(q, y, r, {
+      facing: facingFromDirection(
+        camera.position.x - center.x,
+        camera.position.z - center.z,
+      ),
+      open: false,
+    });
+  }
   const cropBelow = key(q, y - 1, r);
   if (crops.has(cropBelow)) {
     harvestPlant(cropBelow, true, 2);
@@ -1497,54 +1500,97 @@ $('#station-content').addEventListener('click', (e) => {
     renderTrade();
   }
 });
-function renderFurnace() {
-  const job = furnaceJobs.get(stationKey);
-  $('#station-title').textContent = '六棱熔炉';
-  $('#station-content').innerHTML =
-    '<p>每次消耗 1 份煤和 1 份原料。煤炭 ' +
-    (inventory.coal || 0) +
-    '</p>' +
-    (job
-      ? '<p>炉火正旺：' +
-        ITEMS[job.output].name +
-        ' · 剩余 ' +
-        Math.ceil(job.remaining) +
-        ' 秒</p>'
-      : '<p>选择一种原料开始熔炼。</p>') +
-    Object.entries(SMELTING)
-      .map(
-        ([output, recipe]) =>
-          `<button class="smelting-recipe" data-smelt="${output}" ${job || (!creative && (!(inventory[recipe.input] > 0) || !(inventory.coal > 0))) ? 'disabled' : ''}>${icon(recipe.input)}${ITEMS[recipe.input].name} ${inventory[recipe.input] || 0} → ${icon(output)}${ITEMS[output].name}<small>${recipe.seconds} 秒</small></button>`,
-      )
-      .join('') +
-    '<p class="panel-note">关闭面板后继续工作。完成后收入背包；离开游戏或拆除熔炉会退回未完成的材料。</p>';
+function currentFurnace() {
+  if (
+    !stationKey ||
+    world.get(...stationKey.split(',').map(Number)) !== 'furnace'
+  )
+    return null;
+  if (!world.furnaces.has(stationKey))
+    world.furnaces.set(stationKey, newFurnace());
+  return world.furnaces.get(stationKey);
 }
-function smelt(output) {
-  const recipe = SMELTING[output];
-  if (!recipe || furnaceJobs.has(stationKey)) return;
-  const input = recipe.input;
-  if (!creative && (!(inventory[input] > 0) || !(inventory.coal > 0))) return;
-  if (!creative) {
-    inventory[input]--;
-    inventory.coal--;
+function renderFurnace() {
+  const f = currentFurnace();
+  if (!f) return;
+  $('#station-title').textContent = '六棱熔炉';
+  $('#station-content').innerHTML = furnacePanel(
+    inventory,
+    creative,
+    furnaceAmount,
+  );
+  updateFurnacePanel(f);
+}
+function transferFurnace(slot, id = null) {
+  const f = currentFurnace();
+  if (!f || !['input', 'fuel', 'output'].includes(slot)) return;
+  const old = f[slot];
+  if (id) {
+    if (
+      slot === 'output' ||
+      (slot === 'input' ? !smeltingRecipe(id) : !FUELS[id])
+    )
+      return;
+    if (old && old.item !== id) {
+      toast('先取出槽内的物品。');
+      return;
+    }
+    const n = Math.min(
+      furnaceAmount,
+      id === 'lavaBucket' ? 1 : 64 - (old?.count || 0),
+      creative ? Infinity : inventory[id] || 0,
+    );
+    if (n <= 0 || (id === 'lavaBucket' && old)) return;
+    f[slot] = { item: id, count: (old?.count || 0) + n };
+    if (!creative) inventory[id] -= n;
+    if (slot === 'input' && !old) f.progress = 0;
+  } else {
+    if (!old) return;
+    const n = Math.min(
+      furnaceAmount,
+      old.count,
+      creative ? Infinity : roomFor(inventory, old.item),
+    );
+    if (!n) {
+      toast('背包已满，先腾出空间。');
+      return;
+    }
+    inventory[old.item] = (inventory[old.item] || 0) + n;
+    old.count -= n;
+    if (!old.count) {
+      f[slot] = null;
+      if (slot === 'input') f.progress = 0;
+    }
   }
-  furnaceJobs.set(stationKey, {
-    output,
-    input,
-    remaining: recipe.seconds,
-    paid: !creative,
-  });
-  beep(180, 0.2, 'sawtooth', 0.015);
   renderFurnace();
   updateHUD();
+  saveGame();
 }
-function refundJobs() {
-  for (const job of furnaceJobs.values())
-    if (job.paid) {
-      inventory[job.input] = (inventory[job.input] || 0) + 1;
-      inventory.coal = (inventory.coal || 0) + 1;
+function spillFurnace(k) {
+  const f = world.furnaces.get(k);
+  if (!f) return;
+  const [q, y, r] = k.split(',').map(Number);
+  for (const slot of ['input', 'fuel', 'output'])
+    if (f[slot]) dropAt(f[slot].item, f[slot].count, q, y, r);
+  world.furnaces.delete(k);
+}
+function updateFurnaces(dt) {
+  for (const [k, f] of world.furnaces) {
+    const [q, y, r] = k.split(',').map(Number);
+    if (!world.loaded(q, r)) continue;
+    if (world.get(q, y, r) !== 'furnace') {
+      spillFurnace(k);
+      continue;
     }
-  furnaceJobs.clear();
+    const lit = f.burn > 0;
+    tickFurnace(f, dt);
+    const burning = f.burn > 0;
+    if (lit !== burning) graphics.updateBlock(q, y, r);
+  }
+  if (overlay === '#station-overlay' && $('#furnace-progress')) {
+    const f = currentFurnace();
+    if (f) updateFurnacePanel(f);
+  }
 }
 function renderChest() {
   const storage = chests.get(stationKey) || {};
@@ -1609,7 +1655,6 @@ function hurt(amount, cause = 'combat') {
   setTimeout(() => ($('#damage').style.opacity = '0'), 250);
   soundFX.play('hurt');
   if (health <= 0) {
-    refundJobs();
     lastDeath = [camera.position.x, playerFeet() + 0.4, camera.position.z];
     for (const [id, n] of Object.entries(inventory)) {
       const wear = ITEMS[id]?.durability
@@ -1738,15 +1783,10 @@ function explode(center) {
             : {};
           dropAt(id, n, q, y, r, wear);
         }
-        const job = furnaceJobs.get(k);
-        if (job?.paid) {
-          dropAt(job.input, 1, q, y, r);
-          dropAt('coal', 1, q, y, r);
-        }
+        spillFurnace(k);
         chests.delete(k);
         world.structureFeatures.add('chest:' + k);
         chestWear.delete(k);
-        furnaceJobs.delete(k);
         for (const cropKey of [k, key(q, y - 1, r)]) {
           harvestPlant(cropKey, true);
         }
@@ -2180,8 +2220,16 @@ $('#hotbar').onclick = (e) => {
 };
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-close]')) closeOverlay();
-  const sm = e.target.closest('[data-smelt]');
-  if (sm) smelt(sm.dataset.smelt);
+  const amount = e.target.closest('[data-furnace-amount]');
+  if (amount) {
+    furnaceAmount = Number(amount.dataset.furnaceAmount);
+    renderFurnace();
+  }
+  const deposit = e.target.closest('[data-furnace-deposit]'),
+    take = e.target.closest('[data-furnace-take]');
+  if (deposit)
+    transferFurnace(deposit.dataset.furnaceDeposit, deposit.dataset.item);
+  if (take) transferFurnace(take.dataset.furnaceTake);
   const st = e.target.closest('[data-store]'),
     tk = e.target.closest('[data-take]');
   if (st || tk) {
@@ -2230,7 +2278,6 @@ $('#respawn').onclick = () => {
   toast('已回到出生点。');
 };
 $('#home').onclick = () => {
-  refundJobs();
   saveGame();
   document.exitPointerLock?.();
   playing = false;
@@ -2256,7 +2303,6 @@ $('#new-world').onclick = () => {
   startGame(false);
 };
 $('#export').onclick = () => {
-  refundJobs();
   const blob = new Blob([JSON.stringify(saveData(), null, 2)], {
       type: 'application/json',
     }),
@@ -2407,13 +2453,11 @@ window.addEventListener('blur', () => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    refundJobs();
     saveGame();
     if (hasGame && !overlay) openOverlay('#pause-overlay');
   }
 });
 addEventListener('beforeunload', () => {
-  refundJobs();
   saveGame();
 });
 if (isTouch) {
@@ -2613,15 +2657,6 @@ function frame(now) {
       simulationAccumulator = 0;
       syncDecor();
     }
-    for (const [k, job] of furnaceJobs) {
-      job.remaining -= dt;
-      if (job.remaining <= 0) {
-        addItem(job.output);
-        furnaceJobs.delete(k);
-        toast(`${ITEMS[job.output].name}已完成；背包满时留在脚边。`);
-        beep(600, 0.2);
-      }
-    }
     hudTimer += dt;
     if (hudTimer > 0.5) {
       hudTimer = 0;
@@ -2632,6 +2667,12 @@ function frame(now) {
       mapTimer = 0;
       drawMap($('#minimap'));
     }
+  }
+  if (
+    !document.hidden &&
+    (playing || (overlay === '#station-overlay' && $('#furnace-progress')))
+  ) {
+    updateFurnaces(dt);
     saveTimer += dt;
     if (saveTimer > 15) {
       saveTimer = 0;

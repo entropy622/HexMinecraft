@@ -13,7 +13,14 @@ export function createTextures() {
     id + ':top',
     id + ':side',
   ]);
-  names.push('water', 'lava', 'tuft', 'flower');
+  names.push(
+    'water',
+    'lava',
+    'tuft',
+    'flower',
+    'furnaceLit:side',
+    'furnaceCasing:side',
+  );
   const canvas = document.createElement('canvas');
   canvas.width = COLS * CELL;
   canvas.height = Math.ceil(names.length / COLS) * CELL;
