@@ -1,5 +1,6 @@
 import { validFurnace } from './furnaces.js';
 import { validBrewing } from './brewing.js';
+import { isCampfire, validCampfire } from './campfire-data.js';
 import { validChest } from './chests.js';
 import { validSurvival } from './survival.js';
 import { validExperience, validOrbs } from './experience.js';
@@ -129,6 +130,23 @@ export function validateSave(s) {
       )
     )
       throw Error('酿造台数据无效');
+    if (d.campfires !== undefined) {
+      const edits = new Map(d.edits);
+      if (
+        !Array.isArray(d.campfires) ||
+        d.campfires.length > 200000 ||
+        d.campfires.some(
+          (e) =>
+            !Array.isArray(e) ||
+            e.length !== 2 ||
+            !cell(e[0]) ||
+            !validCampfire(e[1]) ||
+            (edits.has(e[0]) && !isCampfire(edits.get(e[0]))),
+        ) ||
+        new Set(d.campfires.map((e) => e[0])).size !== d.campfires.length
+      )
+        throw Error('营火或烹饪进度无效');
+    }
     for (const field of ['structureFeatures', 'discoveredStructures']) {
       if (
         d[field] !== undefined &&

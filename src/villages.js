@@ -297,6 +297,8 @@ export function stampVillage(world, v, cq, cr) {
           if (!world.get(q, y, r)) put(q, y, r, palette.foundation);
         }
   for (const p of f.chests) put(p.q, p.y, p.r, 'chest');
+  put(v.q - 3, v.h, v.r + 2, 'hayBale');
+  put(v.q - 3, v.h + 1, v.r + 2, 'campfire');
   for (const [x, z] of [
     [4, -4],
     [-4, 4],

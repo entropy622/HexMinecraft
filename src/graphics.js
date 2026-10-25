@@ -8,6 +8,8 @@ import { LeafParticles } from './leaf-particles.js';
 import { pillarFace } from './pillar-faces.js';
 import { isDoor, isTrapdoor } from './building-data.js';
 import { BrewingModels } from './brewing-graphics.js';
+import { CampfireModels } from './campfire-graphics.js';
+import { isCampfire } from './campfire-data.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
 import { ChestModels } from './chest-graphics.js';
@@ -101,6 +103,7 @@ export class Graphics {
     this.enchantingModels = new EnchantingModels(this.textures);
     this.smithingModels = new SmithingModels(this.textures);
     this.brewingModels = new BrewingModels(this.textures);
+    this.campfireModels = new CampfireModels(this.scene);
     sharedTextures = this.textures;
     this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
     this.terrain = new THREE.Group();
@@ -361,6 +364,7 @@ export class Graphics {
   }
   build(world, q = 0, r = 0) {
     this.leafParticles.clear();
+    this.campfireModels.reset();
     this.stepOffset = 0;
     this.shapeOutline.visible = false;
     this.world = world;
@@ -377,6 +381,7 @@ export class Graphics {
       this.enchantingModels.release(mesh);
       this.smithingModels.release(mesh);
       this.brewingModels.release(mesh);
+      this.campfireModels.release(mesh);
       mesh.traverse((o) => o.geometry?.dispose());
       this.terrain.remove(mesh);
     }
@@ -426,6 +431,7 @@ export class Graphics {
           this.enchantingModels.release(mesh);
           this.smithingModels.release(mesh);
           this.brewingModels.release(mesh);
+          this.campfireModels.release(mesh);
           mesh.traverse((o) => o.geometry?.dispose());
           this.terrain.remove(mesh);
           this.chunks.delete(k);
@@ -563,6 +569,7 @@ export class Graphics {
         'fence',
         'gate',
         'trapdoor',
+        'campfire',
       ].includes(BLOCKS[id]?.shape)
     ) {
       const mesh = buildingItemMesh(id, this.textures);
@@ -984,6 +991,7 @@ export class Graphics {
       this.enchantingModels.release(mesh);
       this.smithingModels.release(mesh);
       this.brewingModels.release(mesh);
+      this.campfireModels.release(mesh);
       mesh.geometry.dispose();
       for (const child of [...mesh.children]) {
         child.traverse((o) => o.geometry?.dispose());
@@ -1009,6 +1017,8 @@ export class Graphics {
       mesh.add(this.brewingModels.create(world, q, y, r, origin));
     const cuts = [];
     for (const [q, y, r] of shaped) {
+      if (isCampfire(world.get(q, y, r)))
+        mesh.add(this.campfireModels.create(world, q, y, r, origin));
       const building = buildingMesh(
         world,
         q,
@@ -1078,9 +1088,11 @@ export class Graphics {
     const k = q + ',' + y + ',' + r,
       type = this.world.get(q, y, r),
       color =
-        type === 'furnace' && this.world.furnaces.get(k)?.burn > 0
-          ? '#ff9d47'
-          : BLOCKS[type]?.light;
+        isCampfire(type) && !this.world.campfires.get(k)?.lit
+          ? null
+          : type === 'furnace' && this.world.furnaces.get(k)?.burn > 0
+            ? '#ff9d47'
+            : BLOCKS[type]?.light;
     if (this.lights.get(k)?.color !== color) this.voxelLight.dirty = true;
     if (!color) {
       this.lights.delete(k);
@@ -1623,6 +1635,7 @@ export class Graphics {
       0.1 * (1 - guard) + impact * 0.12,
     );
     this.brewingModels.frame(renderDt, this.world);
+    this.campfireModels.frame(dt, this.world, this.camera);
     this.dynamicLight.attach(this.scene);
     const cameraHex = worldToAxial(
       this.camera.position.x,

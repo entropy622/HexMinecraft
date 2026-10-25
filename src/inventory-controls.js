@@ -119,9 +119,23 @@ export class InventoryControls {
     this.hover = ref;
     const old = slot?.get();
     if (e.button === 1) {
-      if (this.options.creative() && old) {
-        this.options.settle();
+      if (!this.options.creative()) return;
+      if (this.session.cursor) {
+        this.gesture = {
+          ref,
+          right: false,
+          creative: true,
+          x: e.clientX,
+          y: e.clientY,
+          id: e.pointerId,
+          button: e.button,
+          refs: this.session.canDistribute(ref) ? [ref] : [],
+          moved: false,
+          crossed: false,
+        };
+      } else if (old) {
         this.session.cursor = copyStack(old, stackSize(old.item));
+        this.session.origin = null;
         this.changed();
       }
       return;
@@ -198,7 +212,7 @@ export class InventoryControls {
         ref &&
         !g.refs.includes(ref) &&
         this.session.canDistribute(ref) &&
-        g.refs.length < this.session.cursor.count
+        (g.creative || g.refs.length < this.session.cursor.count)
       )
         g.refs.push(ref);
       this.preview();
@@ -212,8 +226,9 @@ export class InventoryControls {
     this.clearPreview();
     if (!this.active()) return;
     const ref = this.refAt(e.clientX, e.clientY);
-    if (g.moved && g.crossed) this.session.distribute(g.refs, g.right);
-    else if (ref === g.ref) this.session.click(g.ref, g.right);
+    if (g.moved && (g.crossed || g.creative))
+      this.session.distribute(g.refs, g.right, g.creative);
+    else if (!g.creative && ref === g.ref) this.session.click(g.ref, g.right);
     this.changed(g.refs);
   }
   clearPreview() {
@@ -225,8 +240,9 @@ export class InventoryControls {
   preview() {
     this.clearPreview();
     const g = this.gesture;
-    if (!g?.moved || !g.crossed || !this.session.cursor) return;
-    const plan = this.session.distribution(g.refs, g.right);
+    if (!g?.moved || (!g.crossed && !g.creative) || !this.session.cursor)
+      return;
+    const plan = this.session.distribution(g.refs, g.right, g.creative);
     for (const p of plan) {
       if (!p.count) continue;
       const button = document.querySelector(`[data-inv-slot="${p.ref}"]`);
@@ -239,7 +255,8 @@ export class InventoryControls {
       button.append(preview);
     }
     const remaining =
-      this.session.cursor.count - plan.reduce((n, p) => n + p.count, 0);
+      this.session.cursor.count -
+      (g.creative ? 0 : plan.reduce((n, p) => n + p.count, 0));
     this.cursor.innerHTML = remaining
       ? cursorMarkup(copyStack(this.session.cursor, remaining))
       : '';

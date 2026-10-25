@@ -11,6 +11,17 @@ import {
   potionDescription,
 } from './brewing-data.js';
 import { newBrewing, tickBrewing, resetBrewing } from './brewing.js';
+import {
+  CAMPFIRE_FOODS,
+  CAMPFIRE_SECONDS,
+  isCampfire,
+} from './campfire-data.js';
+import {
+  tickCampfires,
+  setCampfireLit,
+  campfireWet,
+  campfireHeat,
+} from './campfires.js';
 import { brewingPanel, updateBrewingPanel } from './brewing-ui.js';
 import { FUELS, newFurnace, smeltingRecipe, tickFurnace } from './furnaces.js';
 import { furnacePanel, updateFurnacePanel } from './furnace-ui.js';
@@ -139,7 +150,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.45 — UNDER THE HATCH</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.46 — AROUND THE FIRE</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -858,6 +869,7 @@ function startGame(mode = false, save = null) {
     leafDecay: data.leafDecay,
     furnaces: data.furnaces,
     brewing: data.brewing,
+    campfires: data.campfires,
     chorus: data.chorus,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
@@ -1097,6 +1109,7 @@ function travel(to) {
     leafDecay: data.leafDecay,
     furnaces: data.furnaces,
     brewing: data.brewing,
+    campfires: data.campfires,
     chorus: data.chorus,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
@@ -1801,6 +1814,7 @@ function useBucket() {
     pack.slots[selected] = { item: next, count: 1 };
   }
   flushFluidChanges();
+  updateCampfires(0);
   graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
   soundFX.play('splash');
   graphics.swing();
@@ -2385,6 +2399,8 @@ function place() {
           'workbench',
           'furnace',
           'brewingStand',
+          'campfire',
+          'soulCampfire',
           'enchantingTable',
           ...ANVILS,
           'grindstone',
@@ -2652,11 +2668,22 @@ function removeBuilding(q, y, r, drop = true) {
     item = doorLower(type);
   const count =
     BLOCKS[type]?.shape === 'slab' && world.state(q, y, r).double ? 2 : 1;
+  if (isCampfire(type) && !creative) {
+    for (const slot of world.campfires.get(key(q, y, r))?.slots || [])
+      if (slot) dropAt(slot.item, 1, q, y, r);
+  }
   world.set(q, y, r, null);
   if (doorUpper(type) && world.get(q, y + 1, r) === doorUpper(type))
     world.set(q, y + 1, r, null);
   graphics.updateBlock(q, y, r);
-  if (drop) dropAt(item, count, q, y, r);
+  if (drop)
+    dropAt(
+      isCampfire(type) ? (type === 'campfire' ? 'charcoal' : 'soulSand') : item,
+      type === 'campfire' ? 2 : count,
+      q,
+      y,
+      r,
+    );
   soundFX.play('break', 'wood');
 }
 function toggleBuilding(q, y, r, open = null) {
@@ -2995,6 +3022,8 @@ function interact(preferContext = false) {
           'furnace',
           'enchantingTable',
           'brewingStand',
+          'campfire',
+          'soulCampfire',
           ...ANVILS,
           'grindstone',
           'chest',
@@ -3022,6 +3051,10 @@ function interact(preferContext = false) {
   if (!target) return;
   const { q, y, r, type } = target,
     k = key(q, y, r);
+  if (isCampfire(type)) {
+    interactCampfire(q, y, r);
+    return;
+  }
   if (type === 'endGateway') {
     useEndGateway(q, r);
     return;
@@ -3397,6 +3430,121 @@ function updateFurnaces(dt) {
     if (f) updateFurnacePanel(f);
   }
 }
+function campfireSlotOrder(q, r) {
+  const p = axialToWorld(q, r),
+    hit = target?.point || camera.position;
+  const angle = Math.atan2(hit.z - p.z, hit.x - p.x);
+  return Array.from({ length: 6 }, (_, i) => i).sort(
+    (a, b) =>
+      Math.cos((b * Math.PI) / 3 - angle) - Math.cos((a * Math.PI) / 3 - angle),
+  );
+}
+function interactCampfire(q, y, r) {
+  const k = key(q, y, r),
+    fire = world.campfires.get(k),
+    held = heldItem();
+  if (!fire) return;
+  if (ITEMS[held]?.bucket) {
+    useBucket();
+    return;
+  }
+  if (ITEMS[held]?.kind === 'shovel') {
+    if (!setCampfireLit(world, k, false)) {
+      toast('营火已经熄灭，用火把重新点燃。');
+      return;
+    }
+    wearItem(held);
+    soundFX.play('campfireOut');
+  } else if (held === 'torch') {
+    if (fire.lit) {
+      toast('营火已经点燃，不需要持续添加燃料。');
+      return;
+    }
+    if (campfireWet(world, q, y, r)) {
+      toast('先移开周围的水或萤晶液，再点火。');
+      return;
+    }
+    setCampfireLit(world, k, true);
+    if (!creative) inventory.torch--;
+    soundFX.play('campfireIgnite');
+  } else if (Object.hasOwn(CAMPFIRE_FOODS, held)) {
+    const index = campfireSlotOrder(q, r).find((i) => !fire.slots[i]);
+    if (index === undefined) {
+      toast('六个烹饪位已满，熟食完成后会自动弹出。');
+      return;
+    }
+    if (!creative && !(inventory[held] > 0)) return;
+    fire.slots[index] = { item: held, elapsed: 0 };
+    if (!creative) inventory[held]--;
+    soundFX.play('place', 'wood');
+    toast(
+      fire.lit
+        ? '已放上食材 · 30 秒后自动出炉'
+        : '已放上食材 · 用火把点燃后开始烹饪',
+    );
+  } else if (!held) {
+    const index = campfireSlotOrder(q, r).find((i) => fire.slots[i]);
+    if (index === undefined) {
+      toast('右键放入生肉、生鱼或马铃薯 · 铲子熄灭 · 火把点燃');
+      return;
+    }
+    const slot = fire.slots[index];
+    dropAt(slot.item, 1, q, y, r);
+    fire.slots[index] = null;
+    soundFX.play('pickup');
+  } else {
+    toast('用生肉、生鱼或马铃薯烹饪，空手取回食材；Ctrl 右键可在旁建造。');
+    return;
+  }
+  graphics.updateLight(q, y, r);
+  graphics.swing();
+  updateHUD();
+  saveGame();
+}
+let campfireSoundTimer = 0;
+function updateCampfires(dt) {
+  let cookedNearby = false;
+  const near = (q, y, r) => {
+    const p = axialToWorld(q, r);
+    return (
+      Math.hypot(
+        p.x - camera.position.x,
+        y - camera.position.y,
+        p.z - camera.position.z,
+      ) < 12
+    );
+  };
+  tickCampfires(world, dt, {
+    changed(q, y, r) {
+      graphics.updateLight(q, y, r);
+      if (near(q, y, r)) soundFX.play('campfireOut');
+    },
+    drop(id, q, y, r, i) {
+      const p = axialToWorld(q, r),
+        angle = (i * Math.PI) / 3;
+      drops.spawn(
+        id,
+        1,
+        [p.x + Math.cos(angle) * 0.8, y + 0.55, p.z + Math.sin(angle) * 0.8],
+        {},
+        [Math.cos(angle) * 1.1, 2.5, Math.sin(angle) * 1.1],
+      );
+      cookedNearby ||= near(q, y, r);
+    },
+  });
+  if (cookedNearby) soundFX.play('campfireCook');
+  if (!dt) return;
+  campfireSoundTimer -= dt;
+  if (campfireSoundTimer > 0) return;
+  campfireSoundTimer = 1.2 + Math.random() * 1.5;
+  for (const [k, fire] of world.campfires) {
+    const [q, y, r] = k.split(',').map(Number);
+    if (fire.lit && world.loaded(q, r) && near(q, y, r)) {
+      soundFX.play('campfireCrackle');
+      break;
+    }
+  }
+}
 function currentBrewing() {
   if (
     !stationKey ||
@@ -3667,6 +3815,12 @@ function updateSurvival(dt) {
   const owner = survival;
   const damage = owner.tick(dt, vitals, {
     submerged: survivalSubmerged,
+    campfire: campfireHeat(
+      world,
+      camera.position.x,
+      playerFeet(),
+      camera.position.z,
+    ),
     wet,
     lava:
       [feet, head].some((fluid) => fluid && LIQUIDS[fluid.type].damage) ||
@@ -3896,6 +4050,7 @@ function updateWeather(dt) {
   weatherGrowthTimer += dt;
   if (weatherGrowthTimer < 1) return;
   updatePlants(weatherGrowthTimer);
+  updateCampfires(weatherGrowthTimer);
   weatherGrowthTimer = 0;
 }
 function hitMob(mob, amount, direction, source = 'melee', part = 'body') {
@@ -4134,6 +4289,20 @@ function attack() {
   if (critical) toast('暴击！');
   return true;
 }
+function hurtLanding(velocity) {
+  const a = worldToAxial(camera.position.x, camera.position.z);
+  const support = world.groundAt(
+    camera.position.x,
+    camera.position.z,
+    playerFeet() - 0.4,
+    playerFeet() + 0.02,
+  );
+  const hay =
+    support !== null &&
+    world.get(a.q, Math.floor(support - 0.03), a.r) === 'hayBale';
+  const damage = Math.floor((-velocity - 12) * 0.6 * (hay ? 0.2 : 1));
+  if (damage > 0) hurt(damage, 'fall');
+}
 function releaseBow() {
   const charge = bowCharge;
   bowCharge = 0;
@@ -4207,7 +4376,7 @@ function moveGlider(dt) {
         delta[axis] = 0;
         if (axis === 'y' && amount < 0) {
           grounded = true;
-          if (velocity < -13) hurt(Math.floor((-velocity - 12) * 0.6), 'fall');
+          if (velocity < -13) hurtLanding(velocity);
           if (owner !== survival) return;
           stopGliding();
           vy = 0;
@@ -4450,8 +4619,7 @@ function movePlayer(dt) {
         camera.position.y = clear + playerEyeHeight();
         if (vy < 0) {
           grounded = true;
-          if (vy < -13 && !levitating)
-            hurt(Math.floor((-vy - 12) * 0.6), 'fall');
+          if (vy < -13 && !levitating) hurtLanding(vy);
         }
         vy = 0;
         break;
@@ -5142,6 +5310,19 @@ function frame(now) {
     if (BLOCKS[target?.type]?.foliage)
       $('#target').textContent +=
         ' · ' + world.leafDecay.label(key(target.q, target.y, target.r));
+    if (isCampfire(target?.type)) {
+      const fire = world.campfires.get(key(target.q, target.y, target.r));
+      const slots = fire?.slots.filter(Boolean) || [];
+      const next = slots.length
+        ? Math.ceil(CAMPFIRE_SECONDS - Math.max(...slots.map((s) => s.elapsed)))
+        : 0;
+      $('#target').textContent =
+        BLOCKS[target.type].name +
+        (fire?.lit ? ' · 燃烧' : ' · 已熄灭') +
+        ` · 食材 ${slots.length}/6` +
+        (next ? ` · 下份 ${next}s` : '') +
+        ' · 右键/E 放入 · 空手取回 · 铲子熄灭 / 火把点燃';
+    }
     if (isTrapdoor(target?.type)) {
       const state = world.state(target.q, target.y, target.r);
       $('#target').textContent =

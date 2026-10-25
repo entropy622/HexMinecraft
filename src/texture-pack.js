@@ -3,6 +3,11 @@ import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
 import { WOOD_BLOCKS, TREES } from './wood-data.js';
 export const blockTextures = {
+  campfire: ['default_tree'],
+  soulCampfire: ['default_tree'],
+  campfireLog: ['default_tree'],
+  campfireAsh: ['mcl_core_charcoal'],
+  hayBale: ['mcl_farming_hayblock_top', 'mcl_farming_hayblock_side'],
   strippedOakWood: ['mcl_core_stripped_oak_top', 'mcl_core_stripped_oak_side'],
   strippedBirchWood: [
     'mcl_core_stripped_birch_top',
@@ -97,6 +102,8 @@ for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Stairs'] = blockTextures[base];
 }
 export const itemTextures = {
+  campfire: 'mcl_campfires_campfire_inv',
+  soulCampfire: 'mcl_campfires_soul_campfire_inv',
   birchSapling: 'mcl_core_sapling_birch',
   spruceSapling: 'mcl_core_sapling_spruce',
   chorusFruit: 'mcl_end_chorus_fruit',
@@ -301,6 +308,7 @@ export const itemImage = (id) => {
 };
 export const bowImage = (stage) =>
   images.get(stage < 0 ? 'mcl_bows_bow' : 'mcl_bows_bow_' + stage);
+export const effectImage = (name) => images.get(name);
 export async function loadTexturePack() {
   const names = new Set([
     ...Object.values(blockTextures).flat(),
@@ -313,6 +321,9 @@ export async function loadTexturePack() {
     'mcl_bows_bow_2',
     'mcl_potions_potion_bottle',
     'mcl_potions_potion_overlay',
+    'mcl_campfires_campfire_fire',
+    'mcl_campfires_soul_campfire_fire',
+    'mcl_campfires_particle_1',
   ]);
   await Promise.allSettled(
     [...names].map(

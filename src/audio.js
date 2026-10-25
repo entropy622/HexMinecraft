@@ -120,6 +120,17 @@ export class GameAudio {
     } else if (event === 'break') {
       this.noise(0.15, 0.22, material === 'glass' ? 5500 : 1500);
       this.tone(160, 0.08, 'triangle', 0.08);
+    } else if (event === 'campfireCrackle') {
+      this.noise(0.09, 0.035, 1600);
+      this.tone(95 + Math.random() * 75, 0.035, 'triangle', 0.025);
+    } else if (event === 'campfireIgnite') {
+      this.noise(0.22, 0.1, 2100);
+      this.tone(280, 0.12, 'triangle', 0.04);
+    } else if (event === 'campfireOut') {
+      this.noise(0.35, 0.1, 3300);
+    } else if (event === 'campfireCook') {
+      this.noise(0.11, 0.055, 2600);
+      this.tone(620, 0.08, 'triangle', 0.035);
     } else if (event === 'strip') {
       this.noise(0.19, 0.16, 1800);
       this.tone(145, 0.08, 'triangle', 0.055);

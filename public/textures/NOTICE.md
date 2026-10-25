@@ -19,6 +19,17 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.46 adds seven unmodified images from the same revision and CC BY-SA
+3.0 media license: `mcl_campfires_campfire_inv.png`,
+`mcl_campfires_soul_campfire_inv.png`, `mcl_campfires_campfire_fire.png`,
+`mcl_campfires_soul_campfire_fire.png`, `mcl_campfires_particle_1.png`,
+`mcl_farming_hayblock_top.png`, and `mcl_farming_hayblock_side.png`.
+The 32 × 128 flame sheets contain eight 32 × 16 frames; runtime frame sampling,
+smoke tinting and atlas crops retain CC BY-SA 3.0. The six-spoke log frame,
+food placement, cooking simulation, smoke motion and collision are original;
+no upstream campfire code or models are included. This brings the collection
+to 260 PNGs: 239 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+
 Version 0.14 additionally uses the unmodified `default_furnace_front.png`,
 `default_furnace_side.png`, and `mcl_core_charcoal.png` from the same revision
 and license. The existing active furnace front is used only while burning.

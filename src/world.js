@@ -9,6 +9,7 @@ import { stampChorus } from './chorus.js';
 import { isChorus } from './chorus-data.js';
 import { treeCells } from './tree-layout.js';
 import { LeafDecay } from './leaves.js';
+import { isCampfire, newCampfire } from './campfire-data.js';
 import { isDoorTop, isFence, isGate, isOpenable } from './building-data.js';
 import {
   BLOCKS,
@@ -87,6 +88,7 @@ export class World {
     this.maxY = WORLD_HEIGHT;
     this.beacons = [];
     this.fluids = new Fluids(this, options.fluids);
+    this.campfires = new Map(options.campfires || []);
     if (options.edits) this.applyEdits(options.edits);
     this.persistentLeaves = new Set(options.persistentLeaves || []);
     this.leafDecay = new LeafDecay(this, options.leafDecay);
@@ -351,6 +353,9 @@ export class World {
         if (isChorus(this.get(a, b, c))) this.chorusPending.add(key(a, b, c));
     }
     if (record) {
+      if (isCampfire(type)) {
+        if (!this.campfires.has(k)) this.campfires.set(k, newCampfire());
+      } else this.campfires.delete(k);
       this.edits.set(k, type || null);
       const ck = chunkKey(q, r);
       if (!this.editChunks.has(ck)) this.editChunks.set(ck, new Map());
@@ -503,6 +508,8 @@ export class World {
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const k = key(q, y, r);
           this.indexTreeCell(k, this.blocks.get(k));
+          if (isCampfire(this.blocks.get(k)) && !this.campfires.has(k))
+            this.campfires.set(k, newCampfire());
         }
     this.fluids.load(cq, cr);
     this.shapeCache.clear();
@@ -583,6 +590,7 @@ export class World {
       leafDecay: [...this.leafDecay.pending],
       furnaces: [...this.furnaces],
       brewing: [...this.brewing],
+      campfires: [...this.campfires],
       chorus: [...this.chorus],
       structureFeatures: [...this.structureFeatures],
       discoveredStructures: [...this.discoveredStructures],

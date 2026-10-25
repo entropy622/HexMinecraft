@@ -112,14 +112,18 @@ export class ContainerSession {
       (!old || sameStack(old, this.cursor))
     );
   }
-  distribution(refs, right = false) {
+  distribution(refs, right = false, creative = false) {
     if (!this.cursor) return [];
     const targets = [...new Set(refs)]
       .filter((ref) => this.canDistribute(ref))
-      .slice(0, this.cursor.count)
+      .slice(0, creative ? Infinity : this.cursor.count)
       .map((ref) => ({ ref, slot: this.resolve(ref) }));
-    const each = right ? 1 : Math.floor(this.cursor.count / targets.length);
-    let remaining = this.cursor.count;
+    const each = creative
+      ? Infinity
+      : right
+        ? 1
+        : Math.floor(this.cursor.count / targets.length);
+    let remaining = creative ? Infinity : this.cursor.count;
     return targets.map(({ ref, slot }) => {
       const count = Math.min(
         each,
@@ -130,12 +134,15 @@ export class ContainerSession {
       return { ref, count, total: (slot.get()?.count || 0) + count };
     });
   }
-  distribute(refs, right = false) {
-    const plan = this.distribution(refs, right);
+  distribute(refs, right = false, creative = false) {
+    const plan = this.distribution(refs, right, creative);
+    const stack = creative
+      ? copyStack(this.cursor, stackSize(this.cursor?.item))
+      : this.cursor;
     let moved = 0;
     for (const { ref, count } of plan)
-      moved += insertSlot(this.resolve(ref), this.cursor, count);
-    if (moved) {
+      moved += insertSlot(this.resolve(ref), stack, count);
+    if (moved && !creative) {
       this.cursor.count -= moved;
       if (!this.cursor.count) this.cursor = null;
     }

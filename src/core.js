@@ -17,6 +17,7 @@ import { CITY_BLOCKS, CITY_RECIPES } from './end-city-data.js';
 import { CHORUS_BLOCKS, CHORUS_ITEMS, CHORUS_RECIPES } from './chorus-data.js';
 import { WOOD_BLOCKS, WOOD_ITEMS, WOOD_RECIPES } from './wood-data.js';
 import { recipeMaterials } from './wood-ingredients.js';
+import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import {
   SHULKER_ITEMS,
   SHULKER_BLOCKS,
@@ -37,6 +38,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...CAMPFIRE_BLOCKS,
   ...WOOD_BLOCKS,
   ...CHORUS_BLOCKS,
   ...CITY_BLOCKS,
@@ -646,6 +648,7 @@ export class World {
 }
 RECIPES.push(
   ...GEAR_RECIPES,
+  ...CAMPFIRE_RECIPES,
   ...BREW_RECIPES,
   ...SMITHING_RECIPES,
   ...ENCHANT_RECIPES,

@@ -27,6 +27,34 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (shape === 'campfire') {
+    const base = {
+      x: 0,
+      y: 0.08,
+      z: 0,
+      h: 0.16,
+      angle: 0,
+      tile: 'campfireAsh',
+      polygon: HEX_POLYGON.map(([x, z]) => [x * 0.83, z * 0.83]),
+    };
+    if (collision) return [{ ...base, y: 0.15, h: 0.3 }];
+    return [
+      base,
+      ...Array.from({ length: 6 }, (_, i) => {
+        const turn = (i * Math.PI) / 3;
+        return {
+          x: Math.sin(turn) * 0.38,
+          y: 0.23,
+          z: Math.cos(turn) * 0.38,
+          w: 0.19,
+          h: 0.14,
+          d: 0.87,
+          angle: turn,
+          tile: 'campfireLog',
+        };
+      }),
+    ];
+  }
   if (shape === 'trapdoor') return trapdoorParts(type, planks, state, angle);
   if (shape === 'slab' || shape === 'stairs')
     return cutBlockParts(world, q, y, r);

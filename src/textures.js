@@ -24,6 +24,10 @@ export function createTextures() {
     'flower',
     'furnaceLit:side',
     'furnaceCasing:side',
+    'campfireLog:top',
+    'campfireLog:side',
+    'campfireAsh:top',
+    'campfireAsh:side',
   );
   const canvas = document.createElement('canvas');
   canvas.width = COLS * CELL;

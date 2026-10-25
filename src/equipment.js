@@ -117,36 +117,39 @@ export function miningStats(block, held, enchant = {}) {
       ? 'planks'
       : woodKey(block);
   const item = ITEMS[held];
-  const kind = [
-    'wood',
-    'planks',
-    'workbench',
-    'chest',
-    'crimsonwood',
-    'bookshelf',
-    'door',
-    'doorTop',
-    'fence',
-    'gate',
-    'ladder',
-    'chorusPlant',
-    'chorusFlower',
-    'chorusFlowerDead',
-  ].includes(block)
-    ? 'axe'
-    : [
-          'grass',
-          'dirt',
-          'sand',
-          'snow',
-          'farmland',
-          'sandstone',
-          'soulSand',
-        ].includes(block)
-      ? 'shovel'
-      : ['leaves', 'shroom', 'bed'].includes(block)
-        ? null
-        : 'pick';
+  const kind =
+    block === 'hayBale'
+      ? 'hoe'
+      : [
+            'wood',
+            'planks',
+            'workbench',
+            'chest',
+            'crimsonwood',
+            'bookshelf',
+            'door',
+            'doorTop',
+            'fence',
+            'gate',
+            'ladder',
+            'chorusPlant',
+            'chorusFlower',
+            'chorusFlowerDead',
+          ].includes(block)
+        ? 'axe'
+        : [
+              'grass',
+              'dirt',
+              'sand',
+              'snow',
+              'farmland',
+              'sandstone',
+              'soulSand',
+            ].includes(block)
+          ? 'shovel'
+          : ['leaves', 'shroom', 'bed'].includes(block)
+            ? null
+            : 'pick';
   return {
     tier: item?.kind === 'pick' ? item.tier : 0,
     speed:

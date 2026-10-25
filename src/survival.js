@@ -185,10 +185,16 @@ export class Survival {
     else if (environment.lava) this.burning = 6;
     else if (environment.wet) this.burning = 0;
     else this.burning = Math.max(0, this.burning - dt);
-    if (this.burning > 0) {
+    if (
+      !this.rank('fireResistance') &&
+      (this.burning > 0 || environment.campfire)
+    ) {
       this.fireTimer += dt;
       if (this.fireTimer >= 1) {
-        damage.push([environment.lava ? 4 : 1, 'burn']);
+        damage.push([
+          environment.lava ? 4 : Math.max(1, environment.campfire || 0),
+          'burn',
+        ]);
         this.fireTimer -= 1;
       }
     } else this.fireTimer = 0;

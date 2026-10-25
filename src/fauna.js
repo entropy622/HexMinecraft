@@ -12,6 +12,7 @@ import {
   shulkerHitboxes,
 } from './shulkers.js';
 import { findFloor } from './grounding.js';
+import { campfireHeat } from './campfires.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
 export class Fauna {
@@ -484,6 +485,15 @@ export class Fauna {
       const fluid = world.fluids.get(cell.q, Math.floor(p.y), cell.r);
       if (fluid?.type === 'lava' && !def.fireImmune) {
         m.hp -= dt * 6;
+        if (m.hp <= 0) {
+          this.remove(m);
+          continue;
+        }
+      }
+      const heat = campfireHeat(world, p.x, p.y, p.z);
+      if (heat && !def.fireImmune) {
+        m.hp -= dt * heat;
+        m.hit = 0.1;
         if (m.hp <= 0) {
           this.remove(m);
           continue;
