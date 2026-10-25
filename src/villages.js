@@ -1,4 +1,4 @@
-import { DIRECTIONS, hash, hexDistance, key } from './core.js';
+import { ITEMS, DIRECTIONS, hash, hexDistance, key } from './core.js';
 export const VILLAGE_RADIUS = 12;
 const houses = [
   [7, 0, 'smith'],
@@ -26,6 +26,8 @@ export const ROLES = {
       { cost: { coal: 12 }, give: { emerald: 1 } },
       { cost: { emerald: 3 }, give: { bucket: 1 } },
       { cost: { emerald: 6 }, give: { ingot: 4 } },
+      { cost: { emerald: 5 }, give: { sword: 1 } },
+      { cost: { emerald: 8 }, give: { ironChest: 1 } },
     ],
   },
   merchant: {
@@ -37,20 +39,20 @@ export const ROLES = {
       { cost: { wood: 16 }, give: { emerald: 1 } },
       { cost: { emerald: 1 }, give: { apple: 5 } },
       { cost: { emerald: 2 }, give: { lantern: 3 } },
+      { cost: { emerald: 1 }, give: { arrow: 16 } },
     ],
   },
 };
 export function villagesNear(world, q, r, range = 32) {
   if (world.dimension !== 'overworld') return [];
   const result = [],
-    starterQ = world.legacyMode ? 56 : 24;
+    starterQ = 24;
   const add = (id, x, z) => {
     if (
       hexDistance(x - q, z - r) > range + 19 ||
       world.villageExclusions?.has(id)
     )
       return;
-    if (world.legacyMode && hexDistance(x, z) < 52) return;
     const h = Math.max(9, Math.min(23, world.naturalHeight(x, z)));
     result.push({
       id,
@@ -230,7 +232,13 @@ export function trade(
   creative = false,
 ) {
   const offer = ROLES[villager.role]?.trades[index];
-  if (!offer) return false;
+  if (
+    !offer ||
+    Object.entries(offer.give).some(
+      ([id, n]) => ITEMS[id]?.durability && (inventory[id] || 0) + n > 256,
+    )
+  )
+    return false;
   const id = `${villager.village.id}/${villager.role}/${index}`,
     day = Math.floor(time / 600),
     old = world.villageTrades.get(id),

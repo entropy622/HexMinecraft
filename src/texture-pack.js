@@ -23,6 +23,28 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  bow: 'mcl_bows_bow',
+  arrow: 'mcl_bows_arrow_inv',
+  string: 'mcl_mobitems_string',
+  axe1: 'default_tool_woodaxe',
+  axe2: 'default_tool_stoneaxe',
+  axe3: 'default_tool_steelaxe',
+  axe4: 'default_tool_diamondaxe',
+  shovel1: 'default_tool_woodshovel',
+  shovel2: 'default_tool_stoneshovel',
+  shovel3: 'default_tool_steelshovel',
+  shovel4: 'default_tool_diamondshovel',
+  sword1: 'default_tool_woodsword',
+  sword2: 'default_tool_stonesword',
+  sword4: 'default_tool_diamondsword',
+  ironHead: 'mcl_armor_inv_helmet_iron',
+  ironChest: 'mcl_armor_inv_chestplate_iron',
+  ironLegs: 'mcl_armor_inv_leggings_iron',
+  ironFeet: 'mcl_armor_inv_boots_iron',
+  diamondHead: 'mcl_armor_inv_helmet_diamond',
+  diamondChest: 'mcl_armor_inv_chestplate_diamond',
+  diamondLegs: 'mcl_armor_inv_leggings_diamond',
+  diamondFeet: 'mcl_armor_inv_boots_diamond',
   pick1: 'default_tool_woodpick',
   pick2: 'default_tool_stonepick',
   pick3: 'default_tool_steelpick',
@@ -41,11 +63,17 @@ export const itemTextures = {
 export const textureURL = (name) =>
   `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
 const images = new Map();
+export const itemImage = (id) => images.get(itemTextures[id]);
+export const bowImage = (stage) =>
+  images.get(stage < 0 ? 'mcl_bows_bow' : 'mcl_bows_bow_' + stage);
 export async function loadTexturePack() {
   const names = new Set([
     ...Object.values(blockTextures).flat(),
     ...Object.values(itemTextures),
     'mcl_core_grass_block_side_overlay',
+    'mcl_bows_bow_0',
+    'mcl_bows_bow_1',
+    'mcl_bows_bow_2',
   ]);
   await Promise.allSettled(
     [...names].map(

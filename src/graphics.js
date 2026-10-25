@@ -1,6 +1,7 @@
 import { createPostprocessing } from './postprocessing.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
+import { itemImage, bowImage } from './texture-pack.js';
 import { createTextures } from './textures.js';
 import {
   BLOCKS,
@@ -399,19 +400,49 @@ export class Graphics {
   swing() {
     this.swingTime = 0.28;
   }
-  setHeld(id, tool) {
-    const next = id + ':' + tool;
+  setHeld(id) {
+    const next = id;
     if (this.heldKey === next) return;
     this.heldKey = next;
+    this.bowStage = -2;
     if (this.held) {
       this.held.traverse((o) => {
         o.geometry?.dispose();
+        o.userData.ownedMap?.dispose();
         if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
         else o.material?.dispose();
       });
       this.hand.remove(this.held);
     }
     this.held = new THREE.Group();
+    this.hand.add(this.held);
+    if (!id) return;
+    if (!BLOCKS[id] && !ITEMS[id]?.bucket) {
+      const image = itemImage(id);
+      if (image) {
+        const map = new THREE.Texture(image);
+        map.colorSpace = THREE.SRGBColorSpace;
+        map.magFilter = THREE.NearestFilter;
+        map.minFilter = THREE.NearestFilter;
+        map.needsUpdate = true;
+        const material = new THREE.MeshLambertMaterial({
+          map,
+          alphaTest: 0.4,
+          side: THREE.DoubleSide,
+        });
+        for (const offset of [-0.008, 0, 0.008]) {
+          const sprite = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.65, 0.65),
+            material,
+          );
+          sprite.position.set(0, 0.24, -0.4 + offset);
+          sprite.rotation.set(-0.1, -0.2, -0.25);
+          if (offset === 0) sprite.userData.ownedMap = map;
+          this.held.add(sprite);
+        }
+      }
+      return;
+    }
     const material = ['side', 'top', 'top'].map(
       (face) =>
         new THREE.MeshLambertMaterial({
@@ -457,27 +488,6 @@ export class Graphics {
         block.add(fill);
       }
     }
-    if (tool) {
-      const pick = new THREE.Group(),
-        handle = new THREE.Mesh(
-          new THREE.BoxGeometry(0.055, 0.48, 0.055),
-          new THREE.MeshLambertMaterial({ color: '#886344' }),
-        ),
-        head = new THREE.Mesh(
-          new THREE.BoxGeometry(0.4, 0.08, 0.09),
-          new THREE.MeshLambertMaterial({
-            color: ['', '#bf9965', '#bac4bf', '#e2dccc', '#82deec'][tool],
-          }),
-        );
-      head.position.y = 0.23;
-      head.rotation.z = 0.13;
-      pick.add(handle, head);
-      pick.position.set(0, 0.22, -0.38);
-      pick.rotation.z = -0.35;
-      pick.visible = false;
-      this.held.add(pick);
-      this.heldPick = pick;
-    } else this.heldPick = null;
     this.hand.add(this.held);
   }
   buildChunk(k) {
@@ -934,6 +944,19 @@ export class Graphics {
         this.particles.splice(i, 1);
       }
     }
+    if (this.heldKey === 'bow') {
+      const stage =
+        this.bowDraw > 0 ? Math.min(2, Math.floor(this.bowDraw * 3)) : -1;
+      if (stage !== this.bowStage) {
+        this.bowStage = stage;
+        const sprite = this.held.children.find((o) => o.userData.ownedMap);
+        const image = bowImage(stage);
+        if (sprite && image) {
+          sprite.userData.ownedMap.image = image;
+          sprite.userData.ownedMap.needsUpdate = true;
+        }
+      }
+    }
     this.hand.visible = playing;
     this.swingTime = Math.max(0, (this.swingTime || 0) - dt);
     this.hand.rotation.x = mining
@@ -941,11 +964,9 @@ export class Graphics {
       : this.swingTime > 0
         ? Math.sin((this.swingTime / 0.28) * Math.PI) * 0.7
         : 0;
-    this.hand.rotation.z = moving ? Math.sin(time * 5.5) * 0.035 : 0;
-    if (this.held) {
-      this.held.children[0].visible = !mining || !this.heldPick;
-      if (this.heldPick) this.heldPick.visible = mining;
-    }
+    this.hand.rotation.z =
+      (moving ? Math.sin(time * 5.5) * 0.035 : 0) - (this.bowDraw || 0) * 0.13;
+    this.hand.position.z = -0.65 + (this.bowDraw || 0) * 0.09;
     this.outline.material.opacity = mining
       ? 0.65 + Math.sin(time * 22) * 0.3
       : 0.8;

@@ -1,7 +1,8 @@
+import { validEquipment, validWear } from './equipment.js';
 import { LIQUIDS } from './fluids.js';
-import { ITEMS, BLOCKS, HOTBAR, canEquip } from './core.js';
+import { ITEMS, BLOCKS, canEquip } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v2';
+export const SAVE_KEY = 'hexwild-save-v3';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -27,19 +28,22 @@ const inventory = (inv) =>
   !Array.isArray(inv) &&
   Object.entries(inv).every(
     ([k, n]) =>
-      Object.hasOwn(ITEMS, k) && Number.isInteger(n) && n >= 0 && n <= 1e6,
+      Object.hasOwn(ITEMS, k) &&
+      Number.isInteger(n) &&
+      n >= 0 &&
+      n <= (ITEMS[k]?.durability ? 256 : 1e6),
   );
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 2 ||
+    s.version !== 3 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
     !Object.hasOwn(DIMENSIONS, s.dimension) ||
     !inventory(s.inventory) ||
     !position(s.position) ||
-    ![0, 1, 2, 3, 4].includes(s.tool) ||
+    !validEquipment(s.equipment, s.inventory, s.creative) ||
     typeof s.creative !== 'boolean'
   )
     throw Error('存档格式或玩家数据无效');
@@ -131,6 +135,19 @@ export function validateSave(s) {
       d.chests.some((e) => !Array.isArray(e) || !cell(e[0]) || !inventory(e[1]))
     )
       throw Error('储物数据无效');
+    if (
+      d.chestWear !== undefined &&
+      (!Array.isArray(d.chestWear) ||
+        d.chestWear.length > 1e5 ||
+        d.chestWear.some(
+          (e) =>
+            !Array.isArray(e) ||
+            e.length !== 2 ||
+            !cell(e[0]) ||
+            !validWear(e[1], d.chests.find((c) => c[0] === e[0])?.[1] || {}),
+        ))
+    )
+      throw Error('箱内装备数据无效');
   }
   for (const field of ['health', 'hunger'])
     if (!Number.isFinite(s[field]) || s[field] < 0 || s[field] > 20)

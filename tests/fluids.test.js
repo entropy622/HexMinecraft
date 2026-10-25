@@ -91,13 +91,13 @@ test('save validator accepts bucket hotbars and rejects invalid liquid state', (
   const w = basin();
   w.fluids.source(0, 30, 0, 'water');
   const save = {
-    version: 2,
+    version: 3,
     seed: 624,
     dimension: 'end',
     dimensions: { end: { ...w.serialize(), crops: [], chests: [] } },
     inventory: { bucket: 2 },
     position: [0, 31, 0],
-    tool: 0,
+    equipment: { armor: {}, wear: {} },
     creative: false,
     health: 20,
     hunger: 20,

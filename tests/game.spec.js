@@ -217,7 +217,7 @@ test('camp bed skips night and persists respawn point', async ({ page }) => {
     g.save();
     return {
       time: g.state.time,
-      save: JSON.parse(localStorage.getItem('hexwild-save-v2')),
+      save: JSON.parse(localStorage.getItem('hexwild-save-v3')),
     };
   });
   expect(result.time % 600).toBeLessThan(100);

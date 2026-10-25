@@ -56,14 +56,12 @@ test('crafting consumes exact costs, honors station and progression, and is atom
   assert.equal(inv.planks, 8);
   const pick = RECIPES.find((r) => r.id === 'pick2'),
     before = { ...inv };
-  assert.equal(craft(pick, inv, 0, true), false);
-  assert.deepEqual(inv, before);
   assert.equal(craft(pick, inv, 1, false), false);
   assert.deepEqual(inv, before);
   assert.equal(craft(pick, inv, 1, true), true);
   assert.equal(inv.stone, 5);
   assert.equal(inv.wood, 6);
-  assert.equal(canCraft(pick, inv, 2), false);
+  assert.equal(canCraft(pick, inv, 2), true);
 });
 test('seven-slot honeycomb ingredient counts match actual recipe costs', () => {
   for (const r of RECIPES) {

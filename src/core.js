@@ -1,3 +1,4 @@
+import { GEAR, GEAR_RECIPES } from './gear-data.js';
 export const SQRT3 = Math.sqrt(3);
 export const DIRECTIONS = [
   [1, 0],
@@ -153,9 +154,13 @@ export const ITEMS = {
   bread: { name: '面包', color: '#dcb17b' },
   meat: { name: '生肉', color: '#cf9786' },
   cooked: { name: '烤肉', color: '#bd875d' },
+  string: { name: '纤维线', color: '#eee3c9' },
+  arrow: { name: '箭矢', color: '#c5b48a' },
+  ...GEAR,
 };
 export const canEquip = (id) =>
-  Object.hasOwn(BLOCKS, id) || (Object.hasOwn(ITEMS, id) && !!ITEMS[id].bucket);
+  Object.hasOwn(BLOCKS, id) ||
+  (Object.hasOwn(ITEMS, id) && (!!ITEMS[id].bucket || !!ITEMS[id].kind));
 export const HOTBAR = [
   'dirt',
   'stone',
@@ -188,7 +193,7 @@ export const RECIPES = [
     id: 'pick1',
     count: 1,
     title: '第一把工具',
-    desc: '自动装备。开采岩石与煤矿。',
+    desc: '装入快捷栏并手持。开采岩石与煤矿。',
     pattern: ['planks', 'planks', 'planks', 'wood', null, 'wood', null],
     cost: { planks: 3, wood: 2 },
   },
@@ -196,7 +201,7 @@ export const RECIPES = [
     id: 'pick2',
     count: 1,
     title: '深入岩层',
-    desc: '自动装备。可以开采萤晶和铁矿。',
+    desc: '装入快捷栏并手持。可以开采萤晶和铁矿。',
     pattern: ['stone', 'stone', 'stone', 'wood', 'stone', 'wood', 'stone'],
     cost: { stone: 5, wood: 2 },
     requires: 1,
@@ -231,7 +236,7 @@ export const RECIPES = [
     id: 'hoe',
     count: 1,
     title: '播下第一粒种子',
-    desc: '自动使用。对泥土或草地按 E 耕种。',
+    desc: '手持锄头，对泥土或草地按 E 翻耕。',
     pattern: ['stone', 'stone', null, 'wood', null, 'wood', null],
     cost: { stone: 2, wood: 2 },
   },
@@ -247,7 +252,7 @@ export const RECIPES = [
     id: 'pick3',
     count: 1,
     title: '铁器时代',
-    desc: '自动装备。开采速度进一步提升。',
+    desc: '装入快捷栏并手持。开采速度进一步提升。',
     pattern: ['ingot', 'ingot', 'ingot', 'wood', null, 'wood', null],
     cost: { ingot: 3, wood: 2 },
     requires: 2,
@@ -257,7 +262,7 @@ export const RECIPES = [
     id: 'sword',
     count: 1,
     title: '守护漫长夜晚',
-    desc: '自动装备。左键攻击生物，伤害提升。',
+    desc: '装入快捷栏并手持。左键攻击生物，伤害提升。',
     pattern: [null, 'ingot', null, 'ingot', null, 'wood', null],
     cost: { ingot: 2, wood: 1 },
     station: true,
@@ -335,7 +340,7 @@ RECIPES.push(
     id: 'pick4',
     count: 1,
     title: '钻石时代',
-    desc: '自动装备。最快的开采工具。',
+    desc: '装入快捷栏并手持。最快的开采工具。',
     pattern: ['diamond', 'diamond', 'diamond', 'wood', null, 'wood', null],
     cost: { diamond: 3, wood: 2 },
     requires: 3,
@@ -533,12 +538,13 @@ export class World {
     }
   }
 }
+RECIPES.push(...GEAR_RECIPES);
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (
-    tool >= (recipe.requires || 0) &&
     (!recipe.station || station) &&
     Object.entries(recipe.cost).every(([id, n]) => (inventory[id] || 0) >= n) &&
-    !(recipe.id.startsWith('pick') && tool >= Number(recipe.id.slice(-1)))
+    (!ITEMS[recipe.id]?.durability ||
+      (inventory[recipe.id] || 0) + recipe.count <= 256)
   );
 }
 export function craft(recipe, inventory, tool = 0, station = true) {

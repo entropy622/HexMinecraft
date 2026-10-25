@@ -83,7 +83,7 @@ test('dimensions have distinct terrain, materials, liquids and void islands', ()
   });
 });
 const currentSave = () => ({
-  version: 2,
+  version: 3,
   dimension: 'overworld',
   dimensions: {
     overworld: { edits: [['0,10,0', 'brick']], crops: [], chests: [] },
@@ -91,7 +91,7 @@ const currentSave = () => ({
   seed: 624,
   edits: [['0,10,0', 'brick']],
   inventory: { wood: 7 },
-  tool: 1,
+  equipment: { armor: {}, wear: {} },
   creative: false,
   position: [0, 13, 0],
   activated: [],
@@ -106,7 +106,7 @@ const currentSave = () => ({
 test('version one saves are no longer migrated', () => {
   assert.throws(() => validateSave({ ...currentSave(), version: 1 }));
 });
-test('version two validation accepts distant saves and rejects malformed dimensions', () => {
+test('version three validation accepts distant saves and rejects malformed dimensions', () => {
   const valid = validateSave(currentSave());
   valid.position = [900000, 22, -500000];
   valid.dimensions.overworld.edits.push(['600000,50,-800000', 'glass']);
@@ -114,7 +114,7 @@ test('version two validation accepts distant saves and rejects malformed dimensi
   for (const patch of [
     { dimension: 'fake' },
     { position: [Infinity, 10, 0] },
-    { tool: 5 },
+    { equipment: { armor: { head: 'dirt' }, wear: {} } },
     { inventory: { constructor: 3 } },
     { health: 40 },
     {
