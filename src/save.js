@@ -1,11 +1,5 @@
 import { LIQUIDS } from './fluids.js';
-import {
-  ITEMS,
-  BLOCKS,
-  HOTBAR,
-  canEquip,
-  validateSave as validateLegacy,
-} from './core.js';
+import { ITEMS, BLOCKS, HOTBAR, canEquip } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
 export const SAVE_KEY = 'hexwild-save-v2';
 const cell = (k) => {
@@ -35,32 +29,7 @@ const inventory = (inv) =>
     ([k, n]) =>
       Object.hasOwn(ITEMS, k) && Number.isInteger(n) && n >= 0 && n <= 1e6,
   );
-export function migrateSave(s) {
-  if (s?.version !== 1) return s;
-  validateLegacy(s);
-  return {
-    ...s,
-    version: 2,
-    health: s.health ?? 20,
-    hunger: s.hunger ?? 20,
-    time: s.time ?? 105,
-    hotbar: s.hotbar ?? [...HOTBAR],
-    dimension: 'overworld',
-    dimensions: {
-      overworld: {
-        edits: s.edits,
-        legacy: true,
-        crops: s.crops || [],
-        chests: s.chests || [],
-        respawn: s.respawn || null,
-        position: s.position,
-      },
-    },
-    settings: {},
-  };
-}
-export function validateSave(input) {
-  const s = migrateSave(input);
+export function validateSave(s) {
   if (
     !s ||
     s.version !== 2 ||
@@ -144,8 +113,6 @@ export function validateSave(input) {
         ))
     )
       throw Error('交易记录无效');
-    if (d.legacy !== undefined && typeof d.legacy !== 'boolean')
-      throw Error('旧世界数据无效');
     if (
       !Array.isArray(d.crops) ||
       d.crops.length > 1e5 ||

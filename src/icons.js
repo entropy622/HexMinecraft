@@ -33,6 +33,7 @@ import {
   Axe,
   PaintBucket,
 } from 'lucide';
+import { blockTextures, itemTextures, textureURL } from './texture-pack.js';
 import { ITEMS } from './core.js';
 
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
@@ -92,6 +93,18 @@ const symbols = {
 const cache = new Map();
 export function itemIcon(id) {
   if (!cache.has(id)) {
+    const tile =
+      itemTextures[id] ||
+      (id !== 'grass' && id !== 'leaves' ? blockTextures[id]?.at(-1) : null);
+    if (tile) {
+      const shape = blockTextures[id] ? 'block-tile' : 'item-tile';
+      const label = ITEMS[id]?.name || id;
+      cache.set(
+        id,
+        `<span class="block-icon pixel-icon ${shape}" title="${label}"><img src="${textureURL(tile)}" alt="" draggable="false"></span>`,
+      );
+      return cache.get(id);
+    }
     const svg = createElement(symbols[id] || Hexagon, {
       width: 24,
       height: 24,

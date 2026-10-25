@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { World, DIMENSIONS, chunkKey } from '../src/world.js';
-import { World as LegacyWorld, HOTBAR, RECIPES } from '../src/core.js';
-import { validateSave, migrateSave } from '../src/save.js';
+import { HOTBAR, RECIPES } from '../src/core.js';
+import { validateSave } from '../src/save.js';
 
 test('streamed generation is deterministic across chunk order and negative seams', () => {
   for (const dimension of Object.keys(DIMENSIONS)) {
@@ -82,8 +82,12 @@ test('dimensions have distinct terrain, materials, liquids and void islands', ()
     crystal: 1,
   });
 });
-const oldSave = () => ({
-  version: 1,
+const currentSave = () => ({
+  version: 2,
+  dimension: 'overworld',
+  dimensions: {
+    overworld: { edits: [['0,10,0', 'brick']], crops: [], chests: [] },
+  },
   seed: 624,
   edits: [['0,10,0', 'brick']],
   inventory: { wood: 7 },
@@ -99,27 +103,11 @@ const oldSave = () => ({
   chests: [],
   respawn: null,
 });
-test('legacy saves migrate without losing the original terrain or player edits', () => {
-  const old = oldSave(),
-    converted = validateSave(old);
-  assert.equal(converted.version, 2);
-  assert.equal(converted.dimension, 'overworld');
-  assert.equal(converted.inventory.wood, 7);
-  const d = converted.dimensions.overworld,
-    w = new World(converted.seed, 'overworld', { ...d, load: false }),
-    legacy = new LegacyWorld(converted.seed);
-  legacy.applyEdits(old.edits);
-  w.ensureAround(0, 0, 1);
-  for (let q = -7; q <= 7; q++)
-    for (let r = -7; r <= 7; r++)
-      for (let y = 0; y < 32; y++)
-        assert.equal(w.get(q, y, r), legacy.get(q, y, r));
-  w.ensureAround(1000, 1000, 1);
-  assert.ok(w.blocks.size > 0);
-  assert.equal(migrateSave(converted), converted);
+test('version one saves are no longer migrated', () => {
+  assert.throws(() => validateSave({ ...currentSave(), version: 1 }));
 });
 test('version two validation accepts distant saves and rejects malformed dimensions', () => {
-  const valid = validateSave(oldSave());
+  const valid = validateSave(currentSave());
   valid.position = [900000, 22, -500000];
   valid.dimensions.overworld.edits.push(['600000,50,-800000', 'glass']);
   assert.equal(validateSave(valid), valid);

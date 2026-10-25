@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { shadeWater } from './water-shader.js';
 import { axialToWorld, DIRECTIONS } from './core.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
 const corners = Array.from({ length: 6 }, (_, i) => [
@@ -28,6 +29,7 @@ export class FluidRenderer {
         emissiveMap: type === 'water' ? null : map,
       });
     }
+    this.waterUniforms = shadeWater(this.materials.water);
   }
   clear() {
     for (const mesh of this.meshes.values()) {
@@ -151,7 +153,10 @@ export class FluidRenderer {
     this.group.add(group);
     this.meshes.set(k, group);
   }
-  frame(time) {
+  frame(time, sky, horizon) {
+    this.waterUniforms.waterTime.value = time;
+    this.waterUniforms.waterSky.value.copy(sky);
+    this.waterUniforms.waterHorizon.value.copy(horizon);
     for (const [type, m] of Object.entries(this.materials)) {
       const speed = type === 'lava' ? 0.025 : 0.065;
       m.map.offset.set(time * speed, time * speed * 0.45);

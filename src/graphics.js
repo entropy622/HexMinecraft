@@ -1,3 +1,4 @@
+import { createPostprocessing } from './postprocessing.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
 import { createTextures } from './textures.js';
@@ -29,7 +30,7 @@ export class Graphics {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#b5d9cf');
@@ -55,7 +56,8 @@ export class Graphics {
       near: 1,
       far: 150,
     });
-    this.sun.shadow.normalBias = 0.06;
+    this.sun.shadow.normalBias = 0.035;
+    this.sun.shadow.radius = 2;
     this.sun.shadow.bias = -0.0002;
     this.scene.add(this.sun, this.sun.target);
     this.textures = createTextures();
@@ -104,15 +106,22 @@ export class Graphics {
         uniforms: {
           zenith: { value: new THREE.Color('#4b91df') },
           horizon: { value: new THREE.Color('#c0d9ed') },
+          sunDirection: { value: new THREE.Vector3(0, 1, 0) },
+          sunColor: { value: new THREE.Color('#ffe3ad') },
+          sunStrength: { value: 0 },
         },
         vertexShader:
           'varying vec3 skyDirection; void main(){skyDirection=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
         fragmentShader: `
           uniform vec3 zenith; uniform vec3 horizon;
+          uniform vec3 sunDirection; uniform vec3 sunColor; uniform float sunStrength;
           varying vec3 skyDirection;
           void main() {
             float h = pow(max(normalize(skyDirection).y, 0.0), 0.65);
-            gl_FragColor = vec4(mix(horizon, zenith, h), 1.0);
+            vec3 direction = normalize(skyDirection);
+            float alignment = max(0.0, dot(direction, sunDirection));
+            vec3 scattering = sunColor * (pow(alignment, 12.0) * 0.3 + pow(alignment, 180.0) * 1.4) * sunStrength;
+            gl_FragColor = vec4(mix(horizon, zenith, h) + scattering, 1.0);
             #include <tonemapping_fragment>
             #include <colorspace_fragment>
           }
@@ -211,9 +220,23 @@ export class Graphics {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(innerWidth, innerHeight);
+      this.composer?.setSize(innerWidth, innerHeight);
     });
   }
   setQuality(value) {
+    this.usePost = value >= 1.7;
+    if (this.usePost && !this.composer)
+      this.composer = createPostprocessing(
+        this.renderer,
+        this.scene,
+        this.camera,
+      );
+    const shadowSize = value >= 1.7 ? 2048 : 1024;
+    if (this.sun.shadow.mapSize.x !== shadowSize) {
+      this.sun.shadow.mapSize.set(shadowSize, shadowSize);
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+    }
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, value));
     this.renderer.shadowMap.enabled = value >= 1;
     this.renderer.shadowMap.needsUpdate = true;
@@ -804,7 +827,6 @@ export class Graphics {
   }
   frame(dt, time, playing, moving, mining) {
     this.fluidRenderer.sync(this.world, new Set(this.chunks.keys()));
-    this.fluidRenderer.frame(time);
     const phase = (time % 600) / 600,
       day = Math.max(0.08, Math.sin(phase * Math.PI * 2)),
       sky =
@@ -817,6 +839,14 @@ export class Graphics {
       this.world?.dimension === 'overworld'
         ? new THREE.Color('#132239').lerp(new THREE.Color('#c2dbee'), day)
         : sky;
+    const overworld = this.world?.dimension === 'overworld';
+    const elevation = Math.sin(phase * Math.PI * 2);
+    const dusk = overworld ? Math.max(0, 1 - Math.abs(elevation) * 3.5) : 0;
+    if (overworld) horizon.lerp(new THREE.Color('#e49a69'), dusk * 0.65);
+    this.sun.color.set(overworld ? '#fff3d2' : '#dac4ff');
+    if (overworld) this.sun.color.lerp(new THREE.Color('#ff9857'), dusk * 0.8);
+    this.hemi.groundColor.set(overworld ? '#77715b' : '#514353');
+    this.fluidRenderer.frame(time, sky, horizon);
     this.scene.background.copy(horizon);
     this.scene.fog.color.copy(horizon);
     this.sky.position.copy(this.camera.position);
@@ -838,6 +868,19 @@ export class Graphics {
       this.camera.position.y + Math.max(15, Math.sin(phase * Math.PI * 2) * 60),
       this.camera.position.z + 25,
     );
+    // Align shadows with the visible sun; after sunset use cool moonlight.
+    if (overworld) {
+      const side = elevation >= 0 ? 1 : -1;
+      this.sun.position.set(
+        this.camera.position.x + Math.cos(phase * Math.PI * 2) * 78 * side,
+        this.camera.position.y + Math.max(8, Math.abs(elevation) * 78),
+        this.camera.position.z - 45 * side,
+      );
+      if (elevation < 0) {
+        this.sun.color.set('#a6bfff');
+        this.sun.intensity = 0.3;
+      }
+    }
     this.sun.target.position.copy(this.camera.position);
     this.shadowTimer = (this.shadowTimer || 0) - dt;
     if (this.shadowTimer <= 0) {
@@ -854,6 +897,14 @@ export class Graphics {
       -45,
     );
     this.moonDisk.position.copy(this.sunDisk.position).multiplyScalar(-1);
+    this.sky.material.uniforms.sunDirection.value
+      .copy(this.sunDisk.position)
+      .normalize();
+    this.sky.material.uniforms.sunColor.value.set('#ffd29b');
+    this.sky.material.uniforms.sunStrength.value = overworld
+      ? Math.max(0, Math.min(1, elevation * 4 + 0.3))
+      : 0;
+    this.sunDisk.material.color.set('#fff0bd').multiplyScalar(2.5);
     this.sunDisk.quaternion.copy(this.camera.quaternion);
     this.moonDisk.quaternion.copy(this.camera.quaternion);
     this.stars.material.opacity =
@@ -899,7 +950,8 @@ export class Graphics {
       ? 0.65 + Math.sin(time * 22) * 0.3
       : 0.8;
     this.hand.position.y = -0.32 + (moving ? Math.sin(time * 11) * 0.018 : 0);
-    this.renderer.render(this.scene, this.camera);
+    if (this.usePost) this.composer.render(dt);
+    else this.renderer.render(this.scene, this.camera);
   }
 }
 export function createCreature(kind, dimension = 'overworld') {

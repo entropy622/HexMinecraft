@@ -1,8 +1,9 @@
 import * as THREE from 'three';
+import { paintPackTile } from './texture-pack.js';
 import { BLOCKS, hash } from './core.js';
 
-// Original 16px artwork, generated deterministically. Wide gutters prevent color bleeding between mipmapped tiles.
-// No Minecraft assets are redistributed. The atlas is shared by all chunk meshes.
+// Pixel Perfection tiles with procedural fallbacks and original fantasy materials.
+// Wide gutters prevent color bleeding between mipmapped tiles.
 const SIZE = 16,
   CELL = 32,
   PAD = 8,
@@ -238,6 +239,7 @@ export function createTextures() {
         fill('#edc345', 7, 3, 3, 3);
       }
     }
+    paintPackTile(c, id, top);
     const ox = (index % COLS) * CELL + PAD,
       oy = Math.floor(index / COLS) * CELL + PAD;
     ctx.imageSmoothingEnabled = false;

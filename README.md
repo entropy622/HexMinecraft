@@ -78,7 +78,7 @@
 
 ## 存档
 
-每十五秒、返回首页、维度切换和离开页面时，自动写入当前浏览器的 `localStorage`。新格式使用 `hexwild-save-v2`，旧的 `hexwild-save-v1` 不会被迁移操作删除。旧版导出的 JSON 也可导入。
+每十五秒、返回首页、维度切换和离开页面时，自动写入当前浏览器的 `localStorage`。当前使用 `hexwild-save-v2`；不再提供旧版 v1 存档导入、迁移或旧地形兼容。开发阶段允许存档格式变动，推荐新建世界体验。
 
 暂停时世界不推进。未完成的熔炼在存档恢复或切换维度时退回原料。作物按游戏内经过的时间生长。每个维度存储差异记录，不把无限生成的全部方块写入存档。
 
@@ -91,10 +91,6 @@
 ```sh
 npm ci
 npm run dev
-npm run check
-npx playwright install chromium
-npm run test:e2e
-npm run format:check
 npm run build
 npm run preview
 ```
@@ -103,29 +99,29 @@ npm run preview
 
 ### 实现结构
 
-- `src/core.js`：六边形数学、物品与蜂巢配方；旧版生成器仅供存档迁移。
+- `src/core.js`：六边形数学、物品与蜂巢配方。
 - `src/world.js`：确定性分块生成、三维度、生物群系、树冠跨区块边界与差异持久化。
 - `src/villages.js`：聚落布局、地形整平、建筑、农田与交易规则。
 - `src/villagers.js`：村民模型、昼夜活动与交互射线。
 - `src/fluids.js`：液体类型、有限工作队列、源与退流、凝固反应、区块快照。
 - `src/fluid-graphics.js`：分块六棱液面、瀑布、材质动画与桶射线。
-- `src/save.js`：新版存档校验与旧档升级。
+- `src/save.js`：当前格式存档校验。
 - `src/graphics.js`：区块局部坐标网格、可见面剔除、有限渲染队列、光照、粒子、手持物与传送门。
-- `src/textures.js`：16×16 原创像素图集、边缘留白、顶面与侧面 UV、共享纹理缓存。
+- `src/textures.js`：16×16 像素图集、Pixel Perfection 纹理与程序纹理、边缘留白、共享纹理缓存。
 - `src/audio.js`：浏览器交互后启动的程序化音效库。
 - `src/main.js`：玩家物理、生存与交互、维度状态、输入、UI 和主循环。
-- `tests/`：核心规则、负坐标接缝、远坐标生成、卸载恢复、跨维度存档、旧档迁移、实际射线操作和浏览器回归。
+- `tests/`：核心规则、负坐标接缝、远坐标生成、卸载恢复、跨维度存档、格式校验、实际射线操作和浏览器回归。
 
 当前活动维度最多驻留 81 个数据区块、49 个渲染区块。移动后优先生成周围数据，再分帧提交新网格；离开的网格释放 GPU 几何资源。区块顶点使用局部坐标，避免远距离全局 Float32 顶点精度丢失。编辑记录会随玩家建造量增长。
 
 ### GitHub Actions / Pages
 
-`main` 每次 push 执行锁文件安装与生产构建，通过后部署 Pages。PR 只验证。浏览器交互、着色器和截图检查在本地运行 `npm run test:e2e`，不在云端启动浏览器；截图保存在本地 `test-results/`。
+`main` 每次 push 执行锁文件安装与生产构建，通过后部署 Pages。PR 只验证。默认只执行生产构建；保留的本地测试脚本可按需使用，不在云端启动浏览器。
 
 Pages 使用 GitHub Actions，产物目录为 `dist/`。Vite 使用相对路径，兼容 `/HexMinecraft/`，不需要后端或密钥。
 
 ## 许可
 
-代码为 [MIT](LICENSE)。地形、生物、动画和音效由代码生成，不使用 Minecraft 贴图、音频或商标素材。物品图标使用 Lucide（ISC 许可），随应用打包，无外部 CDN 请求。Three.js、Vite、Playwright、Prettier 的许可归各项目所有。界面使用系统字体，无字体 CDN 依赖。
+代码为 [MIT](LICENSE)。39 张基础材质与物品图标来自 XSSheep / VoxeLibre 的 Pixel Perfection 素材（CC BY-SA 3.0），来源、作者与运行时改动见 [素材署名](public/textures/NOTICE.md)。奇幻材质保留程序绘制，其他物品图标使用 Lucide（ISC 许可）。所有素材随应用打包，无外部 CDN 请求。Three.js、Vite、Playwright、Prettier 的许可归各项目所有。界面使用系统字体，无字体 CDN 依赖。
 
 与 Mojang、Microsoft 无关联。

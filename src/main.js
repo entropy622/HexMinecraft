@@ -19,7 +19,9 @@ import {
 } from './core.js';
 import { Graphics, createCreature } from './graphics.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
-import { SAVE_KEY, validateSave, migrateSave } from './save.js';
+import { SAVE_KEY, validateSave } from './save.js';
+import { loadTexturePack } from './texture-pack.js';
+import { Movement } from './movement.js';
 import { GameAudio } from './audio.js';
 import { itemIcon as icon } from './icons.js';
 const soundFX = new GameAudio();
@@ -46,7 +48,7 @@ $('#app').innerHTML = `
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <span class="tiny">/ 点击建筑材料或桶，装入当前快捷栏</span></div><div class="inventory-grid" id="inventory"></div><p class="panel-note">工具会自动装备 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换方块</p></div></div></section>
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">清晰</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄<br>地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -55,6 +57,7 @@ let graphics,
   villagers,
   villagerTarget = null,
   tradingWith = null;
+await loadTexturePack();
 try {
   graphics = new Graphics($('#world'));
   villagers = new Villagers(graphics.scene);
@@ -64,6 +67,7 @@ try {
   throw error;
 }
 const camera = graphics.camera;
+const motion = new Movement();
 let world = new World(624),
   inventory = {},
   tool = 0,
@@ -163,6 +167,7 @@ function safeSpawn() {
   camera.position.copy(spawn);
   camera.position.y += 1.65;
   vy = 0;
+  motion.reset();
   grounded = false;
   for (
     let n = 0;
@@ -205,7 +210,6 @@ function createMobs() {
   }
 }
 function startGame(mode = false, save = null) {
-  if (save) save = migrateSave(save);
   const seed = save?.seed ?? Number($('#seed').value || 624);
   dimension = save?.dimension || 'overworld';
   dimensionStates = save?.dimensions ? structuredClone(save.dimensions) : {};
@@ -215,7 +219,6 @@ function startGame(mode = false, save = null) {
     chests: [],
   };
   world = new World(seed, dimension, {
-    legacy: data.legacy,
     edits: data.edits,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
@@ -319,7 +322,6 @@ function travel(to) {
   dimension = to;
   const data = dimensionStates[to] || { edits: [], crops: [], chests: [] };
   world = new World(seed, to, {
-    legacy: data.legacy,
     edits: data.edits,
     fluids: data.fluids,
     villageExclusions: data.villageExclusions,
@@ -358,6 +360,7 @@ function travel(to) {
   tradingWith = null;
   leftDown = false;
   keys.clear();
+  motion.reset();
   mining = 0;
   graphics.build(world, a.q, a.r);
   if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
@@ -413,8 +416,7 @@ function saveGame() {
 }
 function readSave() {
   try {
-    const raw =
-      localStorage.getItem(SAVE_KEY) || localStorage.getItem('hexwild-save-v1');
+    const raw = localStorage.getItem(SAVE_KEY);
     return raw ? validateSave(JSON.parse(raw)) : null;
   } catch {
     toast('存档无法读取。可以导入备份，或创建新世界。');
@@ -439,6 +441,7 @@ function lock() {
 function openOverlay(id) {
   leftDown = false;
   keys.clear();
+  motion.reset();
   mining = 0;
   playing = false;
   overlay = id;
@@ -1124,16 +1127,29 @@ function movePlayer(dt) {
     forward /= norm;
     side /= norm;
   }
-  const sprint = keys.has('ShiftLeft') && hunger > 2 && !fly,
+  const sneaking = keys.has('ControlLeft') || keys.has('ControlRight');
+  const sprint =
+      keys.has('ShiftLeft') && forward > 0 && hunger > 2 && !fly && !sneaking,
     speed = fly
       ? 10
       : swimming
         ? LIQUIDS[feetFluid.type].speed
-        : sprint
-          ? 7
-          : 4.8;
-  const dx = (-Math.sin(yaw) * forward + Math.cos(yaw) * side) * speed * dt,
-    dz = (-Math.cos(yaw) * forward - Math.sin(yaw) * side) * speed * dt;
+        : sneaking
+          ? 2.1
+          : sprint
+            ? 7
+            : 4.8;
+  const { dx, dz } = motion.update(
+    dt,
+    (-Math.sin(yaw) * forward + Math.cos(yaw) * side) * speed,
+    (-Math.cos(yaw) * forward - Math.sin(yaw) * side) * speed,
+    grounded,
+    swimming,
+    fly,
+  );
+  const fov = swimming ? 69 : sprint && norm ? 79 : 72;
+  camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 8));
+  camera.updateProjectionMatrix();
   moved = norm;
   if (fly) {
     camera.position.x += dx;
@@ -1146,11 +1162,21 @@ function movePlayer(dt) {
     vy = 0;
   } else {
     const feet = playerFeet();
-    if (!collides(camera.position.x + dx, feet, camera.position.z))
+    const supported = (x, z) =>
+      !sneaking || !grounded || swimming || collides(x, feet - 0.16, z);
+    if (
+      !collides(camera.position.x + dx, feet, camera.position.z) &&
+      supported(camera.position.x + dx, camera.position.z)
+    )
       camera.position.x += dx;
-    if (!collides(camera.position.x, feet, camera.position.z + dz))
+    else motion.x = 0;
+    if (
+      !collides(camera.position.x, feet, camera.position.z + dz) &&
+      supported(camera.position.x, camera.position.z + dz)
+    )
       camera.position.z += dz;
-    if (grounded && keys.has('Space')) {
+    else motion.z = 0;
+    if (!swimming && motion.takeJump(keys.has('Space'), grounded)) {
       vy = 8.5;
       grounded = false;
       beep(180, 0.04, 'sine', 0.01);
@@ -1464,6 +1490,7 @@ document.addEventListener('pointerlockchange', () => {
     playing = false;
     leftDown = false;
     keys.clear();
+    motion.reset();
     if (hasGame && !overlay) openOverlay('#pause-overlay');
   }
 });
@@ -1537,11 +1564,13 @@ document.addEventListener('keydown', (e) => {
     selected = Number(e.code.slice(5)) - 1;
     updateHUD();
   }
+  if (e.code === 'Space') motion.jump();
   keys.add(e.code);
 });
 document.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => {
   keys.clear();
+  motion.reset();
   leftDown = false;
   if (hasGame && !overlay) openOverlay('#pause-overlay');
 });
@@ -1578,6 +1607,7 @@ if (isTouch) {
   $('#world').style.touchAction = 'none';
   document.querySelectorAll('[data-key]').forEach((b) => {
     b.onpointerdown = (e) => {
+      if (b.dataset.key === 'Space') motion.jump();
       keys.add(b.dataset.key);
       b.setPointerCapture(e.pointerId);
     };

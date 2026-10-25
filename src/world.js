@@ -1,14 +1,6 @@
 import { villagesNear, villageAt, stampVillage, features } from './villages.js';
 import { Fluids } from './fluids.js';
-import {
-  World as LegacyWorld,
-  BLOCKS,
-  DIRECTIONS,
-  noise,
-  hash,
-  hexDistance,
-  key,
-} from './core.js';
+import { BLOCKS, DIRECTIONS, noise, hash, hexDistance, key } from './core.js';
 
 export const CHUNK_SIZE = 8;
 export const WORLD_HEIGHT = 64;
@@ -54,8 +46,6 @@ export class World {
     this.edits = new Map();
     this.editChunks = new Map();
     this.center = null;
-    this.legacy = options.legacy ? new LegacyWorld(seed) : null;
-    this.legacyMode = !!options.legacy;
     this.villageExclusions = new Set(options.villageExclusions || []);
     this.villageFeatures = new Set(options.villageFeatures || []);
     this.villageTrades = new Map(options.villageTrades || []);
@@ -97,8 +87,6 @@ export class World {
       : Math.round(v.h + (h - v.h) * Math.min(1, (d - 12) / 7));
   }
   naturalHeight(q, r) {
-    if (this.legacy && hexDistance(q, r) <= 32)
-      return this.legacy.terrainHeight(q, r);
     const n = noise(q * 0.055, r * 0.055, this.seed),
       detail = noise(q * 0.18, r * 0.18, this.seed + 19);
     if (this.dimension === 'nether') return Math.floor(4 + n * 15 + detail * 3);
@@ -157,13 +145,6 @@ export class World {
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
         const h = this.terrainHeight(q, r);
         this.heights.set(`${q},${r}`, h);
-        if (this.legacy && hexDistance(q, r) <= 32) {
-          for (let y = 0; y < 64; y++) {
-            const t = this.legacy.get(q, y, r);
-            if (t) put(q, y, r, t);
-          }
-          continue;
-        }
         const biome = this.biome(q, r);
         for (let y = 0; y < h; y++) {
           if (this.dimension === 'end') {
@@ -235,11 +216,7 @@ export class World {
             for (let dr = -2; dr <= 2; dr++) {
               const q = tq + dq,
                 r = tr + dr;
-              if (
-                chunkKey(q, r) !== ck ||
-                (this.legacy && hexDistance(q, r) <= 32)
-              )
-                continue;
+              if (chunkKey(q, r) !== ck) continue;
               if (!dq && !dr)
                 for (let y = h; y < h + trunk; y++)
                   put(
@@ -317,7 +294,6 @@ export class World {
   serialize() {
     return {
       edits: [...this.edits],
-      legacy: this.legacyMode,
       fluids: this.fluids.serialize(),
       villageExclusions: [...this.villageExclusions],
       villageFeatures: [...this.villageFeatures],
