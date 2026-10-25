@@ -105,6 +105,21 @@ GEAR.bow = {
   damage: 1,
   cooldown: 0.7,
 };
+GEAR.fishingRod = {
+  name: '鱼竿',
+  color: '#c6a06a',
+  durability: 64,
+  kind: 'rod',
+  damage: 1,
+  cooldown: 0.7,
+};
+recipe(
+  'fishingRod',
+  [null, 'wood', 'string', 'wood', 'string', 'wood', null],
+  1,
+  true,
+  '对水面右键 / E 抛线，浮漂下沉时再次按下收杆。雨天更易咬钩，开阔深水偶尔藏有宝物。',
+);
 recipe(
   'bow',
   ['wood', 'string', null, 'wood', 'string', 'wood', 'string'],

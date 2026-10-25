@@ -7,6 +7,19 @@ const houses = [
   [0, -7, 'home'],
 ];
 export const ROLES = {
+  fisher: {
+    name: '渔夫',
+    color: '#6b9ba5',
+    home: [0, 6],
+    work: [3, 4],
+    trades: [
+      { cost: { emerald: 2 }, give: { fishingRod: 1 } },
+      { cost: { rawCod: 10 }, give: { emerald: 1 } },
+      { cost: { rawSalmon: 8 }, give: { emerald: 1 } },
+      { cost: { tropicalFish: 4 }, give: { emerald: 1 } },
+      { cost: { emerald: 1 }, give: { cookedCod: 4 } },
+    ],
+  },
   farmer: {
     name: '农夫',
     color: '#8d9c4a',
@@ -128,6 +141,11 @@ export function features(v) {
             ? { apple: 3, seed: 4, sapling: 2, sugarCane: 3 }
             : { wheat: 3, bread: 2 },
     });
+  for (let a = -2; a <= 2; a++)
+    for (let b = -2; b <= 2; b++)
+      if (hexDistance(a, b) <= 2)
+        for (const depth of [1, 2])
+          water.push({ q: v.q + 5 + a, y: v.h - depth, r: v.r + 5 + b });
   return { crops, water, chests };
 }
 export function stampVillage(world, v, cq, cr) {
@@ -228,11 +246,21 @@ export function stampVillage(world, v, cq, cr) {
     put(p.q, p.y, p.r, null);
     put(p.q, p.y - 1, p.r, 'brick');
   }
+  // Seal the pond at the edge of the village without replacing house floors.
+  for (let a = -3; a <= 3; a++)
+    for (let b = -3; b <= 3; b++)
+      if (hexDistance(a, b) === 3)
+        for (const depth of [1, 2]) {
+          const q = v.q + 5 + a,
+            r = v.r + 5 + b,
+            y = v.h - depth;
+          if (!world.get(q, y, r)) put(q, y, r, 'brick');
+        }
   for (const p of f.chests) put(p.q, p.y, p.r, 'chest');
   for (const [x, z] of [
     [4, -4],
     [-4, 4],
-    [4, 4],
+    [3, 3],
     [-4, -4],
   ]) {
     put(v.q + x, v.h, v.r + z, 'wood');

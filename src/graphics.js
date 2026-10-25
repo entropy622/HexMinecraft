@@ -434,7 +434,30 @@ export class Graphics {
     }
     this.held = new THREE.Group();
     this.hand.add(this.held);
+    this.fishingTip = null;
     if (!id) return;
+    if (id === 'fishingRod') {
+      const rod = new THREE.Group();
+      rod.position.set(0, 0.15, -0.38);
+      rod.rotation.set(-0.45, 0, -0.35);
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.009, 0.024, 0.9, 6),
+        new THREE.MeshLambertMaterial({ color: '#bd9259' }),
+      );
+      shaft.position.y = 0.26;
+      rod.add(shaft);
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.032, 0.032, 0.2, 6),
+        new THREE.MeshLambertMaterial({ color: '#553b29' }),
+      );
+      handle.position.y = -0.1;
+      rod.add(handle);
+      this.fishingTip = new THREE.Object3D();
+      this.fishingTip.position.y = 0.71;
+      rod.add(this.fishingTip);
+      this.held.add(rod);
+      return;
+    }
     if ((!BLOCKS[id] || BLOCKS[id]?.shape) && !ITEMS[id]?.bucket) {
       const image = itemImage(id);
       if (image) {

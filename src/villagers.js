@@ -23,7 +23,7 @@ function model(role) {
   add(new THREE.BoxGeometry(0.56, 0.16, 0.19), robe, 0, 1.04, -0.23);
   for (const x of [-0.15, 0.15])
     add(new THREE.BoxGeometry(0.17, 0.4, 0.2), dark, x, 0.24, 0);
-  if (role === 'farmer') {
+  if (role === 'farmer' || role === 'fisher') {
     add(
       new THREE.CylinderGeometry(0.38, 0.38, 0.07, 6),
       new THREE.MeshLambertMaterial({ color: '#cfad52' }),

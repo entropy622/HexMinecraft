@@ -6,6 +6,7 @@ import {
 import { GEAR, GEAR_RECIPES } from './gear-data.js';
 import { FARM_BLOCKS, FARM_ITEMS, FARM_RECIPES } from './farming-data.js';
 import { BUILDING_BLOCKS, BUILDING_RECIPES } from './building-data.js';
+import { FISH_ITEMS } from './fishing-data.js';
 export const SQRT3 = Math.sqrt(3);
 export const DIRECTIONS = [
   [1, 0],
@@ -148,6 +149,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...FISH_ITEMS,
   charcoal: { name: '木炭', color: '#45413c' },
   ...FARM_ITEMS,
   ...EXPLORATION_ITEMS,

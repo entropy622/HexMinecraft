@@ -23,6 +23,11 @@ Version 0.14 additionally uses the unmodified `default_furnace_front.png`,
 `default_furnace_side.png`, and `mcl_core_charcoal.png` from the same revision
 and license. The existing active furnace front is used only while burning.
 
+Version 0.15 adds six unmodified `mcl_fishing_*` inventory textures (fishing
+rod, raw/cooked cod, raw/cooked salmon, and tropical fish) from the same
+revision and license. The hexagonal bobber, fishing line and held rod are
+original procedural geometry.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

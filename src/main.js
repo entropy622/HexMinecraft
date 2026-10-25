@@ -36,6 +36,7 @@ import { loadTexturePack } from './texture-pack.js';
 import { Equipment, miningStats, transferWear } from './equipment.js';
 import { ARMOR_SLOTS } from './gear-data.js';
 import { Projectiles } from './projectiles.js';
+import { Fishing } from './fishing.js';
 import { Movement } from './movement.js';
 import { GameAudio } from './audio.js';
 import { itemIcon as icon } from './icons.js';
@@ -52,17 +53,17 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.14 — KEEP THE FIRE BURNING</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.15 — BY THE WATER</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
   <div id="crosshair"></div><div id="mine-progress"><i></i></div><div id="target" class="hidden"></div>
-  <div class="bottom-hud"><div id="combat-status"></div><div id="selected-name"></div><div class="vitals"><span class="health" id="health"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
+  <div class="bottom-hud"><div id="combat-status"></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div class="vitals"><span class="health" id="health"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="吃东西">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
- <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b> <span class="tiny">/ 点击选择；点击护甲穿戴；Shift 点击丢出一组</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><div class="pack-actions"><button id="drop-held">丢出手持物 ×1</button><button id="drop-mode" aria-pressed="false">点击丢弃：关</button></div><p class="panel-note">Q 丢出 1 件 / Ctrl+Q 丢出一组 · 靠近地面物品自动拾取 · 工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
+ <section id="craft-overlay" class="overlay hidden"><div class="panel"><div class="panel-head"><div><div class="eyebrow">THE HONEYCOMB WORKSHOP</div><h2>蜂巢工坊</h2></div><button class="close" data-close aria-label="关闭合成">×</button></div><div class="craft-layout"><div class="recipe-sidebar"><input id="recipe-search" placeholder="搜索配方…" aria-label="搜索配方"><nav class="recipe-list" id="recipes" aria-label="合成配方"></nav></div><div class="craft-main"><h3 id="recipe-title"></h3><p id="recipe-desc"></p><div class="honeycomb" id="pattern"></div><div class="recipe-cost" id="recipe-cost"></div><button class="primary" id="craft-button">合成</button><p id="station-note"></p></div></div><div class="inventory-section"><div class="section-label">你的背包 <b id="pack-capacity"></b> <span class="tiny">/ 点击选择；点击护甲穿戴；Shift 点击丢出一组</span></div><div class="armor-slots" id="armor-slots"></div><div class="inventory-grid" id="inventory"></div><div class="pack-actions"><button id="drop-held">丢出手持物 ×1</button><button id="drop-mode" aria-pressed="false">点击丢弃：关</button></div><p class="panel-note">Q 丢出 1 件 / Ctrl+Q 丢出一组 · 靠近地面物品自动拾取 · 工具必须手持 · 弓：左键蓄力，松开发射 · 桶：右键/E 装取源或倒出 · E 使用工作台 / 熔炉 / 箱子 / 耕种 · 鱼竿：右键/E 抛线与收杆，左键收起 · F 食用 · 鼠标滚轮或 1–9 切换手持物</p></div></div></section>
  <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">渲染精度</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 泛光</option></select></div><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，在工坊制作传送门，放置后按 E 穿越。返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>放置方块</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>吃东西 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
@@ -85,6 +86,33 @@ const camera = graphics.camera;
 const motion = new Movement();
 const projectiles = new Projectiles(graphics.scene);
 const drops = new ItemDrops(graphics.scene, graphics.textures);
+const fishingTip = new THREE.Vector3();
+const fishing = new Fishing(
+  graphics.scene,
+  {
+    notice: toast,
+    wear: (n) => wearItem('fishingRod', n),
+    catch: (loot) => {
+      const taken = addItem(loot.item);
+      toast(
+        loot.category +
+          ' · ' +
+          ITEMS[loot.item].name +
+          (taken ? '' : ' · 背包已满，留在脚边'),
+      );
+    },
+    sound: (kind) => {
+      if (kind === 'cast') soundFX.noise(0.12, 0.08, 2200);
+      else if (kind === 'splash') soundFX.noise(0.18, 0.14, 950);
+      else if (kind === 'bite') {
+        soundFX.noise(0.25, 0.18, 1700);
+        soundFX.tone(780, 0.15, 'sine', 0.13);
+        soundFX.tone(1050, 0.12, 'sine', 0.1, 0.1);
+      } else soundFX.tone(950, 0.14, 'triangle', 0.1);
+    },
+  },
+  isTouch,
+);
 let weather = new Weather();
 const weatherColumns = new WeatherColumns();
 let weatherGrowthTimer = 0;
@@ -215,6 +243,7 @@ function safeSpawn() {
     camera.position.y++;
 }
 function startGame(mode = false, save = null) {
+  fishing.clear();
   const seed = save?.seed ?? Number($('#seed').value || 624);
   dimension = save?.dimension || 'overworld';
   dimensionStates = save?.dimensions ? structuredClone(save.dimensions) : {};
@@ -359,6 +388,7 @@ function syncDecor() {
 }
 function travel(to) {
   if (!hasGame || !DIMENSIONS[to] || to === dimension) return false;
+  fishing.clear();
   projectiles.clear();
   bowCharge = 0;
   captureDimension();
@@ -663,6 +693,7 @@ function updateHUD() {
   containInventory();
   equipment.sync(inventory, creative);
   if (heldItem() !== 'bow') bowCharge = 0;
+  if (heldItem() !== 'fishingRod') fishing.clear();
   tool = miningStats('', heldItem()).tier;
   $('#armor-hud').textContent = creative
     ? ''
@@ -981,8 +1012,16 @@ function flushFluidChanges() {
   world.fluids.blockChanges.clear();
   for (const k of chunks) if (graphics.chunks.has(k)) graphics.buildChunk(k);
 }
+function useFishingRod() {
+  if (heldItem() !== 'fishingRod') return false;
+  fishing.act(world, camera, weather.rain);
+  graphics.swing();
+  saveGame();
+  return true;
+}
 function place() {
   if (!playing) return;
+  if (useFishingRod()) return;
   if (
     target &&
     ['door', 'doorTop', 'gate'].includes(target.type) &&
@@ -1362,6 +1401,7 @@ function interactPlant(k) {
 }
 function interact() {
   if (!playing) return;
+  if (useFishingRod()) return;
   if (interactCreature() || drinkMilk() || useGoldenApple()) return;
   if (villagerTarget) {
     tradingWith = villagerTarget;
@@ -1619,6 +1659,11 @@ function eat() {
   for (const [id, value] of [
     ['cake', 12],
     ['cooked', 9],
+    ['cookedSalmon', 6],
+    ['cookedCod', 5],
+    ['rawCod', 2],
+    ['rawSalmon', 2],
+    ['tropicalFish', 1],
     ['bakedPotato', 6],
     ['carrot', 4],
     ['potato', 1],
@@ -1639,7 +1684,7 @@ function eat() {
       updateHUD();
       return;
     }
-  toast('没有食物了。树叶会掉落苹果，也可以种植蔬菜、烤马铃薯或狩猎。');
+  toast('没有食物了。树叶会掉落苹果，也可以种菜、钓鱼、烹饪或狩猎。');
 }
 function hurt(amount, cause = 'combat') {
   if (creative || damageCooldown > 0) return;
@@ -1655,6 +1700,7 @@ function hurt(amount, cause = 'combat') {
   setTimeout(() => ($('#damage').style.opacity = '0'), 250);
   soundFX.play('hurt');
   if (health <= 0) {
+    fishing.clear();
     lastDeath = [camera.position.x, playerFeet() + 0.4, camera.position.z];
     for (const [id, n] of Object.entries(inventory)) {
       const wear = ITEMS[id]?.durability
@@ -2278,6 +2324,7 @@ $('#respawn').onclick = () => {
   toast('已回到出生点。');
 };
 $('#home').onclick = () => {
+  fishing.clear();
   saveGame();
   document.exitPointerLock?.();
   playing = false;
@@ -2551,6 +2598,15 @@ function frame(now) {
     for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
     world.fluids.step(dt);
     flushFluidChanges();
+    if (heldItem() !== 'fishingRod') fishing.clear();
+    else {
+      if (leftDown && fishing.active) {
+        fishing.clear();
+        leftDown = false;
+        toast('已收起鱼线。');
+      }
+      fishing.update(dt, world, camera, weather.rain);
+    }
     target = graphics.target(!!ITEMS[hotbar[selected]]?.bucket);
     if (leftDown && heldItem() === 'bow') {
       bowCharge = Math.min(1.1, bowCharge + dt);
@@ -2642,16 +2698,22 @@ function frame(now) {
       () => addItem('arrow'),
       (amount) => hurt(amount),
     );
+    $('#combat-status').dataset.fishing = fishing.phase;
+    $('#fishing-window').classList.toggle('hidden', fishing.phase !== 'bite');
+    $('#fishing-window').value =
+      fishing.phase === 'bite' ? fishing.remaining / fishing.biteWindow : 0;
     $('#combat-status').textContent =
-      heldItem() === 'bow'
-        ? (bowCharge > 0
-            ? '拉弓 ' + Math.round((bowCharge / 1.1) * 100) + '% · 松开发射'
-            : '按住左键拉弓') +
-          ' · 箭矢 ' +
-          (creative ? '∞' : inventory.arrow || 0)
-        : attackCooldown > 0
-          ? '挥击恢复中'
-          : '';
+      heldItem() === 'fishingRod'
+        ? fishing.status
+        : heldItem() === 'bow'
+          ? (bowCharge > 0
+              ? '拉弓 ' + Math.round((bowCharge / 1.1) * 100) + '% · 松开发射'
+              : '按住左键拉弓') +
+            ' · 箭矢 ' +
+            (creative ? '∞' : inventory.arrow || 0)
+          : attackCooldown > 0
+            ? '挥击恢复中'
+            : '';
     simulationAccumulator += dt;
     if (simulationAccumulator > 0.5) {
       simulationAccumulator = 0;
@@ -2679,6 +2741,9 @@ function frame(now) {
       saveGame();
     }
   }
+  if (graphics.fishingTip) graphics.fishingTip.getWorldPosition(fishingTip);
+  else fishingTip.copy(camera.position);
+  fishing.render(camera, fishingTip, playing && heldItem() === 'fishingRod');
   graphics.bowDraw = bowCharge / 1.1;
   graphics.frame(
     playing ? dt : 0,

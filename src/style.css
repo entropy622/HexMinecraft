@@ -2024,6 +2024,33 @@ input:focus-visible {
   color: #b9d4e4;
   font-size: 12px;
 }
+#combat-status[data-fishing='bite'] {
+  color: #ffe29b;
+  background: #543c22;
+  outline: 2px solid #d1a15d;
+  padding: 5px 12px;
+}
+#combat-status[data-fishing='approach'] {
+  color: #9edee3;
+}
+#fishing-window {
+  appearance: none;
+  display: block;
+  width: 180px;
+  height: 9px;
+  margin: 6px auto;
+  border: 2px solid #5e5845;
+  background: #252a27;
+}
+#fishing-window::-webkit-progress-bar {
+  background: #252a27;
+}
+#fishing-window::-webkit-progress-value {
+  background: #f1cb79;
+}
+#fishing-window::-moz-progress-bar {
+  background: #f1cb79;
+}
 #combat-status {
   min-height: 18px;
   text-align: center;

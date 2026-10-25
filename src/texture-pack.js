@@ -42,6 +42,12 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  fishingRod: 'mcl_fishing_fishing_rod',
+  rawCod: 'mcl_fishing_fish_raw',
+  cookedCod: 'mcl_fishing_fish_cooked',
+  rawSalmon: 'mcl_fishing_salmon_raw',
+  cookedSalmon: 'mcl_fishing_salmon_cooked',
+  tropicalFish: 'mcl_fishing_clownfish_raw',
   charcoal: 'mcl_core_charcoal',
   door: 'doors_item_wood',
   fence: 'mcl_fences_fence_oak',

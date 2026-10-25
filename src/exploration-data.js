@@ -163,6 +163,8 @@ export const EXPLORATION_RECIPES = [
   ),
 ];
 export const SMELTING = {
+  cookedCod: { input: 'rawCod', seconds: 8 },
+  cookedSalmon: { input: 'rawSalmon', seconds: 8 },
   charcoal: { input: 'wood', seconds: 8 },
   glass: { input: 'sand', seconds: 8 },
   bakedPotato: { input: 'potato', seconds: 6 },
