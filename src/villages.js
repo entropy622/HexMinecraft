@@ -1,4 +1,12 @@
-import { ITEMS, DIRECTIONS, hash, hexDistance, key } from './core.js';
+import {
+  ITEMS,
+  DIRECTIONS,
+  hash,
+  hexDistance,
+  key,
+  axialToWorld,
+} from './core.js';
+import { facingFromDirection } from './building-shapes.js';
 export const VILLAGE_RADIUS = 12;
 const houses = [
   [7, 0, 'smith'],
@@ -224,8 +232,22 @@ export function stampVillage(world, v, cq, cr) {
           if (role === 'smith' && a === 1 && (b === 0 || b === -1))
             put(q, v.h, r, b === 0 ? 'chippedAnvil' : 'grindstone');
         }
-        for (let layer = 0; layer < 3; layer++)
-          if (dist <= 3 - layer) put(q, v.h + 3 + layer, r, 'wood');
+        const roof = v.wall === 'sand' ? 'sandstone' : 'planks';
+        for (let layer = 0; layer < 3; layer++) {
+          if (dist > 3 - layer) continue;
+          const edge = dist === 3 - layer;
+          put(q, v.h + 3 + layer, r, edge ? roof + 'Stairs' : roof);
+          if (edge) {
+            const inward = axialToWorld(-a, -b);
+            world.naturalStates.set(key(q, v.h + 3 + layer, r), {
+              facing: facingFromDirection(inward.x, inward.z),
+              open: false,
+              upper: false,
+              double: false,
+            });
+          }
+        }
+        if (!a && !b) put(q, v.h + 6, r, roof + 'Slab');
       }
       // A covered communal well, with a reachable water cell below the rim.
       if (d === 1) put(q, v.h, r, 'brick');
@@ -243,7 +265,7 @@ export function stampVillage(world, v, cq, cr) {
         ].some(([a, b]) => x === a && z === b)
       )
         for (let y = 0; y < 3; y++) put(q, v.h + y, r, 'wood');
-      if (d <= 2) put(q, v.h + 3, r, 'planks');
+      if (d <= 2) put(q, v.h + 3, r, 'planksSlab');
     }
   const f = features(v);
   for (const p of f.crops) put(p.q, p.y, p.r, 'farmland');

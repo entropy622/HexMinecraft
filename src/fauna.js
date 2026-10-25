@@ -5,6 +5,7 @@ import { createMob, disposeMob, animateMob } from './mob-graphics.js';
 import { flyingClear, updateNetherFlier } from './nether-mobs.js';
 import { updateEnderman, teleportEnderman } from './endermen.js';
 import { ENDERMAN_BLOCKS } from './enderman-data.js';
+import { findFloor } from './grounding.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
 export class Fauna {
@@ -96,45 +97,11 @@ export class Fauna {
     disposeMob(m.mesh);
   }
   floor(x, z, y, kind, step = 0.8) {
-    const world = this.world,
-      def = MOBS[kind],
-      radius = kind === 'chicken' ? 0.18 : 0.32;
-    const center = worldToAxial(x, z);
-    if (!world.loaded(center.q, center.r)) return null;
-    for (
-      let floor = Math.floor(y + step);
-      floor >= Math.floor(y - 3);
-      floor--
-    ) {
-      if (
-        floor < 1 ||
-        floor > 62 ||
-        !world.solid(center.q, floor - 1, center.r)
-      )
-        continue;
-      let clear = true;
-      for (const [dx, dz] of [
-        [0, 0],
-        [radius, 0],
-        [-radius, 0],
-        [0, radius],
-        [0, -radius],
-      ]) {
-        const a = worldToAxial(x + dx, z + dz);
-        if (!world.loaded(a.q, a.r) || world.fluids.get(a.q, floor, a.r)) {
-          clear = false;
-          break;
-        }
-        for (let h = 0; h < def.height; h += 0.35)
-          if (world.pointSolid(x + dx, floor + h, z + dz)) {
-            clear = false;
-            break;
-          }
-        if (!clear) break;
-      }
-      if (clear) return floor;
-    }
-    return null;
+    return findFloor(this.world, x, z, y, {
+      step,
+      height: MOBS[kind].height,
+      radius: kind === 'chicken' ? 0.18 : 0.32,
+    });
   }
   visible(from, to) {
     const length = from.distanceTo(to),
@@ -142,10 +109,7 @@ export class Fauna {
     for (let i = 1; i < steps; i++) {
       const p = from.clone().lerp(to, i / steps),
         a = worldToAxial(p.x, p.z);
-      if (
-        !this.world.loaded(a.q, a.r) ||
-        this.world.solid(a.q, Math.floor(p.y), a.r)
-      )
+      if (!this.world.loaded(a.q, a.r) || this.world.pointSolid(p.x, p.y, p.z))
         return false;
     }
     return true;

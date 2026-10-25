@@ -79,6 +79,7 @@ import { Graphics } from './graphics.js';
 import { HELD_LIGHTS } from './voxel-light.js';
 import { Survival, FOODS } from './survival.js';
 import { Combat } from './combat.js';
+import { findFloor } from './grounding.js';
 import { Experience, xpForLevel } from './experience.js';
 import { enchantLabel, customName, wearValue } from './enchanting-data.js';
 import { ANVILS, isSmithingStation } from './smithing-data.js';
@@ -114,7 +115,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.33 — WHEN YOU LOOK AWAY</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.34 — BETWEEN THE STEPS</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -692,11 +693,12 @@ function collides(x, feet, z) {
     [0.17, 0.17],
     [-0.17, -0.17],
   ])
-    for (const dy of [0.04, 0.85, 1.57])
+    for (const dy of [0.005, 0.85, 1.77])
       if (solidAt(x + dx, feet + dy, z + dz)) return true;
   return false;
 }
 function safeSpawn() {
+  graphics.stepOffset = 0;
   throwables.clear();
   throwHeldItem = null;
   boats.riding = null;
@@ -1964,6 +1966,20 @@ function place() {
   }
   if (useBucket()) return;
   if (!target || !BLOCKS[hotbar[selected]]) return;
+  if (
+    BLOCKS[hotbar[selected]].shape === 'slab' &&
+    target.type === hotbar[selected]
+  ) {
+    const state = world.state(target.q, target.y, target.r);
+    if (
+      !state.double &&
+      ((state.upper && target.normal?.y < -0.5) ||
+        (!state.upper && target.normal?.y > 0.5))
+    ) {
+      mergeSlab(target.q, target.y, target.r, hotbar[selected]);
+      return;
+    }
+  }
   if (BLOCKS[hotbar[selected]].shape) {
     placeBuilding(hotbar[selected], target.place);
     return;
@@ -2017,15 +2033,73 @@ function place() {
   graphics.swing();
   updateHUD();
 }
-function fullSupport(q, y, r) {
+function fullSupport(q, y, r, top = false) {
   const type = world.get(q, y, r);
+  if (['slab', 'stairs'].includes(BLOCKS[type]?.shape)) {
+    const state = world.state(q, y, r);
+    return !!state.double || (top && !!state.upper);
+  }
   return !!type && !BLOCKS[type].nonSolid && !BLOCKS[type].shape;
+}
+function mergeSlab(q, y, r, type) {
+  const old = world.state(q, y, r);
+  if (old.double || (!creative && !(inventory[type] > 0))) return;
+  world.setState(q, y, r, { ...old, double: true });
+  if (
+    collides(camera.position.x, playerFeet(), camera.position.z) ||
+    buildingOccupied(q, y, r)
+  ) {
+    world.setState(q, y, r, old);
+    toast('补全半砖会挡住你，先退开一点。');
+    return;
+  }
+  if (!creative) inventory[type]--;
+  graphics.updateBlock(q, y, r);
+  soundFX.play('place', BLOCKS[type].base);
+  graphics.swing();
+  updateHUD();
+}
+function buildingOccupied(q, y, r) {
+  const center = axialToWorld(q, r);
+  return [...creatures, ...villagers.residents.values()].some((mob) => {
+    const p = mob.mesh.position,
+      size = mob.baby ? 0.55 : 1;
+    const height = (MOBS[mob.kind]?.height || 1.9) * size,
+      radius = 0.3 * size;
+    if (
+      Math.hypot(p.x - center.x, p.z - center.z) > 3 ||
+      p.y > y + 2 ||
+      p.y + height < y
+    )
+      return false;
+    return [
+      [0, 0],
+      [radius, 0],
+      [-radius, 0],
+      [0, radius],
+      [0, -radius],
+    ].some(([dx, dz]) =>
+      [0.03, height * 0.5, height - 0.03].some((dy) =>
+        world.pointSolid(p.x + dx, p.y + dy, p.z + dz),
+      ),
+    );
+  });
 }
 function placeBuilding(type, p) {
   const { q, y, r } = p;
   if (y < 1 || y >= 63 || (!creative && !(inventory[type] > 0))) return;
+  const cut = ['slab', 'stairs'].includes(BLOCKS[type].shape);
+  const upper =
+    cut &&
+    (target.normal?.y < -0.5 ||
+      (Math.abs(target.normal?.y || 0) < 0.5 && (target.hitHeight ?? 0) > 0.5));
+  if (BLOCKS[type].shape === 'slab' && world.get(q, y, r) === type) {
+    const old = world.state(q, y, r);
+    if (!old.double && !!old.upper !== !!upper) mergeSlab(q, y, r, type);
+    return;
+  }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
-  if (type === 'door' && !fullSupport(q, y - 1, r)) {
+  if (type === 'door' && !fullSupport(q, y - 1, r, true)) {
     toast('门需要放在实心地面上。');
     return;
   }
@@ -2072,8 +2146,11 @@ function placeBuilding(type, p) {
     return;
   }
   for (const [a, b, c, t] of cells) world.set(a, b, c, t, false);
-  world.setState(q, y, r, { facing, open: false });
-  if (collides(camera.position.x, playerFeet(), camera.position.z)) {
+  world.setState(q, y, r, { facing, open: false, upper, double: false });
+  if (
+    collides(camera.position.x, playerFeet(), camera.position.z) ||
+    buildingOccupied(q, y, r)
+  ) {
     for (const [a, b, c] of cells) world.set(a, b, c, null, false);
     world.blockStates.delete(key(q, y, r));
     toast('这里会挡住你，退开一点再放置。');
@@ -2084,7 +2161,7 @@ function placeBuilding(type, p) {
   if (!creative) inventory[type]--;
   graphics.updateBlock(q, y, r);
   graphics.swing();
-  soundFX.play('place', 'wood');
+  soundFX.play('place', BLOCKS[type].base || 'wood');
   updateHUD();
 }
 function removeBuilding(q, y, r, drop = true) {
@@ -2093,11 +2170,13 @@ function removeBuilding(q, y, r, drop = true) {
   if (original === 'doorTop' && world.get(q, y - 1, r) === 'door') y--;
   const type = world.get(q, y, r),
     item = type === 'doorTop' ? 'door' : type;
+  const count =
+    BLOCKS[type]?.shape === 'slab' && world.state(q, y, r).double ? 2 : 1;
   world.set(q, y, r, null);
   if (type === 'door' && world.get(q, y + 1, r) === 'doorTop')
     world.set(q, y + 1, r, null);
   graphics.updateBlock(q, y, r);
-  if (drop) dropAt(item, 1, q, y, r);
+  if (drop) dropAt(item, count, q, y, r);
   soundFX.play('break', 'wood');
 }
 function toggleBuilding(q, y, r, open = null) {
@@ -2141,7 +2220,7 @@ function maintainBuildings() {
       type = world.get(q, y, r);
     if (
       type === 'door' &&
-      (!fullSupport(q, y - 1, r) || world.get(q, y + 1, r) !== 'doorTop')
+      (!fullSupport(q, y - 1, r, true) || world.get(q, y + 1, r) !== 'doorTop')
     )
       removeBuilding(q, y, r);
     else if (type === 'doorTop' && world.get(q, y - 1, r) !== 'door')
@@ -3553,25 +3632,49 @@ function movePlayer(dt) {
     camera.position.y = Math.max(-20, Math.min(85, camera.position.y));
     vy = 0;
   } else {
-    const feet = playerFeet();
+    let feet = playerFeet();
     const supported = (x, z) =>
       !sneaking ||
       !grounded ||
       swimming ||
       Math.hypot(motion.kickX, motion.kickZ) > 0.15 ||
       collides(x, feet - 0.16, z);
-    if (
-      !collides(camera.position.x + dx, feet, camera.position.z) &&
-      supported(camera.position.x + dx, camera.position.z)
-    )
-      camera.position.x += dx;
-    else motion.x = motion.kickX = 0;
-    if (
-      !collides(camera.position.x, feet, camera.position.z + dz) &&
-      supported(camera.position.x, camera.position.z + dz)
-    )
-      camera.position.z += dz;
-    else motion.z = motion.kickZ = 0;
+    const tryMove = (axis, amount) => {
+      if (!amount) return;
+      const x = camera.position.x + (axis === 'x' ? amount : 0),
+        z = camera.position.z + (axis === 'z' ? amount : 0);
+      if (!collides(x, feet, z) && supported(x, z)) {
+        camera.position[axis] += amount;
+        return;
+      }
+      if (grounded && !swimming && !climbing && vy <= 0) {
+        const floor = findFloor(world, x, z, feet, {
+          step: 0.6,
+          drop: 0.04,
+          wet: true,
+        });
+        if (
+          floor !== null &&
+          floor > feet + 0.01 &&
+          !collides(camera.position.x, floor + 0.005, camera.position.z)
+        ) {
+          const rise = floor + 0.005 - feet;
+          camera.position[axis] += amount;
+          camera.position.y += rise;
+          graphics.stepOffset = Math.min(
+            0.65,
+            (graphics.stepOffset || 0) + rise,
+          );
+          feet = playerFeet();
+          vy = 0;
+          return;
+        }
+      }
+      if (axis === 'x') motion.x = motion.kickX = 0;
+      else motion.z = motion.kickZ = 0;
+    };
+    tryMove('x', dx);
+    tryMove('z', dz);
     if (
       !swimming &&
       !climbing &&
@@ -3600,6 +3703,15 @@ function movePlayer(dt) {
     for (let i = 0; i < steps; i++) {
       const next = playerFeet() + dy / steps;
       if (collides(camera.position.x, next, camera.position.z)) {
+        let clear = playerFeet(),
+          blocked = next;
+        for (let n = 0; n < 7; n++) {
+          const mid = (clear + blocked) / 2;
+          if (collides(camera.position.x, mid, camera.position.z))
+            blocked = mid;
+          else clear = mid;
+        }
+        camera.position.y = clear + 1.65;
         if (vy < 0) {
           grounded = true;
           if (vy < -13) hurt(Math.floor((-vy - 12) * 0.6), 'fall');

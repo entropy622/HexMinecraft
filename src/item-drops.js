@@ -4,6 +4,7 @@ import { itemImage } from './texture-pack.js';
 import { validWear } from './equipment.js';
 import { fluidHeight } from './fluids.js';
 import { enchantmentsOf } from './enchanting-data.js';
+import { buildingItemMesh } from './building-graphics.js';
 
 const vec = (p) =>
   Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
@@ -94,6 +95,14 @@ export class ItemDrops {
     });
   }
   model(id) {
+    if (
+      !this.templates.has(id) &&
+      ['slab', 'stairs'].includes(BLOCKS[id]?.shape)
+    ) {
+      const mesh = buildingItemMesh(id, this.textures);
+      mesh.scale.setScalar(0.22);
+      this.templates.set(id, mesh);
+    }
     if (!this.templates.has(id)) {
       let geometry, material;
       const image = itemImage(id);

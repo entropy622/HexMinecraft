@@ -1,5 +1,6 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 import { POTIONS } from './brewing-data.js';
+import { CUT_MATERIALS } from './building-data.js';
 export const blockTextures = {
   brewingStand: ['mcl_brewing_top', 'mcl_brewing_side'],
   brewingBase: ['mcl_brewing_base'],
@@ -55,6 +56,10 @@ export const blockTextures = {
   bedrock: ['mcl_core_bedrock'],
   wool: ['wool_white'],
 };
+for (const [base] of CUT_MATERIALS) {
+  blockTextures[base + 'Slab'] = blockTextures[base];
+  blockTextures[base + 'Stairs'] = blockTextures[base];
+}
 export const itemTextures = {
   pearl: 'mcl_throwing_ender_pearl',
   snowball: 'mcl_throwing_snowball',

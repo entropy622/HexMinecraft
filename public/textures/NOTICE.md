@@ -132,6 +132,12 @@ Runtime UV views retain CC BY-SA 4.0. The tall six-sided rig, facial animation,
 carried block, AI, teleport particles, persistence and synthesized sounds are
 original code; no upstream model, mob source or sound recording is included.
 
+Version 0.34 reuses the existing wood, stone, stone brick, sandstone,
+nether brick and purpur tiles for six-sided slabs, stairs and projected
+inventory icons. These runtime texture views retain CC BY-SA 3.0. The cut
+geometry, projection code, placement, corner matching and movement logic are
+original implementations; no additional source media is redistributed.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

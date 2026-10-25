@@ -57,3 +57,33 @@ export const BUILDING_RECIPES = [
     '贴在实心墙面，靠近后 W / 空格向上，Shift 向下，Ctrl 停住。',
   ),
 ];
+
+export const CUT_MATERIALS = [
+  ['planks', '橡木', '#c6a16c', 0.45],
+  ['stone', '岩石', '#a0aaa5', 1.25],
+  ['brick', '石砖', '#bcc4b7', 0.8],
+  ['sandstone', '砂岩', '#d6bf85', 0.9],
+  ['netherbrick', '下界砖', '#593841', 1.4],
+  ['purpur', '紫珀', '#b48eaf', 1.3],
+];
+for (const [base, name, color, hardness] of CUT_MATERIALS) {
+  for (const [suffix, shape, label] of [
+    ['Slab', 'slab', '半砖'],
+    ['Stairs', 'stairs', '楼梯'],
+  ]) {
+    const id = base + suffix;
+    BUILDING_BLOCKS[id] = { name: name + label, base, color, hardness, shape };
+    BUILDING_RECIPES.push(
+      make(
+        id,
+        shape === 'slab' ? 6 : 4,
+        shape === 'slab'
+          ? [null, null, base, base, base, null, null]
+          : [base, base, null, base, base, base, base],
+        shape === 'slab'
+          ? '瞄准下半面放下半砖，上半面或底面放上半砖；点击空着的半面可合并。'
+          : '六个方向的半格楼梯，自动衔接转角；瞄准上半面或底面可倒置。',
+      ),
+    );
+  }
+}

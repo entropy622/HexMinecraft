@@ -47,7 +47,7 @@ function terrainImpact(world, from, to, direction) {
 export function pearlDestination(world, impact, blocked) {
   const { point, normal } = impact;
   const horizontal = Math.hypot(normal.x, normal.z);
-  const baseY = point.y + (normal.y < -0.5 ? -1.7 : 0.015);
+  const baseY = point.y + (normal.y < -0.5 ? -1.82 : 0.015);
   const drops =
     Math.abs(normal.y) > 0.5 ? [0] : [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5];
   for (const offset of horizontal > 0.1 ? [0.38, 0.6, 0.85] : [0]) {
@@ -67,7 +67,7 @@ export function pearlDestination(world, impact, blocked) {
       continue;
     for (const drop of drops) {
       const feet = baseY - drop;
-      if (feet < 0.03 || feet + 1.7 > 90 || blocked(x, feet, z)) continue;
+      if (feet < 0.03 || feet + 1.8 > 90 || blocked(x, feet, z)) continue;
       return new THREE.Vector3(x, feet, z);
     }
   }

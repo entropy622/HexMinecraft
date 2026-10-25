@@ -1,4 +1,5 @@
 import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
+import { cutBlockParts, polygonContains } from './cut-blocks.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -23,6 +24,8 @@ export function buildingParts(world, q, y, r, collision = false) {
     state = world.state(q, y, r);
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
+  if (shape === 'slab' || shape === 'stairs')
+    return cutBlockParts(world, q, y, r);
   const parts = [];
   const add = (x, cy, z, w, h, d, turn = 0, tile = 'planks') => {
     parts.push({
@@ -97,6 +100,11 @@ export function buildingParts(world, q, y, r, collision = false) {
   return parts;
 }
 export function insidePart(x, y, z, part) {
+  if (part.polygon)
+    return (
+      Math.abs(y - part.y) < part.h / 2 &&
+      polygonContains(part.polygon, x - part.x, z - part.z)
+    );
   const dx = x - part.x,
     dz = z - part.z;
   const px = dx * Math.cos(part.angle) - dz * Math.sin(part.angle);

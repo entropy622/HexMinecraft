@@ -3,6 +3,7 @@ import { axialToWorld, worldToAxial } from './core.js';
 import { ROLES } from './villages.js';
 import { createVillager, animateVillager } from './villager-graphics.js';
 import { disposeMob } from './mob-graphics.js';
+import { findFloor } from './grounding.js';
 export class Villagers {
   constructor(scene) {
     this.scene = scene;
@@ -69,16 +70,13 @@ export class Villagers {
           !this.world.state(a.q, h, a.r).open
         )
           this.openDoor?.(a.q, h, a.r);
-        if (
-          this.world.loaded(a.q, a.r) &&
-          this.world.solid(a.q, h - 1, a.r) &&
-          !this.world.solid(a.q, h, a.r) &&
-          !this.world.solid(a.q, h + 1, a.r) &&
-          !this.world.fluids.get(a.q, h, a.r)
-        ) {
-          p.x = x;
-          p.z = z;
-        }
+        const floor = findFloor(this.world, x, z, p.y, {
+          step: 0.6,
+          drop: 1,
+          height: 1.9,
+          radius: 0.28,
+        });
+        if (floor !== null) p.set(x, floor, z);
       }
       const yaw = Math.atan2(
         near ? p.x - camera.position.x : -dx,

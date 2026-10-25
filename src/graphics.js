@@ -11,7 +11,7 @@ import { SmithingModels } from './smithing-graphics.js';
 import { isSmithingStation } from './smithing-data.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
-import { buildingMesh } from './building-graphics.js';
+import { buildingMesh, buildingItemMesh } from './building-graphics.js';
 import {
   createPostprocessing,
   setPostprocessingOptions,
@@ -20,6 +20,7 @@ import {
 import { postSettings } from './render-settings.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { itemImage, bowImage } from './texture-pack.js';
 import { createTextures } from './textures.js';
 import {
@@ -130,6 +131,13 @@ export class Graphics {
     );
     this.outline.visible = false;
     this.scene.add(this.outline);
+    this.shapeOutline = new THREE.LineSegments(
+      new THREE.BufferGeometry(),
+      this.outline.material,
+    );
+    this.shapeOutline.matrixAutoUpdate = false;
+    this.shapeOutline.visible = false;
+    this.scene.add(this.shapeOutline);
     this.sky = new THREE.Mesh(
       new THREE.SphereGeometry(180, 24, 12),
       new THREE.ShaderMaterial({
@@ -326,6 +334,8 @@ export class Graphics {
     return `${Math.floor(q / 8)},${Math.floor(r / 8)}`;
   }
   build(world, q = 0, r = 0) {
+    this.stepOffset = 0;
+    this.shapeOutline.visible = false;
     this.world = world;
     this.voxelLight = new VoxelLight(world);
     this.voxelLight.update(0, true);
@@ -508,6 +518,13 @@ export class Graphics {
     this.hand.add(this.held);
     this.fishingTip = null;
     if (!id) return;
+    if (['slab', 'stairs'].includes(BLOCKS[id]?.shape)) {
+      const mesh = buildingItemMesh(id, this.textures);
+      mesh.scale.setScalar(0.28);
+      mesh.position.set(0, 0.17, -0.36);
+      this.held.add(mesh);
+      return;
+    }
     if (id === 'fishingRod') {
       const rod = new THREE.Group();
       rod.position.set(0, 0.15, -0.38);
@@ -926,10 +943,28 @@ export class Graphics {
       mesh.add(this.smithingModels.create(world, q, y, r, origin));
     for (const [q, y, r] of brewCells)
       mesh.add(this.brewingModels.create(world, q, y, r, origin));
-    for (const [q, y, r] of shaped)
-      mesh.add(
-        buildingMesh(world, q, y, r, origin, this.textures, this.material),
+    const cuts = [];
+    for (const [q, y, r] of shaped) {
+      const building = buildingMesh(
+        world,
+        q,
+        y,
+        r,
+        origin,
+        this.textures,
+        this.material,
       );
+      if (['slab', 'stairs'].includes(BLOCKS[world.get(q, y, r)].shape))
+        cuts.push(building.geometry);
+      else mesh.add(building);
+    }
+    if (cuts.length) {
+      const batch = new THREE.Mesh(mergeGeometries(cuts), this.material);
+      batch.castShadow = batch.receiveShadow = true;
+      batch.userData.cutBlocks = true;
+      mesh.add(batch);
+      cuts.forEach((geometry) => geometry.dispose());
+    }
     if (torches.p.length)
       mesh.add(new THREE.Mesh(geometry(torches), this.torchMaterial));
     if (glass.p.length)
@@ -984,6 +1019,7 @@ export class Graphics {
     });
   }
   target(includeLiquids = false) {
+    this.shapeOutline.visible = false;
     this.ray.setFromCamera(new THREE.Vector2(), this.camera);
     const hit = this.ray.intersectObjects(
       [
@@ -1053,20 +1089,86 @@ export class Graphics {
       }
       return { ...block, place, distance: hit.distance };
     }
-    if (hit.object.userData.shaped) {
-      const block = hit.object.userData.shaped,
+    let shaped = hit.object.userData.shaped;
+    if (hit.object.userData.cutBlocks) {
+      const inside = hit.point.clone().addScaledVector(hit.face.normal, -0.003),
+        cell = worldToAxial(inside.x, inside.z),
+        y = Math.floor(inside.y);
+      shaped = { ...cell, y, type: this.world.get(cell.q, y, cell.r) };
+    }
+    if (shaped) {
+      const block = shaped,
         p = axialToWorld(block.q, block.r);
       const height = ['gate', 'fence'].includes(block.type) ? 1.5 : 1;
       this.outline.position.set(p.x, block.y + height / 2, p.z);
       this.outline.scale.set(1, height, 1);
       this.outline.visible = true;
+      const outlineKey = `${hit.object.geometry.uuid}/${block.q},${block.y},${block.r}`;
+      if (this.shapeOutlineKey !== outlineKey) {
+        this.shapeOutlineKey = outlineKey;
+        this.shapeOutline.geometry.dispose();
+        const source = hit.object.userData.cutBlocks
+          ? buildingMesh(
+              this.world,
+              block.q,
+              block.y,
+              block.r,
+              { x: 0, z: 0 },
+              this.textures,
+              this.material,
+            ).geometry
+          : hit.object.geometry.clone();
+        source.computeBoundingBox();
+        const center = source.boundingBox.getCenter(new THREE.Vector3());
+        source
+          .translate(-center.x, -center.y, -center.z)
+          .scale(1.004, 1.004, 1.004)
+          .translate(center.x, center.y, center.z);
+        this.shapeOutline.geometry = new THREE.EdgesGeometry(source, 20);
+        source.dispose();
+      }
+      hit.object.updateWorldMatrix(true, false);
+      if (hit.object.userData.cutBlocks) this.shapeOutline.matrix.identity();
+      else this.shapeOutline.matrix.copy(hit.object.matrixWorld);
+      this.shapeOutline.visible = true;
+      this.outline.visible = false;
       const normal = hit.face.normal,
         outside = hit.point.clone().addScaledVector(normal, 0.04),
         a = worldToAxial(outside.x, outside.z);
+      let place = { ...a, y: Math.floor(outside.y) };
+      if (normal.y > 0.5)
+        place = {
+          q: block.q,
+          y: Math.max(block.y + 1, Math.floor(outside.y)),
+          r: block.r,
+        };
+      else if (normal.y < -0.5)
+        place = { q: block.q, y: block.y - 1, r: block.r };
+      else if (a.q === block.q && a.r === block.r) {
+        const closest = DIRECTIONS.map(([q, r]) => ({
+          q,
+          r,
+          p: axialToWorld(q, r),
+        })).sort(
+          (a, b) =>
+            b.p.x * normal.x +
+            b.p.z * normal.z -
+            a.p.x * normal.x -
+            a.p.z * normal.z,
+        )[0];
+        place = {
+          q: block.q + closest.q,
+          y: Math.floor(outside.y),
+          r: block.r + closest.r,
+        };
+      }
       return {
         ...block,
         distance: hit.distance,
-        place: { ...a, y: Math.floor(outside.y) },
+        point: hit.point.clone(),
+        normal: normal.clone(),
+        hitHeight: hit.point.y - Math.floor(hit.point.y),
+        place,
       };
     }
     if (hit.object.userData.liquid) {
@@ -1118,6 +1220,9 @@ export class Graphics {
       type: this.world.get(a.q, y, a.r),
       place: { ...b, y: Math.floor(outside.y) },
       distance: hit.distance,
+      point: hit.point.clone(),
+      normal: hit.face.normal.clone(),
+      hitHeight: hit.point.y - Math.floor(hit.point.y),
     };
   }
   burst(q, y, r, color) {
@@ -1459,10 +1564,19 @@ export class Graphics {
       this.renderer.shadowMap.needsUpdate = true;
     if (this.chestModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;
-    if (this.usePost) {
-      this.composer.effects.contact.enabled =
-        this.postOptions.occlusion > 0 && !submerged;
-      this.composer.render(dt);
-    } else this.renderer.render(this.scene, this.camera);
+    const stepOffset = this.stepOffset || 0;
+    this.camera.position.y -= stepOffset;
+    this.camera.updateMatrixWorld();
+    try {
+      if (this.usePost) {
+        this.composer.effects.contact.enabled =
+          this.postOptions.occlusion > 0 && !submerged;
+        this.composer.render(dt);
+      } else this.renderer.render(this.scene, this.camera);
+    } finally {
+      this.camera.position.y += stepOffset;
+      this.camera.updateMatrixWorld();
+      this.stepOffset = stepOffset * Math.exp(-renderDt * 14);
+    }
   }
 }

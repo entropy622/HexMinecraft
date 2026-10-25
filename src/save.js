@@ -86,7 +86,9 @@ export function validateSave(s) {
             !Number.isInteger(e[1].facing) ||
             e[1].facing < 0 ||
             e[1].facing > 5 ||
-            typeof e[1].open !== 'boolean',
+            typeof e[1].open !== 'boolean' ||
+            (e[1].upper !== undefined && typeof e[1].upper !== 'boolean') ||
+            (e[1].double !== undefined && typeof e[1].double !== 'boolean'),
         ))
     )
       throw Error('建筑朝向或开关状态无效');

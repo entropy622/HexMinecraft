@@ -37,6 +37,7 @@ import {
 import { blockTextures, itemTextures, textureURL } from './texture-pack.js';
 import { ITEMS } from './core.js';
 import { POTIONS, potionDescription } from './brewing-data.js';
+import { cutBlockIcon } from './shape-icons.js';
 
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
 const symbols = {
@@ -101,6 +102,10 @@ const symbols = {
 const cache = new Map();
 export function itemIcon(id) {
   if (!cache.has(id)) {
+    if (['slab', 'stairs'].includes(ITEMS[id]?.shape)) {
+      cache.set(id, cutBlockIcon(id));
+      return cache.get(id);
+    }
     if (POTIONS[id]) {
       const bottle = textureURL('mcl_potions_potion_bottle'),
         overlay = textureURL('mcl_potions_potion_overlay');

@@ -105,6 +105,7 @@ export class Equipment {
   }
 }
 export function miningStats(block, held, enchant = {}) {
+  block = ITEMS[block]?.base || block;
   const item = ITEMS[held];
   const kind = [
     'wood',

@@ -169,6 +169,8 @@ export class World {
     this.blockStates.set(key(q, y, r), {
       facing: state.facing,
       open: state.open,
+      upper: state.upper === true,
+      double: state.double === true,
     });
     this.shapeCache.clear();
   }
@@ -196,6 +198,46 @@ export class World {
           return true;
       }
     return false;
+  }
+  groundAt(x, z, minY, maxY) {
+    const cell = worldToAxial(x, z);
+    let highest = null;
+    for (
+      let y = Math.max(0, Math.floor(minY) - 2);
+      y <= Math.min(63, Math.floor(maxY));
+      y++
+    ) {
+      const type = this.get(cell.q, y, cell.r);
+      if (
+        type &&
+        !BLOCKS[type].shape &&
+        !BLOCKS[type].nonSolid &&
+        y + 1 >= minY - 1e-6 &&
+        y + 1 <= maxY + 1e-6
+      )
+        highest = Math.max(highest ?? -Infinity, y + 1);
+      for (const [dq, dr] of [[0, 0], ...DIRECTIONS]) {
+        const q = cell.q + dq,
+          r = cell.r + dr,
+          shaped = this.get(q, y, r);
+        if (!BLOCKS[shaped]?.shape || shaped === 'ladder') continue;
+        const k = key(q, y, r),
+          p = axialToWorld(q, r);
+        if (!this.shapeCache.has(k))
+          this.shapeCache.set(k, buildingParts(this, q, y, r, true));
+        for (const part of this.shapeCache.get(k)) {
+          const top = y + part.y + part.h / 2;
+          if (
+            top < minY - 1e-6 ||
+            top > maxY + 1e-6 ||
+            !insidePart(x - p.x, part.y + part.h / 2 - 0.001, z - p.z, part)
+          )
+            continue;
+          highest = Math.max(highest ?? -Infinity, top);
+        }
+      }
+    }
+    return highest;
   }
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);
