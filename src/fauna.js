@@ -216,6 +216,10 @@ export class Fauna {
     }
     if (m.hp > 0) return;
     if (loot && !m.baby) {
+      this.callbacks.experience?.(
+        MOBS[m.kind].hostile ? 5 : 1 + Math.floor(Math.random() * 3),
+        [m.mesh.position.x, m.mesh.position.y + 0.5, m.mesh.position.z],
+      );
       const drops = { ...MOBS[m.kind].drops };
       if (m.kind === 'sheep' && m.wool > 0) delete drops.wool;
       if (m.kind === 'crawler' && this.world.dimension === 'nether') {
@@ -461,6 +465,11 @@ export class Fauna {
             m.love = partner.love = 0;
             m.cooldown = partner.cooldown = 100;
             this.spawn(m.kind, p.toArray(), 180);
+            this.callbacks.experience?.(1 + Math.floor(Math.random() * 7), [
+              p.x,
+              p.y + 0.5,
+              p.z,
+            ]);
             this.callbacks.notice('一只' + def.name + '幼崽出生了！');
           }
         }

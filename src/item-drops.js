@@ -3,6 +3,7 @@ import { ITEMS, BLOCKS, worldToAxial } from './core.js';
 import { itemImage } from './texture-pack.js';
 import { validWear } from './equipment.js';
 import { fluidHeight } from './fluids.js';
+import { enchantmentsOf } from './enchanting-data.js';
 
 const vec = (p) =>
   Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
@@ -42,6 +43,8 @@ export class ItemDrops {
     this.records = [];
     this.templates = new Map();
     this.clock = 0;
+    this.haloGeometry = new THREE.TorusGeometry(0.23, 0.012, 3, 6);
+    this.haloMaterial = new THREE.MeshBasicMaterial({ color: '#ae77ef' });
   }
   load(state = []) {
     for (const d of this.records) this.scene.remove(d.mesh);
@@ -121,7 +124,13 @@ export class ItemDrops {
       }
       this.templates.set(id, new THREE.Mesh(geometry, material));
     }
-    return this.templates.get(id).clone();
+    const group = new THREE.Group(),
+      halo = new THREE.Mesh(this.haloGeometry, this.haloMaterial);
+    group.add(this.templates.get(id).clone(), halo);
+    halo.rotation.x = Math.PI / 2;
+    halo.position.y = -0.16;
+    group.userData.enchantHalo = halo;
+    return group;
   }
   blocked(world, p) {
     const a = worldToAxial(p[0], p[2]);
@@ -210,6 +219,8 @@ export class ItemDrops {
           this.scene.add(d.mesh);
         }
         d.mesh.position.fromArray(p);
+        d.mesh.userData.enchantHalo.visible =
+          Object.keys(enchantmentsOf(d.wear[d.item]?.[0])).length > 0;
         d.mesh.position.y += 0.04 + Math.sin(this.clock * 3 + p[0]) * 0.035;
         d.mesh.rotation.y = this.clock * 1.3 + p[2];
         d.mesh.visible = d.life > 15 || Math.sin(this.clock * 14) > 0;

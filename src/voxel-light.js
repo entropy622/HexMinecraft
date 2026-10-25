@@ -14,6 +14,7 @@ const EMISSION = {
   spawner: [10, 5, 13],
   lava: [15, 10, 5],
   glow: [7, 15, 12],
+  enchantingTable: [8, 5, 13],
 };
 const HEIGHT = 64;
 export const HELD_LIGHTS = {

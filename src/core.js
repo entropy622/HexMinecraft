@@ -8,6 +8,11 @@ import { FARM_BLOCKS, FARM_ITEMS, FARM_RECIPES } from './farming-data.js';
 import { BUILDING_BLOCKS, BUILDING_RECIPES } from './building-data.js';
 import { FISH_ITEMS } from './fishing-data.js';
 import { FOODS } from './survival.js';
+import {
+  ENCHANT_BLOCKS,
+  ENCHANT_ITEMS,
+  ENCHANT_RECIPES,
+} from './enchanting-data.js';
 export const SQRT3 = Math.sqrt(3);
 export const DIRECTIONS = [
   [1, 0],
@@ -18,6 +23,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...ENCHANT_BLOCKS,
   ...BUILDING_BLOCKS,
   ...FARM_BLOCKS,
   ...EXPLORATION_BLOCKS,
@@ -150,6 +156,7 @@ export const BLOCKS = {
   },
 };
 export const ITEMS = {
+  ...ENCHANT_ITEMS,
   ...FISH_ITEMS,
   charcoal: { name: '木炭', color: '#45413c' },
   ...FARM_ITEMS,
@@ -574,6 +581,7 @@ export class World {
 }
 RECIPES.push(
   ...GEAR_RECIPES,
+  ...ENCHANT_RECIPES,
   ...EXPLORATION_RECIPES,
   ...FARM_RECIPES,
   ...BUILDING_RECIPES,

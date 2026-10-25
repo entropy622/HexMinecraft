@@ -14,6 +14,7 @@ export const smeltingRecipe = (item) => {
   return entry ? { output: entry[0], ...entry[1] } : null;
 };
 export const newFurnace = () => ({
+  xp: 0,
   input: null,
   fuel: null,
   output: null,
@@ -55,6 +56,14 @@ export function tickFurnace(f, dt) {
     f.progress -= recipe.seconds;
     if (!f.output) f.output = { item: recipe.output, count: 0 };
     f.output.count++;
+    const reward = ['ingot', 'goldIngot', 'copperIngot'].includes(recipe.output)
+      ? 0.7
+      : recipe.output === 'glass'
+        ? 0.1
+        : recipe.output === 'charcoal'
+          ? 0.15
+          : 0.35;
+    f.xp = (f.xp || 0) + reward;
     if (--f.input.count <= 0) {
       f.input = null;
       f.progress = 0;
@@ -64,6 +73,9 @@ export function tickFurnace(f, dt) {
 export function validFurnace(f) {
   if (
     !f ||
+    !Number.isFinite(f.xp) ||
+    f.xp < 0 ||
+    f.xp > 1000 ||
     !['progress', 'burn', 'burnTotal'].every(
       (k) => Number.isFinite(f[k]) && f[k] >= 0,
     )

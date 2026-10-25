@@ -1,6 +1,7 @@
 import { validFurnace } from './furnaces.js';
 import { validChest } from './chests.js';
 import { validSurvival } from './survival.js';
+import { validExperience, validOrbs } from './experience.js';
 import { validBoats } from './boats.js';
 import { validFauna } from './fauna.js';
 import { validDrops } from './item-drops.js';
@@ -10,7 +11,7 @@ import { validEquipment } from './equipment.js';
 import { LIQUIDS } from './fluids.js';
 import { ITEMS, BLOCKS, canEquip } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v6';
+export const SAVE_KEY = 'hexwild-save-v7';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -44,12 +45,13 @@ const inventory = (inv) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 6 ||
+    s.version !== 7 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
     !Object.hasOwn(DIMENSIONS, s.dimension) ||
     !inventory(s.inventory) ||
+    !validExperience(s.experience) ||
     !position(s.position) ||
     !validEquipment(s.equipment, s.inventory, s.creative) ||
     typeof s.creative !== 'boolean'
@@ -119,6 +121,7 @@ export function validateSave(s) {
       throw Error('动物存档无效');
     if (d.boats !== undefined && !validBoats(d.boats, d.mountedBoat ?? null))
       throw Error('船只存档无效');
+    if (!validOrbs(d.experienceOrbs)) throw Error('经验光球数据无效');
     if (
       !validDrops(d.drops) ||
       (d.lastDeath !== null && !position(d.lastDeath))

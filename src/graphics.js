@@ -5,6 +5,7 @@ import { ChestModels } from './chest-graphics.js';
 import { createShield } from './shield-graphics.js';
 import { Atmosphere } from './atmosphere.js';
 import { fluidHeight } from './fluids.js';
+import { EnchantingModels, applyEnchantGlow } from './enchanting-graphics.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
 import { buildingMesh } from './building-graphics.js';
@@ -75,6 +76,7 @@ export class Graphics {
     this.scene.add(this.sun, this.sun.target);
     this.textures = createTextures();
     this.chestModels = new ChestModels(this.textures);
+    this.enchantingModels = new EnchantingModels(this.textures);
     sharedTextures = this.textures;
     this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
     this.terrain = new THREE.Group();
@@ -299,6 +301,7 @@ export class Graphics {
     this.chestModels.openKey = null;
     for (const mesh of this.chunks.values()) {
       this.chestModels.release(mesh);
+      this.enchantingModels.release(mesh);
       mesh.traverse((o) => o.geometry?.dispose());
       this.terrain.remove(mesh);
     }
@@ -343,6 +346,7 @@ export class Graphics {
       for (const [k, mesh] of this.chunks)
         if (!wanted.has(k)) {
           this.chestModels.release(mesh);
+          this.enchantingModels.release(mesh);
           mesh.traverse((o) => o.geometry?.dispose());
           this.terrain.remove(mesh);
           this.chunks.delete(k);
@@ -579,6 +583,7 @@ export class Graphics {
       rainExposure = 0;
     const shaped = [];
     const chestCells = [];
+    const enchantCells = [];
     const rainRoofs = new Map();
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -605,6 +610,7 @@ export class Graphics {
         t &&
         t !== 'glass' &&
         t !== 'chest' &&
+        t !== 'enchantingTable' &&
         !BLOCKS[t]?.nonSolid &&
         !BLOCKS[t]?.shape
       );
@@ -616,6 +622,11 @@ export class Graphics {
           if (!type) continue;
           if (type === 'chest') {
             chestCells.push([q, y, r]);
+            continue;
+          }
+          if (type === 'enchantingTable') {
+            enchantCells.push([q, y, r]);
+            this.updateLight(q, y, r);
             continue;
           }
           if (BLOCKS[type].shape) {
@@ -834,6 +845,7 @@ export class Graphics {
     let mesh = this.chunks.get(k);
     if (mesh) {
       this.chestModels.release(mesh);
+      this.enchantingModels.release(mesh);
       mesh.geometry.dispose();
       for (const child of [...mesh.children]) {
         child.traverse((o) => o.geometry?.dispose());
@@ -851,6 +863,8 @@ export class Graphics {
     mesh.receiveShadow = true;
     for (const [q, y, r] of chestCells)
       mesh.add(this.chestModels.create(world, q, y, r, origin));
+    for (const [q, y, r] of enchantCells)
+      mesh.add(this.enchantingModels.create(q, y, r, origin));
     for (const [q, y, r] of shaped)
       mesh.add(
         buildingMesh(world, q, y, r, origin, this.textures, this.material),
@@ -939,11 +953,12 @@ export class Graphics {
         distance: hit.distance,
       };
     }
-    if (hit.object.userData.chest) {
-      const block = hit.object.userData.chest,
+    if (hit.object.userData.chest || hit.object.userData.station) {
+      const block = hit.object.userData.chest || hit.object.userData.station,
         p = axialToWorld(block.q, block.r);
-      this.outline.position.set(p.x, block.y + 0.5, p.z);
-      this.outline.scale.set(1, 1, 1);
+      const height = block.type === 'enchantingTable' ? 1.6 : 1;
+      this.outline.position.set(p.x, block.y + height / 2, p.z);
+      this.outline.scale.set(1, height, 1);
       this.outline.visible = true;
       const normal = hit.face.normal
         .clone()
@@ -1291,6 +1306,8 @@ export class Graphics {
       }
     }
     this.hand.visible = playing;
+    applyEnchantGlow(this.held, this.heldEnchanted, time);
+    applyEnchantGlow(this.shield, this.shieldEnchanted, time);
     this.swingTime = Math.max(0, (this.swingTime || 0) - dt);
     this.hand.rotation.x = mining
       ? Math.sin(time * 22) * 0.55
@@ -1357,6 +1374,7 @@ export class Graphics {
       volume: this.usePost,
     });
     this.atmosphere.attach(this.scene);
+    this.enchantingModels.frame(time);
     if (this.chestModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;
     if (this.usePost) this.composer.render(dt);

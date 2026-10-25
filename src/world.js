@@ -275,6 +275,7 @@ export class World {
             if (ore > 0.994 && y < 10) t = 'diamond';
             else if (ore > 0.981 && y < 11) t = 'gold';
             else if (ore > 0.967) t = 'crystal';
+            else if (ore > 0.951 && y < 12) t = 'lapisOre';
             else if (ore > 0.927) t = 'iron';
             else if (ore > 0.89) t = 'copper';
             else if (ore > 0.835) t = 'coal';

@@ -24,7 +24,14 @@ export class Projectiles {
   clear() {
     for (const a of [...this.arrows]) this.remove(a);
   }
-  shoot(position, direction, power, recoverable, owner = 'player') {
+  shoot(
+    position,
+    direction,
+    power,
+    recoverable,
+    owner = 'player',
+    damageMultiplier = 1,
+  ) {
     if (this.arrows.length >= 32) this.remove(this.arrows[0]);
     const mesh = new THREE.Group();
     mesh.add(new THREE.Mesh(this.shaft, this.wood));
@@ -44,7 +51,7 @@ export class Projectiles {
       mesh,
       velocity: direction.clone().multiplyScalar(10 + power * 23),
       life: 40,
-      damage: 2 + power * 8,
+      damage: (2 + power * 8) * damageMultiplier,
       stuck: false,
       recoverable,
       owner,

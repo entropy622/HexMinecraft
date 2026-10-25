@@ -41,6 +41,12 @@ Version 0.21 adds the unmodified `mcl_shield.png` inventory icon from the same
 revision and media license. The held hexagonal shield is original geometry,
 using the existing wood tile and plain metal material.
 
+Version 0.23 adds the unmodified `mcl_core_lapis_ore.png`, `mcl_core_lapis.png`,
+`mcl_enchanting_table_top.png`, and `mcl_enchanting_table_side.png` from the
+same revision and CC BY-SA 3.0 media license. The hexagonal enchanting pedestal,
+floating open book, orbiting glyphs, experience orbs and enchantment glow are
+original geometry and rendering effects; no upstream models are included.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

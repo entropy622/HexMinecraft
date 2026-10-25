@@ -1,5 +1,10 @@
 import { ITEMS } from './core.js';
 import { ARMOR_SLOTS } from './gear-data.js';
+import {
+  enchantmentsOf,
+  validWearEntry,
+  wearValue,
+} from './enchanting-data.js';
 
 // Each stack stores durability in use order; omitted trailing copies are pristine.
 export function transferWear(from, to, id, count, fromCount, toCount) {
@@ -18,8 +23,32 @@ export class Equipment {
     this.armor = { ...saved.armor };
     this.offhand = saved.offhand || null;
   }
-  remaining(id) {
-    return this.wear[id]?.[0] ?? ITEMS[id]?.durability ?? 0;
+  remaining(id, index = 0) {
+    return wearValue(this.wear[id]?.[index]) ?? ITEMS[id]?.durability ?? 0;
+  }
+  tags(id, index = 0) {
+    return enchantmentsOf(this.wear[id]?.[index]);
+  }
+  rank(id, name) {
+    return this.tags(id)[name] || 0;
+  }
+  enchant(id, index, enchant) {
+    this.wear[id] ||= [];
+    while (this.wear[id].length <= index)
+      this.wear[id].push(ITEMS[id].durability);
+    this.wear[id][index] = {
+      value: this.remaining(id, index),
+      enchant: { ...enchant },
+    };
+  }
+  enchantProtection() {
+    return Math.min(
+      20,
+      Object.values(this.armor).reduce(
+        (n, id) => n + this.rank(id, 'protection'),
+        0,
+      ),
+    );
   }
   sync(inventory, creative = false) {
     for (const id of Object.keys(this.wear)) {
@@ -31,21 +60,28 @@ export class Equipment {
     if (this.offhand && !creative && !inventory[this.offhand])
       this.offhand = null;
   }
+  selectCopy(id, index, inventory) {
+    if (
+      !ITEMS[id]?.durability ||
+      !Number.isInteger(index) ||
+      index <= 0 ||
+      index >= (inventory[id] || 0)
+    )
+      return;
+    const copies = Array.from(
+      { length: inventory[id] },
+      (_, i) => this.wear[id]?.[i] ?? ITEMS[id].durability,
+    );
+    copies.unshift(copies.splice(index, 1)[0]);
+    this.wear[id] = copies;
+  }
   equip(id, inventory, creative, index = 0) {
     if (
       !creative &&
       (!Number.isInteger(index) || index < 0 || index >= (inventory[id] || 0))
     )
       return;
-    if (ITEMS[id]?.durability && index > 0) {
-      const copies = Array.from(
-        { length: inventory[id] || 0 },
-        (_, i) => this.wear[id]?.[i] ?? ITEMS[id].durability,
-      );
-      const selected = copies.splice(index, 1)[0];
-      copies.unshift(selected);
-      this.wear[id] = copies;
-    }
+    this.selectCopy(id, index, inventory);
     if (ITEMS[id]?.offhand && (creative || inventory[id] > 0)) {
       this.offhand = this.offhand === id && index === 0 ? null : id;
       return;
@@ -57,10 +93,23 @@ export class Equipment {
   }
   damage(id, amount, inventory, creative = false) {
     if (creative || !ITEMS[id]?.durability || !inventory[id]) return false;
-    const next = this.remaining(id) - amount;
+    const level = this.rank(id, 'unbreaking');
+    let cost = Math.ceil(amount);
+    if (level) {
+      const chance = ITEMS[id].armorSlot
+        ? 0.6 + 0.4 / (level + 1)
+        : 1 / (level + 1);
+      cost = 0;
+      for (let i = 0; i < Math.ceil(amount); i++)
+        if (Math.random() < chance) cost++;
+    }
+    if (!cost) return false;
+    const next = this.remaining(id) - cost;
     this.wear[id] ||= [];
     if (next > 0) {
-      this.wear[id][0] = next;
+      this.wear[id][0] = Object.keys(this.tags(id)).length
+        ? { value: next, enchant: this.tags(id) }
+        : next;
       return false;
     }
     inventory[id]--;
@@ -85,7 +134,7 @@ export class Equipment {
     };
   }
 }
-export function miningStats(block, held) {
+export function miningStats(block, held, enchant = {}) {
   const item = ITEMS[held];
   const kind = [
     'wood',
@@ -108,7 +157,11 @@ export function miningStats(block, held) {
         : 'pick';
   return {
     tier: item?.kind === 'pick' ? item.tier : 0,
-    speed: item?.kind === kind ? [1, 2, 3.2, 4.5, 6.2][item.tier] : 1,
+    speed:
+      item?.kind === kind
+        ? [1, 2, 3.2, 4.5, 6.2][item.tier] *
+          (1 + 0.18 * (enchant.efficiency || 0) ** 2)
+        : 1,
   };
 }
 export function validWear(wear, inventory) {
@@ -122,9 +175,7 @@ export function validWear(wear, inventory) {
         Array.isArray(values) &&
         values.length <= (inventory[id] || 0) &&
         values.length <= 256 &&
-        values.every(
-          (n) => Number.isInteger(n) && n > 0 && n <= ITEMS[id].durability,
-        ),
+        values.every((entry) => validWearEntry(ITEMS[id], entry)),
     )
   );
 }

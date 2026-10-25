@@ -1,5 +1,6 @@
 import { ITEMS } from './core.js';
 import { roomFor, stackSize, INVENTORY_SLOTS } from './inventory.js';
+import { validWearEntry, wearValue } from './enchanting-data.js';
 
 export const CHEST_SLOTS = 27;
 
@@ -16,9 +17,7 @@ export function validChest(chest) {
           slot.count > 0 &&
           slot.count <= stackSize(slot.item) &&
           (ITEMS[slot.item].durability
-            ? Number.isInteger(slot.wear) &&
-              slot.wear > 0 &&
-              slot.wear <= ITEMS[slot.item].durability
+            ? validWearEntry(ITEMS[slot.item], slot.wear)
             : slot.wear === undefined)),
     )
   );
@@ -119,7 +118,7 @@ export function sortChest(chest) {
     .sort(
       (a, b) =>
         ITEMS[a.item].name.localeCompare(ITEMS[b.item].name, 'zh-Hans') ||
-        (a.wear || 0) - (b.wear || 0),
+        (wearValue(a.wear) || 0) - (wearValue(b.wear) || 0),
     );
   chest.fill(null);
   for (const slot of ordered)

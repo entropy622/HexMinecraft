@@ -35,6 +35,10 @@ import { Graphics } from './graphics.js';
 import { HELD_LIGHTS } from './voxel-light.js';
 import { Survival, FOODS } from './survival.js';
 import { Combat } from './combat.js';
+import { Experience, xpForLevel } from './experience.js';
+import { enchantLabel } from './enchanting-data.js';
+import { bookshelfPower, enchantOffers } from './enchanting.js';
+import { enchantingPanel } from './enchanting-ui.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
 import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack } from './texture-pack.js';
@@ -59,12 +63,12 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.22 — MIST AND MORNING LIGHT</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.23 — EXPERIENCE AND ENCHANTMENT</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
   <div id="crosshair"></div><div id="mine-progress"><i></i></div><div id="target" class="hidden"></div>
-  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><div id="attack-meter" role="progressbar" aria-label="挥击恢复" aria-valuemin="0" aria-valuemax="1"></div><div id="shield-status" class="hidden"><span id="shield-label"></span><progress id="shield-ready" max="0.25" value="0" aria-label="举盾准备"></progress></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div id="survival-status"><div id="air-bar" class="hidden" role="progressbar" aria-label="氧气" aria-valuemin="0" aria-valuemax="15"></div><div id="effect-list"></div></div><div id="use-food" class="hidden"><span id="use-food-name"></span><progress id="use-progress" max="1" value="0" aria-label="食用进度"></progress></div><div class="vitals"><span class="health" id="health"></span><span id="absorption-hud" aria-label="额外吸收生命"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
+  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><div id="attack-meter" role="progressbar" aria-label="挥击恢复" aria-valuemin="0" aria-valuemax="1"></div><div id="shield-status" class="hidden"><span id="shield-label"></span><progress id="shield-ready" max="0.25" value="0" aria-label="举盾准备"></progress></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div id="survival-status"><div id="air-bar" class="hidden" role="progressbar" aria-label="氧气" aria-valuemin="0" aria-valuemax="15"></div><div id="effect-list"></div></div><div id="use-food" class="hidden"><span id="use-food-name"></span><progress id="use-progress" max="1" value="0" aria-label="食用进度"></progress></div><div class="vitals"><span class="health" id="health"></span><span id="absorption-hud" aria-label="额外吸收生命"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="experience-hud"><b id="experience-level">0</b><progress id="experience-progress" max="1" value="0" aria-label="当前等级经验"></progress></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="按住食用">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
@@ -92,6 +96,10 @@ const camera = graphics.camera;
 const motion = new Movement();
 const projectiles = new Projectiles(graphics.scene);
 const drops = new ItemDrops(graphics.scene, graphics.textures);
+const experience = new Experience(graphics.scene, (levelUp) =>
+  soundFX.play(levelUp ? 'levelUp' : 'xp'),
+);
+const enchantState = { id: null, index: 0, page: 0 };
 const boats = new Boats(graphics.scene, graphics.textures, {
   drop: (position) =>
     drops.spawn('boat', 1, [position[0], position[1] + 0.6, position[2]]),
@@ -112,6 +120,11 @@ const fishing = new Fishing(
     wear: (n) => wearItem('fishingRod', n),
     catch: (loot) => {
       const taken = addItem(loot.item);
+      awardXP(1 + Math.floor(Math.random() * 6), [
+        camera.position.x,
+        playerFeet() + 0.5,
+        camera.position.z,
+      ]);
       toast(
         loot.category +
           ' · ' +
@@ -139,6 +152,7 @@ let discardMode = false;
 const fauna = new Fauna(graphics.scene, graphics.textures, {
   damage: (amount, source) => hurt(amount, 'combat', source),
   drop: (id, n, position) => drops.spawn(id, n, position),
+  experience: (value, position) => awardXP(value, position),
   notice: toast,
   explode,
   fuse: () => beep(75, 0.3, 'sawtooth', 0.04),
@@ -304,6 +318,7 @@ function startGame(mode = false, save = null) {
   inventory = save ? { ...save.inventory } : { dirt: 12, apple: 3, seed: 3 };
   equipment = new Equipment(save?.equipment);
   survival = new Survival(save?.survival);
+  experience.loadPlayer(save?.experience || { seed });
   combat.reset();
   stopEating(true);
   weather = new Weather(save?.weather);
@@ -344,6 +359,7 @@ function startGame(mode = false, save = null) {
   fauna.load(world, data.fauna);
   weatherColumns.update(1, world);
   drops.load(data.drops);
+  experience.load(data.experienceOrbs);
   boats.load(data.boats, data.mountedBoat);
   if (boats.riding) {
     const p = boats.riding.position;
@@ -373,6 +389,7 @@ function captureDimension() {
     ...world.serialize(),
     fauna: fauna.serialize(),
     drops: drops.serialize(),
+    experienceOrbs: experience.serialize(),
     boats: boats.serialize(),
     mountedBoat: boats.riding?.id ?? null,
     lastDeath,
@@ -497,6 +514,7 @@ function travel(to) {
   fauna.load(world, data.fauna);
   weatherColumns.update(1, world);
   drops.load(data.drops);
+  experience.load(data.experienceOrbs);
   boats.load(data.boats);
   if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
   lastDeath = data.lastDeath || null;
@@ -518,13 +536,14 @@ function saveData() {
   const savedInventory = { ...inventory };
   captureDimension();
   return {
-    version: 6,
+    version: 7,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
     inventory: savedInventory,
     equipment: equipment.serialize(),
     survival: survival.serialize(),
+    experience: experience.serializePlayer(),
     weather: weather.serialize(),
     creative,
     hotbar,
@@ -674,11 +693,12 @@ function renderCraft() {
   $('#armor-slots').innerHTML = Object.entries(ARMOR_SLOTS)
     .map(([slot, name]) => {
       const id = equipment.armor[slot];
-      return `<button data-unequip="${slot}" title="${id ? '点击卸下 ' + ITEMS[id].name : name}">${id ? icon(id) : '<span class="empty-armor">◇</span>'}<span>${id ? ITEMS[id].name : name}</span>${id ? durabilityBar(id) : ''}</button>`;
+      const enchant = enchantLabel(equipment.wear[id]?.[0]);
+      return `<button class="${enchant ? 'enchanted' : ''}" data-unequip="${slot}" title="${id ? '点击卸下 ' + ITEMS[id].name + (enchant ? ' · ' + enchant : '') : name}">${id ? icon(id) : '<span class="empty-armor">◇</span>'}<span>${id ? ITEMS[id].name : name}</span>${id ? durabilityBar(id) : ''}</button>`;
     })
     .join('');
   $('#armor-slots').innerHTML +=
-    `<button data-unequip-offhand title="${equipment.offhand ? '点击卸下盾牌' : '点击背包中的盾牌装备'}">${equipment.offhand ? icon(equipment.offhand) : '<span class="empty-armor">⬡</span>'}<span>副手${equipment.offhand ? ' · 盾牌' : ''}</span>${equipment.offhand ? durabilityBar(equipment.offhand) : ''}</button>`;
+    `<button class="${Object.keys(equipment.tags(equipment.offhand)).length ? 'enchanted' : ''}" data-unequip-offhand title="${equipment.offhand ? '点击卸下盾牌 · ' + (enchantLabel(equipment.wear[equipment.offhand]?.[0]) || '未附魔') : '点击背包中的盾牌装备'}">${equipment.offhand ? icon(equipment.offhand) : '<span class="empty-armor">⬡</span>'}<span>副手${equipment.offhand ? ' · 盾牌' : ''}</span>${equipment.offhand ? durabilityBar(equipment.offhand) : ''}</button>`;
   $('#inventory').innerHTML = Object.entries(ITEMS)
     .filter(
       ([id]) =>
@@ -695,7 +715,7 @@ function renderCraft() {
     )
     .map(
       ([id, item, index]) =>
-        `<button class="inv-item ${hotbar[selected] === id ? 'selected' : ''}" data-item="${id}" data-index="${index}" title="${item.name}${FOODS[id] ? ' · 饱食 +' + FOODS[id].food + ' · 饱和 +' + FOODS[id].saturation : ''} · 点击选择；Shift 点击丢出一组${item.durability ? ' · 耐久 ' + (equipment.wear[id]?.[index] ?? item.durability) + '/' + item.durability : ''}">${icon(id)}<span>${item.name}</span><b>${creative ? '∞' : Math.min(stackSize(id), inventory[id] - index * stackSize(id))}</b>${item.durability && !creative ? '<i class="durability"><i style="width:' + ((equipment.wear[id]?.[index] ?? item.durability) / item.durability) * 100 + '%;background:#82bd58"></i></i>' : ''}${index === 0 && item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}${index === 0 && item.offhand && equipment.offhand === id ? '<small>副手中</small>' : ''}</button>`,
+        `<button class="inv-item ${enchantLabel(equipment.wear[id]?.[index]) ? 'enchanted' : ''} ${hotbar[selected] === id && index === 0 ? 'selected' : ''}" data-item="${id}" data-index="${index}" title="${item.name}${enchantLabel(equipment.wear[id]?.[index]) ? ' · ' + enchantLabel(equipment.wear[id][index]) : ''}${FOODS[id] ? ' · 饱食 +' + FOODS[id].food + ' · 饱和 +' + FOODS[id].saturation : ''} · 点击选择；Shift 点击丢出一组${item.durability ? ' · 耐久 ' + equipment.remaining(id, index) + '/' + item.durability : ''}">${icon(id)}<span>${item.name}</span><b>${creative ? '∞' : Math.min(stackSize(id), inventory[id] - index * stackSize(id))}</b>${item.durability && !creative ? '<i class="durability"><i style="width:' + (equipment.remaining(id, index) / item.durability) * 100 + '%;background:#82bd58"></i></i>' : ''}${index === 0 && item.armorSlot && equipment.armor[item.armorSlot] === id ? '<small>已穿戴</small>' : ''}${index === 0 && item.offhand && equipment.offhand === id ? '<small>副手中</small>' : ''}</button>`,
     )
     .join('');
   if (!creative)
@@ -778,11 +798,14 @@ function updateHUD() {
     $('#hotbar').innerHTML = hotbar
       .map(
         (id, i) =>
-          `<button class="slot ${i === selected ? 'active' : ''}" data-slot="${i}" aria-label="${i + 1} ${ITEMS[id].name} ${creative ? '无限' : inventory[id] || 0}"><span class="slot-inner">${icon(id)}</span><span class="num">${i + 1}</span><span class="count">${creative ? '∞' : inventory[id] || 0}</span>${durabilityBar(id)}</button>`,
+          `<button class="slot ${i === selected ? 'active' : ''} ${Object.keys(equipment.tags(id)).length ? 'enchanted' : ''}" data-slot="${i}" aria-label="${i + 1} ${ITEMS[id].name} ${creative ? '无限' : inventory[id] || 0} ${enchantLabel(equipment.wear[id]?.[0])}"><span class="slot-inner">${icon(id)}</span><span class="num">${i + 1}</span><span class="count">${creative ? '∞' : inventory[id] || 0}</span>${durabilityBar(id)}</button>`,
       )
       .join('');
   }
-  $('#selected-name').textContent = ITEMS[hotbar[selected]].name;
+  const selectedEnchant = enchantLabel(equipment.wear[heldItem()]?.[0]);
+  $('#selected-name').textContent =
+    ITEMS[hotbar[selected]].name +
+    (selectedEnchant ? ' · ' + selectedEnchant : '');
   $('#health').textContent = creative
     ? '◇ 自由建造'
     : '♥'.repeat(Math.ceil(health / 2)) +
@@ -827,6 +850,8 @@ function updateHUD() {
     DIMENSIONS[dimension].color,
   );
   graphics.setHeld(foodUse?.item || heldItem());
+  graphics.heldEnchanted =
+    !foodUse && Object.keys(equipment.tags(heldItem())).length > 0;
 }
 function pickupNotice(id, n) {
   const popup = document.createElement('div');
@@ -856,6 +881,20 @@ function addItem(id, n = 1) {
   }
   updateHUD();
   return taken;
+}
+function awardXP(value, position) {
+  if (!creative && value > 0) experience.spawn(value, position);
+}
+function updateExperienceHUD() {
+  const level = experience.level;
+  const next = xpForLevel(level + 1),
+    base = xpForLevel(level);
+  $('#experience-hud').classList.toggle('hidden', creative);
+  $('#experience-level').textContent = level;
+  $('#experience-level').title = '等级 ' + level;
+  $('#experience-progress').value = (experience.total - base) / (next - base);
+  $('#experience-progress').title =
+    '经验 ' + (experience.total - base) + ' / ' + (next - base);
 }
 function collectDrop(d, capacityOnly = false) {
   const n = Math.min(
@@ -948,7 +987,7 @@ function mine(dt) {
   }
   const data = BLOCKS[target.type];
   const held = heldItem(),
-    stats = miningStats(target.type, held);
+    stats = miningStats(target.type, held, equipment.tags(held));
   if (data.hardness === Infinity) {
     mining = 0;
     return;
@@ -971,6 +1010,7 @@ function mine(dt) {
     `${Math.min(100, (mining / data.hardness) * 100)}%`;
   if (mining < data.hardness) return;
   const { q, y, r, type } = target;
+  const natural = !world.edits.has(k);
   if (BLOCKS[type].shape) {
     removeBuilding(q, y, r, !creative);
     wearItem(held);
@@ -985,7 +1025,27 @@ function mine(dt) {
   soundFX.play('break', type);
   wearItem(held, ITEMS[held]?.kind === 'sword' ? 2 : 1);
   if (!creative) {
-    dropAt(data.drop || type, 1, q, y, r);
+    dropAt(
+      data.drop || type,
+      type === 'lapisOre' ? 4 + Math.floor(Math.random() * 6) : 1,
+      q,
+      y,
+      r,
+    );
+    if (natural) {
+      const reward = {
+        coal: [0, 2],
+        diamond: [3, 7],
+        lapisOre: [2, 5],
+        crystal: [2, 5],
+        spawner: [15, 43],
+      }[type];
+      if (reward)
+        awardXP(
+          reward[0] + Math.floor(Math.random() * (reward[1] - reward[0] + 1)),
+          [axialToWorld(q, r).x, y + 0.5, axialToWorld(q, r).z],
+        );
+    }
     if (type === 'leaves') {
       if (Math.random() < 0.3) dropAt('apple', 1, q, y, r);
       if (Math.random() < 0.45) dropAt('seed', 1, q, y, r);
@@ -1645,6 +1705,7 @@ function interact() {
         'bed',
         'workbench',
         'furnace',
+        'enchantingTable',
         'chest',
         'farmland',
       ].includes(target.type) ||
@@ -1709,6 +1770,19 @@ function interact() {
     stationKey = k;
     openOverlay('#station-overlay');
     renderFurnace();
+    return;
+  }
+  if (type === 'enchantingTable') {
+    if (world.solid(q, y + 1, r)) {
+      toast('先清理附魔台上方的空间。');
+      return;
+    }
+    stationKey = k;
+    enchantState.id = ITEMS[heldItem()]?.durability ? heldItem() : null;
+    enchantState.index = 0;
+    enchantState.page = 0;
+    openOverlay('#station-overlay');
+    renderEnchanting();
     return;
   }
   if (type === 'spawner') {
@@ -1795,9 +1869,81 @@ $('#station-content').addEventListener('click', (e) => {
   ) {
     soundFX.play('craft');
     updateHUD();
+    awardXP(3 + Math.floor(Math.random() * 4), [
+      camera.position.x,
+      playerFeet() + 0.5,
+      camera.position.z,
+    ]);
     saveGame();
     renderTrade();
   }
+});
+function renderEnchanting() {
+  if (
+    !stationKey ||
+    world.get(...stationKey.split(',').map(Number)) !== 'enchantingTable'
+  )
+    return;
+  const [q, y, r] = stationKey.split(',').map(Number);
+  const shelves = bookshelfPower(world, q, y, r);
+  $('#station-title').textContent = '六棱附魔台';
+  $('#station-content').innerHTML = enchantingPanel(
+    inventory,
+    equipment,
+    experience,
+    shelves,
+    (experience.seed + world.seed) % 1e9,
+    enchantState,
+    creative,
+  );
+}
+$('#station-content').addEventListener('click', (e) => {
+  const page = e.target.closest('[data-enchant-page]');
+  if (page && !page.disabled) {
+    enchantState.page = Number(page.dataset.enchantPage);
+    renderEnchanting();
+    return;
+  }
+  const select = e.target.closest('[data-enchant-item]');
+  if (select) {
+    enchantState.id = select.dataset.enchantItem;
+    enchantState.index = Number(select.dataset.enchantCopy);
+    renderEnchanting();
+  }
+  const button = e.target.closest('[data-enchant-offer]');
+  if (
+    !button ||
+    button.disabled ||
+    !stationKey ||
+    world.get(...stationKey.split(',').map(Number)) !== 'enchantingTable'
+  )
+    return;
+  const { id, index } = enchantState;
+  if (!(inventory[id] > index) || Object.keys(equipment.tags(id, index)).length)
+    return;
+  const [q, y, r] = stationKey.split(',').map(Number),
+    shelves = bookshelfPower(world, q, y, r);
+  const offer = enchantOffers(
+    id,
+    (experience.seed + world.seed) % 1e9,
+    shelves,
+  )[Number(button.dataset.enchantOffer)];
+  if (
+    !offer?.available ||
+    (!creative &&
+      (experience.level < offer.levels || (inventory.lapis || 0) < offer.cost))
+  )
+    return;
+  if (!creative) {
+    inventory.lapis -= offer.cost;
+    experience.spend(offer.cost);
+  } else experience.seed = (experience.seed + 1) % 1e9;
+  equipment.enchant(id, index, offer.enchants);
+  renderEnchanting();
+  updateHUD();
+  saveGame();
+  soundFX.play('enchant');
+  toast(ITEMS[id].name + ' · ' + enchantLabel(equipment.wear[id][index]));
 });
 function currentFurnace() {
   if (
@@ -1854,6 +2000,15 @@ function transferFurnace(slot, id = null) {
       toast('背包已满，先腾出空间。');
       return;
     }
+    if (slot === 'output') {
+      const share = ((f.xp || 0) * n) / old.count;
+      f.xp = Math.max(0, (f.xp || 0) - share);
+      awardXP(share, [
+        camera.position.x,
+        playerFeet() + 0.5,
+        camera.position.z,
+      ]);
+    }
     inventory[old.item] = (inventory[old.item] || 0) + n;
     old.count -= n;
     if (!old.count) {
@@ -1869,6 +2024,8 @@ function spillFurnace(k) {
   const f = world.furnaces.get(k);
   if (!f) return;
   const [q, y, r] = k.split(',').map(Number);
+  const point = axialToWorld(q, r);
+  awardXP(f.xp || 0, [point.x, y + 0.5, point.z]);
   for (const slot of ['input', 'fuel', 'output'])
     if (f[slot]) dropAt(f[slot].item, f[slot].count, q, y, r);
   world.furnaces.delete(k);
@@ -2297,12 +2454,15 @@ function hurt(amount, cause = 'combat', source = null) {
   }
   if (damageCooldown > 0) return;
   stopEating();
+  const enchantedProtection = equipment.enchantProtection();
   if (['combat', 'projectile', 'explosion', 'burn'].includes(cause)) {
     const protection = equipment.protection();
     for (const id of Object.values(equipment.armor))
       wearItem(id, Math.max(1, Math.ceil(amount / 4)));
     amount *= 1 - protection * 0.04;
   }
+  if (!['void', 'hunger'].includes(cause))
+    amount *= 1 - enchantedProtection * 0.04;
   if (cause !== 'void') amount = survival.absorb(amount);
   if (source && !boats.riding && !blocked) {
     motion.kick(
@@ -2331,6 +2491,9 @@ function hurt(amount, cause = 'combat', source = null) {
         : {};
       drops.spawn(id, n, lastDeath, wear, null, 600);
     }
+    const lostXP = Math.min(100, experience.level * 7);
+    experience.total = experience.fraction = 0;
+    awardXP(lostXP, lastDeath);
     inventory = {};
     equipment = new Equipment();
     survival = new Survival({ saturation: 2 });
@@ -2491,7 +2654,11 @@ function attack() {
   graphics.swing();
   hitMob(
     mob,
-    (item?.damage || 2) * (critical ? 1.5 : 1),
+    ((item?.damage || 2) +
+      (equipment.rank(held, 'sharpness')
+        ? 0.5 + equipment.rank(held, 'sharpness') * 0.5
+        : 0)) *
+      (critical ? 1.5 : 1),
     camera.getWorldDirection(new THREE.Vector3()),
   );
   wearItem(held, item?.kind === 'sword' ? 1 : 2);
@@ -2521,6 +2688,8 @@ function releaseBow() {
     direction,
     Math.min(charge / 1.1, 1),
     !creative,
+    'player',
+    1 + equipment.rank('bow', 'power') * 0.25,
   );
   attackCooldown = 0.25;
   attackPeriod = attackCooldown;
@@ -2884,10 +3053,13 @@ $('#inventory').onclick = (e) => {
     return;
   }
   if (b && canEquip(b.dataset.item)) {
+    if (!creative)
+      equipment.selectCopy(b.dataset.item, Number(b.dataset.index), inventory);
     hotbar[selected] = b.dataset.item;
     updateHUD();
     renderCraft();
     beep(420, 0.03);
+    saveGame();
   }
 };
 $('#armor-slots').onclick = (e) => {
@@ -3089,7 +3261,14 @@ document.addEventListener('keydown', (e) => {
     closeOverlay();
     return;
   }
-  if (overlay === '#station-overlay' && currentChest() && e.code === 'Tab')
+  if (
+    overlay === '#station-overlay' &&
+    (currentChest() ||
+      (stationKey &&
+        world.get(...stationKey.split(',').map(Number)) ===
+          'enchantingTable')) &&
+    (e.code === 'Tab' || (e.code === 'Space' && e.target.matches('button')))
+  )
     return;
   if (e.target.matches('input')) return;
   if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code))
@@ -3302,6 +3481,7 @@ function frame(now) {
         ([
           'workbench',
           'furnace',
+          'enchantingTable',
           'chest',
           'farmland',
           'bed',
@@ -3374,6 +3554,7 @@ function frame(now) {
     }
     updateMobs(dt);
     drops.update(dt, world, camera, collectDrop);
+    experience.update(dt, world, camera, !creative);
     projectiles.update(
       dt,
       world,
@@ -3438,9 +3619,15 @@ function frame(now) {
   else fishingTip.copy(camera.position);
   fishing.render(camera, fishingTip, playing && heldItem() === 'fishingRod');
   graphics.bowDraw = bowCharge / 1.1;
+  graphics.heldEnchanted =
+    !foodUse && Object.keys(equipment.tags(heldItem())).length > 0;
+  graphics.shieldEnchanted =
+    !!equipment.offhand &&
+    Object.keys(equipment.tags(equipment.offhand)).length > 0;
   graphics.blocking = combat.raised;
   graphics.shieldImpact = combat.impact;
   survivalHUD();
+  updateExperienceHUD();
   combatHUD();
   graphics.frame(
     playing ? dt : 0,

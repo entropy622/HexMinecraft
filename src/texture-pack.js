@@ -1,5 +1,7 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 export const blockTextures = {
+  lapisOre: ['mcl_core_lapis_ore'],
+  enchantingTable: ['mcl_enchanting_table_top', 'mcl_enchanting_table_side'],
   door: ['default_wood', 'mcl_doors_door_wood_lower'],
   doorTop: ['default_wood', 'mcl_doors_door_wood_upper'],
   fence: ['default_wood'],
@@ -42,6 +44,7 @@ export const blockTextures = {
   wool: ['wool_white'],
 };
 export const itemTextures = {
+  lapis: 'mcl_core_lapis',
   shield: 'mcl_shield',
   boat: 'mcl_boats_oak_boat',
   fishingRod: 'mcl_fishing_fishing_rod',

@@ -137,6 +137,16 @@ export class GameAudio {
       [440, 554, 659].forEach((n, i) =>
         this.tone(n, 0.15, 'triangle', 0.075, i * 0.065),
       );
+    } else if (event === 'xp') {
+      this.tone(720 + Math.random() * 280, 0.1, 'sine', 0.045);
+    } else if (event === 'levelUp') {
+      [523, 659, 784].forEach((n, i) =>
+        this.tone(n, 0.24, 'sine', 0.075, i * 0.09),
+      );
+    } else if (event === 'enchant') {
+      [392, 523, 659, 988].forEach((n, i) =>
+        this.tone(n, 0.4, 'sine', 0.065, i * 0.07),
+      );
     } else if (event === 'shieldBlock') {
       this.noise(0.11, 0.17, 650);
       this.tone(170, 0.09, 'triangle', 0.07);
