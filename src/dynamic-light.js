@@ -3,7 +3,8 @@ import { axialToWorld } from './core.js';
 import { voxelLightingChunk } from './skylight.js';
 
 // Packed RGBA8: RGB contain 0..15 block-light levels; alpha packs sky in
-// its high nibble and transmission in its low nibble. This shares one small
+// its high nibble; low nibble is 0 for solid, 1..3 for liquids, 15 for air.
+// This shares one small
 // volume across every animated mesh, including those sharing a material.
 const sampleShader = /* glsl */ `
 uniform highp sampler3D entityLightVolume;
@@ -99,7 +100,8 @@ export class DynamicLight {
       this.data[i * 4] = field.rgb[0][i];
       this.data[i * 4 + 1] = field.rgb[1][i];
       this.data[i * 4 + 2] = field.rgb[2][i];
-      this.data[i * 4 + 3] = field.sky[i] * 16 + (field.cost[i] < 16 ? 15 : 0);
+      this.data[i * 4 + 3] =
+        field.sky[i] * 16 + (field.cost[i] < 16 ? field.medium[i] || 15 : 0);
     }
     const origin = axialToWorld(field.minQ, field.minR);
     this.uniforms.entityLightOrigin.value.set(origin.x, 0, origin.z);

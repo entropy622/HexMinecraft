@@ -3,6 +3,8 @@ import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
 import { ChestModels } from './chest-graphics.js';
 import { createShield } from './shield-graphics.js';
+import { Atmosphere } from './atmosphere.js';
+import { fluidHeight } from './fluids.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
 import { buildingMesh } from './building-graphics.js';
@@ -39,7 +41,7 @@ export class Graphics {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
     this.scene = new THREE.Scene();
     this.dynamicLight = new DynamicLight();
@@ -52,6 +54,7 @@ export class Graphics {
       220,
     );
     this.camera.rotation.order = 'YXZ';
+    this.atmosphere = new Atmosphere(this.camera);
     this.hemi = new THREE.HemisphereLight('#d7f2ea', '#a8b7c5', 2.3);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight('#ffe3ad', 2.7);
@@ -162,6 +165,7 @@ export class Graphics {
           cloudMat,
         );
         m.position.set(j * 3, Math.sin(j) * 0.4, (j % 2) * 2);
+        m.castShadow = true;
         cloud.add(m);
       }
       cloud.position.set(
@@ -169,6 +173,8 @@ export class Graphics {
         42 + hash(i, 2) * 8,
         hash(i, 3) * 150 - 75,
       );
+      cloud.userData.anchorX = cloud.position.x;
+      cloud.userData.anchorZ = cloud.position.z;
       this.clouds.add(cloud);
     }
     this.scene.add(this.clouds);
@@ -257,6 +263,9 @@ export class Graphics {
         this.renderer,
         this.scene,
         this.camera,
+        this.sun,
+        this.atmosphere,
+        this.dynamicLight.uniforms,
       );
     const shadowSize = value >= 1.7 ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== shadowSize) {
@@ -1206,9 +1215,16 @@ export class Graphics {
       this.renderer.shadowMap.needsUpdate = true;
       this.shadowTimer = 0.25;
     }
-    this.clouds.position.x =
-      this.camera.position.x + Math.sin(time * 0.006) * 10;
-    this.clouds.position.z = this.camera.position.z;
+    // Wrap only distant clouds. Nearby clouds and their shadows stay anchored
+    // in world space as the player walks, with a slow independent wind drift.
+    for (const cloud of this.clouds.children) {
+      const x = cloud.userData.anchorX + time * 0.04;
+      const z = cloud.userData.anchorZ + time * 0.012;
+      cloud.position.x =
+        x + Math.round((this.camera.position.x - x) / 200) * 200;
+      cloud.position.z =
+        z + Math.round((this.camera.position.z - z) / 200) * 200;
+    }
     this.skyObjects.position.copy(this.camera.position);
     this.sunDisk.position.set(
       Math.cos(phase * Math.PI * 2) * 78,
@@ -1315,6 +1331,32 @@ export class Graphics {
       0.1 * (1 - guard) + impact * 0.12,
     );
     this.dynamicLight.attach(this.scene);
+    const cameraHex = worldToAxial(
+      this.camera.position.x,
+      this.camera.position.z,
+    );
+    const cameraFluid = this.world.fluids.get(
+      cameraHex.q,
+      Math.floor(this.camera.position.y),
+      cameraHex.r,
+    );
+    this.atmosphere.update({
+      time,
+      dt: renderDt,
+      dimension: this.world.dimension,
+      biome: this.world.biome(cameraHex.q, cameraHex.r),
+      rain,
+      dusk,
+      horizon,
+      sun: this.sun,
+      cameraSky: this.caveSky,
+      submerged:
+        !!cameraFluid &&
+        this.camera.position.y <
+          Math.floor(this.camera.position.y) + fluidHeight(cameraFluid),
+      volume: this.usePost,
+    });
+    this.atmosphere.attach(this.scene);
     if (this.chestModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;
     if (this.usePost) this.composer.render(dt);

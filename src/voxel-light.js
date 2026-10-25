@@ -114,6 +114,7 @@ export class VoxelLight {
     this.depth = Math.max(...chunks.map((c) => c[1])) * 8 + 8 - this.minR;
     const size = this.width * this.depth * HEIGHT;
     const cost = new Uint8Array(size).fill(16);
+    this.medium = new Uint8Array(size);
     for (const [cq, cr] of chunks)
       for (let q = cq * 8; q < cq * 8 + 8; q++)
         for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -152,6 +153,8 @@ export class VoxelLight {
           i = this.index(q, y, r);
         if (i < 0 || cost[i] === 16) continue;
         cost[i] = fluid.type === 'water' ? 2 : 1;
+        this.medium[i] =
+          fluid.type === 'water' ? 1 : fluid.type === 'lava' ? 2 : 3;
         if (EMISSION[fluid.type]) emitters.push([i, EMISSION[fluid.type]]);
       }
     this.cost = cost;
