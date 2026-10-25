@@ -3,6 +3,7 @@ import { ITEMS } from './core.js';
 export const INVENTORY_SLOTS = 36;
 export const stackSize = (id) =>
   ITEMS[id]?.durability ||
+  ITEMS[id]?.vehicle ||
   (ITEMS[id]?.bucket && id !== 'bucket') ||
   id === 'milkBucket'
     ? 1

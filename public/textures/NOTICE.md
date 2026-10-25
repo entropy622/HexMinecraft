@@ -28,6 +28,11 @@ rod, raw/cooked cod, raw/cooked salmon, and tropical fish) from the same
 revision and license. The hexagonal bobber, fishing line and held rod are
 original procedural geometry.
 
+Version 0.16 adds the unmodified `mcl_boats_oak_boat.png` inventory icon from
+the same revision and media license. The hexagonal hull, seats and oars are
+original geometry using the existing wood tiles; no upstream boat model is
+redistributed.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

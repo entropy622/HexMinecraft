@@ -1,4 +1,5 @@
 import { validFurnace } from './furnaces.js';
+import { validBoats } from './boats.js';
 import { validFauna } from './fauna.js';
 import { validDrops } from './item-drops.js';
 import { validWeather } from './weather.js';
@@ -112,6 +113,8 @@ export function validateSave(s) {
     }
     if (d.fauna !== undefined && !validFauna(d.fauna))
       throw Error('动物存档无效');
+    if (d.boats !== undefined && !validBoats(d.boats, d.mountedBoat ?? null))
+      throw Error('船只存档无效');
     if (
       !validDrops(d.drops) ||
       (d.lastDeath !== null && !position(d.lastDeath))

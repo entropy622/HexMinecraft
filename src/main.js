@@ -37,6 +37,7 @@ import { Equipment, miningStats, transferWear } from './equipment.js';
 import { ARMOR_SLOTS } from './gear-data.js';
 import { Projectiles } from './projectiles.js';
 import { Fishing } from './fishing.js';
+import { Boats, BOAT_EYE } from './boats.js';
 import { Movement } from './movement.js';
 import { GameAudio } from './audio.js';
 import { itemIcon as icon } from './icons.js';
@@ -53,12 +54,12 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.15 — BY THE WATER</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.16 — SIX SIDES AFLOAT</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
   <div id="crosshair"></div><div id="mine-progress"><i></i></div><div id="target" class="hidden"></div>
-  <div class="bottom-hud"><div id="combat-status"></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div class="vitals"><span class="health" id="health"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
+  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div class="vitals"><span class="health" id="health"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="eat" aria-label="吃东西">F</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="放置">放</button><button data-key="Space" aria-label="跳跃">↟</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
  </div>
@@ -86,6 +87,18 @@ const camera = graphics.camera;
 const motion = new Movement();
 const projectiles = new Projectiles(graphics.scene);
 const drops = new ItemDrops(graphics.scene, graphics.textures);
+const boats = new Boats(graphics.scene, graphics.textures, {
+  drop: (position) =>
+    drops.spawn('boat', 1, [position[0], position[1] + 0.6, position[2]]),
+  row: () => soundFX.noise(0.22, 0.07, 650),
+  unseat: () => {
+    vy = 0;
+    motion.reset();
+    fishing.clear();
+    toast('小船损坏了。');
+  },
+});
+let boatTarget = null;
 const fishingTip = new THREE.Vector3();
 const fishing = new Fishing(
   graphics.scene,
@@ -202,6 +215,7 @@ function solidAt(x, y, z) {
   return world.pointSolid(x, y, z);
 }
 function collides(x, feet, z) {
+  if (boats.bodyBlocked(x, feet, z)) return true;
   for (const [dx, dz] of [
     [0, 0],
     [0.24, 0],
@@ -216,6 +230,8 @@ function collides(x, feet, z) {
   return false;
 }
 function safeSpawn() {
+  boats.riding = null;
+  fishing.clear();
   if (respawnPoint) {
     const a = worldToAxial(respawnPoint[0], respawnPoint[2]);
     world.ensureAround(a.q, a.r);
@@ -244,6 +260,8 @@ function safeSpawn() {
 }
 function startGame(mode = false, save = null) {
   fishing.clear();
+  boats.load();
+  boatTarget = null;
   const seed = save?.seed ?? Number($('#seed').value || 624);
   dimension = save?.dimension || 'overworld';
   dimensionStates = save?.dimensions ? structuredClone(save.dimensions) : {};
@@ -305,6 +323,12 @@ function startGame(mode = false, save = null) {
   fauna.load(world, data.fauna);
   weatherColumns.update(1, world);
   drops.load(data.drops);
+  boats.load(data.boats, data.mountedBoat);
+  if (boats.riding) {
+    const p = boats.riding.position;
+    camera.position.set(p[0], p[1] + BOAT_EYE, p[2]);
+  }
+  if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
   lastDeath = data.lastDeath || null;
   fauna.sync(camera);
   creatureTarget = null;
@@ -328,6 +352,8 @@ function captureDimension() {
     ...world.serialize(),
     fauna: fauna.serialize(),
     drops: drops.serialize(),
+    boats: boats.serialize(),
+    mountedBoat: boats.riding?.id ?? null,
     lastDeath,
     crops: [...crops],
     chests: [...chests],
@@ -388,10 +414,13 @@ function syncDecor() {
 }
 function travel(to) {
   if (!hasGame || !DIMENSIONS[to] || to === dimension) return false;
+  boats.riding = null;
+  boatTarget = null;
   fishing.clear();
   projectiles.clear();
   bowCharge = 0;
   captureDimension();
+  boats.load();
   const seed = world.seed;
   world.clearLoaded();
   dimension = to;
@@ -448,6 +477,8 @@ function travel(to) {
   fauna.load(world, data.fauna);
   weatherColumns.update(1, world);
   drops.load(data.drops);
+  boats.load(data.boats);
+  if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
   lastDeath = data.lastDeath || null;
   fauna.sync(camera);
   creatureTarget = null;
@@ -1012,6 +1043,157 @@ function flushFluidChanges() {
   world.fluids.blockChanges.clear();
   for (const k of chunks) if (graphics.chunks.has(k)) graphics.buildChunk(k);
 }
+function leaveBoat() {
+  const b = boats.riding;
+  if (!b) return false;
+  const candidates = [];
+  for (const radius of [1.9, 2.6])
+    for (let i = 0; i < 6; i++) {
+      const angle = b.yaw + (i * Math.PI) / 3;
+      const x = b.position[0] + Math.sin(angle) * radius,
+        z = b.position[2] + Math.cos(angle) * radius;
+      const a = worldToAxial(x, z);
+      if (!world.loaded(a.q, a.r)) continue;
+      for (
+        let y = Math.floor(b.position[1]) + 1;
+        y >= Math.floor(b.position[1]) - 2;
+        y--
+      ) {
+        const feet = y + 1.02;
+        if (world.pointSolid(x, y + 0.95, z) && !collides(x, feet, z)) {
+          candidates.push({ x, z, feet, wet: false });
+          break;
+        }
+        const f = world.fluids.get(a.q, y, a.r);
+        if (
+          f?.type === 'water' &&
+          !f.falling &&
+          !world.fluids.get(a.q, y + 1, a.r)
+        ) {
+          const waterFeet = y + fluidHeight(f) + 0.04;
+          if (!collides(x, waterFeet, z)) {
+            candidates.push({ x, z, feet: waterFeet, wet: true });
+            break;
+          }
+        }
+      }
+    }
+  candidates.sort((a, b) => Number(a.wet) - Number(b.wet));
+  const spot = candidates[0];
+  if (!spot) {
+    toast('附近没有安全的下船位置，先移到岸边或开阔水面。');
+    return false;
+  }
+  boats.riding = null;
+  b.vx = b.vz = 0;
+  camera.position.set(spot.x, spot.feet + 1.65, spot.z);
+  vy = 0;
+  motion.reset();
+  fishing.clear();
+  toast(spot.wet ? '已下船到水面 · 空格游泳上浮' : '已靠岸下船');
+  saveGame();
+  return true;
+}
+function interactBoat() {
+  if (boats.riding) {
+    leaveBoat();
+    return true;
+  }
+  if (
+    !boatTarget ||
+    creatureTarget ||
+    villagerTarget ||
+    !boats.records.includes(boatTarget.boat)
+  )
+    return false;
+  const b = boatTarget.boat;
+  if (keys.has('ControlLeft') || keys.has('ControlRight')) {
+    if (!creative && roomFor(inventory, 'boat') < 1) {
+      toast('背包已满，先腾出一格再收船。');
+      return true;
+    }
+    boats.remove(b, false);
+    addItem('boat');
+    boatTarget = null;
+    toast('已收回橡木船。');
+    saveGame();
+    return true;
+  }
+  if (boats.blocked(world, ...b.position, b, true)) {
+    toast('船上空间不足，先清理上方的障碍。');
+    return true;
+  }
+  boats.riding = b;
+  fishing.clear();
+  motion.reset();
+  vy = 0;
+  grounded = true;
+  yaw = b.yaw;
+  camera.rotation.set(pitch, yaw, 0);
+  camera.position.set(b.position[0], b.position[1] + BOAT_EYE, b.position[2]);
+  boatTarget = null;
+  toast('W/S 划行 · A/D 转向 · 空格刹船 · Shift 下船');
+  saveGame();
+  return true;
+}
+function useBoatItem() {
+  if (heldItem() !== 'boat') return false;
+  if (boats.riding) {
+    toast('先下船，再放置另一艘船。');
+    return true;
+  }
+  if (!target?.fluid || target.type !== 'water') {
+    toast('对准水面右键 / E 放船。');
+    return true;
+  }
+  const f = world.fluids.get(target.q, target.y, target.r),
+    p = axialToWorld(target.q, target.r);
+  if (!f || f.falling || world.fluids.get(target.q, target.y + 1, target.r)) {
+    toast('需要一片开阔的水面。');
+    return true;
+  }
+  const position = [p.x, target.y + fluidHeight(f), p.z];
+  if (
+    boats.blocked(world, ...position, null, true) ||
+    (Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 1.2 &&
+      playerFeet() < position[1] + 0.4)
+  ) {
+    toast('空间不足，离岸边、其他船和自己稍远一点。');
+    return true;
+  }
+  if (!boats.add(position, yaw)) {
+    toast('这个维度的船太多了，先收回一些。');
+    return true;
+  }
+  if (!creative) inventory.boat--;
+  soundFX.play('splash');
+  graphics.swing();
+  updateHUD();
+  saveGame();
+  toast('已放船 · 对准船按 E 乘坐 · Ctrl+E 收回');
+  return true;
+}
+function attackBoat() {
+  if (
+    !boatTarget ||
+    boatTarget.distance > 3.5 ||
+    !boats.records.includes(boatTarget.boat)
+  )
+    return false;
+  if (fauna.target(camera, boatTarget.distance)) return false;
+  if (attackCooldown > 0) return true;
+  attackCooldown = 0.45;
+  boats.damage(
+    boatTarget.boat,
+    creative ? 20 : ITEMS[heldItem()]?.kind === 'axe' ? 7 : 4,
+  );
+  soundFX.play('break', 'wood');
+  graphics.swing();
+  wearItem(heldItem());
+  mining = 0;
+  saveGame();
+  return true;
+}
 function useFishingRod() {
   if (heldItem() !== 'fishingRod') return false;
   fishing.act(world, camera, weather.rain);
@@ -1021,7 +1203,7 @@ function useFishingRod() {
 }
 function place() {
   if (!playing) return;
-  if (useFishingRod()) return;
+  if (useFishingRod() || useBoatItem()) return;
   if (
     target &&
     ['door', 'doorTop', 'gate'].includes(target.type) &&
@@ -1059,6 +1241,11 @@ function place() {
   if (world.get(q, y, r)) return;
   if (!creative && (inventory[id] || 0) <= 0) {
     toast(`背包里没有${ITEMS[id].name}，先采集或合成吧。`);
+    return;
+  }
+  const boatCell = axialToWorld(q, r);
+  if (boats.intersectsCell(boatCell.x, y, boatCell.z)) {
+    toast('这里有船，先把船移开。');
     return;
   }
   world.set(q, y, r, id, false);
@@ -1132,6 +1319,15 @@ function placeBuilding(type, p) {
       (world.get(q, y + 1, r) || world.fluids.get(q, y + 1, r)))
   ) {
     toast('这里没有足够的建造空间。');
+    return;
+  }
+  if (
+    cells.some(([q, y, r]) => {
+      const p = axialToWorld(q, r);
+      return boats.intersectsCell(p.x, y, p.z);
+    })
+  ) {
+    toast('这里有船，先把船移开。');
     return;
   }
   for (const [a, b, c, t] of cells) world.set(a, b, c, t, false);
@@ -1401,7 +1597,11 @@ function interactPlant(k) {
 }
 function interact() {
   if (!playing) return;
-  if (useFishingRod()) return;
+  if (boats.riding && heldItem() === 'fishingRod') {
+    useFishingRod();
+    return;
+  }
+  if (interactBoat() || useFishingRod() || useBoatItem()) return;
   if (interactCreature() || drinkMilk() || useGoldenApple()) return;
   if (villagerTarget) {
     tradingWith = villagerTarget;
@@ -1785,6 +1985,9 @@ function drinkMilk() {
 }
 function explode(center) {
   syncDecor();
+  for (const b of [...boats.records])
+    if (Math.hypot(...b.position.map((n, i) => n - center.getComponent(i))) < 4)
+      boats.damage(b, 20);
   const origin = worldToAxial(center.x, center.z),
     changed = new Set();
   const distance = center.distanceTo(
@@ -1921,6 +2124,30 @@ function releaseBow() {
   wearItem('bow');
 }
 function movePlayer(dt) {
+  if (boats.riding) {
+    if (keys.has('ShiftLeft') || keys.has('ShiftRight')) {
+      keys.delete('ShiftLeft');
+      keys.delete('ShiftRight');
+      leaveBoat();
+      if (!boats.riding) return;
+    }
+    const b = boats.riding;
+    camera.position.set(b.position[0], b.position[1] + BOAT_EYE, b.position[2]);
+    camera.rotation.set(pitch, yaw, 0);
+    camera.fov += (72 - camera.fov) * (1 - Math.exp(-dt * 8));
+    camera.updateProjectionMatrix();
+    vy = 0;
+    grounded = true;
+    moved = 0;
+    $('#underwater').style.display = 'none';
+    if (!creative) {
+      hunger = Math.max(0, hunger - dt * (keys.has('KeyW') ? 0.008 : 0.003));
+      if (hunger > 14 && health < 20) health = Math.min(20, health + dt * 0.14);
+      if (hunger <= 0) hurt(dt * 2, 'hunger');
+      if (b.burning) hurt(4, 'burn');
+    }
+    return;
+  }
   const fluidAt = (height) => {
     const a = worldToAxial(camera.position.x, camera.position.z),
       y = Math.floor(height),
@@ -2594,6 +2821,7 @@ function frame(now) {
     }
     attackCooldown = Math.max(0, attackCooldown - dt);
     damageCooldown = Math.max(0, damageCooldown - dt);
+    boats.update(dt, world, keys);
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
     for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
     world.fluids.step(dt);
@@ -2607,13 +2835,16 @@ function frame(now) {
       }
       fishing.update(dt, world, camera, weather.rain);
     }
-    target = graphics.target(!!ITEMS[hotbar[selected]]?.bucket);
+    target = graphics.target(
+      !!ITEMS[hotbar[selected]]?.bucket || heldItem() === 'boat',
+    );
+    boatTarget = boats.target(camera, target?.distance ?? Infinity);
     if (leftDown && heldItem() === 'bow') {
       bowCharge = Math.min(1.1, bowCharge + dt);
       mining = 0;
       $('#mine-progress i').style.width = (bowCharge / 1.1) * 100 + '%';
     } else if (leftDown) {
-      if (!attack()) mine(dt);
+      if (!attackBoat() && !attack()) mine(dt);
     } else {
       mining = 0;
       miningKey = '';
@@ -2649,7 +2880,10 @@ function frame(now) {
         `${def.name} · ${Math.floor((plant.age / def.seconds) * 100)}% · E ${plant.age >= def.seconds && !def.tree ? '收获' : '查看 / 骨粉催熟'} · 左键拔除`;
     }
     villagers.frame(dt, time, camera);
-    villagerTarget = villagers.target(camera, target?.distance ?? Infinity);
+    villagerTarget = villagers.target(
+      camera,
+      Math.min(target?.distance ?? Infinity, boatTarget?.distance ?? Infinity),
+    );
     if (villagerTarget) {
       $('#target').classList.remove('hidden');
       $('#target').textContent =
@@ -2663,6 +2897,7 @@ function frame(now) {
       Math.min(
         target?.distance ?? Infinity,
         villagerTarget?.distance ?? Infinity,
+        boatTarget?.distance ?? Infinity,
       ),
     );
     if (creatureTarget) {
@@ -2687,6 +2922,13 @@ function frame(now) {
                 ? ' · E 收集鸡蛋 ×' + m.eggs
                 : ' · E 喂养 / 互动');
     }
+    if (boatTarget && !creatureTarget && !villagerTarget) {
+      $('#target').classList.remove('hidden');
+      $('#target').textContent =
+        '橡木船 · ' +
+        Math.ceil(boatTarget.boat.health) +
+        '/20 · E 上船 · Ctrl+E 收回';
+    }
     updateMobs(dt);
     drops.update(dt, world, camera, collectDrop);
     projectiles.update(
@@ -2698,6 +2940,14 @@ function frame(now) {
       () => addItem('arrow'),
       (amount) => hurt(amount),
     );
+    $('#boat-status').classList.toggle('hidden', !boats.riding);
+    if (boats.riding)
+      $('#boat-status').textContent =
+        (boats.riding.afloat
+          ? '划船 ' +
+            Math.hypot(boats.riding.vx, boats.riding.vz).toFixed(1) +
+            ' m/s'
+          : '船已搁浅') + ' · W/S 划行 · A/D 转向 · 空格刹船 · Shift 下船';
     $('#combat-status').dataset.fishing = fishing.phase;
     $('#fishing-window').classList.toggle('hidden', fishing.phase !== 'bite');
     $('#fishing-window').value =

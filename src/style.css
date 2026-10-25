@@ -2030,6 +2030,18 @@ input:focus-visible {
   outline: 2px solid #d1a15d;
   padding: 5px 12px;
 }
+#boat-status {
+  max-width: min(580px, 90vw);
+  margin: 0 auto 8px;
+  padding: 6px 12px;
+  border: 2px solid #829d99;
+  background: #193532df;
+  color: #dfebd8;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+  text-shadow: 1px 1px #15241e;
+}
 #combat-status[data-fishing='approach'] {
   color: #9edee3;
 }

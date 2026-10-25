@@ -14,6 +14,14 @@ const recipe = (id, pattern, count = 1, station = true, desc = '') => {
     station,
   });
 };
+GEAR.boat = { name: '橡木船', color: '#bd9259', use: true, vehicle: true };
+recipe(
+  'boat',
+  ['planks', null, 'planks', 'planks', 'planks', null, 'planks'],
+  1,
+  true,
+  '放入水面后 E 上船，W/S 划行、A/D 转向、空格刹船、Shift 下船。Ctrl+E 收回空船。',
+);
 for (const [tier, label, material, color, durability] of [
   [1, '木', 'planks', '#cba16a', 60],
   [2, '石', 'stone', '#a9b8b3', 132],
