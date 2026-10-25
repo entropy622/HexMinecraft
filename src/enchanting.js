@@ -1,5 +1,5 @@
 import { BLOCKS, ITEMS, DIRECTIONS, hexDistance, hash } from './core.js';
-import { ENCHANTS } from './enchanting-data.js';
+import { ENCHANTS, compatibleEnchants } from './enchanting-data.js';
 
 export function bookshelfPower(world, q, y, r) {
   let count = 0;
@@ -38,7 +38,8 @@ export function enchantOffers(item, seed, shelves) {
     );
     const enchants = {};
     const count = tier === 2 ? 2 : 1;
-    for (const key of keys.slice(0, count)) {
+    for (const key of keys) {
+      if (!compatibleEnchants({ ...enchants, [key]: 1 })) continue;
       const max = ENCHANTS[key].max;
       const minimum = Math.min(
         max,
@@ -56,6 +57,7 @@ export function enchantOffers(item, seed, shelves) {
           hash(code, seed + stringCode(key), tier, 877) *
             (ceiling - minimum + 1),
         );
+      if (Object.keys(enchants).length >= count) break;
     }
     return {
       enchants,

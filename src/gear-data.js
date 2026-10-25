@@ -39,7 +39,7 @@ recipe(
 );
 for (const [tier, label, material, color, durability] of [
   [1, '木', 'planks', '#cba16a', 60],
-  [2, '石', 'stone', '#a9b8b3', 132],
+  [2, '石', 'cobble', '#a9b8b3', 132],
   [3, '铁', 'ingot', '#e5d8c5', 250],
   [4, '钻石', 'diamond', '#83dce7', 1561],
 ]) {
@@ -226,3 +226,5 @@ recipe(
   '鸡蛋、牛奶、小麦与糖做成蛋糕，食用恢复 14 点饱食。合成返还铁桶。',
 );
 GEAR_RECIPES.at(-1).returns = { bucket: 1 };
+for (const entry of GEAR_RECIPES)
+  if (entry.cost.cobble) entry.cobbleGroup = true;

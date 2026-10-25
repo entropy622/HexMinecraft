@@ -18,7 +18,7 @@ import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v11';
+export const SAVE_KEY = 'hexwild-save-v12';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -41,7 +41,7 @@ const position = (p) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 11 ||
+    s.version !== 12 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||

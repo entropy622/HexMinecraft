@@ -2,6 +2,7 @@ import { ITEMS } from './core.js';
 import { ingredientMatches, ingredientName } from './wood-ingredients.js';
 import {
   ENCHANTS,
+  compatibleEnchants,
   enchantmentsOf,
   repairPenalty,
   customName,
@@ -22,7 +23,7 @@ export function repairMaterial(id) {
   if (id === 'shield') return 'planks';
   if (id === 'shears') return 'ingot';
   if (['pick', 'axe', 'sword', 'shovel', 'hoe'].includes(def.kind))
-    return [null, 'planks', 'stone', 'ingot', 'diamond'][def.tier] || null;
+    return [null, 'planks', 'cobble', 'ingot', 'diamond'][def.tier] || null;
   return null;
 }
 const enchantWeights = {
@@ -33,17 +34,24 @@ const enchantWeights = {
   unbreaking: 2,
   aquaAffinity: 2,
   respiration: 2,
+  fortune: 2,
+  silkTouch: 4,
 };
 const grindXP = (entry) =>
   Object.entries(enchantmentsOf(entry)).reduce(
     (sum, [key, rank]) =>
       sum +
-      (key === 'respiration'
-        ? 10 + 10 * (rank - 1)
-        : key === 'unbreaking'
-          ? 5 + 8 * (rank - 1)
-          : 1 +
-            (['sharpness', 'protection'].includes(key) ? 11 : 10) * (rank - 1)),
+      (key === 'silkTouch'
+        ? 15
+        : key === 'fortune'
+          ? 15 + 9 * (rank - 1)
+          : key === 'respiration'
+            ? 10 + 10 * (rank - 1)
+            : key === 'unbreaking'
+              ? 5 + 8 * (rank - 1)
+              : 1 +
+                (['sharpness', 'protection'].includes(key) ? 11 : 10) *
+                  (rank - 1)),
     0,
   );
 
@@ -61,7 +69,8 @@ export function smithingPlan(
   if (!def?.durability) return invalid('将要加工的装备放入左侧槽位。');
   const expectedMaterial = repairMaterial(id);
   const material =
-    rightStack && ingredientMatches({}, expectedMaterial, rightStack.item)
+    rightStack &&
+    ingredientMatches({ cobbleGroup: true }, expectedMaterial, rightStack.item)
       ? rightStack.item
       : expectedMaterial;
   const mode = !rightStack
@@ -77,7 +86,7 @@ export function smithingPlan(
     return invalid(
       kind === 'grindstone'
         ? '砂轮右侧需要同类装备。'
-        : `右侧放同类装备${material ? '或' + ingredientName({}, material, ITEMS[material].name) : ''}；仅命名时留空。`,
+        : `右侧放同类装备${material ? '或' + ingredientName({ cobbleGroup: true }, material, ITEMS[material].name) : ''}；仅命名时留空。`,
     );
   const left = leftStack.wear;
   const entry =
@@ -131,6 +140,7 @@ export function smithingPlan(
     if (donor) {
       entry.enchant = { ...oldTags };
       for (const [key, rank] of Object.entries(enchantmentsOf(donor))) {
+        if (!compatibleEnchants({ ...entry.enchant, [key]: rank })) continue;
         const before = entry.enchant[key] || 0;
         const next = Math.min(
           ENCHANTS[key].max,

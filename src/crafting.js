@@ -1,8 +1,8 @@
 import { ITEMS, RECIPES } from './core.js';
 import { FOODS } from './survival.js';
-import { woodKey } from './wood-data.js';
 import {
   ingredientCount,
+  ingredientKey,
   ingredientMatches,
   recipeMaterials,
 } from './wood-ingredients.js';
@@ -27,7 +27,8 @@ export const CRAFT_CELLS = [
 const cellAt = new Map(CRAFT_CELLS.map(([q, r], i) => [q + ',' + r, i]));
 const rotate = ([q, r]) => [-r, q + r];
 const reflect = ([q, r]) => [-q, q + r];
-const signature = (cells) => cells.map((s) => woodKey(s?.item || '')).join('|');
+const signature = (cells) =>
+  cells.map((s) => ingredientKey(s?.item || '')).join('|');
 export const newCraftingGrid = () => Array(7).fill(null);
 export const validCraftingGrid = (grid) =>
   Array.isArray(grid) && grid.length === 7 && grid.every(validStack);

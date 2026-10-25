@@ -42,9 +42,9 @@ export function createTextures() {
     wood: ['#b68b52', '#6e4c2d'],
     leaves: ['#407c2b', '#407c2b'],
     planks: ['#ba9158', '#ba9158'],
-    coal: ['#777777', '#777777'],
-    iron: ['#818181', '#818181'],
-    diamond: ['#777e83', '#777e83'],
+    coalOre: ['#777777', '#777777'],
+    ironOre: ['#818181', '#818181'],
+    diamondOre: ['#777e83', '#777e83'],
     crystal: ['#426f6a', '#426f6a'],
     brick: ['#8d918b', '#8d918b'],
     endstone: ['#d6d59b', '#d6d59b'],
@@ -172,11 +172,13 @@ export function createTextures() {
         fill('#f3b247', 7, 10, 2, 3);
       }
     }
-    if (['coal', 'iron', 'diamond', 'crystal', 'glowstone'].includes(id)) {
+    if (
+      ['coalOre', 'ironOre', 'diamondOre', 'crystal', 'glowstone'].includes(id)
+    ) {
       const ore = {
-        coal: ['#262729', '#393a3d'],
-        iron: ['#c69779', '#e0b599'],
-        diamond: ['#38bbc9', '#a0f4ee'],
+        coalOre: ['#262729', '#393a3d'],
+        ironOre: ['#c69779', '#e0b599'],
+        diamondOre: ['#38bbc9', '#a0f4ee'],
         crystal: ['#57ba9f', '#b2ffe2'],
         glowstone: ['#ca9440', '#fff1a7'],
       }[id];

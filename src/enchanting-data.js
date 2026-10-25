@@ -54,6 +54,16 @@ export const ENCHANTS = {
   },
   power: { name: '力量', max: 5, accepts: (item) => item.kind === 'bow' },
   unbreaking: { name: '耐久', max: 3, accepts: (item) => !!item.durability },
+  fortune: {
+    name: '时运',
+    max: 3,
+    accepts: (item) => ['pick', 'axe', 'shovel', 'hoe'].includes(item.kind),
+  },
+  silkTouch: {
+    name: '精准采集',
+    max: 1,
+    accepts: (item) => ['pick', 'axe', 'shovel', 'hoe'].includes(item.kind),
+  },
   aquaAffinity: {
     name: '水下速掘',
     max: 1,
@@ -67,6 +77,7 @@ export const ENCHANTS = {
 };
 export const enchantmentsOf = (entry) =>
   typeof entry === 'object' && entry ? entry.enchant || {} : {};
+export const compatibleEnchants = (tags) => !(tags.fortune && tags.silkTouch);
 export const wearValue = (entry) =>
   typeof entry === 'number' ? entry : entry?.value;
 export const repairPenalty = (entry) => entry?.work || 0;
@@ -106,6 +117,7 @@ export function validWearEntry(item, entry) {
         entry.enchant &&
         typeof entry.enchant === 'object' &&
         !Array.isArray(entry.enchant) &&
+        compatibleEnchants(entry.enchant) &&
         Object.entries(entry.enchant).every(
           ([key, rank]) =>
             Object.hasOwn(ENCHANTS, key) &&

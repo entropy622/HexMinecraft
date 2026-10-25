@@ -7,13 +7,20 @@ const neighbors = (q, y, r) => [
   [q, y + 1, r],
 ];
 
-export function leafDrops(type, shears = false, random = Math.random) {
+export function leafDrops(
+  type,
+  shears = false,
+  random = Math.random,
+  fortune = 0,
+) {
   const block = BLOCKS[type];
   if (!block?.foliage) return [];
   if (shears) return [{ item: type, count: 1 }];
   const drops = [];
-  if (random() < 0.05) drops.push({ item: block.sapling, count: 1 });
-  if (type === 'leaves' && random() < 0.02)
+  const level = Math.min(3, Math.max(0, fortune));
+  if (random() < [0.05, 0.0625, 1 / 12, 0.1][level])
+    drops.push({ item: block.sapling, count: 1 });
+  if (type === 'leaves' && random() < [0.02, 0.025, 1 / 30, 0.04][level])
     drops.push({ item: 'apple', count: 1 });
   return drops;
 }

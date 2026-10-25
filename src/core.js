@@ -18,6 +18,11 @@ import { CHORUS_BLOCKS, CHORUS_ITEMS, CHORUS_RECIPES } from './chorus-data.js';
 import { WOOD_BLOCKS, WOOD_ITEMS, WOOD_RECIPES } from './wood-data.js';
 import { recipeMaterials } from './wood-ingredients.js';
 import { applyMiningHardness } from './mining-data.js';
+import {
+  MINERAL_BLOCKS,
+  MINERAL_ITEMS,
+  MINERAL_RECIPES,
+} from './mineral-data.js';
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import {
   IGNITION_BLOCKS,
@@ -44,6 +49,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...MINERAL_BLOCKS,
   ...IGNITION_BLOCKS,
   ...CAMPFIRE_BLOCKS,
   ...WOOD_BLOCKS,
@@ -66,7 +72,13 @@ export const BLOCKS = {
     drop: 'dirt',
   },
   dirt: { name: '泥土', color: '#a58b66', side: '#85684d', hardness: 0.35 },
-  stone: { name: '岩石', color: '#a0aaa5', side: '#7a8785', hardness: 1.25 },
+  stone: {
+    name: '石头',
+    color: '#a0aaa5',
+    side: '#7a8785',
+    hardness: 1.5,
+    drop: 'cobble',
+  },
   sand: { name: '细沙', color: '#e6c98e', side: '#c9a975', hardness: 0.35 },
   wood: {
     name: '橡木原木',
@@ -99,19 +111,21 @@ export const BLOCKS = {
     hardness: 1.4,
     tool: 2,
   },
-  coal: {
-    name: '煤矿',
+  coalOre: {
+    name: '煤矿石',
     color: '#566162',
     side: '#66726e',
     hardness: 1.2,
     tool: 1,
+    drop: 'coal',
   },
-  iron: {
-    name: '铁矿',
+  ironOre: {
+    name: '铁矿石',
     color: '#cda38a',
     side: '#8d8f86',
     hardness: 1.5,
     tool: 2,
+    drop: 'rawIron',
   },
   brick: { name: '石砖', color: '#bcc4b7', side: '#8e9d94', hardness: 0.8 },
   glass: { name: '琥珀玻璃', color: '#edcc88', side: '#b89762', hardness: 0.3 },
@@ -186,12 +200,13 @@ export const BLOCKS = {
     hardness: 50,
     tool: 4,
   },
-  diamond: {
-    name: '钻石矿',
+  diamondOre: {
+    name: '钻石矿石',
     color: '#86e4ee',
     side: '#548c99',
     hardness: 1.8,
     tool: 3,
+    drop: 'diamond',
   },
   portal: {
     name: '下界传送门',
@@ -218,6 +233,7 @@ export const BLOCKS = {
 };
 applyMiningHardness(BLOCKS);
 export const ITEMS = {
+  ...MINERAL_ITEMS,
   ...IGNITION_ITEMS,
   ...WOOD_ITEMS,
   ...CHORUS_ITEMS,
@@ -314,8 +330,9 @@ export const RECIPES = [
     count: 1,
     title: '深入岩层',
     desc: '装入快捷栏并手持。可以开采萤晶和铁矿。',
-    pattern: ['stone', 'stone', 'stone', 'wood', 'stone', 'wood', 'stone'],
-    cost: { stone: 5, wood: 2 },
+    pattern: ['cobble', 'cobble', 'cobble', 'wood', 'cobble', 'wood', 'cobble'],
+    cost: { cobble: 5, wood: 2 },
+    cobbleGroup: true,
     requires: 1,
     station: true,
   },
@@ -323,9 +340,10 @@ export const RECIPES = [
     id: 'furnace',
     count: 1,
     title: '炉火初燃',
-    desc: '放置后按 E，将煤和矿石变成铁锭。',
-    pattern: ['stone', 'stone', 'stone', null, 'stone', 'stone', 'stone'],
-    cost: { stone: 6 },
+    desc: '放置后按 E，用煤炭烧炼粗铁或铁矿石，得到铁锭。',
+    pattern: ['cobble', 'cobble', 'cobble', null, 'cobble', 'cobble', 'cobble'],
+    cost: { cobble: 6 },
+    cobbleGroup: true,
     station: true,
   },
   {
@@ -349,8 +367,9 @@ export const RECIPES = [
     count: 1,
     title: '播下第一粒种子',
     desc: '手持锄头，对泥土或草地按 E 翻耕。',
-    pattern: ['stone', 'stone', null, 'wood', null, 'wood', null],
-    cost: { stone: 2, wood: 2 },
+    pattern: ['cobble', 'cobble', null, 'wood', null, 'wood', null],
+    cost: { cobble: 2, wood: 2 },
+    cobbleGroup: true,
   },
   {
     id: 'bed',
@@ -418,9 +437,10 @@ RECIPES.push(
     id: 'obsidian',
     count: 4,
     title: '凝固的余烬',
-    desc: '六向工坊将岩石、煤与萤晶烧结成黑曜石。',
-    pattern: ['stone', 'coal', 'stone', 'crystal', 'stone', 'coal', null],
-    cost: { stone: 3, coal: 2, crystal: 1 },
+    desc: '六向工坊将圆石、煤炭与萤晶烧结成黑曜石。',
+    pattern: ['cobble', 'coal', 'cobble', 'crystal', 'cobble', 'coal', null],
+    cost: { cobble: 3, coal: 2, crystal: 1 },
+    cobbleGroup: true,
     station: true,
   },
   {
@@ -564,8 +584,8 @@ export class World {
           const ore = hash(q, y, r, this.seed);
           if (type === 'stone' && y > 1) {
             if (ore > 0.965) type = 'crystal';
-            else if (ore > 0.92) type = 'iron';
-            else if (ore > 0.85) type = 'coal';
+            else if (ore > 0.92) type = 'ironOre';
+            else if (ore > 0.85) type = 'coalOre';
           }
           if (
             y > 2 &&
@@ -642,6 +662,7 @@ export class World {
 }
 RECIPES.push(
   ...GEAR_RECIPES,
+  ...MINERAL_RECIPES,
   ...IGNITION_RECIPES,
   ...CAMPFIRE_RECIPES,
   ...BREW_RECIPES,

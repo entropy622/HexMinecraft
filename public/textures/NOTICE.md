@@ -19,6 +19,18 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.49 adds twelve unmodified images from the same revision and CC BY-SA
+3.0 media license: `default_cobble.png`, `mcl_cobbled_deepslate.png`,
+`default_coal_lump.png`, `default_diamond.png`, `mcl_raw_ores_raw_iron.png`,
+`mcl_raw_ores_raw_gold.png`, `mcl_copper_raw.png`, `default_coal_block.png`,
+`default_diamond_block.png`, `mcl_raw_ores_raw_iron_block.png`,
+`mcl_raw_ores_raw_gold_block.png`, and `mcl_copper_block_raw.png`.
+Hexagonal projected inventory icons, atlas crops and runtime texture reuse
+retain CC BY-SA 3.0. Resource separation, block geometry, fortune distributions,
+silk-touch handling and crafting code are original; no upstream code is included.
+The collection now contains 277 PNGs: 256 under CC BY-SA 3.0 and 21 under CC BY-SA
+4.0.
+
 Version 0.48 adds the unmodified `crack_anylength.png` from the same revision
 and CC BY-SA 3.0 media license. This 16 × 160 image contains ten progressive
 digging overlays. Runtime frame crops retain CC BY-SA 3.0, as do the fragments

@@ -219,7 +219,7 @@ export class Fluids {
         ? 'glowstone'
         : lava.source
           ? 'obsidian'
-          : 'stone';
+          : 'cobble';
     this.write(q, y, r, null);
     this.world.set(q, y, r, solid);
     this.blockChanges.add(key(q, y, r));

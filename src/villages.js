@@ -153,7 +153,7 @@ export function features(v) {
       r: v.r + z + 1,
       loot:
         role === 'smith'
-          ? { coal: 4, iron: 2 }
+          ? { coal: 4, rawIron: 2 }
           : role === 'merchant'
             ? { apple: 3, seed: 4, [v.palette.sapling]: 2, sugarCane: 3 }
             : { wheat: 3, bread: 2 },

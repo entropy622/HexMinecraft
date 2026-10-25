@@ -434,14 +434,14 @@ export class World {
           )
             continue;
           if (['stone', 'deepslate'].includes(t) && y > 1) {
-            if (ore > 0.994 && y < 10) t = 'diamond';
-            else if (ore > 0.981 && y < 11) t = 'gold';
+            if (ore > 0.994 && y < 10) t = 'diamondOre';
+            else if (ore > 0.981 && y < 11) t = 'goldOre';
             else if (ore > 0.967) t = 'crystal';
             else if (ore > 0.951 && y < 12) t = 'lapisOre';
             else if (ore > 0.94 && y < 10) t = 'redstoneOre';
-            else if (ore > 0.927) t = 'iron';
-            else if (ore > 0.89) t = 'copper';
-            else if (ore > 0.835) t = 'coal';
+            else if (ore > 0.927) t = 'ironOre';
+            else if (ore > 0.89) t = 'copperOre';
+            else if (ore > 0.835) t = 'coalOre';
           }
           if (
             this.dimension === 'overworld' &&

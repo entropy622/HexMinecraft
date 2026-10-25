@@ -125,6 +125,7 @@ import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack, textureURL } from './texture-pack.js';
 import { Equipment, miningStats } from './equipment.js';
 import { miningRate } from './mining.js';
+import { miningLoot } from './mining-loot.js';
 import { Projectiles } from './projectiles.js';
 import { Throwables, pearlDestination } from './throwables.js';
 import { THROWABLES } from './throwable-data.js';
@@ -157,7 +158,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.48 — ECHOES OF THE PICK</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.49 — TREASURES WITHIN STONE</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -1204,7 +1205,7 @@ function saveData() {
   const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 11,
+    version: 12,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -1679,7 +1680,8 @@ function mine(dt) {
   }
   const data = BLOCKS[target.type];
   const held = heldItem(),
-    stats = miningStats(target.type, held, equipment.tags(held));
+    enchant = equipment.tags(held),
+    stats = miningStats(target.type, held, enchant);
   if (data.hardness === Infinity) {
     mining = 0;
     return;
@@ -1714,7 +1716,6 @@ function mine(dt) {
   const { q, y, r, type } = target;
   if (creative) creativeMineDelay = 0.2;
   graphics.swing();
-  const natural = !world.edits.has(k);
   if (isChorus(type)) {
     harvestChorusBlock(q, y, r, true, !creative);
     wearItem(held);
@@ -1742,43 +1743,13 @@ function mine(dt) {
     drops.spawnStack(packed, [point.x, y + 0.5, point.z]);
   }
   if (!creative && stats.harvest) {
-    if (!packed && !data.foliage)
-      dropAt(
-        type === 'gravel' && Math.random() < 0.1
-          ? 'flint'
-          : type === 'snow' && ITEMS[held]?.kind === 'shovel'
-            ? 'snowball'
-            : data.drop || type,
-        type === 'snow' && ITEMS[held]?.kind === 'shovel'
-          ? 4
-          : type === 'lapisOre'
-            ? 4 + Math.floor(Math.random() * 6)
-            : type === 'redstoneOre'
-              ? 4 + Math.floor(Math.random() * 2)
-              : 1,
-        q,
-        y,
-        r,
-      );
-    if (natural) {
-      const reward = {
-        coal: [0, 2],
-        diamond: [3, 7],
-        lapisOre: [2, 5],
-        redstoneOre: [1, 5],
-        crystal: [2, 5],
-        spawner: [15, 43],
-      }[type];
-      if (reward)
-        awardXP(
-          reward[0] + Math.floor(Math.random() * (reward[1] - reward[0] + 1)),
-          [axialToWorld(q, r).x, y + 0.5, axialToWorld(q, r).z],
-        );
-    }
-    if (data.foliage)
-      for (const stack of leafDrops(type, ITEMS[held]?.kind === 'shears'))
-        dropAt(stack.item, stack.count, q, y, r);
-    if (type === 'grass' && Math.random() < 0.35) dropAt('seed', 1, q, y, r);
+    const loot = miningLoot(type, { tool: ITEMS[held]?.kind, enchant });
+    if (!packed)
+      for (const stack of loot.stacks) dropAt(stack.item, stack.count, q, y, r);
+    if (loot.xp)
+      awardXP(loot.xp, [axialToWorld(q, r).x, y + 0.5, axialToWorld(q, r).z]);
+    if (type === 'grass' && !enchant.silkTouch && Math.random() < 0.35)
+      dropAt('seed', 1, q, y, r);
   }
   if (!creative) survival.exhaust(0.02);
   if (crops.has(k)) {
@@ -4326,10 +4297,8 @@ function explode(center, settings = {}) {
         if (packed && (!creative || packed.contents.some(Boolean)))
           drops.spawnStack(packed, [p.x, y + 0.5, p.z]);
         else if (!packed && !creative && Math.random() < 0.6) {
-          if (BLOCKS[type].foliage)
-            for (const stack of leafDrops(type))
-              dropAt(stack.item, stack.count, q, y, r);
-          else dropAt(BLOCKS[type].drop || type, 1, q, y, r);
+          for (const stack of miningLoot(type).stacks)
+            dropAt(stack.item, stack.count, q, y, r);
         }
         spillChest(k);
         spillFurnace(k);

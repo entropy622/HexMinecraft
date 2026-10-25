@@ -121,6 +121,8 @@ export const CUT_MATERIALS = [
   ['birchPlanks', '白桦木', '#d7c492', 0.45],
   ['sprucePlanks', '云杉木', '#8c6c48', 0.45],
   ['stone', '岩石', '#a0aaa5', 1.25],
+  ['cobble', '圆石', '#93958e', 2],
+  ['cobbledDeepslate', '深板岩圆石', '#56595b', 3.5],
   ['brick', '石砖', '#bcc4b7', 0.8],
   ['sandstone', '砂岩', '#d6bf85', 0.9],
   ['netherbrick', '下界砖', '#593841', 1.4],

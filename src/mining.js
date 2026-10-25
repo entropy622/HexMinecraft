@@ -3,6 +3,8 @@ import { woodKey } from './wood-data.js';
 
 const PICK_REQUIRED = new Set([
   'stone',
+  'cobble',
+  'cobbledDeepslate',
   'deepslate',
   'brick',
   'mossybrick',

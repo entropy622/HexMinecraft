@@ -38,6 +38,7 @@ import { blockTextures, itemTextures, textureURL } from './texture-pack.js';
 import { ITEMS } from './core.js';
 import { POTIONS, potionDescription } from './brewing-data.js';
 import { cutBlockIcon } from './shape-icons.js';
+import { MINERAL_ICON_BLOCKS } from './mineral-data.js';
 
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
 const symbols = {
@@ -104,6 +105,7 @@ export function itemIcon(id) {
   if (!cache.has(id)) {
     if (
       ITEMS[id]?.portable ||
+      MINERAL_ICON_BLOCKS.has(id) ||
       (ITEMS[id]?.pillar && blockTextures[id]) ||
       [
         'slab',

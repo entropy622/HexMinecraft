@@ -3,6 +3,13 @@ import { POTIONS } from './brewing-data.js';
 import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
 import { WOOD_BLOCKS, TREES } from './wood-data.js';
 export const blockTextures = {
+  cobble: ['default_cobble'],
+  cobbledDeepslate: ['mcl_cobbled_deepslate'],
+  coalBlock: ['default_coal_block'],
+  diamondBlock: ['default_diamond_block'],
+  rawIronBlock: ['mcl_raw_ores_raw_iron_block'],
+  rawGoldBlock: ['mcl_raw_ores_raw_gold_block'],
+  rawCopperBlock: ['mcl_copper_block_raw'],
   gravel: ['default_gravel'],
   campfire: ['default_tree'],
   soulCampfire: ['default_tree'],
@@ -53,8 +60,8 @@ export const blockTextures = {
   ladder: ['default_wood'],
   bookshelf: ['mcl_books_bookshelf_top', 'default_bookshelf'],
   deepslate: ['mcl_deepslate_top', 'mcl_deepslate'],
-  gold: ['mcl_core_gold_ore'],
-  copper: ['mcl_copper_ore'],
+  goldOre: ['mcl_core_gold_ore'],
+  copperOre: ['mcl_copper_ore'],
   goldBlock: ['default_gold_block'],
   copperBlock: ['mcl_copper_block_cut'],
   mossybrick: ['default_mossycobble'],
@@ -70,9 +77,9 @@ export const blockTextures = {
   wood: ['default_tree_top', 'default_tree'],
   leaves: ['default_leaves'],
   planks: ['default_wood'],
-  coal: ['mcl_core_coal_ore'],
-  iron: ['mcl_core_iron_ore'],
-  diamond: ['mcl_core_diamond_ore'],
+  coalOre: ['mcl_core_coal_ore'],
+  ironOre: ['mcl_core_iron_ore'],
+  diamondOre: ['mcl_core_diamond_ore'],
   brick: ['default_stone_brick'],
   endstone: ['mcl_end_end_stone'],
   netherrack: ['mcl_nether_netherrack'],
@@ -103,6 +110,11 @@ for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Stairs'] = blockTextures[base];
 }
 export const itemTextures = {
+  coal: 'default_coal_lump',
+  diamond: 'default_diamond',
+  rawIron: 'mcl_raw_ores_raw_iron',
+  rawGold: 'mcl_raw_ores_raw_gold',
+  rawCopper: 'mcl_copper_raw',
   flint: 'default_flint',
   flintAndSteel: 'mcl_fire_flint_and_steel',
   campfire: 'mcl_campfires_campfire_inv',

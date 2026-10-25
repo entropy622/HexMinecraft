@@ -38,7 +38,7 @@ export function smithingPanel(
     right = slots[1];
   const material = repairMaterial(left?.item);
   const materialLabel = material
-    ? ingredientName({}, material, ITEMS[material].name)
+    ? ingredientName({ cobbleGroup: true }, material, ITEMS[material].name)
     : '';
   return `<div class="smithing-workbench"><p class="station-slot-note">${grind ? '左槽放装备祛魔；再放入一件同类装备可合并修复。' : '左槽放装备，右槽放修复材料或同类装备。只命名时右槽留空。'}取出产物时才会消耗物品${grind ? '' : '与等级'}。</p>
     ${!grind ? `<label class="smith-name" for="smith-name">装备名称 <input id="smith-name" type="text" maxlength="48" value="${escape(name)}" placeholder="留空恢复原名 · 最多 24 字" autocomplete="off"></label>` : ''}
