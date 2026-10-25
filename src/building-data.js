@@ -21,12 +21,17 @@ for (const [species, label, color] of [
     door: prefix ? prefix + 'Door' : 'door',
     fence: prefix ? prefix + 'Fence' : 'fence',
     gate: prefix ? prefix + 'Gate' : 'gate',
+    trapdoor: prefix ? prefix + 'Trapdoor' : 'trapdoor',
   });
   const planks = TREES[species].planks;
-  for (const shape of ['door', 'fence', 'gate']) {
+  for (const shape of ['door', 'fence', 'gate', 'trapdoor']) {
     const id = ids[shape];
     BUILDING_BLOCKS[id] = {
-      name: label + { door: '门', fence: '围栏', gate: '栅栏门' }[shape],
+      name:
+        label +
+        { door: '门', fence: '围栏', gate: '栅栏门', trapdoor: '活板门' }[
+          shape
+        ],
       color,
       hardness: 0.6,
       shape,
@@ -50,7 +55,9 @@ export const doorLower = (type) => BUILDING_BLOCKS[type]?.doorLower || type;
 export const doorUpper = (type) => BUILDING_BLOCKS[type]?.doorUpper || null;
 export const isFence = (type) => BUILDING_BLOCKS[type]?.shape === 'fence';
 export const isGate = (type) => BUILDING_BLOCKS[type]?.shape === 'gate';
-export const isOpenable = (type) => isDoor(type) || isGate(type);
+export const isTrapdoor = (type) => BUILDING_BLOCKS[type]?.shape === 'trapdoor';
+export const isOpenable = (type) =>
+  isDoor(type) || isGate(type) || isTrapdoor(type);
 const make = (id, count, pattern, desc) => {
   const cost = {};
   for (const item of pattern) if (item) cost[item] = (cost[item] || 0) + 1;
@@ -63,7 +70,9 @@ const make = (id, count, pattern, desc) => {
     title: BUILDING_BLOCKS[id].name,
     station: true,
     exactWood:
-      ['door', 'fence', 'gate'].includes(BUILDING_BLOCKS[id].shape) ||
+      ['door', 'fence', 'gate', 'trapdoor'].includes(
+        BUILDING_BLOCKS[id].shape,
+      ) ||
       ['planks', 'birchPlanks', 'sprucePlanks'].includes(
         BUILDING_BLOCKS[id].base,
       ),
@@ -97,6 +106,12 @@ for (const [species, ids] of Object.entries(WOOD_BUILDINGS)) {
       1,
       [log, planks, log, null, log, planks, log],
       '使用同种木材制作，右键 / E 开关，为围栏留一个出入口。',
+    ),
+    make(
+      ids.trapdoor,
+      2,
+      [planks, planks, planks, null, planks, planks, planks],
+      '六块同种木板围成一圈，中心留空，制作两扇活板门。侧面上 / 下半部决定高度，右键 / E 翻盖。',
     ),
   );
 }

@@ -150,6 +150,7 @@ export class ItemDrops {
         'chorusFlower',
         'fence',
         'gate',
+        'trapdoor',
       ].includes(BLOCKS[id]?.shape)
     ) {
       const mesh = buildingItemMesh(id, this.textures);

@@ -248,6 +248,17 @@ and regional village palettes are independent implementations. No upstream
 gameplay source or model is included. Selected media now totals 247 PNGs:
 226 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
 
+Version 0.45 adds six unmodified PNGs from the same VoxeLibre revision:
+`doors_trapdoor.png`, `doors_trapdoor_side.png`,
+`mcl_doors_trapdoor_birch.png`, `mcl_doors_trapdoor_birch_side.png`,
+`mcl_doors_trapdoor_spruce.png` and `mcl_doors_trapdoor_spruce_side.png`.
+These follow the upstream general **CC BY-SA 3.0** media terms; atlas views,
+cutout panels, shadows and projected item icons retain CC BY-SA 3.0.
+The fixed hexagonal frame, rigid hinged lid, vertical collision intervals,
+placement and ladder integration are independent implementations. No upstream
+gameplay source or model is bundled. Selected media now totals 253 PNGs:
+232 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
+
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
 warm low sunlight, sky color and water highlights. No Photon source or assets
 are included, and this project does not implement or bundle the Photon pack.

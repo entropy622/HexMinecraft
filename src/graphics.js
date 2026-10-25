@@ -6,7 +6,7 @@ import {
 } from './foliage-shader.js';
 import { LeafParticles } from './leaf-particles.js';
 import { pillarFace } from './pillar-faces.js';
-import { isDoor } from './building-data.js';
+import { isDoor, isTrapdoor } from './building-data.js';
 import { BrewingModels } from './brewing-graphics.js';
 import { VoxelLight } from './voxel-light.js';
 import { DynamicLight } from './dynamic-light.js';
@@ -562,6 +562,7 @@ export class Graphics {
         'chorusFlower',
         'fence',
         'gate',
+        'trapdoor',
       ].includes(BLOCKS[id]?.shape)
     ) {
       const mesh = buildingItemMesh(id, this.textures);
@@ -1015,7 +1016,9 @@ export class Graphics {
         r,
         origin,
         this.textures,
-        isDoor(world.get(q, y, r)) ? this.doorMaterial : this.material,
+        isDoor(world.get(q, y, r)) || isTrapdoor(world.get(q, y, r))
+          ? this.doorMaterial
+          : this.material,
       );
       if (['slab', 'stairs'].includes(BLOCKS[world.get(q, y, r)].shape))
         cuts.push(building.geometry);

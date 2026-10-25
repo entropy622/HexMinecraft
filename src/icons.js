@@ -105,9 +105,15 @@ export function itemIcon(id) {
     if (
       ITEMS[id]?.portable ||
       (ITEMS[id]?.pillar && blockTextures[id]) ||
-      ['slab', 'stairs', 'egg', 'rod', 'chorus', 'chorusFlower'].includes(
-        ITEMS[id]?.shape,
-      )
+      [
+        'slab',
+        'stairs',
+        'egg',
+        'rod',
+        'chorus',
+        'chorusFlower',
+        'trapdoor',
+      ].includes(ITEMS[id]?.shape)
     ) {
       cache.set(id, cutBlockIcon(id));
       return cache.get(id);

@@ -1,6 +1,7 @@
 import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
 import { cutBlockParts, polygonContains, HEX_POLYGON } from './cut-blocks.js';
 import { isChorus } from './chorus-data.js';
+import { trapdoorParts } from './trapdoor-shape.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -26,6 +27,7 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (shape === 'trapdoor') return trapdoorParts(type, planks, state, angle);
   if (shape === 'slab' || shape === 'stairs')
     return cutBlockParts(world, q, y, r);
   if (shape === 'egg')
@@ -196,15 +198,22 @@ export function buildingParts(world, q, y, r, collision = false) {
   return parts;
 }
 export function insidePart(x, y, z, part) {
-  if (part.polygon)
-    return (
-      Math.abs(y - part.y) < part.h / 2 &&
-      polygonContains(part.polygon, x - part.x, z - part.z)
-    );
   const dx = x - part.x,
     dz = z - part.z;
   const px = dx * Math.cos(part.angle) - dz * Math.sin(part.angle);
   const pz = dx * Math.sin(part.angle) + dz * Math.cos(part.angle);
+  if (part.polygon) {
+    const pitch = part.pitch || 0,
+      dy = y - part.y;
+    return (
+      Math.abs(dy * Math.cos(pitch) + pz * Math.sin(pitch)) < part.h / 2 &&
+      polygonContains(
+        part.polygon,
+        px,
+        -dy * Math.sin(pitch) + pz * Math.cos(pitch),
+      )
+    );
+  }
   return (
     Math.abs(px) < part.w / 2 &&
     Math.abs(y - part.y) < part.h / 2 &&

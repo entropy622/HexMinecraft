@@ -43,6 +43,7 @@ export const blockTextures = {
   doorTop: ['default_wood', 'mcl_doors_door_wood_upper'],
   fence: ['default_wood'],
   gate: ['default_wood'],
+  trapdoor: ['doors_trapdoor', 'doors_trapdoor_side'],
   ladder: ['default_wood'],
   bookshelf: ['mcl_books_bookshelf_top', 'default_bookshelf'],
   deepslate: ['mcl_deepslate_top', 'mcl_deepslate'],
@@ -86,6 +87,10 @@ for (const species of ['birch', 'spruce']) {
   blockTextures[ids.door] = [plank, `mcl_doors_door_${species}_lower`];
   blockTextures[ids.door + 'Top'] = [plank, `mcl_doors_door_${species}_upper`];
   blockTextures[ids.fence] = blockTextures[ids.gate] = [plank];
+  blockTextures[ids.trapdoor] = [
+    `mcl_doors_trapdoor_${species}`,
+    `mcl_doors_trapdoor_${species}_side`,
+  ];
 }
 for (const [base] of CUT_MATERIALS) {
   blockTextures[base + 'Slab'] = blockTextures[base];

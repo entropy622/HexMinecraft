@@ -34,11 +34,10 @@ export function findFloor(
   for (const [dx, dz] of offsets) {
     const a = worldToAxial(x + dx, z + dz);
     if (!wet && world.fluids.get(a.q, Math.floor(floor), a.r)) return null;
-    for (let h = 0.025; h <= height + 0.3; h += 0.3) {
-      const head = Math.min(height - 0.025, h);
-      if (world.pointSolid(x + dx, floor + head, z + dz)) return null;
-      if (head >= height - 0.025) break;
-    }
+    if (
+      world.columnSolid(x + dx, z + dz, floor + 0.025, floor + height - 0.025)
+    )
+      return null;
   }
   return floor;
 }

@@ -21,6 +21,7 @@ import {
   axialToWorld,
 } from './core.js';
 import { buildingParts, insidePart } from './building-shapes.js';
+import { partSpan } from './shape-columns.js';
 
 export const CHUNK_SIZE = 8;
 export const WORLD_HEIGHT = 64;
@@ -268,18 +269,49 @@ export class World {
         if (!this.shapeCache.has(k))
           this.shapeCache.set(k, buildingParts(this, q, y, r, true));
         for (const part of this.shapeCache.get(k)) {
-          const top = y + part.y + part.h / 2;
-          if (
-            top < minY - 1e-6 ||
-            top > maxY + 1e-6 ||
-            !insidePart(x - p.x, part.y + part.h / 2 - 0.001, z - p.z, part)
-          )
-            continue;
+          const span = partSpan(x - p.x, z - p.z, part);
+          if (!span) continue;
+          const top = y + span[1];
+          if (top < minY - 1e-6 || top > maxY + 1e-6) continue;
           highest = Math.max(highest ?? -Infinity, top);
         }
       }
     }
     return highest;
+  }
+  columnSolid(x, z, low, high) {
+    const cell = worldToAxial(x, z);
+    for (
+      let y = Math.max(0, Math.floor(low) - 1);
+      y <= Math.min(63, Math.floor(high));
+      y++
+    ) {
+      const type = this.get(cell.q, y, cell.r);
+      if (
+        type &&
+        !BLOCKS[type].shape &&
+        !BLOCKS[type].nonSolid &&
+        y + 1 > low &&
+        y < high
+      )
+        return true;
+      for (const [dq, dr] of [[0, 0], ...DIRECTIONS]) {
+        const q = cell.q + dq,
+          r = cell.r + dr,
+          shaped = this.get(q, y, r);
+        if (!BLOCKS[shaped]?.shape || shaped === 'ladder') continue;
+        const k = key(q, y, r),
+          p = axialToWorld(q, r);
+        if (!this.shapeCache.has(k))
+          this.shapeCache.set(k, buildingParts(this, q, y, r, true));
+        for (const part of this.shapeCache.get(k)) {
+          const span = partSpan(x - p.x, z - p.z, part);
+          if (span && y + span[1] > low + 1e-7 && y + span[0] < high - 1e-7)
+            return true;
+        }
+      }
+    }
+    return false;
   }
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);

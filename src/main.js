@@ -50,6 +50,7 @@ import {
   doorUpper,
   isFence,
   isGate,
+  isTrapdoor,
   isOpenable,
 } from './building-data.js';
 import {
@@ -138,7 +139,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.44 — WOODLAND HOMES</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.45 — UNDER THE HATCH</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -777,9 +778,6 @@ function playerFeet() {
 function playerEyeHeight() {
   return glider.lowProfile ? 0.4 : 1.65;
 }
-function solidAt(x, y, z) {
-  return world.pointSolid(x, y, z);
-}
 function collides(x, feet, z, standing = false) {
   if (boats.bodyBlocked(x, feet, z)) return true;
   for (const [dx, dz] of [
@@ -791,10 +789,15 @@ function collides(x, feet, z, standing = false) {
     [0.17, 0.17],
     [-0.17, -0.17],
   ])
-    for (const dy of glider.lowProfile && !standing
-      ? [0.005, 0.3, 0.57]
-      : [0.005, 0.85, 1.77])
-      if (solidAt(x + dx, feet + dy, z + dz)) return true;
+    if (
+      world.columnSolid(
+        x + dx,
+        z + dz,
+        feet + 0.005,
+        feet + (glider.lowProfile && !standing ? 0.57 : 1.77),
+      )
+    )
+      return true;
   return false;
 }
 function safeSpawn() {
@@ -2492,6 +2495,10 @@ function place() {
 }
 function fullSupport(q, y, r, top = false) {
   const type = world.get(q, y, r);
+  if (isTrapdoor(type)) {
+    const state = world.state(q, y, r);
+    return top && state.upper && !state.open;
+  }
   if (['slab', 'stairs'].includes(BLOCKS[type]?.shape)) {
     const state = world.state(q, y, r);
     return !!state.double || (top && !!state.upper);
@@ -2536,16 +2543,14 @@ function buildingOccupied(q, y, r) {
       [0, radius],
       [0, -radius],
     ].some(([dx, dz]) =>
-      [0.03, height * 0.5, height - 0.03].some((dy) =>
-        world.pointSolid(p.x + dx, p.y + dy, p.z + dz),
-      ),
+      world.columnSolid(p.x + dx, p.z + dz, p.y + 0.03, p.y + height - 0.03),
     );
   });
 }
 function placeBuilding(type, p) {
   const { q, y, r } = p;
   if (y < 1 || y >= 63 || (!creative && !(inventory[type] > 0))) return;
-  const cut = ['slab', 'stairs'].includes(BLOCKS[type].shape);
+  const cut = ['slab', 'stairs', 'trapdoor'].includes(BLOCKS[type].shape);
   const upper =
     cut &&
     (target.normal?.y < -0.5 ||
@@ -2556,6 +2561,8 @@ function placeBuilding(type, p) {
     return;
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
+  if (isTrapdoor(type) && Math.abs(target.normal?.y ?? 1) < 0.5)
+    facing = facingFromDirection(-target.normal.x, -target.normal.z);
   if (type === 'chorusFlower') {
     if (!['endstone', 'chorusPlant'].includes(world.get(q, y - 1, r))) {
       toast('紫颂花需要末地石或紫颂枝干支撑。');
@@ -2662,31 +2669,19 @@ function toggleBuilding(q, y, r, open = null) {
   const center = axialToWorld(q, r);
   const blocked =
     collides(camera.position.x, playerFeet(), camera.position.z) ||
-    [...creatures, ...villagers.residents.values()].some(
-      (m) =>
-        Math.hypot(m.mesh.position.x - center.x, m.mesh.position.z - center.z) <
-          3 &&
-        [
-          [0, 0],
-          [0.25, 0],
-          [-0.25, 0],
-          [0, 0.25],
-          [0, -0.25],
-        ].some(([dx, dz]) =>
-          world.pointSolid(
-            m.mesh.position.x + dx,
-            m.mesh.position.y + 0.3,
-            m.mesh.position.z + dz,
-          ),
-        ),
-    );
+    buildingOccupied(q, y, r) ||
+    (isTrapdoor(world.get(q, y, r)) &&
+      boats.intersectsCell(center.x, y, center.z));
   if (blocked) {
     world.setState(q, y, r, old);
-    toast('门口有人或动物，先让出空间。');
+    toast('开合空间内有玩家、动物或船，先让出空间。');
     return;
   }
   graphics.updateBlock(q, y, r);
+  if (open === null) graphics.swing();
   soundFX.play(next.open ? 'doorOpen' : 'doorClose', 'wood');
+  if (isTrapdoor(world.get(q, y, r))) maintainBuildings();
+  if (open === null) saveGame();
 }
 function maintainBuildings() {
   for (const k of [...world.buildings]) {
@@ -2745,8 +2740,18 @@ function onLadder() {
     y <= Math.floor(camera.position.y);
     y++
   ) {
-    if (world.get(a.q, y, a.r) !== 'ladder') continue;
-    const angle = facingAngle(world.state(a.q, y, r).facing);
+    const type = world.get(a.q, y, a.r),
+      state = world.state(a.q, y, a.r);
+    if (
+      isTrapdoor(type) &&
+      state.open &&
+      world.get(a.q, y - 1, a.r) === 'ladder' &&
+      world.state(a.q, y - 1, a.r).facing === state.facing &&
+      Math.hypot(camera.position.x - p.x, camera.position.z - p.z) < 0.22
+    )
+      return true;
+    if (type !== 'ladder') continue;
+    const angle = facingAngle(state.facing);
     const dx = camera.position.x - p.x,
       dz = camera.position.z - p.z;
     if (dx * Math.sin(angle) + dz * Math.cos(angle) > 0.25) return true;
@@ -5137,6 +5142,14 @@ function frame(now) {
     if (BLOCKS[target?.type]?.foliage)
       $('#target').textContent +=
         ' · ' + world.leafDecay.label(key(target.q, target.y, target.r));
+    if (isTrapdoor(target?.type)) {
+      const state = world.state(target.q, target.y, target.r);
+      $('#target').textContent =
+        BLOCKS[target.type].name +
+        (state.upper ? ' · 上半格' : ' · 下半格') +
+        (state.open ? ' · 已翻起' : ' · 已合上') +
+        ' · 右键/E 开关 · Ctrl 右键在旁建造';
+    }
     if (BLOCKS[target?.type]?.pillar)
       $('#target').textContent +=
         ' · ' +

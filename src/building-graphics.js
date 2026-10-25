@@ -84,6 +84,7 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     const box = part.polygon
       ? polygonPrism(part)
       : new THREE.BoxGeometry(part.w, part.h, part.d).toNonIndexed();
+    if (part.pitch) box.rotateX(part.pitch);
     box.rotateY(part.angle);
     box.translate(p.x - origin.x + part.x, y + part.y, p.z - origin.z + part.z);
     const pos = box.attributes.position,
@@ -92,7 +93,14 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     for (let i = 0; i < pos.count; i++) {
       positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
       normals.push(normal.getX(i), normal.getY(i), normal.getZ(i));
-      const face = Math.abs(normal.getY(i)) > 0.5 ? 'top' : 'side';
+      const panelNormal = part.panel
+        ? Math.abs(
+            normal.getX(i) * Math.sin(part.angle) * Math.sin(part.pitch || 0) +
+              normal.getY(i) * Math.cos(part.pitch || 0) +
+              normal.getZ(i) * Math.cos(part.angle) * Math.sin(part.pitch || 0),
+          )
+        : Math.abs(normal.getY(i));
+      const face = panelNormal > 0.5 ? 'top' : 'side';
       uv.push(...textures.uv(part.tile + ':' + face, tex.getX(i), tex.getY(i)));
       const shade = normal.getY(i) > 0.5 ? 1 : 0.86;
       colors.push(shade, shade, shade);
@@ -132,7 +140,12 @@ export function buildingItemMesh(type, textures) {
     0,
     { x: 0, z: 0 },
     textures,
-    new THREE.MeshLambertMaterial({ map: textures.atlas, vertexColors: true }),
+    new THREE.MeshLambertMaterial({
+      map: textures.atlas,
+      vertexColors: true,
+      alphaTest: BLOCKS[type]?.shape === 'trapdoor' ? 0.5 : 0,
+      side: THREE.DoubleSide,
+    }),
   );
   mesh.geometry.computeBoundingBox();
   const center = mesh.geometry.boundingBox.getCenter(new THREE.Vector3());

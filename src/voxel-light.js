@@ -1,6 +1,6 @@
 import { Float32BufferAttribute } from 'three';
 import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
-import { isDoor } from './building-data.js';
+import { isDoor, isTrapdoor } from './building-data.js';
 
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
@@ -140,11 +140,15 @@ export class VoxelLight {
             ? this.world.state(q, y, r).open
               ? 1
               : 16
-            : block?.shape
-              ? 2
-              : block?.nonSolid
+            : isTrapdoor(type)
+              ? this.world.state(q, y, r).open
                 ? 1
-                : 16;
+                : 3
+              : block?.shape
+                ? 2
+                : block?.nonSolid
+                  ? 1
+                  : 16;
       const emission =
         type === 'furnace' && !(this.world.furnaces.get(key)?.burn > 0)
           ? null
