@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './browser-fixture.js';
 async function arena(page, creative = false) {
   await page.goto('/');
   await page.locator(creative ? '#creative' : '#start').click();

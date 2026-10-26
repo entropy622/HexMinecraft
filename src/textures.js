@@ -86,6 +86,23 @@ export function createTextures() {
         color.multiplyScalar(0.86 + Math.floor(rand(x, y) * 5) * 0.065);
         fill('#' + color.getHexString(), x, y);
       }
+    if (['mossBlock', 'calcite', 'tuff'].includes(id)) {
+      for (let y = 0; y < 16; y++)
+        for (let x = 0; x < 16; x++) {
+          const patch = hash(Math.floor(x / 3), Math.floor(y / 2), 0, 819);
+          if (id === 'mossBlock')
+            fill(
+              patch > 0.58 ? '#799c49' : patch < 0.25 ? '#415c2e' : '#607f39',
+              x,
+              y,
+            );
+          else if (id === 'calcite') {
+            if ((x + Math.floor(y / 3) * 2) % 9 < 2) fill('#abb6ad', x, y);
+            else if (patch > 0.65) fill('#eeeadc', x, y);
+          } else if (patch > 0.65) fill('#969787', x, y);
+          else if (patch < 0.3) fill('#555e55', x, y);
+        }
+    }
     if (id === 'grass' && !top) {
       for (let x = 0; x < 16; x++)
         for (let y = 0; y < 3 + Math.floor(rand(x, 0) * 4); y++)

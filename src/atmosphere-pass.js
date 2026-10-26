@@ -105,7 +105,8 @@ void main() {
     density *= 0.65 + airNoise(position.xz * 0.09 + vec2(airTime * 0.018, -airTime * 0.012)) * 0.7;
     float attenuation = exp(-density * stepLength);
     float sun = airSunVisibility(position, sky) * cloudSun;
-    vec3 source = airHorizon * (0.025 + sky * airAmbient) + block * 0.85 +
+    // Sealed caverns scatter local lights without inheriting outdoor sky blue.
+    vec3 source = mix(vec3(0.003, 0.004, 0.005), airHorizon * airAmbient, sky) + block * 0.85 +
       airSunColor * airSunPower * sun * (0.12 + phase * 0.18);
     scattering += transmission * (1.0 - attenuation) * source;
     transmission *= attenuation;

@@ -124,7 +124,7 @@ export class Atmosphere {
           float airFog = 1.0 - exp(-airDensity * max(0.0, airMass));
           float airSky = max(${sky}, airCameraSky * 0.3);
           float airForward = pow(max(0.0, dot(airRay, airSunDirection)), 12.0);
-          vec3 airSource = airHorizon * (0.035 + airSky * airAmbient) +
+          vec3 airSource = mix(vec3(0.003, 0.004, 0.005), airHorizon * airAmbient, airSky) +
             airSunColor * airSunPower * airForward * airSky * 0.3;
           outgoingLight = mix(outgoingLight, airSource, airFog * (1.0 - airVolume));
           // Keep the streaming boundary hidden in both rendering paths.

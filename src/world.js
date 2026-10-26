@@ -10,6 +10,7 @@ import { isChorus } from './chorus-data.js';
 import { treeCells } from './tree-layout.js';
 import { LeafDecay } from './leaves.js';
 import { Gravity } from './gravity.js';
+import { caveColumn, cavesNear, stampCaves } from './caves.js';
 import { isCampfire, newCampfire } from './campfire-data.js';
 import { isDoorTop, isFence, isGate, isOpenable } from './building-data.js';
 import {
@@ -123,6 +124,9 @@ export class World {
   }
   structures(q, r, range = 32) {
     return structuresNear(this, q, r, range);
+  }
+  caves(q, r, range = 0) {
+    return cavesNear(this, q, r, range);
   }
   villageSources(cq, cr) {
     return this.villages(cq * 8 + 4, cr * 8 + 4, 8)
@@ -479,11 +483,18 @@ export class World {
         )
           for (let y = h; y < h + 7; y++) put(q, y, r, 'obsidian');
       }
+    const caves = stampCaves(this, cq, cr);
     // Generate trees from a two-cell halo, clipping writes to this chunk.
     // The result is independent of chunk load order, including negative seams.
     for (let tq = cq * 8 - 2; tq < cq * 8 + 10; tq++)
       for (let tr = cr * 8 - 2; tr < cr * 8 + 10; tr++)
-        if (this.tree(tq, tr)) {
+        if (
+          this.tree(tq, tr) &&
+          !caves.some((c) => {
+            const column = caveColumn(c, tq, tr);
+            return column && column.ceiling >= this.terrainHeight(tq, tr) - 1;
+          })
+        ) {
           for (const [q, y, r, type] of treeCells(
             this.treeKind(tq, tr),
             tq,

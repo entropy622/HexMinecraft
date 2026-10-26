@@ -2,6 +2,7 @@ import { HalfFloatType, Vector2, WebGLRenderTarget } from 'three';
 import { AtmospherePass } from './atmosphere-pass.js';
 import { SceneFramePass } from './scene-frame.js';
 import { ContactOcclusionPass } from './contact-occlusion.js';
+import { ExposurePass } from './exposure-pass.js';
 import { postSettings } from './render-settings.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -33,6 +34,7 @@ export function createPostprocessing(
     1.05,
   );
   const antialias = new SMAAPass();
+  const exposure = new ExposurePass();
   composer.addPass(frame);
   composer.addPass(contact);
   composer.addPass(
@@ -46,10 +48,11 @@ export function createPostprocessing(
     ),
   );
   composer.addPass(bloom);
+  composer.addPass(exposure);
   // Three.js SMAA operates in linear-sRGB, before the final display conversion.
   composer.addPass(antialias);
   composer.addPass(new OutputPass());
-  composer.effects = { contact, bloom, antialias };
+  composer.effects = { contact, bloom, antialias, exposure };
   setPostprocessingOptions(composer, settings);
   return composer;
 }
@@ -61,6 +64,8 @@ export function setPostprocessingOptions(composer, settings) {
   effects.antialias.enabled = values.antialias;
   effects.bloom.enabled = values.bloom > 0;
   effects.bloom.strength = values.bloom;
+  if (effects.exposure.enabled !== values.exposure) effects.exposure.reset();
+  effects.exposure.enabled = values.exposure;
 }
 export function disposePostprocessing(composer) {
   for (const pass of composer.passes) pass.dispose();

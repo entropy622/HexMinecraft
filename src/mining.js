@@ -65,7 +65,7 @@ export function miningStats(block, held, enchant = {}) {
       ? 'planks'
       : woodKey(base);
   const kind =
-    material === 'hayBale'
+    material === 'hayBale' || material === 'mossBlock'
       ? 'hoe'
       : material === 'leaves' || material === 'wool'
         ? 'shears'

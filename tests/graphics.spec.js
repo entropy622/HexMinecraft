@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './browser-fixture.js';
 
 test('pixel world renders without shader errors across dimensions and quality changes', async ({
   page,
@@ -17,7 +17,7 @@ test('pixel world renders without shader errors across dimensions and quality ch
       'wood',
       'planks',
       'brick',
-      'diamond',
+      'diamondOre',
       'workbench',
       'furnace',
       'chest',
@@ -37,7 +37,7 @@ test('pixel world renders without shader errors across dimensions and quality ch
   });
   await page.waitForTimeout(1000);
   await page.screenshot({ path: 'test-results/pixel-materials.png' });
-  for (const quality of ['0.65', '1']) {
+  for (const quality of ['0.65', '1', '1.7']) {
     await page.keyboard.press('Escape');
     await page.locator('#quality').selectOption(quality);
     await page.locator('#resume').click();

@@ -316,6 +316,7 @@ export class Graphics {
     this.fluidRenderer.voxelLight = this.voxelLight;
     this.relightQueue = new Set();
     this.caveSky = null;
+    this.composer?.effects.exposure.reset();
     this.fluidRenderer.clear();
     this.chestModels.openKey = null;
     for (const mesh of this.chunks.values()) {
@@ -1612,7 +1613,7 @@ export class Graphics {
       if (this.usePost) {
         this.composer.effects.contact.enabled =
           this.postOptions.occlusion > 0 && !submerged;
-        this.composer.render(dt);
+        this.composer.render(renderDt);
       } else this.renderer.render(this.scene, this.camera);
     } finally {
       this.camera.position.y += stepOffset;

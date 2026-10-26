@@ -78,6 +78,8 @@ export function cutBlockIcon(id) {
   }
   const pattern = (name, tile) => {
     const tiles = blockTextures[tile];
+    if (!tiles)
+      return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="${def.color}"/><path d="M1 2h4v2H1zM8 5h5v2H8zM3 10h3v3H3zM11 12h4v2h-4z" fill="${def.side}"/></pattern>`;
     const url = textureURL(name === 'top' ? tiles[0] : tiles.at(-1));
     const crop = (y, height, destY, destHeight) =>
       `<svg x="0" y="${destY}" width="16" height="${destHeight}" viewBox="16 ${y} 16 ${height}" preserveAspectRatio="none"><image href="${url}" width="64" height="64"/></svg>`;

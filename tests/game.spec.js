@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './browser-fixture.js';
 test.beforeEach(async ({ page }) => {
   // Font CDN availability is unrelated to the game. Use its system fallback.
   await page.route('https://fonts.googleapis.com/**', (route) => route.abort());

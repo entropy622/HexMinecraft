@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './browser-fixture.js';
 
 test('walking streams new chunks; distant edits survive unloading, return and reload', async ({
   page,

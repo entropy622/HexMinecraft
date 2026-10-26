@@ -25,6 +25,7 @@ import {
 } from './mineral-data.js';
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import { PROCESSING_BLOCKS, PROCESSING_RECIPES } from './processing-data.js';
+import { CAVE_BLOCKS } from './cave-data.js';
 import {
   IGNITION_BLOCKS,
   IGNITION_ITEMS,
@@ -50,6 +51,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...CAVE_BLOCKS,
   ...PROCESSING_BLOCKS,
   ...MINERAL_BLOCKS,
   ...IGNITION_BLOCKS,
