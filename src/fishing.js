@@ -103,14 +103,14 @@ export class Fishing {
     return this.phase !== 'idle';
   }
   get status() {
-    if (this.phase === 'flying') return '抛线中… · 右键 / E 收回';
-    if (this.phase === 'snagged') return '鱼钩挂住了 · 右键 / E 收回';
-    if (this.phase === 'bite') return '咬钩了！右键 / E 收杆';
+    if (this.phase === 'flying') return '抛线中… · 右键收回';
+    if (this.phase === 'snagged') return '鱼钩挂住了 · 右键收回';
+    if (this.phase === 'bite') return '咬钩了！右键收杆';
     if (this.phase === 'approach') return '水纹靠近了… 准备收杆';
     if (this.phase === 'return') return '收杆';
     if (this.phase === 'waiting')
       return `等待咬钩 · ${this.conditions.open ? '开阔深水' : '浅水 / 狭窄水域'}${this.conditions.raining ? ' · 雨中更活跃' : !this.conditions.sky ? ' · 遮蔽水面' : ''}`;
-    return '鱼竿 · 对准水面右键 / E 抛线';
+    return '鱼竿 · 对准水面右键抛线';
   }
   act(world, camera, rain) {
     if (this.phase === 'return') return;

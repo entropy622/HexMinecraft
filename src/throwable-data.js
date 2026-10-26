@@ -4,21 +4,21 @@ export const THROWABLES = {
     gravity: 16,
     cooldown: 1,
     color: '#a16cdb',
-    hint: '右键 / E 投掷 · 落点传送 · 消耗 5 生命',
+    hint: '右键投掷 · 落点传送 · 消耗 5 生命',
   },
   egg: {
     speed: 22,
     gravity: 16,
     cooldown: 0.25,
     color: '#eee2bd',
-    hint: '右键 / E 投掷 · 破碎时有 1/8 几率孵出小鸡',
+    hint: '右键投掷 · 破碎时有 1/8 几率孵出小鸡',
   },
   snowball: {
     speed: 22,
     gravity: 16,
     cooldown: 0.25,
     color: '#e6f4ff',
-    hint: '右键 / E 投掷 · 击退生物 · 对烈焰人造成 3 点伤害',
+    hint: '右键投掷 · 击退生物 · 对烈焰人造成 3 点伤害',
   },
 };
 

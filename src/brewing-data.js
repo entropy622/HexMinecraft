@@ -188,7 +188,7 @@ export const BREW_RECIPES = [
     'glassBottle',
     3,
     ['glass', null, 'glass', null, null, 'glass', null],
-    '装水不消耗水源。手持玻璃瓶对准水源按 E 或右键。',
+    '装水不消耗水源。手持玻璃瓶对准水源右键。',
     true,
   ),
   recipe(

@@ -36,7 +36,7 @@ export const FLIGHT_RECIPES = [
     id: 'fireworkRocket',
     count: 3,
     title: '乘着火光',
-    desc: '空中展开鞘翅后，右键或 E 使用，提供约 1.5 秒助推；站在地面也可以放烟花。',
+    desc: '空中展开鞘翅后，右键 使用，提供约 1.5 秒助推；站在地面也可以放烟花。',
     pattern: [null, null, null, 'paper', 'gunpowder', null, null],
     cost: { paper: 1, gunpowder: 1 },
   },

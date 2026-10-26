@@ -1,3 +1,9 @@
+body.hide-hud #hud,
+body.hide-hud #mobile-controls,
+body.hide-hud #pickups {
+  visibility: hidden;
+}
+
 :root {
   font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
   color: #f3eedb;

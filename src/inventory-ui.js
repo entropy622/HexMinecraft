@@ -17,12 +17,12 @@ export function stackTitle(s) {
     enchantLabel(s.wear),
     potionDescription(s.item),
     item.kind === 'bow' ? '主手 / 副手 · 按住右键约一秒满弓，松开发射' : '',
-    s.item === 'fishingRod' ? '主手 / 副手 · 右键或 E 抛线 / 收杆' : '',
+    s.item === 'fishingRod' ? '主手 / 副手 · 右键抛线 / 收杆' : '',
     s.item === 'shield'
       ? '主手 / 副手 · 右键或 R 举盾，准备 0.25 秒后防御'
       : '',
     item.glider ? '放入胸甲格 · 空中再次按空格展开 · 俯冲加速、抬头爬升' : '',
-    s.item === 'fireworkRocket' ? '滑翔中右键 / E 助推 · 地面使用可放烟花' : '',
+    s.item === 'fireworkRocket' ? '滑翔中右键助推 · 地面使用可放烟花' : '',
     s.item === 'phantomMembrane' ? '铁砧修复鞘翅 · 每片恢复最多 108 耐久' : '',
     s.item === 'chorusFruit'
       ? '可饱腹食用 · 随机折跃到附近地面 · 熔炉可烧成爆裂紫颂果'
@@ -64,7 +64,7 @@ export function stackContent(s, ghost = '') {
 export function inventorySlot(stack, ref, ghost = '') {
   return `<button class="mc-slot ${stack ? '' : 'empty'} ${enchantLabel(stack?.wear) ? 'enchanted' : ''}" data-inv-slot="${ref}" aria-label="${escape(stack ? stackTitle(stack).replaceAll('\n', ' · ') + ' ×' + stack.count : ghost || '空格')}" type="button">${stackContent(stack, ghost)}</button>`;
 }
-export const inventoryHelp = `<p class="inventory-help">左键：整组拿放 · 右键：拿半组 / 放 1 件 · Shift：快速转移<br>按住左键拖过格子均分，右键拖动逐格放 1 件 · 双击空下来的格子归拢同类<br>Shift 双击：批量转移同类物品 · 空游标悬停时 1–9 换快捷栏 / F 换副手<br>空游标悬停时 Q 丢 1 件 / Ctrl+Q 丢一组 · 拿着物品点击面板外：左键丢一组 / 右键丢 1 件<br>游戏中 F 交换主副手；主手无法使用时右键使用副手 · 盾牌右键 / R 举起<br>双手均可照明、建筑、装倒液体、食用、投掷、种植、拉弓与钓鱼<br>弓：按住右键、松开发射 · 钓竿：右键 / E 抛线或收杆</p>`;
+export const inventoryHelp = `<p class="inventory-help">左键：整组拿放 · 右键：拿半组 / 放 1 件 · Shift：快速转移<br>按住左键拖过格子均分，右键拖动逐格放 1 件 · 双击空下来的格子归拢同类<br>Shift 双击：批量转移同类物品 · 空游标悬停时 1–9 换快捷栏 / F 换副手<br>空游标悬停时 Q 丢 1 件 / Ctrl+Q 丢一组 · 拿着物品点击面板外：左键丢一组 / 右键丢 1 件<br>游戏中 F 交换主副手；主手无法使用时右键使用副手 · 盾牌右键 / R 举起<br>双手均可照明、建筑、装倒液体、食用、投掷、种植、拉弓与钓鱼<br>弓：按住右键、松开发射 · 钓竿：右键抛线或收杆</p>`;
 export const touchControls = `<div class="inventory-touch-modes" role="group" aria-label="触屏物品操作"><button data-inventory-mode="normal" aria-pressed="true">拿放</button><button data-inventory-mode="single" aria-pressed="false">分半 / 放 1 件</button><button data-inventory-mode="quick" aria-pressed="false">快速转移</button></div>`;
 export function playerSlots(pack, gear = false) {
   return `${gear ? `<div class="equipment-row">${GEAR_SLOTS.map((id, i) => `<label>${ARMOR_SLOTS[id] || '副手'}${inventorySlot(pack.gear[i], 'gear:' + i, id === 'offhand' ? '⬡' : '◇')}</label>`).join('')}</div>` : ''}

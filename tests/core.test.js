@@ -1,16 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  World,
   DIRECTIONS,
   axialToWorld,
   worldToAxial,
   hexDistance,
   RECIPES,
-  craft,
-  canCraft,
-  validateSave,
 } from '../src/core.js';
+import { World } from '../src/world.js';
+import { validateSave } from '../src/save.js';
+import { PlayerInventory } from '../src/inventory.js';
+import {
+  newCraftingGrid,
+  fillCraftingRecipe,
+  quickCraft,
+} from '../src/crafting.js';
+import { currentSave } from './fixtures/current-save.js';
 test('axial coordinates round-trip across positive and negative cells', () => {
   for (let q = -35; q <= 35; q++)
     for (let r = -35; r <= 35; r++) {
@@ -31,71 +36,69 @@ test('world generation is deterministic and seeds change terrain', () => {
     c = new World(625);
   assert.deepEqual(a.blocks, b.blocks);
   assert.notDeepEqual(a.heights, c.heights);
-  assert.equal(a.beacons.length, 3);
-  for (const beacon of a.beacons) {
-    assert.equal(a.get(beacon.q, beacon.y - 1, beacon.r), 'brick');
-    assert.equal(a.get(beacon.q - 3, beacon.y - 1, beacon.r), 'crystal');
-  }
-  assert.ok([...a.blocks.values()].includes('iron'));
-  assert.ok([...a.blocks.values()].includes('coal'));
+  assert.ok([...a.blocks.values()].includes('ironOre'));
+  assert.ok([...a.blocks.values()].includes('coalOre'));
 });
 test('edits persist both placement and removal', () => {
   const a = new World(12);
   a.set(0, 1, 0, null);
   a.set(1, 22, 0, 'planks');
-  const b = new World(12);
-  b.applyEdits([...a.edits]);
+  const b = new World(12, 'overworld', { edits: [...a.edits] });
   assert.equal(b.get(0, 1, 0), undefined);
   assert.equal(b.get(1, 22, 0), 'planks');
   assert.deepEqual(a.blocks, b.blocks);
 });
-test('crafting consumes exact costs, honors station and progression, and is atomic', () => {
-  const inv = { wood: 10, stone: 10 };
-  assert.equal(craft(RECIPES[0], inv), true);
-  assert.equal(inv.wood, 8);
-  assert.equal(inv.planks, 8);
-  const pick = RECIPES.find((r) => r.id === 'pick2'),
-    before = { ...inv };
-  assert.equal(craft(pick, inv, 1, false), false);
-  assert.deepEqual(inv, before);
-  assert.equal(craft(pick, inv, 1, true), true);
-  assert.equal(inv.stone, 5);
-  assert.equal(inv.wood, 6);
-  assert.equal(canCraft(pick, inv, 2), true);
+test('current slot crafting consumes materials, requires its station, and fails atomically', () => {
+  const pack = new PlayerInventory(),
+    grid = newCraftingGrid();
+  pack.insert('wood', 10);
+  pack.insert('cobble', 10);
+  const planks = RECIPES.findIndex((r) => r.id === 'planks'),
+    pick = RECIPES.findIndex((r) => r.id === 'pick2');
+  assert.ok(fillCraftingRecipe(pack, grid, RECIPES[planks]).ok);
+  assert.equal(quickCraft(pack, grid, planks, false, 1).count, 4);
+  assert.equal(pack.count('wood'), 9);
+  assert.equal(pack.count('planks'), 4);
+  assert.ok(fillCraftingRecipe(pack, grid, RECIPES[pick]).ok);
+  const before = { pack: pack.serialize(), grid: structuredClone(grid) };
+  assert.equal(quickCraft(pack, grid, pick, false, 1).count, 0);
+  assert.deepEqual({ pack: pack.serialize(), grid }, before);
+  assert.equal(quickCraft(pack, grid, pick, true, 1).count, 1);
+  assert.equal(pack.count('wood'), 7);
+  assert.equal(pack.count('cobble'), 5);
+  assert.equal(pack.count('pick2'), 1);
+  assert.ok(fillCraftingRecipe(pack, grid, RECIPES[pick]).ok);
+  assert.equal(quickCraft(pack, grid, pick, true, 1).count, 1);
+  const emptyBefore = { pack: pack.serialize(), grid: structuredClone(grid) };
+  assert.equal(fillCraftingRecipe(pack, grid, RECIPES[pick]).ok, false);
+  assert.deepEqual({ pack: pack.serialize(), grid }, emptyBefore);
 });
-test('seven-slot honeycomb ingredient counts match actual recipe costs', () => {
-  for (const r of RECIPES) {
-    assert.equal(r.pattern.length, 7);
-    const counted = {};
-    for (const id of r.pattern) if (id) counted[id] = (counted[id] || 0) + 1;
-    assert.deepEqual(counted, r.cost);
-  }
-});
-const valid = () => ({
-  version: 1,
-  seed: 624,
-  edits: [['1,2,3', 'stone']],
-  inventory: { wood: 4 },
-  position: [0, 10, 0],
-  activated: [0],
-  tool: 1,
-  creative: false,
+test('nine-item storage recipes fit the seven cells and unpack without item loss', () => {
+  const pack = new PlayerInventory(),
+    grid = newCraftingGrid();
+  pack.insert('coal', 9);
+  const block = RECIPES.findIndex((r) => r.id === 'coalBlock'),
+    unpack = RECIPES.findIndex((r) => r.id === 'coal' && r.cost.coalBlock);
+  assert.ok(fillCraftingRecipe(pack, grid, RECIPES[block]).ok);
+  assert.equal(quickCraft(pack, grid, block, true, 1).count, 1);
+  assert.equal(pack.count('coal'), 0);
+  assert.equal(pack.count('coalBlock'), 1);
+  assert.ok(fillCraftingRecipe(pack, grid, RECIPES[unpack]).ok);
+  assert.equal(quickCraft(pack, grid, unpack, false, 1).count, 9);
+  assert.equal(pack.count('coal'), 9);
+  assert.equal(pack.count('coalBlock'), 0);
 });
 test('save validator rejects corrupt or unbounded data', () => {
-  assert.equal(validateSave(valid()).seed, 624);
+  assert.equal(validateSave(currentSave()).seed, 624);
   for (const override of [
     { version: 2 },
     { seed: -1 },
-    { edits: [['0,0,0', null]] },
-    { edits: [['NaN,2,3', 'stone']] },
-    { edits: [['1,99,3', 'stone']] },
     { inventory: { wood: -1 } },
     { inventory: { script: 1 } },
     { position: [Infinity, 0, 0] },
-    { activated: [0, 0] },
     { health: 999 },
-    { tool: 10 },
-    { hotbar: ['stone'] },
+    { crafting: [null] },
+    { creativeFlying: 'yes' },
   ])
-    assert.throws(() => validateSave({ ...valid(), ...override }));
+    assert.throws(() => validateSave({ ...currentSave(), ...override }));
 });

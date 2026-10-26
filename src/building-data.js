@@ -83,7 +83,7 @@ export const BUILDING_RECIPES = [
     'ladder',
     6,
     ['wood', null, 'wood', 'wood', 'wood', null, 'wood'],
-    '贴在实心墙面，靠近后 W / 空格向上，Shift 向下，Ctrl 停住。',
+    '贴在实心墙面，靠近后 W / 空格向上，Shift 停住，松开缓慢下滑。',
   ),
 ];
 for (const [species, ids] of Object.entries(WOOD_BUILDINGS)) {
@@ -93,7 +93,7 @@ for (const [species, ids] of Object.entries(WOOD_BUILDINGS)) {
       ids.door,
       2,
       [planks, planks, null, planks, planks, planks, planks],
-      '使用同种木板制作两格高木门；放置时面向决定朝向，右键 / E 开关。',
+      '使用同种木板制作两格高木门；放置时面向决定朝向，右键开关。',
     ),
     make(
       ids.fence,
@@ -105,13 +105,13 @@ for (const [species, ids] of Object.entries(WOOD_BUILDINGS)) {
       ids.gate,
       1,
       [log, planks, log, null, log, planks, log],
-      '使用同种木材制作，右键 / E 开关，为围栏留一个出入口。',
+      '使用同种木材制作，右键开关，为围栏留一个出入口。',
     ),
     make(
       ids.trapdoor,
       2,
       [planks, planks, planks, null, planks, planks, planks],
-      '六块同种木板围成一圈，中心留空，制作两扇活板门。侧面上 / 下半部决定高度，右键 / E 翻盖。',
+      '六块同种木板围成一圈，中心留空，制作两扇活板门。侧面上 / 下半部决定高度，右键翻盖。',
     ),
   );
 }

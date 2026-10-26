@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { World, DIMENSIONS, chunkKey } from '../src/world.js';
-import { HOTBAR, RECIPES } from '../src/core.js';
 import { validateSave } from '../src/save.js';
+import { currentSave } from './fixtures/current-save.js';
 
 test('streamed generation is deterministic across chunk order and negative seams', () => {
   for (const dimension of Object.keys(DIMENSIONS)) {
@@ -72,41 +72,12 @@ test('dimensions have distinct terrain, materials, liquids and void islands', ()
   assert.ok([...dimensions[2].blocks.values()].includes('endstone'));
   assert.ok([...dimensions[2].heights.values()].some((h) => h === 0));
   assert.equal(DIMENSIONS.end.liquid, null);
-  assert.deepEqual(RECIPES.find((r) => r.id === 'portal').cost, {
-    obsidian: 6,
-    crystal: 1,
-  });
-  assert.deepEqual(RECIPES.find((r) => r.id === 'endportal').cost, {
-    pearl: 3,
-    ember: 3,
-    crystal: 1,
-  });
 });
-const currentSave = () => ({
-  version: 3,
-  dimension: 'overworld',
-  dimensions: {
-    overworld: { edits: [['0,10,0', 'brick']], crops: [], chests: [] },
-  },
-  seed: 624,
-  edits: [['0,10,0', 'brick']],
-  inventory: { wood: 7 },
-  equipment: { armor: {}, wear: {} },
-  creative: false,
-  position: [0, 13, 0],
-  activated: [],
-  health: 18,
-  hunger: 16,
-  time: 204,
-  hotbar: [...HOTBAR],
-  crops: [],
-  chests: [],
-  respawn: null,
+test('old save versions are no longer migrated', () => {
+  for (const version of [1, 3, 13])
+    assert.throws(() => validateSave({ ...currentSave(), version }));
 });
-test('version one saves are no longer migrated', () => {
-  assert.throws(() => validateSave({ ...currentSave(), version: 1 }));
-});
-test('version three validation accepts distant saves and rejects malformed dimensions', () => {
+test('current validation accepts distant saves and rejects malformed dimensions', () => {
   const valid = validateSave(currentSave());
   valid.position = [900000, 22, -500000];
   valid.dimensions.overworld.edits.push(['600000,50,-800000', 'glass']);
@@ -114,17 +85,22 @@ test('version three validation accepts distant saves and rejects malformed dimen
   for (const patch of [
     { dimension: 'fake' },
     { position: [Infinity, 10, 0] },
-    { equipment: { armor: { head: 'dirt' }, wear: {} } },
     { inventory: { constructor: 3 } },
     { health: 40 },
     {
       dimensions: {
-        overworld: { edits: [['--1,2,3', 'stone']], crops: [], chests: [] },
+        overworld: {
+          ...valid.dimensions.overworld,
+          edits: [['--1,2,3', 'stone']],
+        },
       },
     },
     {
       dimensions: {
-        overworld: { edits: [], crops: [['0,99,0', 10]], chests: [] },
+        overworld: {
+          ...valid.dimensions.overworld,
+          crops: [['0,99,0', { kind: 'wheat', age: 10 }]],
+        },
       },
     },
   ])

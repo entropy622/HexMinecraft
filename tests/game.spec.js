@@ -88,24 +88,62 @@ test('real ray mining, block placement, player collision and edit persistence', 
 }) => {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.evaluate(() => {
+    const g = window.__hexwild,
+      w = g.state.world;
+    for (let q = -2; q <= 2; q++)
+      for (let r = -1; r <= 1; r++) {
+        w.set(q, 30, r, 'stone');
+        for (let y = 31; y <= 34; y++) w.set(q, y, r, null);
+      }
+    w.set(1, 31, 0, 'wood');
+    g.teleport(-1, 31, 0);
+    g.graphics.updateCells(
+      Array.from({ length: 5 }, (_, i) => i - 2).flatMap((q) =>
+        [-1, 0, 1].map((r) => [q, 30, r]),
+      ),
+    );
+    g.lookAt(1, 31.7, 0);
+  });
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
     .toBe('wood');
+  await expect
+    .poll(() => page.evaluate(() => window.__hexwild.state.target?.y))
+    .toBe(31);
+  const log = await page.evaluate(() => {
+    const { q, y, r } = window.__hexwild.state.target;
+    return { q, y, r };
+  });
   // Native headless pointer-lock mouse coordinates differ across platforms;
   // dispatch input without changing the camera's verified aim.
   await page.locator('#world').dispatchEvent('mousedown', { button: 0 });
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          (p) => window.__hexwild.state.world.get(p.q, p.y, p.r),
+          log,
+        ),
+      { timeout: 15000 },
+    )
+    .not.toBe('wood');
+  await page.locator('#world').dispatchEvent('mouseup', { button: 0 });
+  await page.keyboard.down('KeyW');
   await expect
     .poll(
       () => page.evaluate(() => window.__hexwild.state.inventory.wood || 0),
       { timeout: 15000 },
     )
     .toBeGreaterThan(0);
-  await page.locator('#world').dispatchEvent('mouseup', { button: 0 });
+  await page.keyboard.up('KeyW');
   const result = await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
       h = w.surface(0, 0),
       before = g.state.inventory.dirt;
+    g.teleport(0, h, 0);
+    g.selectItem('dirt');
     g.setTarget({ place: { q: 0, y: h, r: 0 } });
     g.place();
     const selfBlocked = !w.get(0, h, 0) && g.state.inventory.dirt === before;
@@ -227,6 +265,7 @@ test('camp bed skips night and persists respawn point', async ({ page }) => {
 
 test('touch controls enter game, move, open and close workshop', async ({
   browser,
+  baseURL,
 }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -234,7 +273,7 @@ test('touch controls enter game, move, open and close workshop', async ({
     hasTouch: true,
   });
   const page = await context.newPage();
-  await page.goto('http://localhost:5173/');
+  await page.goto(baseURL);
   await page.locator('#creative').tap();
   await expect(page.locator('#mobile-controls')).toBeVisible();
   expect(await page.evaluate(() => window.__hexwild.state.playing)).toBe(true);
@@ -250,7 +289,8 @@ test('creative material palette and mobile layout', async ({ page }) => {
   await page.locator('#creative').click();
   await page.keyboard.press('KeyB');
   await expect(page.locator('#craft-overlay')).toBeVisible();
-  await page.locator('[data-item="furnace"]').click();
+  await page.locator('[data-creative-item="furnace"]').click();
+  await page.locator('[data-inv-slot="pack:0"]').click();
   expect(await page.evaluate(() => window.__hexwild.state.hotbar[0])).toBe(
     'furnace',
   );

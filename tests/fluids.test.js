@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { World } from '../src/world.js';
 import { DIRECTIONS } from '../src/core.js';
 import { validateSave } from '../src/save.js';
+import { currentSave } from './fixtures/current-save.js';
 const basin = () => {
   const w = new World(624, 'end', { load: false });
   w.ensureAround(0, 0, 1);
@@ -50,10 +51,10 @@ test('falling water lands, walls block flow and removing a wall opens a channel'
   run(b, 180);
   assert.equal(b.fluids.get(2, 11, 0), undefined);
 });
-test('lava cools to obsidian or stone, luminous coolant makes glowstone', () => {
+test('lava sources cool to obsidian, flowing lava makes cobble, luminous coolant makes glowstone', () => {
   for (const [source, coolant, expected] of [
     [true, 'water', 'obsidian'],
-    [false, 'water', 'stone'],
+    [false, 'water', 'cobble'],
     [true, 'glow', 'glowstone'],
   ]) {
     const w = basin();
@@ -90,20 +91,9 @@ test('liquid snapshots survive streaming and restore, with bounded step work', (
 test('save validator accepts bucket hotbars and rejects invalid liquid state', () => {
   const w = basin();
   w.fluids.source(0, 30, 0, 'water');
-  const save = {
-    version: 3,
-    seed: 624,
-    dimension: 'end',
-    dimensions: { end: { ...w.serialize(), crops: [], chests: [] } },
-    inventory: { bucket: 2 },
-    position: [0, 31, 0],
-    equipment: { armor: {}, wear: {} },
-    creative: false,
-    health: 20,
-    hunger: 20,
-    time: 100,
-    hotbar: Array(9).fill('waterBucket'),
-  };
+  const save = currentSave(w);
+  save.inventory.slots[0] = { item: 'bucket', count: 2 };
+  save.inventory.slots[1] = { item: 'waterBucket', count: 1 };
   assert.doesNotThrow(() => validateSave(save));
   save.dimensions.end.fluids = [
     ['0,30,0', { type: 'lava', source: true, level: 9, falling: false }],

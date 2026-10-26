@@ -18,7 +18,7 @@ import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v13';
+export const SAVE_KEY = 'hexwild-save-v14';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -41,7 +41,7 @@ const position = (p) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 13 ||
+    s.version !== 14 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -54,7 +54,9 @@ export function validateSave(s) {
     s.selected > 8 ||
     !validExperience(s.experience) ||
     !position(s.position) ||
-    typeof s.creative !== 'boolean'
+    typeof s.creative !== 'boolean' ||
+    typeof s.creativeFlying !== 'boolean' ||
+    (s.creativeFlying && !s.creative)
   )
     throw Error('存档格式或玩家数据无效');
   if (!s.dimensions || !Object.hasOwn(s.dimensions, s.dimension))
@@ -64,6 +66,8 @@ export function validateSave(s) {
   if (s.weather !== undefined && !validWeather(s.weather))
     throw Error('天气数据无效');
   for (const [id, d] of Object.entries(s.dimensions)) {
+    if (typeof d?.crouching !== 'boolean' || (d.crouching && d.crawling))
+      throw Error('维度蹲伏姿态无效');
     if (d?.crawling !== undefined && typeof d.crawling !== 'boolean')
       throw Error('维度姿态无效');
     if (

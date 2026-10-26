@@ -340,7 +340,7 @@ export class Fauna {
       return { give: { egg: count }, message: '收集鸡蛋 ×' + count };
     }
     return {
-      message: `${def.name} · 手持${m.kind === 'pig' ? '胡萝卜 / 马铃薯 / 苹果' : { wheat: '小麦', seed: '麦种', apple: '苹果' }[def.food]}吸引并按 E 喂食`,
+      message: `${def.name} · 手持${m.kind === 'pig' ? '胡萝卜 / 马铃薯 / 苹果' : { wheat: '小麦', seed: '麦种', apple: '苹果' }[def.food]}吸引并右键喂食`,
     };
   }
   update(dt, time, camera, held, creative, weather = null) {

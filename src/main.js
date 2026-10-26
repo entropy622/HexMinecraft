@@ -168,18 +168,18 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.54 — BEYOND THE CAVE MOUTH</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.55 — FAMILIAR FOOTSTEPS</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
   <div id="crosshair"></div><div id="mine-progress"><i></i></div><div id="target" class="hidden"></div>
-  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><div id="attack-meter" role="progressbar" aria-label="挥击恢复" aria-valuemin="0" aria-valuemax="1"></div><div id="shield-status" class="hidden"><span id="shield-label"></span><progress id="shield-ready" max="0.25" value="0" aria-label="举盾准备"></progress></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div id="survival-status"><div id="air-bar" class="hidden" role="progressbar" aria-label="氧气" aria-valuemin="0" aria-valuemax="15"></div><div id="effect-list"></div></div><div id="use-food" class="hidden"><span id="use-food-name"></span><progress id="use-progress" max="1" value="0" aria-label="食用进度"></progress></div><div class="vitals"><span class="health" id="health"></span><span id="absorption-hud" aria-label="额外吸收生命"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="experience-hud"><b id="experience-level">0</b><progress id="experience-progress" max="1" value="0" aria-label="当前等级经验"></progress></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>交互</span><span><kbd>B</kbd>合成</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
+  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><div id="attack-meter" role="progressbar" aria-label="挥击恢复" aria-valuemin="0" aria-valuemax="1"></div><div id="shield-status" class="hidden"><span id="shield-label"></span><progress id="shield-ready" max="0.25" value="0" aria-label="举盾准备"></progress></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div id="survival-status"><div id="air-bar" class="hidden" role="progressbar" aria-label="氧气" aria-valuemin="0" aria-valuemax="15"></div><div id="effect-list"></div></div><div id="use-food" class="hidden"><span id="use-food-name"></span><progress id="use-progress" max="1" value="0" aria-label="食用进度"></progress></div><div class="vitals"><span class="health" id="health"></span><span id="absorption-hud" aria-label="额外吸收生命"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="experience-hud"><b id="experience-level">0</b><progress id="experience-progress" max="1" value="0" aria-label="当前等级经验"></progress></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>背包</span><span><kbd>Shift</kbd>蹲伏</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
-  <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">B</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="swap" aria-label="交换主副手">F</button><button data-action="eat" aria-label="按住食用或饮用">吃</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="使用物品或放置方块">用</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">E</button><button data-key="ShiftLeft" aria-label="下降或冲刺">⇣</button></div></div>
+  <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">E</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="swap" aria-label="交换主副手">F</button><button data-action="eat" aria-label="按住食用或饮用">吃</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="使用物品或放置方块">用</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">交</button><button data-key="ShiftLeft" aria-label="下降或蹲伏">⇣</button><button data-key="ControlLeft" aria-label="冲刺">跑</button></div></div>
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="fire-overlay" aria-hidden="true"></div><div id="portal-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  ${workshopPanel()}
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 柔影与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">六向云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="exposure-toggle">明暗适应</label><input id="exposure-toggle" type="checkbox" checked title="进入洞穴后缓慢适应，走入日光时更快收敛；关闭使用固定曝光"></div><div class="settings-row"><label for="antialias-toggle">边缘抗锯齿</label><input id="antialias-toggle" type="checkbox" checked></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加近景柔影、体积光束、明暗适应与抗锯齿，显卡开销较高；细节可单独调整。均衡与光影显示移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或按 E 穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Shift 冲刺 / Ctrl 慢行防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>E</kbd>交互 / 耕种 / 收获</span><span><kbd>B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 下爬 · Ctrl 停住</span><span><kbd>门 / 栅栏门</kbd>E 或右键开关</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><label for="fov">基础视野</label><input id="fov" type="range" min="60" max="110" step="1" value="72"><output id="fov-value" for="fov">72°</output></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 柔影与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">六向云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="exposure-toggle">明暗适应</label><input id="exposure-toggle" type="checkbox" checked title="进入洞穴后缓慢适应，走入日光时更快收敛；关闭使用固定曝光"></div><div class="settings-row"><label for="antialias-toggle">边缘抗锯齿</label><input id="antialias-toggle" type="checkbox" checked></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加近景柔影、体积光束、明暗适应与抗锯齿，显卡开销较高；细节可单独调整。均衡与光影显示移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或右键穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Ctrl 或双击 W 冲刺 / Shift 蹲伏防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>右键</kbd>交互 / 耕种 / 收获</span><span><kbd>E / B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 停住</span><span><kbd>门 / 栅栏门</kbd>右键开关 · Shift 旁建</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>双击空格切换飞行 · 空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◌ 洞穴入口　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -414,6 +414,8 @@ let world = new World(624),
   inventory = pack.counts,
   tool = 0,
   creative = false,
+  creativeFlying = false,
+  crouching = false,
   hotbar = pack.hotbar,
   selected = 0,
   health = 20,
@@ -444,6 +446,7 @@ let saveTimer = 0,
   mapTimer = 0,
   toastTimer = 0,
   sensitivity = 1,
+  fieldOfView = 72,
   sound = true,
   stationKey = null,
   moved = 0,
@@ -839,9 +842,12 @@ function playerFeet() {
   return camera.position.y - playerEyeHeight();
 }
 function playerEyeHeight() {
-  return glider.lowProfile ? 0.4 : 1.65;
+  return glider.lowProfile ? 0.4 : crouching ? 1.27 : 1.65;
 }
-function collides(x, feet, z, standing = false) {
+function playerHeight() {
+  return glider.lowProfile ? 0.6 : crouching ? 1.5 : 1.8;
+}
+function collides(x, feet, z, height = playerHeight()) {
   if (boats.bodyBlocked(x, feet, z)) return true;
   for (const [dx, dz] of [
     [0, 0],
@@ -852,18 +858,12 @@ function collides(x, feet, z, standing = false) {
     [0.17, 0.17],
     [-0.17, -0.17],
   ])
-    if (
-      world.columnSolid(
-        x + dx,
-        z + dz,
-        feet + 0.005,
-        feet + (glider.lowProfile && !standing ? 0.57 : 1.77),
-      )
-    )
+    if (world.columnSolid(x + dx, z + dz, feet + 0.005, feet + height - 0.03))
       return true;
   return false;
 }
 function safeSpawn() {
+  crouching = creativeFlying = false;
   chorusCooldown = 0;
   pendingChorusUse = null;
   shulkerBullets.clear();
@@ -988,6 +988,8 @@ function startGame(mode = false, save = null) {
   hunger = save?.hunger ?? 20;
   time = save?.time ?? 105;
   creative = save?.creative ?? mode;
+  creativeFlying = creative && save?.creativeFlying === true;
+  crouching = data.crouching === true;
   if (creative) glider.stop();
   else if (!wornElytra() || wearValue(wornElytra().wear) <= 1) glider.stop();
   crops = new Map(data.crops);
@@ -1027,6 +1029,7 @@ function startGame(mode = false, save = null) {
   creatureTarget = null;
   syncDecor();
   hasGame = true;
+  document.body.classList.remove('hide-hud');
   hudSignature = '';
   $('#landing').classList.add('hidden');
   $('#hud').classList.remove('hidden');
@@ -1035,8 +1038,8 @@ function startGame(mode = false, save = null) {
   closeOverlay();
   toast(
     creative
-      ? '自由建造 · B 材料库 · 菜单可自由穿越维度'
-      : '欢迎来到你的世界。长按左键采集，B 打开背包。',
+      ? '自由建造 · E 材料库 · 菜单可自由穿越维度'
+      : '欢迎来到你的世界。长按左键采集，E 打开背包。',
   );
   saveGame();
 }
@@ -1045,6 +1048,7 @@ function captureDimension() {
     ...world.serialize(),
     dragon: dragonFight.serialize(),
     crawling: glider.lowProfile,
+    crouching,
     fauna: fauna.serialize(),
     drops: drops.serialize(),
     experienceOrbs: experience.serialize(),
@@ -1158,6 +1162,7 @@ function travel(to) {
   dimension = to;
   const data = dimensionStates[to] || { edits: [], crops: [], chests: [] };
   glider.lowProfile = data.crawling === true;
+  crouching = data.crouching === true;
   world = new World(seed, to, {
     edits: data.edits,
     blockStates: data.blockStates,
@@ -1246,7 +1251,7 @@ function saveData() {
   const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 13,
+    version: 14,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -1259,6 +1264,7 @@ function saveData() {
     experience: experience.serializePlayer(),
     weather: weather.serialize(),
     creative,
+    creativeFlying,
     position: camera.position.toArray(),
     yaw,
     pitch,
@@ -1878,7 +1884,7 @@ function updateHUD() {
   $('#world-info').textContent =
     `第 ${Math.floor(time / 600) + 1} 天 / ${phase < 270 ? '日光' : phase < 330 ? '黄昏' : phase < 570 ? '星夜' : '黎明'}${dimension === 'overworld' && phase >= 300 ? ' · ' + moonPhase(time).name : ''} · ${creative ? '创造' : '生存'}`;
   $('#location').innerHTML =
-    `${DIMENSIONS[dimension].name} · 种子 ${world.seed}<br>Q ${a.q} / R ${a.r} / Y ${Math.floor(playerFeet())}<br>${creative ? '空格 ↑ · Shift ↓' : 'F 换手 · 右键使用 · Shift 冲刺'}`;
+    `${DIMENSIONS[dimension].name} · 种子 ${world.seed}<br>Q ${a.q} / R ${a.r} / Y ${Math.floor(playerFeet())}<br>${creative ? (creativeFlying ? '飞行 · 空格 ↑ · Shift ↓' : '双击空格起飞 · Shift 蹲伏') : 'E 背包 · 右键使用 · Shift 蹲伏'}`;
   $('#dimension-name').textContent = DIMENSIONS[dimension].name;
   $('#weather-hud').textContent =
     dimension === 'overworld' ? weather.label(world.biome(a.q, a.r)) : '';
@@ -2226,7 +2232,7 @@ function interactBoat() {
   )
     return false;
   const b = boatTarget.boat;
-  if (keys.has('ControlLeft') || keys.has('ControlRight')) {
+  if (keys.has('ShiftLeft') || keys.has('ShiftRight')) {
     if (!creative && roomFor(inventory, 'boat') < 1) {
       toast('背包已满，先腾出一格再收船。');
       return true;
@@ -2262,7 +2268,7 @@ function useBoatItem() {
     return true;
   }
   if (!target?.fluid || target.type !== 'water') {
-    toast('对准水面右键 / E 放船。');
+    toast('对准水面右键放船。');
     return true;
   }
   const f = world.fluids.get(target.q, target.y, target.r),
@@ -2289,7 +2295,7 @@ function useBoatItem() {
   useSwing();
   updateHUD();
   saveGame();
-  toast('已放船 · 对准船按 E 乘坐 · Ctrl+E 收回');
+  toast('已放船 · 对准船右键乘坐 · Shift 右键收回');
   return true;
 }
 function attackBoat() {
@@ -2356,12 +2362,12 @@ function startGliding() {
     onLadder()
   )
     return false;
-  const low = glider.lowProfile;
+  const eye = playerEyeHeight();
   glider.start(yaw, motion.x + motion.kickX, vy, motion.z + motion.kickZ);
-  if (!low) {
-    camera.position.y -= 1.25;
-    graphics.stepOffset = (graphics.stepOffset || 0) - 1.25;
-  }
+  crouching = false;
+  const change = playerEyeHeight() - eye;
+  camera.position.y += change;
+  graphics.stepOffset = (graphics.stepOffset || 0) + change;
   combat.reset();
   fishing.clear();
   motion.jumpBuffer = 0;
@@ -2375,6 +2381,44 @@ function stopGliding() {
   motion.z = glider.vz;
   motion.kickX = motion.kickZ = motion.jumpBuffer = 0;
   glider.stop();
+}
+function jumpInput(now) {
+  const twice = motion.pressJump(now);
+  if (creative && twice && !boats.riding) {
+    if (
+      !creativeFlying &&
+      collides(camera.position.x, playerFeet(), camera.position.z, 1.8)
+    ) {
+      toast('上方空间不足，先离开低顶再起飞。');
+      return;
+    }
+    const feet = playerFeet(),
+      eye = playerEyeHeight();
+    creativeFlying = !creativeFlying;
+    crouching = false;
+    glider.lowProfile = false;
+    camera.position.y = feet + playerEyeHeight();
+    graphics.stepOffset = (graphics.stepOffset || 0) + playerEyeHeight() - eye;
+    vy = motion.jumpBuffer = 0;
+    grounded = false;
+    toast(creativeFlying ? '创造飞行 · 空格上升，Shift 下降' : '已关闭飞行');
+    updateHUD();
+    return;
+  }
+  if (!startGliding()) motion.jump();
+}
+function pickBlock() {
+  if (!playing || !target || !BLOCKS[target.type]) return;
+  const original = doorLower(target.type),
+    id = BLOCKS[original].internal ? null : original;
+  if (!id) return;
+  const from = pack.slots.findIndex((s) => s?.item === id);
+  if (from >= 0 && from < 9) selected = from;
+  else if (from >= 9) pack.choose(id, selected);
+  else if (creative) pack.slots[selected] = { item: id, count: stackSize(id) };
+  else return;
+  updateHUD();
+  saveGame();
 }
 function useRocket() {
   if (useItem() !== 'fireworkRocket') return false;
@@ -2449,7 +2493,7 @@ function useEndGateway(q, r) {
       step: 1,
       drop: 5,
     });
-    if (floor !== null && !collides(p.x, floor + 0.01, p.z, true)) {
+    if (floor !== null && !collides(p.x, floor + 0.01, p.z, 1.8)) {
       landing = { ...p, y: floor };
       break;
     }
@@ -2504,7 +2548,7 @@ function useEndCrystal() {
     !['bedrock', 'dragonEgg'].includes(target.type) ||
     Math.hypot(camera.position.x, camera.position.z) > 6
   ) {
-    toast('末地水晶用于再次召唤末影龙：带六颗水晶，对准末地中央基岩祭坛按 E。');
+    toast('末地水晶用于再次召唤末影龙：带六颗水晶，对准末地中央基岩祭坛右键。');
     return true;
   }
   if (dragonFight.state?.mode !== 'dead') {
@@ -2628,7 +2672,7 @@ function resolveThrow(impact) {
   }
   if (item === 'pearl') {
     const destination = pearlDestination(world, impact, (x, y, z) =>
-      collides(x, y, z, true),
+      collides(x, y, z, 1.8),
     );
     if (!destination) {
       toast('珍珠破碎了，但落点没有足够的容身空间。');
@@ -2732,20 +2776,23 @@ function place() {
   if (!actionHand) return beginUse(place);
   if (combat.raised) return;
   if (foodUse) stopEating();
+  if (boatTarget && !creatureTarget && !villagerTarget && interactBoat())
+    return;
   if (useEndCrystal()) return;
   if (
     target &&
     isOpenable(target.type) &&
-    !keys.has('ControlLeft') &&
-    !keys.has('ControlRight')
+    !keys.has('ShiftLeft') &&
+    !keys.has('ShiftRight')
   ) {
     toggleBuilding(target.q, target.y, target.r);
     return;
   }
   if (
-    !keys.has('ControlLeft') &&
-    !keys.has('ControlRight') &&
+    !keys.has('ShiftLeft') &&
+    !keys.has('ShiftRight') &&
     (villagerTarget ||
+      target?.crop ||
       (target &&
         [
           'workbench',
@@ -2760,6 +2807,9 @@ function place() {
           'chest',
           'shulkerBox',
           'bed',
+          'portal',
+          'endportal',
+          'endGateway',
         ].includes(target.type)))
   ) {
     interact(true);
@@ -3309,7 +3359,7 @@ function interactPlant(k) {
         plant.age = def.seconds;
         graphics.crop(k, plant);
       } else {
-        toast('作物已成熟，换下骨粉后按 E 收获。');
+        toast('作物已成熟，换下骨粉后右键收获。');
         return true;
       }
       consumeUseItem('boneMeal');
@@ -3318,7 +3368,7 @@ function interactPlant(k) {
       toast(
         def.tree
           ? '树苗长成了' + TREES[def.species].name + '。'
-          : def.name + '已成熟，按 E 收获。',
+          : def.name + '已成熟，右键收获。',
       );
       return true;
     }
@@ -3442,7 +3492,7 @@ function interact(preferContext = false) {
     return;
   }
   if (type === 'ladder') {
-    toast('贴近梯子：W / 空格向上，Shift 向下，Ctrl 停住。');
+    toast('贴近梯子：W / 空格向上，Shift 停住，松开缓慢下滑。');
     return;
   }
   if (type === 'portal' || type === 'endportal') {
@@ -3536,11 +3586,11 @@ function interact(preferContext = false) {
   if (interactPlant(k)) return;
   if (['grass', 'dirt', 'farmland'].includes(type)) {
     if (type === 'farmland') {
-      toast('手持麦种、胡萝卜或马铃薯，按 E 或右键播种。');
+      toast('手持麦种、胡萝卜或马铃薯，右键播种。');
       return;
     }
     if (!creative && ITEMS[useItem()]?.kind !== 'hoe') {
-      toast('手持锄头按 E 翻耕；树苗可直接种在泥土或草地上。');
+      toast('手持锄头右键翻耕；树苗可直接种在泥土或草地上。');
       return;
     }
     if (world.get(q, y + 1, r) || world.fluids.get(q, y + 1, r)) {
@@ -3897,7 +3947,7 @@ function useIgniter() {
   useSwing();
   soundFX.play('campfireIgnite');
   toast(
-    `下界门已点燃 · ${frame.width} × ${frame.height} · 站入门中穿越，也可按 E`,
+    `下界门已点燃 · ${frame.width} × ${frame.height} · 站入门中穿越，也可右键`,
   );
   saveGame();
   return true;
@@ -4016,7 +4066,7 @@ function interactCampfire(q, y, r) {
     fire.slots[index] = null;
     soundFX.play('pickup');
   } else {
-    toast('用生肉、生鱼或马铃薯烹饪，空手取回食材；Ctrl 右键可在旁建造。');
+    toast('用生肉、生鱼或马铃薯烹饪，空手取回食材；Shift 右键可在旁建造。');
     return;
   }
   graphics.updateLight(q, y, r);
@@ -4187,7 +4237,7 @@ function teleportChorusFruit() {
     if (
       floor === null ||
       Math.abs(floor - feet) > 8 ||
-      collides(x, floor + 0.01, z, true)
+      collides(x, floor + 0.01, z, 1.8)
     )
       continue;
     const a = worldToAxial(x, z);
@@ -4944,8 +4994,10 @@ function moveGlider(dt) {
   survival.exhaust(dt * 0.01);
   camera.rotation.set(pitch, yaw, glider.active ? glider.bank : 0);
   const fov = glider.active
-    ? 72 + Math.min(14, glider.speed * 0.35) + (glider.boost > 0 ? 3 : 0)
-    : 72;
+    ? fieldOfView +
+      Math.min(14, glider.speed * 0.35) +
+      (glider.boost > 0 ? 3 : 0)
+    : fieldOfView;
   camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 6));
   camera.updateProjectionMatrix();
   $('#underwater').style.display = 'none';
@@ -4956,6 +5008,7 @@ function moveGlider(dt) {
 }
 function movePlayer(dt) {
   if (boats.riding) {
+    crouching = creativeFlying = false;
     glider.reset();
     if (keys.has('ShiftLeft') || keys.has('ShiftRight')) {
       keys.delete('ShiftLeft');
@@ -4971,7 +5024,8 @@ function movePlayer(dt) {
     camera.position.set(b.position[0], b.position[1] + BOAT_EYE, b.position[2]);
     camera.rotation.set(pitch, yaw, 0);
     camera.fov +=
-      (72 * (1 - (bowUse ? bowPull(bowCharge) ** 2 * 0.15 : 0)) - camera.fov) *
+      (fieldOfView * (1 - (bowUse ? bowPull(bowCharge) ** 2 * 0.15 : 0)) -
+        camera.fov) *
       (1 - Math.exp(-dt * 8));
     camera.updateProjectionMatrix();
     vy = 0;
@@ -4981,14 +5035,29 @@ function movePlayer(dt) {
     if (!creative) survival.exhaust(distance * 0.02);
     return;
   }
-  if (
-    !glider.active &&
-    glider.lowProfile &&
-    !collides(camera.position.x, playerFeet(), camera.position.z, true)
-  ) {
-    glider.lowProfile = false;
-    camera.position.y += 1.25;
-    graphics.stepOffset = (graphics.stepOffset || 0) + 1.25;
+  if (!glider.active) {
+    const feet = playerFeet(),
+      eye = playerEyeHeight(),
+      nextCrouch =
+        !creativeFlying &&
+        (keys.has('ShiftLeft') ||
+          keys.has('ShiftRight') ||
+          collides(camera.position.x, feet, camera.position.z, 1.8));
+    if (
+      !glider.lowProfile ||
+      !collides(
+        camera.position.x,
+        feet,
+        camera.position.z,
+        nextCrouch ? 1.5 : 1.8,
+      )
+    ) {
+      glider.lowProfile = false;
+      crouching = nextCrouch;
+      const change = playerEyeHeight() - eye;
+      camera.position.y += change;
+      graphics.stepOffset = (graphics.stepOffset || 0) + change;
+    }
   }
   const survivalBeforeMove = survival;
   const startX = camera.position.x,
@@ -4996,7 +5065,7 @@ function movePlayer(dt) {
   const feetFluid = playerFluidAt(playerFeet() + 0.12),
     headFluid = playerFluidAt(camera.position.y);
   const swimming = !!feetFluid,
-    fly = creative,
+    fly = creative && creativeFlying,
     levitating = !creative && survival.rank('levitation') > 0,
     climbing = !creative && onLadder();
   if (glider.active) {
@@ -5022,25 +5091,28 @@ function movePlayer(dt) {
     forward /= norm;
     side /= norm;
   }
-  const sneaking = keys.has('ControlLeft') || keys.has('ControlRight');
+  const sneaking = crouching || keys.has('ShiftLeft') || keys.has('ShiftRight');
   const sprint =
-      keys.has('ShiftLeft') &&
+      (keys.has('ControlLeft') ||
+        keys.has('ControlRight') ||
+        motion.sprintRequested) &&
       forward > 0 &&
-      hunger > 6 &&
-      !fly &&
+      (creative || hunger > 6) &&
       !glider.lowProfile &&
       !sneaking &&
       !combat.raised &&
       !foodUse &&
       !bowUse,
     baseSpeed = fly
-      ? 10
+      ? sprint
+        ? 20
+        : 10
       : swimming
         ? LIQUIDS[feetFluid.type].speed
         : glider.lowProfile
           ? 1.5
           : sneaking
-            ? 2.1
+            ? 1.44
             : sprint
               ? 7
               : 4.8;
@@ -5066,19 +5138,47 @@ function movePlayer(dt) {
     swimming,
     fly,
   );
+  if (
+    !forward ||
+    sneaking ||
+    (!creative && hunger <= 6) ||
+    combat.raised ||
+    foodUse ||
+    bowUse
+  )
+    motion.sprintRequested = false;
   const fov =
-    (swimming ? 69 : sprint && norm ? 79 : 72) *
+    fieldOfView *
+    (swimming ? 0.96 : sprint && norm ? 1.1 : 1) *
     (1 - (bowUse ? bowPull(bowCharge) ** 2 * 0.15 : 0));
   camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 8));
   camera.updateProjectionMatrix();
   moved = norm;
   if (fly) {
-    camera.position.x += dx;
-    camera.position.z += dz;
-    camera.position.y +=
-      ((keys.has('Space') ? 1 : 0) - (keys.has('ShiftLeft') ? 1 : 0)) *
+    const dy =
+      ((keys.has('Space') ? 1 : 0) -
+        (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0)) *
       speed *
       dt;
+    const steps = Math.max(
+      1,
+      Math.ceil(Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) / 0.12),
+    );
+    for (let i = 0; i < steps; i++)
+      for (const [axis, amount] of [
+        ['x', dx / steps],
+        ['z', dz / steps],
+        ['y', dy / steps],
+      ]) {
+        const x = camera.position.x + (axis === 'x' ? amount : 0),
+          z = camera.position.z + (axis === 'z' ? amount : 0),
+          feet = playerFeet() + (axis === 'y' ? amount : 0);
+        if (!collides(x, feet, z)) camera.position[axis] += amount;
+        else if (axis === 'y' && amount < 0) {
+          creativeFlying = false;
+          grounded = true;
+        }
+      }
     camera.position.y = Math.max(-20, Math.min(85, camera.position.y));
     vy = 0;
   } else {
@@ -5088,7 +5188,7 @@ function movePlayer(dt) {
       !grounded ||
       swimming ||
       Math.hypot(motion.kickX, motion.kickZ) > 0.15 ||
-      collides(x, feet - 0.16, z);
+      collides(x, feet - 0.51, z);
     const tryMove = (axis, amount) => {
       if (!amount) return;
       const x = camera.position.x + (axis === 'x' ? amount : 0),
@@ -5102,7 +5202,7 @@ function movePlayer(dt) {
           step: 0.6,
           drop: 0.04,
           wet: true,
-          height: glider.lowProfile ? 0.6 : 1.8,
+          height: playerHeight(),
         });
         if (
           floor !== null &&
@@ -5123,6 +5223,7 @@ function movePlayer(dt) {
       }
       if (axis === 'x') motion.x = motion.kickX = 0;
       else motion.z = motion.kickZ = 0;
+      motion.sprintRequested = false;
     };
     tryMove('x', dx);
     tryMove('z', dz);
@@ -5133,20 +5234,14 @@ function movePlayer(dt) {
       motion.takeJump(keys.has('Space'), grounded)
     ) {
       vy = 8.5;
-      survival.exhaust(sprint ? 0.8 : 0.2);
+      if (!creative) survival.exhaust(sprint ? 0.8 : 0.2);
       grounded = false;
       beep(180, 0.04, 'sine', 0.01);
     }
     if (levitating) {
       vy += (survival.rank('levitation') - vy) * (1 - Math.exp(-dt * 4.46));
     } else if (climbing) {
-      vy = sneaking
-        ? 0
-        : keys.has('ShiftLeft') || keys.has('ShiftRight')
-          ? -2.8
-          : keys.has('KeyW') || keys.has('Space')
-            ? 3.2
-            : -1.2;
+      vy = sneaking ? 0 : keys.has('KeyW') || keys.has('Space') ? 3.2 : -1.2;
     } else if (swimming) {
       vy = Math.max(-2, vy - dt * 4);
       if (keys.has('Space')) vy = 4;
@@ -5175,7 +5270,7 @@ function movePlayer(dt) {
       }
       camera.position.y += dy / steps;
     }
-    if (survival === survivalBeforeMove)
+    if (!creative && survival === survivalBeforeMove)
       survival.exhaust(
         Math.hypot(camera.position.x - startX, camera.position.z - startZ) *
           (swimming ? 0.015 : sprint ? 0.06 : 0.006),
@@ -5436,6 +5531,7 @@ document.addEventListener('click', (e) => {
 });
 $('#mode-toggle').onclick = () => {
   creative = !creative;
+  creativeFlying = false;
   if (creative) stopGliding();
   if (!creative && collides(camera.position.x, playerFeet(), camera.position.z))
     safeSpawn();
@@ -5549,6 +5645,10 @@ document.querySelectorAll('[data-dimension]').forEach(
 document.addEventListener('pointerdown', () => soundFX.unlock());
 $('#recipe-search').oninput = renderRecipeBook;
 $('#sensitivity').oninput = (e) => (sensitivity = Number(e.target.value));
+$('#fov').oninput = (e) => {
+  fieldOfView = Number(e.target.value);
+  $('#fov-value').value = fieldOfView + '°';
+};
 $('#sound-toggle').onclick = () => {
   sound = !sound;
   soundFX.enabled = sound;
@@ -5581,6 +5681,10 @@ $('#world').addEventListener('mousedown', (e) => {
     return;
   }
   if (e.button === 0) leftDown = true;
+  if (e.button === 1) {
+    e.preventDefault();
+    pickBlock();
+  }
   if (e.button === 2) {
     foodInputs.add('mouse');
     place();
@@ -5640,7 +5744,8 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
   if (e.repeat) return;
   if (overlay) {
-    if (['Escape', 'KeyB', 'Tab', 'KeyM'].includes(e.code)) closeOverlay();
+    if (['Escape', 'KeyE', 'KeyB', 'Tab', 'KeyM'].includes(e.code))
+      closeOverlay();
     return;
   }
   if (!hasGame) return;
@@ -5648,7 +5753,7 @@ document.addEventListener('keydown', (e) => {
     openOverlay('#pause-overlay');
     return;
   }
-  if (e.code === 'KeyB' || e.code === 'Tab') {
+  if (e.code === 'KeyE' || e.code === 'KeyB' || e.code === 'Tab') {
     openOverlay('#craft-overlay');
     return;
   }
@@ -5656,8 +5761,9 @@ document.addEventListener('keydown', (e) => {
     openOverlay('#map-overlay');
     return;
   }
-  if (e.code === 'KeyE') {
-    interact();
+  if (e.code === 'F1') {
+    e.preventDefault();
+    document.body.classList.toggle('hide-hud');
     return;
   }
   if (e.code === 'KeyF') {
@@ -5678,11 +5784,13 @@ document.addEventListener('keydown', (e) => {
     selected = Number(e.code.slice(5)) - 1;
     updateHUD();
   }
-  if (e.code === 'Space' && !startGliding()) motion.jump();
+  if (e.code === 'KeyW') motion.pressForward(e.timeStamp);
+  if (e.code === 'Space') jumpInput(e.timeStamp);
   keys.add(e.code);
 });
 document.addEventListener('keyup', (e) => {
   keys.delete(e.code);
+  if (e.code === 'KeyW') motion.sprintRequested = false;
 });
 window.addEventListener('blur', () => {
   keys.clear();
@@ -5722,7 +5830,8 @@ if (isTouch) {
   $('#world').style.touchAction = 'none';
   document.querySelectorAll('[data-key]').forEach((b) => {
     b.onpointerdown = (e) => {
-      if (b.dataset.key === 'Space' && !startGliding()) motion.jump();
+      if (b.dataset.key === 'KeyW') motion.pressForward(e.timeStamp);
+      if (b.dataset.key === 'Space') jumpInput(e.timeStamp);
       keys.add(b.dataset.key);
       b.setPointerCapture(e.pointerId);
     };
@@ -5875,7 +5984,7 @@ function frame(now) {
     $('#target').textContent = target?.type
       ? (target.fluid
           ? LIQUIDS[target.type].name +
-            (target.source ? '源 · 右键/E 装桶' : '流 · 无法装桶')
+            (target.source ? '源 · 右键装桶' : '流 · 无法装桶')
           : BLOCKS[target.type].name) +
         (isOpenable(target.type) ||
         [
@@ -5896,7 +6005,7 @@ function frame(now) {
           'spawner',
           'ladder',
         ].includes(target.type)
-          ? ' · E 交互'
+          ? ' · 右键交互'
           : '')
       : '';
     if (BLOCKS[target?.type]?.foliage)
@@ -5913,11 +6022,11 @@ function frame(now) {
         (fire?.lit ? ' · 燃烧' : ' · 已熄灭') +
         ` · 食材 ${slots.length}/6` +
         (next ? ` · 下份 ${next}s` : '') +
-        ' · 右键/E 放入 · 空手取回 · 铲子熄灭 / 打火石点燃';
+        ' · 右键放入 · 空手取回 · 铲子熄灭 / 打火石点燃';
     }
     if (target?.type === 'portal')
       $('#target').textContent =
-        '下界传送门 · 站入门中 4 秒穿越 / E 快速穿越 · 水桶关闭';
+        '下界传送门 · 站入门中 4 秒穿越 / 右键快速穿越 · 水桶关闭';
     if (target?.type === 'obsidian' && heldItem() === 'flintAndSteel')
       $('#target').textContent += ' · 对准框内右键点燃 · 内部至少 2 × 3 格';
     if (isTrapdoor(target?.type)) {
@@ -5926,18 +6035,18 @@ function frame(now) {
         BLOCKS[target.type].name +
         (state.upper ? ' · 上半格' : ' · 下半格') +
         (state.open ? ' · 已翻起' : ' · 已合上') +
-        ' · 右键/E 开关 · Ctrl 右键在旁建造';
+        ' · 右键开关 · Shift 右键在旁建造';
     }
     if (BLOCKS[target?.type]?.pillar)
       $('#target').textContent +=
         ' · ' +
         pillarAxisLabel(world.state(target.q, target.y, target.r).axis) +
-        (BLOCKS[target.type].stripped ? ' · 斧头右键/E 去皮' : '');
+        (BLOCKS[target.type].stripped ? ' · 斧头右键去皮' : '');
     if (target?.crop && crops.has(target.crop)) {
       const plant = crops.get(target.crop),
         def = PLANTS[plant.kind];
       $('#target').textContent =
-        `${def.name} · ${Math.floor((plant.age / def.seconds) * 100)}% · E ${plant.age >= def.seconds && !def.tree ? '收获' : '查看 / 骨粉催熟'} · 左键拔除`;
+        `${def.name} · ${Math.floor((plant.age / def.seconds) * 100)}% · 右键${plant.age >= def.seconds && !def.tree ? '收获' : '查看 / 骨粉催熟'} · 左键拔除`;
     }
     if (target && isChorus(target.type)) {
       const growth = world.chorus.get(key(target.q, target.y, target.r));
@@ -5962,7 +6071,7 @@ function frame(now) {
         villagerTarget.village.palette.label +
         ' · ' +
         ROLES[villagerTarget.role].name +
-        ' · E 交易';
+        ' · 右键交易';
     }
     creatureTarget = fauna.target(
       camera,
@@ -6000,15 +6109,15 @@ function frame(now) {
                   : m.love > 0
                     ? ' · ♥ 寻找伙伴'
                     : m.kind === 'chicken' && m.eggs > 0
-                      ? ' · E 收集鸡蛋 ×' + m.eggs
-                      : ' · E 喂养 / 互动');
+                      ? ' · 右键收集鸡蛋 ×' + m.eggs
+                      : ' · 右键喂养 / 互动');
     }
     if (boatTarget && !creatureTarget && !villagerTarget) {
       $('#target').classList.remove('hidden');
       $('#target').textContent =
         '橡木船 · ' +
         Math.ceil(boatTarget.boat.health) +
-        '/20 · E 上船 · Ctrl+E 收回';
+        '/20 · 右键上船 · Shift 右键收回';
     }
     if (fireballs.target(camera, Math.min(4.5, target?.distance ?? Infinity))) {
       $('#target').classList.remove('hidden');
@@ -6066,7 +6175,7 @@ function frame(now) {
       creatures,
       camera,
       playerFeet(),
-      glider.lowProfile ? 0.6 : 1.8,
+      playerHeight(),
       creative,
     );
     throwables.update(
@@ -6316,7 +6425,7 @@ if (import.meta.env.DEV)
       const p = axialToWorld(q, r);
       world.ensureAround(q, r);
       graphics.sync(q, r, true);
-      camera.position.set(p.x, y + 1.65, p.z);
+      camera.position.set(p.x, y + playerEyeHeight(), p.z);
       vy = 0;
     },
     setPlaying: (v) => (playing = v),
@@ -6338,6 +6447,10 @@ function restorePreferences() {
     const p = JSON.parse(localStorage.getItem('hexwild-settings') || '{}');
     if (Number.isFinite(p.sensitivity))
       sensitivity = Math.max(0.5, Math.min(2, p.sensitivity));
+    if (Number.isFinite(p.fieldOfView))
+      fieldOfView = Math.max(60, Math.min(110, p.fieldOfView));
+    $('#fov').value = fieldOfView;
+    $('#fov-value').value = fieldOfView + '°';
     if (Number.isFinite(p.volume))
       soundFX.volume = Math.max(0, Math.min(1, p.volume));
     if (typeof p.sound === 'boolean') sound = soundFX.enabled = p.sound;
@@ -6365,6 +6478,7 @@ function savePreferences() {
       'hexwild-settings',
       JSON.stringify({
         sensitivity,
+        fieldOfView,
         volume: soundFX.volume,
         sound,
         flashes: graphics.weatherEffects.flashes,
@@ -6374,7 +6488,7 @@ function savePreferences() {
     );
   } catch {}
 }
-for (const id of ['sensitivity', 'volume'])
+for (const id of ['sensitivity', 'volume', 'fov'])
   $('#' + id).addEventListener('change', savePreferences);
 $('#sound-toggle').addEventListener('click', savePreferences);
 $('#lightning-toggle').onchange = (e) => {

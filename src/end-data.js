@@ -19,7 +19,7 @@ export const END_RECIPES = [
     count: 1,
     title: '再一次，振翅',
     station: true,
-    desc: '击败末影龙后，带六颗水晶回到中央基岩祭坛，按 E 重启挑战。',
+    desc: '击败末影龙后，带六颗水晶回到中央基岩祭坛，右键重启挑战。',
     pattern: [
       'glass',
       'glass',

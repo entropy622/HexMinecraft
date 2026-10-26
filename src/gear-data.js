@@ -109,7 +109,7 @@ recipe(
   ['ingot', null, null, null, 'ingot', null, null],
   1,
   false,
-  '对成年绵羊按 E 剪羊毛；草地上约两分钟长回。',
+  '对成年绵羊右键剪羊毛；草地上约两分钟长回。',
 );
 GEAR.hoe = {
   name: '石锄',
@@ -141,7 +141,7 @@ recipe(
   [null, 'wood', 'string', 'wood', 'string', 'wood', null],
   1,
   true,
-  '主手或副手对水面右键 / E 抛线，浮漂下沉时再次按下收杆。鱼线与耐久绑定实际钓竿；雨天更易咬钩，开阔深水偶尔藏有宝物。',
+  '主手或副手对水面右键抛线，浮漂下沉时再次按下收杆。鱼线与耐久绑定实际钓竿；雨天更易咬钩，开阔深水偶尔藏有宝物。',
 );
 recipe(
   'bow',
@@ -209,7 +209,7 @@ recipe(
   ['bone', null, null, null, null, null, null],
   3,
   false,
-  '手持骨粉对麦苗按 E，立即催熟。',
+  '手持骨粉对麦苗右键，立即催熟。',
 );
 recipe(
   'arrow',

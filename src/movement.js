@@ -6,6 +6,8 @@ export class Movement {
   reset() {
     this.x = this.z = this.jumpBuffer = this.coyote = 0;
     this.kickX = this.kickZ = 0;
+    this.forwardTap = this.jumpTap = -Infinity;
+    this.sprintRequested = false;
   }
   kick(x, z, strength) {
     const length = Math.hypot(x, z);
@@ -21,6 +23,15 @@ export class Movement {
   }
   jump() {
     this.jumpBuffer = 0.14;
+  }
+  pressForward(now) {
+    if (now - this.forwardTap <= 300) this.sprintRequested = true;
+    this.forwardTap = now;
+  }
+  pressJump(now) {
+    const twice = now - this.jumpTap <= 300;
+    this.jumpTap = twice ? -Infinity : now;
+    return twice;
   }
   update(dt, x, z, grounded, swimming, flying) {
     this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
