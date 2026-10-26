@@ -7,6 +7,7 @@ import { FURNACES, isFurnace } from './processing-data.js';
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
 const EMISSION = {
+  caveVinesBerries: [14, 10, 5],
   redstoneLamp: [15, 13, 9],
   campfire: [15, 10, 5],
   soulCampfire: [6, 11, 12],

@@ -164,6 +164,28 @@ export function stampCaves(world, cq, cr) {
           noise(q * 0.22, r * 0.22, world.seed + 814) > 0.48
         )
           world.blocks.set(key(q, floor, r), 'calcite');
+        if (
+          cave.kind === 'lush' &&
+          world.get(q, roof, r) &&
+          hexDistance(q - cave.q, r - cave.r) < cave.radius
+        ) {
+          const decoration = hash(q, roof, r, world.seed + 815);
+          if (decoration > 0.975)
+            world.blocks.set(key(q, ceiling, r), 'sporeBlossom');
+          else if (decoration > 0.72) {
+            const length = Math.min(
+              ceiling - floor - 2,
+              2 + (Math.floor(decoration * 11) % 4),
+            );
+            for (let i = 0; i < length; i++)
+              world.blocks.set(
+                key(q, ceiling - i, r),
+                hash(q, ceiling - i, r, world.seed + 816) > 0.64
+                  ? 'caveVinesBerries'
+                  : 'caveVines',
+              );
+          }
+        }
       }
   return caves;
 }

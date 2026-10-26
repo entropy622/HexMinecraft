@@ -15,6 +15,10 @@ export function createTextures() {
     id + ':side',
   ]);
   names.push(
+    'glowBerry:top',
+    'glowBerry:side',
+    'sporeCenter:top',
+    'sporeCenter:side',
     'redstoneLampOn:top',
     'redstoneLampOn:side',
     'redstoneWireOn:top',
@@ -75,6 +79,11 @@ export function createTextures() {
     const [id, face] = name.split(':');
     const top = face === 'top';
     const base =
+      (id === 'glowBerry'
+        ? '#f7ad43'
+        : id === 'sporeCenter'
+          ? '#f3bd73'
+          : null) ||
       palette[id]?.[top ? 0 : 1] ||
       BLOCKS[id]?.[top ? 'color' : 'side'] ||
       BLOCKS[id]?.color ||

@@ -313,7 +313,28 @@ export const plantImage = (kind, stage) => {
   return names && images.get(names[Math.min(stage, names.length - 1)]);
 };
 const potionImages = new Map();
+let berriesImage;
 export const itemImage = (id) => {
+  if (id === 'glowBerries') {
+    if (!berriesImage) {
+      berriesImage = document.createElement('canvas');
+      berriesImage.width = berriesImage.height = 16;
+      const c = berriesImage.getContext('2d');
+      c.fillStyle = '#537a32';
+      c.fillRect(7, 1, 2, 7);
+      c.fillRect(3, 3, 9, 2);
+      c.fillStyle = '#d97726';
+      c.fillRect(2, 7, 6, 6);
+      c.fillRect(9, 6, 5, 6);
+      c.fillStyle = '#f7b448';
+      c.fillRect(3, 7, 4, 5);
+      c.fillRect(9, 6, 4, 5);
+      c.fillStyle = '#ffe49b';
+      c.fillRect(3, 7, 2, 2);
+      c.fillRect(9, 6, 2, 2);
+    }
+    return berriesImage;
+  }
   if (!POTIONS[id]) return images.get(itemTextures[id]);
   if (!potionImages.has(id)) {
     const overlay = images.get('mcl_potions_potion_overlay'),

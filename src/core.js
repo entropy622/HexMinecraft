@@ -25,7 +25,7 @@ import {
 } from './mineral-data.js';
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import { PROCESSING_BLOCKS, PROCESSING_RECIPES } from './processing-data.js';
-import { CAVE_BLOCKS } from './cave-data.js';
+import { CAVE_BLOCKS, CAVE_ITEMS } from './cave-data.js';
 import { CIRCUIT_BLOCKS, CIRCUIT_RECIPES } from './redstone-data.js';
 import {
   IGNITION_BLOCKS,
@@ -239,6 +239,7 @@ export const BLOCKS = {
 };
 applyMiningHardness(BLOCKS);
 export const ITEMS = {
+  ...CAVE_ITEMS,
   ...MINERAL_ITEMS,
   ...IGNITION_ITEMS,
   ...WOOD_ITEMS,

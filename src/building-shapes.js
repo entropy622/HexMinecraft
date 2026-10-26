@@ -4,6 +4,8 @@ import { isChorus } from './chorus-data.js';
 import { trapdoorParts } from './trapdoor-shape.js';
 import { CIRCUIT_BLOCKS } from './redstone-data.js';
 import { redstoneParts } from './redstone-shapes.js';
+import { isHangingPlant } from './cave-data.js';
+import { cavePlantParts } from './cave-plant-shapes.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -29,6 +31,7 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (isHangingPlant(type)) return cavePlantParts(world, q, y, r, collision);
   if (CIRCUIT_BLOCKS[type]?.shape)
     return redstoneParts(world, q, y, r, collision);
   if (shape === 'stonecutter') {

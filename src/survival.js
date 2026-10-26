@@ -1,5 +1,6 @@
 import { EFFECTS, POTIONS } from './brewing-data.js';
 export const FOODS = {
+  glowBerries: { food: 2, saturation: 0.4 },
   chorusFruit: { food: 4, saturation: 2.4, always: true },
   ...Object.fromEntries(
     Object.keys(POTIONS).map((id) => [

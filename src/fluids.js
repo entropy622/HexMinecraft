@@ -1,5 +1,6 @@
 import { DIRECTIONS, key } from './core.js';
 import { CIRCUIT_BLOCKS } from './redstone-data.js';
+import { isHangingPlant } from './cave-data.js';
 
 export const LIQUIDS = {
   water: {
@@ -70,7 +71,8 @@ export class Fluids {
       y < 64 &&
       this.world.loaded(q, r) &&
       (!this.world.get(q, y, r) ||
-        !!CIRCUIT_BLOCKS[this.world.get(q, y, r)]?.shape)
+        !!CIRCUIT_BLOCKS[this.world.get(q, y, r)]?.shape ||
+        isHangingPlant(this.world.get(q, y, r)))
     );
   }
   wake(q, y, r) {

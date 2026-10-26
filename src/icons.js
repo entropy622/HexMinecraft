@@ -34,7 +34,12 @@ import {
   Axe,
   PaintBucket,
 } from 'lucide';
-import { blockTextures, itemTextures, textureURL } from './texture-pack.js';
+import {
+  blockTextures,
+  itemTextures,
+  textureURL,
+  itemImage,
+} from './texture-pack.js';
 import { ITEMS } from './core.js';
 import { POTIONS, potionDescription } from './brewing-data.js';
 import { cutBlockIcon } from './shape-icons.js';
@@ -106,6 +111,13 @@ const symbols = {
 const cache = new Map();
 export function itemIcon(id) {
   if (!cache.has(id)) {
+    if (id === 'glowBerries') {
+      cache.set(
+        id,
+        `<span class="block-icon pixel-icon item-tile" title="发光浆果"><img src="${itemImage(id).toDataURL()}" alt="" draggable="false"></span>`,
+      );
+      return cache.get(id);
+    }
     if (
       ITEMS[id]?.portable ||
       PROCESSING_BLOCKS[id] ||

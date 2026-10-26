@@ -68,6 +68,8 @@ import { plantingIssue, growthConditions, treePlan } from './farming.js';
 import { TREES } from './wood-data.js';
 import { pillarAxis, pillarAxisLabel } from './pillar-faces.js';
 import { leafDrops } from './leaves.js';
+import { isCaveVine, isHangingPlant } from './cave-data.js';
+import { canHang, harvestCavePlant, tickCavePlants } from './cave-plants.js';
 import { ingredientCount, ingredientName } from './wood-ingredients.js';
 import { facingFromDirection, facingAngle } from './building-shapes.js';
 import {
@@ -174,7 +176,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.57 — BENEATH THE REFLECTION</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.58 — LIFE BELOW</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -1759,6 +1761,13 @@ function handCanUse(hand) {
   const id = handStack(hand)?.item,
     item = ITEMS[id];
   if (!item) return false;
+  if (
+    (id === 'boneMeal' && isCaveVine(target?.type)) ||
+    (id === 'glowBerries' &&
+      target?.normal?.y < -0.5 &&
+      canHang(world, target.place.q, target.place.y, target.place.r, true))
+  )
+    return true;
   const mob = creatureTarget;
   if (mob && !MOBS[mob.kind]?.hostile) {
     const def = MOBS[mob.kind];
@@ -2420,7 +2429,9 @@ function jumpInput(now) {
 }
 function pickBlock() {
   if (!playing || !target || !BLOCKS[target.type]) return;
-  const original = circuitItem(doorLower(target.type)),
+  const original = isCaveVine(target.type)
+      ? 'glowBerries'
+      : circuitItem(doorLower(target.type)),
     id = ITEMS[original]?.internal ? null : original;
   if (!id) return;
   const from = pack.slots.findIndex((s) => s?.item === id);
@@ -2799,6 +2810,45 @@ function useCircuitControl() {
   }
   return false;
 }
+function useCavePlant() {
+  if (!target || creatureTarget || villagerTarget) return false;
+  const { q, y, r, type } = target;
+  if (
+    type === 'caveVinesBerries' &&
+    !keys.has('ShiftLeft') &&
+    !keys.has('ShiftRight')
+  ) {
+    applyPlantChanges(harvestCavePlant(world, q, y, r, true));
+    soundFX.play('plant');
+    useSwing();
+    return true;
+  }
+  if (useItem() === 'boneMeal' && isCaveVine(type)) {
+    if (type === 'caveVines' && (creative || useCount('boneMeal') > 0)) {
+      world.set(q, y, r, 'caveVinesBerries');
+      graphics.updateBlock(q, y, r);
+      consumeUseItem('boneMeal');
+      useSwing();
+      updateHUD();
+    }
+    return true;
+  }
+  if (useItem() !== 'glowBerries' || target.normal?.y >= -0.5) return false;
+  const p = target.place;
+  if (!p || !canHang(world, p.q, p.y, p.r, true)) return false;
+  if (
+    !world.get(p.q, p.y, p.r) &&
+    !world.fluids.get(p.q, p.y, p.r) &&
+    (creative || useCount('glowBerries') > 0)
+  ) {
+    world.set(p.q, p.y, p.r, 'caveVines');
+    graphics.updateBlock(p.q, p.y, p.r);
+    consumeUseItem('glowBerries');
+    useSwing();
+    updateHUD();
+  }
+  return true;
+}
 function place() {
   if (!playing) return;
   if (!actionHand) return beginUse(place);
@@ -2806,7 +2856,7 @@ function place() {
   if (foodUse) stopEating();
   if (boatTarget && !creatureTarget && !villagerTarget && interactBoat())
     return;
-  if (useEndCrystal() || useCircuitControl()) return;
+  if (useEndCrystal() || useCircuitControl() || useCavePlant()) return;
   if (
     target &&
     isOpenable(target.type) &&
@@ -3006,6 +3056,13 @@ function buildingOccupied(q, y, r) {
 function placeBuilding(type, p) {
   const { q, y, r } = p;
   const item = circuitItem(type);
+  if (
+    type === 'sporeBlossom' &&
+    (target.normal?.y >= -0.5 || !canHang(world, q, y, r))
+  ) {
+    toast('孢子花需要悬挂在完整方块的底面。');
+    return;
+  }
   if (y < 1 || y >= 63 || (!creative && !(useCount(item) > 0))) return;
   const cut = ['slab', 'stairs', 'trapdoor'].includes(BLOCKS[type].shape);
   const upper =
@@ -3122,6 +3179,12 @@ function placeBuilding(type, p) {
 }
 function removeBuilding(q, y, r, drop = true) {
   const original = world.get(q, y, r);
+  if (isHangingPlant(original)) {
+    graphics.blockBreak({ q, y, r, type: original });
+    applyPlantChanges(harvestCavePlant(world, q, y, r), drop);
+    soundFX.play('break', 'leaves');
+    return;
+  }
   if (isChorus(original)) {
     harvestChorusBlock(q, y, r, false, drop);
     return;
@@ -3266,6 +3329,11 @@ function onLadder() {
     const type = world.get(a.q, y, a.r),
       state = world.state(a.q, y, a.r);
     if (
+      isCaveVine(type) &&
+      Math.hypot(camera.position.x - p.x, camera.position.z - p.z) < 0.55
+    )
+      return true;
+    if (
       isTrapdoor(type) &&
       state.open &&
       world.get(a.q, y - 1, a.r) === 'ladder' &&
@@ -3348,6 +3416,7 @@ function growTree(k) {
   return true;
 }
 function updatePlants(dt) {
+  applyPlantChanges(tickCavePlants(world, dt), !creative);
   const leaves = world.leafDecay.update(dt);
   if (leaves.length) {
     const chunks = new Set();
@@ -3363,7 +3432,7 @@ function updatePlants(dt) {
       if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
     weatherColumns.update(1, world);
   }
-  applyChorusChanges(growChorus(world, dt, growthOccupied), !creative);
+  applyPlantChanges(growChorus(world, dt, growthOccupied), !creative);
   for (const [k, plant] of crops) {
     const [q, y, r] = k.split(',').map(Number);
     if (!world.loaded(q, r)) continue;
@@ -3401,12 +3470,14 @@ function growthOccupied(q, y, r) {
       y + 1 > m.mesh.position.y,
   );
 }
-function applyChorusChanges(output, drop = true) {
+function applyPlantChanges(output, drop = true) {
   if (!output.changed.length) return;
   const chunks = new Set();
-  for (const { q, r } of output.changed)
+  for (const { q, y, r } of output.changed) {
+    graphics.updateLight(q, y, r);
     for (const [dq, dr] of [[0, 0], ...DIRECTIONS])
       chunks.add(graphics.chunkKey(q + dq, r + dr));
+  }
   for (const ck of chunks) if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
   if (drop)
     for (const p of output.drops) dropAt(p.item, p.count, p.q, p.y, p.r);
@@ -3414,7 +3485,7 @@ function applyChorusChanges(output, drop = true) {
   graphics.renderer.shadowMap.needsUpdate = true;
 }
 function harvestChorusBlock(q, y, r, direct, drop) {
-  applyChorusChanges(harvestChorus(world, q, y, r, direct), drop);
+  applyPlantChanges(harvestChorus(world, q, y, r, direct), drop);
   graphics.burst(q, y, r, '#ac82b3');
   soundFX.play('break', 'wood');
 }
@@ -3500,7 +3571,7 @@ function interact(preferContext = false) {
   if (!actionHand) return beginUse(() => interact(preferContext));
   combat.reset();
   if (foodUse) stopEating();
-  if (useEndCrystal() || useCircuitControl()) return;
+  if (useEndCrystal() || useCircuitControl() || useCavePlant()) return;
   if (!preferContext && boats.riding && useItem() === 'fishingRod') {
     useFishingRod();
     return;
@@ -6107,6 +6178,13 @@ function frame(now) {
     if (BLOCKS[target?.type]?.foliage)
       $('#target').textContent +=
         ' · ' + world.leafDecay.label(key(target.q, target.y, target.r));
+    if (isCaveVine(target?.type))
+      $('#target').textContent +=
+        target.type === 'caveVinesBerries'
+          ? ' · 右键采摘 · 空格攀爬 · 断根会脱落'
+          : ' · 骨粉结出浆果 · 空格攀爬 · 断根会脱落';
+    if (target?.type === 'sporeBlossom')
+      $('#target').textContent += ' · 采集后可悬挂在洞顶 · 飘落孢子';
     if (target?.type === 'redstoneWire')
       $('#target').textContent +=
         ` · 信号 ${world.redstone.power(target.q, target.y, target.r)} / 15`;
@@ -6215,13 +6293,15 @@ function frame(now) {
               : m.kind === 'enderman'
                 ? (m.anger > 0 ? ' · 已被激怒！' : ' · 中立 · 避免直视双眼') +
                   (m.carried ? ' · 搬着' + BLOCKS[m.carried].name : '')
-                : def.hostile
-                  ? ''
-                  : m.love > 0
-                    ? ' · ♥ 寻找伙伴'
-                    : m.kind === 'chicken' && m.eggs > 0
-                      ? ' · 右键收集鸡蛋 ×' + m.eggs
-                      : ' · 右键喂养 / 互动');
+                : def.ambient
+                  ? ' · 洞穴生物 · 靠近会惊飞'
+                  : def.hostile
+                    ? ''
+                    : m.love > 0
+                      ? ' · ♥ 寻找伙伴'
+                      : m.kind === 'chicken' && m.eggs > 0
+                        ? ' · 右键收集鸡蛋 ×' + m.eggs
+                        : ' · 右键喂养 / 互动');
     }
     if (boatTarget && !creatureTarget && !villagerTarget) {
       $('#target').classList.remove('hidden');

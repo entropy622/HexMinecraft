@@ -1,4 +1,17 @@
 export const MOBS = {
+  bat: {
+    name: '蝙蝠',
+    hp: 6,
+    speed: 1.8,
+    height: 0.6,
+    radius: 0.18,
+    hitHeight: 0.35,
+    hitRadius: 0.3,
+    flying: true,
+    ambient: true,
+    experience: 0,
+    drops: {},
+  },
   shulker: {
     name: '潜影贝',
     hp: 30,

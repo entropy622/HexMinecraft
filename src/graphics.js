@@ -5,6 +5,7 @@ import {
   leafMaterials,
 } from './foliage-shader.js';
 import { LeafParticles } from './leaf-particles.js';
+import { CaveAmbience } from './cave-ambience.js';
 import { pillarFace } from './pillar-faces.js';
 import { isDoor, isTrapdoor } from './building-data.js';
 import { BrewingModels } from './brewing-graphics.js';
@@ -106,6 +107,7 @@ export class Graphics {
     this.scene.add(this.sun, this.sun.target);
     this.textures = createTextures();
     this.leafParticles = new LeafParticles(this.scene, this.textures);
+    this.caveAmbience = new CaveAmbience(this.scene);
     this.chestModels = new ChestModels(this.textures);
     this.enchantingModels = new EnchantingModels(this.textures);
     this.smithingModels = new SmithingModels(this.textures);
@@ -313,6 +315,7 @@ export class Graphics {
   build(world, q = 0, r = 0) {
     this.cloudSystem.clear();
     this.leafParticles.clear();
+    this.caveAmbience.clear();
     this.campfireModels.reset();
     this.fallingModels.clear();
     this.miningEffects.clear();
@@ -1397,6 +1400,7 @@ export class Graphics {
         overworld && elevation > 0 ? this.sun.intensity * 0.2 : 0,
       );
     this.leafParticles.frame(dt, time, this.leafUniforms.leafWind.value);
+    this.caveAmbience.frame(dt, time, this.world, this.camera);
     this.hemi.intensity = this.hemi.intensity * (1 - rain * 0.2) + flash * 0.85;
     this.shadowTimer = (this.shadowTimer || 0) - dt;
     if (this.shadowTimer <= 0) {

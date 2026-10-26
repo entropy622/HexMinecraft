@@ -27,6 +27,7 @@ import { buildingParts, insidePart } from './building-shapes.js';
 import { partSpan } from './shape-columns.js';
 import { Redstone } from './redstone.js';
 import { isCircuit } from './redstone-data.js';
+import { isHangingPlant } from './cave-data.js';
 
 export const CHUNK_SIZE = 8;
 export const WORLD_HEIGHT = 64;
@@ -80,6 +81,7 @@ export class World {
     this.spawners = new Set();
     this.buildings = new Set();
     this.circuitCells = new Set();
+    this.hangingPlants = new Set();
     this.portalCells = new Set();
     this.blockStates = new Map();
     this.naturalStates = new Map();
@@ -357,6 +359,8 @@ export class World {
       else this.buildings.delete(k);
       if (isCircuit(type)) this.circuitCells.add(k);
       else this.circuitCells.delete(k);
+      if (isHangingPlant(type)) this.hangingPlants.add(k);
+      else this.hangingPlants.delete(k);
       if (type === 'spawner') this.spawners.add(k);
       else this.spawners.delete(k);
       if (type) this.blocks.set(k, type);
@@ -548,6 +552,7 @@ export class World {
           const k = key(q, y, r);
           this.indexTreeCell(k, this.blocks.get(k));
           if (isCircuit(this.blocks.get(k))) this.circuitCells.add(k);
+          if (isHangingPlant(this.blocks.get(k))) this.hangingPlants.add(k);
           this.gravity.index(q, y, r, this.blocks.get(k));
           if (this.blocks.get(k) === 'portal') this.portalCells.add(k);
           if (isCampfire(this.blocks.get(k)) && !this.campfires.has(k))
@@ -587,6 +592,7 @@ export class World {
           this.spawners.delete(k);
           this.buildings.delete(k);
           this.circuitCells.delete(k);
+          this.hangingPlants.delete(k);
           this.portalCells.delete(k);
           this.naturalStates.delete(k);
           this.chorusPending.delete(k);
@@ -605,6 +611,7 @@ export class World {
     this.spawners.clear();
     this.buildings.clear();
     this.circuitCells.clear();
+    this.hangingPlants.clear();
     this.redstone.levels.clear();
     this.portalCells.clear();
     this.gravity.pending.clear();

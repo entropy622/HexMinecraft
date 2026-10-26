@@ -13,6 +13,7 @@ import {
 } from './shulkers.js';
 import { findFloor } from './grounding.js';
 import { campfireHeat } from './campfires.js';
+import { spawnCaveBats, updateBat } from './bats.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
 export class Fauna {
@@ -38,9 +39,10 @@ export class Fauna {
   }
   remember(m) {
     if (
-      MOBS[m.kind].hostile &&
-      !MOBS[m.kind].persistent &&
-      !(m.kind === 'enderman' && m.carried)
+      MOBS[m.kind].ambient ||
+      (MOBS[m.kind].hostile &&
+        !MOBS[m.kind].persistent &&
+        !(m.kind === 'enderman' && m.carried))
     ) {
       this.records.delete(m.id);
       return;
@@ -144,6 +146,7 @@ export class Fauna {
       }
     }
     if (world.dimension === 'overworld') {
+      spawnCaveBats(this, camera);
       const cx = Math.floor(a.q / 24),
         cz = Math.floor(a.r / 24);
       for (let x = cx - 1; x <= cx + 1; x++)
@@ -274,7 +277,7 @@ export class Fauna {
     }
     if (loot && !m.baby) {
       this.callbacks.experience?.(
-        MOBS[m.kind].experience ||
+        MOBS[m.kind].experience ??
           (MOBS[m.kind].hostile ? 5 : 1 + Math.floor(Math.random() * 3)),
         [m.mesh.position.x, m.mesh.position.y + 0.5, m.mesh.position.z],
       );
@@ -298,6 +301,7 @@ export class Fauna {
   }
   interact(m, item) {
     const def = MOBS[m.kind];
+    if (def.ambient) return { message: '蝙蝠喜欢安静的洞穴，靠近时会惊飞。' };
     if (def.hostile) return null;
     if (item === 'shears' && m.kind === 'sheep' && !m.baby) {
       if (m.wool > 0) return { message: '羊毛尚未长好，让它在草地上吃草。' };
@@ -514,6 +518,10 @@ export class Fauna {
           this.remove(m);
           continue;
         }
+      }
+      if (m.kind === 'bat') {
+        updateBat(this, m, dt, time, camera);
+        continue;
       }
       if (def.flying) {
         updateNetherFlier(this, m, dt, time, camera, creative);
