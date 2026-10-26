@@ -1,4 +1,5 @@
 import { DIRECTIONS, key } from './core.js';
+import { CIRCUIT_BLOCKS } from './redstone-data.js';
 
 export const LIQUIDS = {
   water: {
@@ -65,7 +66,11 @@ export class Fluids {
   }
   open(q, y, r) {
     return (
-      y >= 1 && y < 64 && this.world.loaded(q, r) && !this.world.get(q, y, r)
+      y >= 1 &&
+      y < 64 &&
+      this.world.loaded(q, r) &&
+      (!this.world.get(q, y, r) ||
+        !!CIRCUIT_BLOCKS[this.world.get(q, y, r)]?.shape)
     );
   }
   wake(q, y, r) {

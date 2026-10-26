@@ -7,6 +7,7 @@ import { FURNACES, isFurnace } from './processing-data.js';
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
 const EMISSION = {
+  redstoneLamp: [15, 13, 9],
   campfire: [15, 10, 5],
   soulCampfire: [6, 11, 12],
   endRod: [15, 14, 15],
@@ -168,7 +169,8 @@ export class VoxelLight {
                   : 16;
       const emission =
         (isFurnace(type) && !(this.world.furnaces.get(key)?.burn > 0)) ||
-        (isCampfire(type) && !this.world.campfires.get(key)?.lit)
+        (isCampfire(type) && !this.world.campfires.get(key)?.lit) ||
+        (type === 'redstoneLamp' && !this.world.state(q, y, r).powered)
           ? null
           : EMISSION[type];
       if (emission) emitters.push([i, emission]);

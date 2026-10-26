@@ -15,6 +15,10 @@ export function createTextures() {
     id + ':side',
   ]);
   names.push(
+    'redstoneLampOn:top',
+    'redstoneLampOn:side',
+    'redstoneWireOn:top',
+    'redstoneWireOn:side',
     'anvilBase:side',
     'brewingBase:side',
     'grindstoneFrame:side',
@@ -283,6 +287,25 @@ export function createTextures() {
         fill('#eee8ce', 7, 1, 3, 7);
         fill('#edc345', 7, 3, 3, 3);
       }
+    }
+    if (id === 'redstoneWire' || id === 'redstoneWireOn') {
+      fill(id === 'redstoneWireOn' ? '#ef351c' : '#68170f', 0, 0, 16, 16);
+      for (let i = 0; i < 26; i++)
+        fill(
+          id === 'redstoneWireOn' ? '#ff7650' : '#902a19',
+          Math.floor(rand(i, 4) * 16),
+          Math.floor(rand(i, 8) * 16),
+        );
+    }
+    if (id === 'redstoneLamp' || id === 'redstoneLampOn') {
+      const on = id === 'redstoneLampOn';
+      fill('#362a24', 0, 0, 16, 16);
+      for (let a = 0; a < 2; a++)
+        for (let b = 0; b < 2; b++) {
+          fill(on ? '#efb86d' : '#775334', 1 + a * 8, 1 + b * 8, 6, 6);
+          fill(on ? '#ffe6a4' : '#a07140', 2 + a * 8, 2 + b * 8, 4, 2);
+          fill(on ? '#c47f3a' : '#513a2a', 2 + a * 8, 6 + b * 8, 4, 1);
+        }
     }
     paintPackTile(c, id, top);
     const ox = (index % COLS) * CELL + PAD,

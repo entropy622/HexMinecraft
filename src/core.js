@@ -26,6 +26,7 @@ import {
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import { PROCESSING_BLOCKS, PROCESSING_RECIPES } from './processing-data.js';
 import { CAVE_BLOCKS } from './cave-data.js';
+import { CIRCUIT_BLOCKS, CIRCUIT_RECIPES } from './redstone-data.js';
 import {
   IGNITION_BLOCKS,
   IGNITION_ITEMS,
@@ -51,6 +52,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...CIRCUIT_BLOCKS,
   ...CAVE_BLOCKS,
   ...PROCESSING_BLOCKS,
   ...MINERAL_BLOCKS,
@@ -436,6 +438,7 @@ export const RECIPES = [
   },
 ];
 RECIPES.push(
+  ...CIRCUIT_RECIPES,
   ...WOOD_RECIPES,
   {
     id: 'obsidian',

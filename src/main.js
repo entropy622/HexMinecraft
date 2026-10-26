@@ -32,6 +32,12 @@ import { brewingPanel, updateBrewingPanel } from './brewing-ui.js';
 import { FUELS, newFurnace, smeltingRecipe, tickFurnace } from './furnaces.js';
 import { furnacePanel, updateFurnacePanel } from './furnace-ui.js';
 import { FURNACES, isFurnace } from './processing-data.js';
+import {
+  CIRCUIT_BLOCKS,
+  isCircuitInput,
+  circuitItem,
+  attachmentCell,
+} from './redstone-data.js';
 import { canStonecut, stonecuttingResult } from './stonecutting.js';
 import { stonecutterPanel } from './stonecutter-ui.js';
 import { newChest, isStorage, storageLidClear } from './chests.js';
@@ -168,7 +174,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.55 — FAMILIAR FOOTSTEPS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.56 — SIGNALS IN STONE</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -922,6 +928,7 @@ function startGame(mode = false, save = null) {
     furnaces: data.furnaces,
     brewing: data.brewing,
     campfires: data.campfires,
+    redstoneTimers: data.redstoneTimers,
     falling: data.falling,
     chorus: data.chorus,
     fluids: data.fluids,
@@ -1171,6 +1178,7 @@ function travel(to) {
     furnaces: data.furnaces,
     brewing: data.brewing,
     campfires: data.campfires,
+    redstoneTimers: data.redstoneTimers,
     falling: data.falling,
     chorus: data.chorus,
     fluids: data.fluids,
@@ -1251,7 +1259,7 @@ function saveData() {
   const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 14,
+    version: 15,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -1770,7 +1778,10 @@ function handCanUse(hand) {
     return true;
   if (FOODS[id]) return canEat(id, hand);
   return !!(
-    (BLOCKS[id] && target && !creatureTarget && !villagerTarget) ||
+    ((BLOCKS[id] || id === 'redstone') &&
+      target &&
+      !creatureTarget &&
+      !villagerTarget) ||
     item.bucket ||
     THROWABLES[id] ||
     ['glassBottle', 'fireworkRocket', 'flintAndSteel', 'endCrystal'].includes(
@@ -2409,8 +2420,8 @@ function jumpInput(now) {
 }
 function pickBlock() {
   if (!playing || !target || !BLOCKS[target.type]) return;
-  const original = doorLower(target.type),
-    id = BLOCKS[original].internal ? null : original;
+  const original = circuitItem(doorLower(target.type)),
+    id = ITEMS[original]?.internal ? null : original;
   if (!id) return;
   const from = pack.slots.findIndex((s) => s?.item === id);
   if (from >= 0 && from < 9) selected = from;
@@ -2771,6 +2782,23 @@ function stripLog() {
   );
   return true;
 }
+function useCircuitControl() {
+  if (
+    target &&
+    ['lever', 'stoneButton'].includes(target.type) &&
+    !keys.has('ShiftLeft') &&
+    !keys.has('ShiftRight')
+  ) {
+    if (world.redstone.activate(target.q, target.y, target.r)) {
+      graphics.updateBlock(target.q, target.y, target.r);
+      useSwing();
+      soundFX.play('place', 'stone');
+      saveGame();
+    }
+    return true;
+  }
+  return false;
+}
 function place() {
   if (!playing) return;
   if (!actionHand) return beginUse(place);
@@ -2778,7 +2806,7 @@ function place() {
   if (foodUse) stopEating();
   if (boatTarget && !creatureTarget && !villagerTarget && interactBoat())
     return;
-  if (useEndCrystal()) return;
+  if (useEndCrystal() || useCircuitControl()) return;
   if (
     target &&
     isOpenable(target.type) &&
@@ -2840,6 +2868,10 @@ function place() {
   }
   if (useBucket()) return;
   if (actionHand === 'offhand' && useItem() === 'shield') return;
+  if (useItem() === 'redstone' && target) {
+    placeBuilding('redstoneWire', target.place);
+    return;
+  }
   if (!target || !BLOCKS[useItem()]) return;
   if (BLOCKS[useItem()].shape === 'slab' && target.type === useItem()) {
     const state = world.state(target.q, target.y, target.r);
@@ -2973,7 +3005,8 @@ function buildingOccupied(q, y, r) {
 }
 function placeBuilding(type, p) {
   const { q, y, r } = p;
-  if (y < 1 || y >= 63 || (!creative && !(useCount(type) > 0))) return;
+  const item = circuitItem(type);
+  if (y < 1 || y >= 63 || (!creative && !(useCount(item) > 0))) return;
   const cut = ['slab', 'stairs', 'trapdoor'].includes(BLOCKS[type].shape);
   const upper =
     cut &&
@@ -2985,6 +3018,23 @@ function placeBuilding(type, p) {
     return;
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
+  let mount;
+  if (CIRCUIT_BLOCKS[type]?.shape) {
+    const control = ['lever', 'stoneButton'].includes(type);
+    mount =
+      control && target.normal?.y < -0.5
+        ? 'ceiling'
+        : control && Math.abs(target.normal?.y ?? 1) < 0.5
+          ? 'wall'
+          : 'floor';
+    if (mount === 'wall')
+      facing = facingFromDirection(-target.normal.x, -target.normal.z);
+    const support = attachmentCell(q, y, r, { facing, mount }, DIRECTIONS);
+    if (!fullSupport(...support, mount === 'floor')) {
+      toast('红石元件需要完整的支撑面；红石线与压力板放在顶面。');
+      return;
+    }
+  }
   if (isTrapdoor(type) && Math.abs(target.normal?.y ?? 1) < 0.5)
     facing = facingFromDirection(-target.normal.x, -target.normal.z);
   if (type === 'chorusFlower') {
@@ -3043,7 +3093,13 @@ function placeBuilding(type, p) {
     return;
   }
   for (const [a, b, c, t] of cells) world.set(a, b, c, t, false);
-  world.setState(q, y, r, { facing, open: false, upper, double: false });
+  world.setState(q, y, r, {
+    facing,
+    open: false,
+    upper,
+    double: false,
+    ...(mount ? { mount } : {}),
+  });
   if (
     collides(camera.position.x, playerFeet(), camera.position.z) ||
     buildingOccupied(q, y, r)
@@ -3057,8 +3113,8 @@ function placeBuilding(type, p) {
   if (type === 'chorusFlower')
     world.chorus.set(key(q, y, r), { stage: 0, time: 0 });
   if (crops.has(key(q, y - 1, r))) harvestPlant(key(q, y - 1, r), true, 3);
-  consumeUseItem(type);
-  rememberBlockUse(type);
+  consumeUseItem(item);
+  rememberBlockUse(item);
   graphics.updateBlock(q, y, r);
   useSwing();
   soundFX.play('place', BLOCKS[type].base || 'wood');
@@ -3074,7 +3130,7 @@ function removeBuilding(q, y, r, drop = true) {
   if (isDoorTop(original) && world.get(q, y - 1, r) === doorLower(original))
     y--;
   const type = world.get(q, y, r),
-    item = doorLower(type);
+    item = circuitItem(doorLower(type));
   const count =
     BLOCKS[type]?.shape === 'slab' && world.state(q, y, r).double ? 2 : 1;
   graphics.blockBreak({ q, y, r, type });
@@ -3100,10 +3156,10 @@ function removeBuilding(q, y, r, drop = true) {
 }
 function toggleBuilding(q, y, r, open = null) {
   if (isDoorTop(world.get(q, y, r))) y--;
-  if (!isOpenable(world.get(q, y, r))) return;
+  if (!isOpenable(world.get(q, y, r))) return false;
   const old = world.state(q, y, r),
     next = { ...old, open: open ?? !old.open };
-  if (next.open === old.open) return;
+  if (next.open === old.open) return true;
   world.setState(q, y, r, next);
   const center = axialToWorld(q, r);
   const blocked =
@@ -3113,14 +3169,15 @@ function toggleBuilding(q, y, r, open = null) {
       boats.intersectsCell(center.x, y, center.z));
   if (blocked) {
     world.setState(q, y, r, old);
-    toast('开合空间内有玩家、动物或船，先让出空间。');
-    return;
+    if (open === null) toast('开合空间内有玩家、动物或船，先让出空间。');
+    return false;
   }
   graphics.updateBlock(q, y, r);
   if (open === null) graphics.swing();
   soundFX.play(next.open ? 'doorOpen' : 'doorClose', 'wood');
   if (isTrapdoor(world.get(q, y, r))) maintainBuildings();
   if (open === null) saveGame();
+  return true;
 }
 function maintainBuildings() {
   for (const k of [...world.buildings]) {
@@ -3138,8 +3195,35 @@ function maintainBuildings() {
       const [dq, dr] = DIRECTIONS[world.state(q, y, r).facing];
       if (!world.loaded(q + dq, r + dr)) continue;
       if (!fullSupport(q + dq, y, r + dr)) removeBuilding(q, y, r);
+    } else if (CIRCUIT_BLOCKS[type]?.shape) {
+      const state = world.state(q, y, r),
+        support = attachmentCell(q, y, r, state, DIRECTIONS);
+      if (!world.loaded(support[0], support[2])) continue;
+      if (
+        !fullSupport(...support, !state.mount || state.mount === 'floor') ||
+        world.fluids.get(q, y, r)
+      )
+        removeBuilding(q, y, r);
     }
   }
+}
+function updateRedstone(dt) {
+  if (!world.circuitCells.size) return [];
+  const actors = [
+    {
+      x: camera.position.x,
+      y: playerFeet(),
+      z: camera.position.z,
+      radius: 0.24,
+    },
+    ...[...creatures, ...villagers.residents.values()].map((mob) => ({
+      x: mob.mesh.position.x,
+      y: mob.mesh.position.y,
+      z: mob.mesh.position.z,
+      radius: mob.baby ? 0.16 : 0.3,
+    })),
+  ];
+  return world.redstone.tick(dt, actors, toggleBuilding);
 }
 function endermanBlockChange(q, y, r, type) {
   const k = key(q, y, r),
@@ -3416,7 +3500,7 @@ function interact(preferContext = false) {
   if (!actionHand) return beginUse(() => interact(preferContext));
   combat.reset();
   if (foodUse) stopEating();
-  if (useEndCrystal()) return;
+  if (useEndCrystal() || useCircuitControl()) return;
   if (!preferContext && boats.riding && useItem() === 'fishingRod') {
     useFishingRod();
     return;
@@ -5937,7 +6021,19 @@ function frame(now) {
     updateBowUse(dt);
     boats.update(dt, world, keys);
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
-    for (let i = 0; i < physicsSteps; i++) movePlayer(dt / physicsSteps);
+    if (
+      world.circuitCells.size &&
+      world.redstone.revision !== world.lightRevision
+    )
+      maintainBuildings();
+    const redstoneChanges = new Map();
+    for (let i = 0; i < physicsSteps; i++) {
+      movePlayer(dt / physicsSteps);
+      for (const p of updateRedstone(dt / physicsSteps))
+        redstoneChanges.set(key(...p), p);
+    }
+    if (redstoneChanges.size)
+      graphics.updateCells([...redstoneChanges.values()]);
     updateFalling(dt);
     if (updatePortalTravel(dt)) return;
     flightEffects.update(dt, world, camera, glider);
@@ -6011,6 +6107,21 @@ function frame(now) {
     if (BLOCKS[target?.type]?.foliage)
       $('#target').textContent +=
         ' · ' + world.leafDecay.label(key(target.q, target.y, target.r));
+    if (target?.type === 'redstoneWire')
+      $('#target').textContent +=
+        ` · 信号 ${world.redstone.power(target.q, target.y, target.r)} / 15`;
+    if (isCircuitInput(target?.type) || target?.type === 'redstoneLamp') {
+      $('#target').textContent += world.state(target.q, target.y, target.r)
+        .powered
+        ? ' · 已通电'
+        : ' · 未通电';
+      $('#target').textContent +=
+        target.type === 'stonePressurePlate'
+          ? ' · 踩下触发'
+          : target.type === 'redstoneLamp'
+            ? ' · 连接红石线供电'
+            : ' · 右键开关 · Shift 右键在旁建造';
+    }
     if (isCampfire(target?.type)) {
       const fire = world.campfires.get(key(target.q, target.y, target.r));
       const slots = fire?.slots.filter(Boolean) || [];

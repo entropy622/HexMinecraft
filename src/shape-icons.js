@@ -26,7 +26,12 @@ export function cutBlockIcon(id) {
   for (const part of parts) {
     const low = -part.h / 2,
       high = part.h / 2,
-      poly = part.polygon;
+      poly = part.polygon || [
+        [-part.w / 2, -part.d / 2],
+        [part.w / 2, -part.d / 2],
+        [part.w / 2, part.d / 2],
+        [-part.w / 2, part.d / 2],
+      ];
     const tile = part.tile || def.base || id;
     const point = (x, y, z) => {
       const pitch = part.pitch || 0,

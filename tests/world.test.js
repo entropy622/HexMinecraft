@@ -74,7 +74,7 @@ test('dimensions have distinct terrain, materials, liquids and void islands', ()
   assert.equal(DIMENSIONS.end.liquid, null);
 });
 test('old save versions are no longer migrated', () => {
-  for (const version of [1, 3, 13])
+  for (const version of [1, 3, 13, 14])
     assert.throws(() => validateSave({ ...currentSave(), version }));
 });
 test('current validation accepts distant saves and rejects malformed dimensions', () => {

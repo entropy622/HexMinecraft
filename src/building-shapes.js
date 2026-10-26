@@ -2,6 +2,8 @@ import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
 import { cutBlockParts, polygonContains, HEX_POLYGON } from './cut-blocks.js';
 import { isChorus } from './chorus-data.js';
 import { trapdoorParts } from './trapdoor-shape.js';
+import { CIRCUIT_BLOCKS } from './redstone-data.js';
+import { redstoneParts } from './redstone-shapes.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -27,6 +29,8 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (CIRCUIT_BLOCKS[type]?.shape)
+    return redstoneParts(world, q, y, r, collision);
   if (shape === 'stonecutter') {
     const base = {
       x: 0,

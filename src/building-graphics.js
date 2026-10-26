@@ -119,7 +119,7 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
           tex.getY(i),
         ),
       );
-      const shade = normal.getY(i) > 0.5 ? 1 : 0.86;
+      const shade = (normal.getY(i) > 0.5 ? 1 : 0.86) * (part.shade ?? 1);
       colors.push(shade, shade, shade);
       sky.push(1);
       rain.push(part.polygon && normal.getY(i) > 0.5 && exposed ? 1 : 0);

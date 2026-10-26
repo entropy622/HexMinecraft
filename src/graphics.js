@@ -211,6 +211,14 @@ export class Graphics {
       emissiveIntensity: 0.45,
     });
     applySkylight(this.torchMaterial, this.weatherUniforms);
+    this.lampMaterial = new THREE.MeshLambertMaterial({
+      map: this.textures.atlas,
+      emissiveMap: this.textures.atlas,
+      emissive: '#fff4d8',
+      emissiveIntensity: 1.8,
+      vertexColors: true,
+    });
+    applySkylight(this.lampMaterial, this.weatherUniforms);
     this.hand = new THREE.Group();
     this.hand.userData.skipOcclusion = true;
     const sleeve = new THREE.Mesh(
@@ -516,7 +524,8 @@ export class Graphics {
       leaves = { p: [], c: [], uv: [], sky: [], rain: [] },
       glass = { p: [], c: [], uv: [], sky: [], rain: [] },
       plants = { p: [], c: [], uv: [], sky: [], rain: [] },
-      torches = { p: [], c: [], uv: [], sky: [], rain: [] };
+      torches = { p: [], c: [], uv: [], sky: [], rain: [] },
+      lamps = { p: [], c: [], uv: [], sky: [], rain: [] };
     let out = solid,
       rainExposure = 0;
     const shaped = [];
@@ -645,13 +654,17 @@ export class Graphics {
             ? leaves
             : type === 'glass'
               ? glass
-              : solid;
+              : type === 'redstoneLamp' && world.state(q, y, r).powered
+                ? lamps
+                : solid;
           const abs = axialToWorld(q, r),
             x = abs.x - origin.x,
             z = abs.z - origin.z;
           const axis = BLOCKS[type].pillar ? world.state(q, y, r).axis || 0 : 0;
           const blockFace = (vertices, uv, side, shade = 1, ao = [1, 1, 1]) => {
             let tile = type + (side < 0 ? ':top' : ':side');
+            if (type === 'redstoneLamp' && world.state(q, y, r).powered)
+              tile = 'redstoneLampOn' + (side < 0 ? ':top' : ':side');
             if (axis) {
               const mapped = pillarFace(
                 axis,
@@ -867,6 +880,11 @@ export class Graphics {
     }
     if (torches.p.length)
       mesh.add(new THREE.Mesh(geometry(torches), this.torchMaterial));
+    if (lamps.p.length) {
+      const lit = new THREE.Mesh(geometry(lamps), this.lampMaterial);
+      lit.castShadow = true;
+      mesh.add(lit);
+    }
     if (glass.p.length)
       mesh.add(new THREE.Mesh(geometry(glass), this.glassMaterial));
     if (leaves.p.length) {
@@ -899,6 +917,8 @@ export class Graphics {
       this.updatePortal(q, y, r);
     }
     for (const k of chunks) if (this.chunks.has(k)) this.buildChunk(k);
+    // A switch should refresh its surroundings before distant resident chunks.
+    this.relightQueue = new Set([...chunks, ...this.relightQueue]);
   }
   updatePortal(q, y, r) {
     const pk = q + ',' + y + ',' + r,
@@ -920,7 +940,8 @@ export class Graphics {
     const k = q + ',' + y + ',' + r,
       type = this.world.get(q, y, r),
       color =
-        isCampfire(type) && !this.world.campfires.get(k)?.lit
+        (isCampfire(type) && !this.world.campfires.get(k)?.lit) ||
+        (type === 'redstoneLamp' && !this.world.state(q, y, r).powered)
           ? null
           : isFurnace(type) && this.world.furnaces.get(k)?.burn > 0
             ? '#ff9d47'

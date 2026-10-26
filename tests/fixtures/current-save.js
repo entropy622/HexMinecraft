@@ -12,7 +12,7 @@ export function currentSave(
   const pack = new PlayerInventory();
   pack.insert('wood', 7);
   return {
-    version: 14,
+    version: 15,
     dimension: world.dimension,
     seed: world.seed,
     dimensions: {

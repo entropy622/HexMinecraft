@@ -25,6 +25,8 @@ import {
 } from './core.js';
 import { buildingParts, insidePart } from './building-shapes.js';
 import { partSpan } from './shape-columns.js';
+import { Redstone } from './redstone.js';
+import { isCircuit } from './redstone-data.js';
 
 export const CHUNK_SIZE = 8;
 export const WORLD_HEIGHT = 64;
@@ -77,6 +79,7 @@ export class World {
     this.center = null;
     this.spawners = new Set();
     this.buildings = new Set();
+    this.circuitCells = new Set();
     this.portalCells = new Set();
     this.blockStates = new Map();
     this.naturalStates = new Map();
@@ -93,7 +96,9 @@ export class World {
     this.fluids = new Fluids(this, options.fluids);
     this.campfires = new Map(options.campfires || []);
     this.gravity = new Gravity(this, options.falling);
+    this.redstone = new Redstone(this);
     if (options.edits) this.applyEdits(options.edits);
+    this.redstone.timers = new Map(options.redstoneTimers || []);
     this.persistentLeaves = new Set(options.persistentLeaves || []);
     this.leafDecay = new LeafDecay(this, options.leafDecay);
     this.blockStates = new Map(options.blockStates || []);
@@ -223,6 +228,8 @@ export class World {
       upper: state.upper === true,
       double: state.double === true,
       axis: state.axis ?? 0,
+      ...(state.powered !== undefined ? { powered: state.powered } : {}),
+      ...(state.mount !== undefined ? { mount: state.mount } : {}),
     });
     this.shapeCache.clear();
   }
@@ -338,13 +345,18 @@ export class World {
     }
     if (record && !BLOCKS[type]?.foliage) this.leafDecay?.pending.delete(k);
     this.shapeCache.clear();
-    if (record && previous !== type) this.blockStates.delete(k);
+    if (record && previous !== type) {
+      this.blockStates.delete(k);
+      this.redstone.timers.delete(k);
+    }
     if (this.loaded(q, r)) {
       this.indexTreeCell(k, type);
       if (type === 'portal') this.portalCells.add(k);
       else this.portalCells.delete(k);
       if (BLOCKS[type]?.shape) this.buildings.add(k);
       else this.buildings.delete(k);
+      if (isCircuit(type)) this.circuitCells.add(k);
+      else this.circuitCells.delete(k);
       if (type === 'spawner') this.spawners.add(k);
       else this.spawners.delete(k);
       if (type) this.blocks.set(k, type);
@@ -535,6 +547,7 @@ export class World {
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const k = key(q, y, r);
           this.indexTreeCell(k, this.blocks.get(k));
+          if (isCircuit(this.blocks.get(k))) this.circuitCells.add(k);
           this.gravity.index(q, y, r, this.blocks.get(k));
           if (this.blocks.get(k) === 'portal') this.portalCells.add(k);
           if (isCampfire(this.blocks.get(k)) && !this.campfires.has(k))
@@ -573,6 +586,7 @@ export class World {
           this.treeLogs.delete(k);
           this.spawners.delete(k);
           this.buildings.delete(k);
+          this.circuitCells.delete(k);
           this.portalCells.delete(k);
           this.naturalStates.delete(k);
           this.chorusPending.delete(k);
@@ -590,6 +604,8 @@ export class World {
     this.blocks.clear();
     this.spawners.clear();
     this.buildings.clear();
+    this.circuitCells.clear();
+    this.redstone.levels.clear();
     this.portalCells.clear();
     this.gravity.pending.clear();
     this.naturalStates.clear();
@@ -618,6 +634,7 @@ export class World {
     return {
       edits: [...this.edits],
       blockStates: [...this.blockStates],
+      redstoneTimers: [...this.redstone.timers],
       persistentLeaves: [...this.persistentLeaves],
       leafDecay: [...this.leafDecay.pending],
       furnaces: [...this.furnaces],

@@ -29,6 +29,9 @@ export function createHeldItem(id, textures) {
       'trapdoor',
       'campfire',
       'stonecutter',
+      'lever',
+      'button',
+      'pressurePlate',
     ].includes(BLOCKS[id]?.shape)
   ) {
     const mesh = buildingItemMesh(id, textures);

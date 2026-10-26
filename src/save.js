@@ -18,7 +18,7 @@ import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v14';
+export const SAVE_KEY = 'hexwild-save-v15';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -41,7 +41,7 @@ const position = (p) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 14 ||
+    s.version !== 15 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -105,11 +105,46 @@ export function validateSave(s) {
             typeof e[1].open !== 'boolean' ||
             (e[1].upper !== undefined && typeof e[1].upper !== 'boolean') ||
             (e[1].double !== undefined && typeof e[1].double !== 'boolean') ||
+            (e[1].powered !== undefined && typeof e[1].powered !== 'boolean') ||
+            (e[1].mount !== undefined &&
+              !['floor', 'wall', 'ceiling'].includes(e[1].mount)) ||
             (e[1].axis !== undefined &&
               (!Number.isInteger(e[1].axis) || e[1].axis < 0 || e[1].axis > 3)),
         ))
     )
       throw Error('建筑朝向或开关状态无效');
+    {
+      const edits = new Map(d.edits),
+        states = new Map(d.blockStates || []);
+      if (
+        !Array.isArray(d.redstoneTimers) ||
+        d.redstoneTimers.length > 200000 ||
+        d.redstoneTimers.some(
+          (e) =>
+            !Array.isArray(e) ||
+            e.length !== 2 ||
+            !cell(e[0]) ||
+            !Number.isFinite(e[1]) ||
+            e[1] <= 0 ||
+            e[1] > (edits.get(e[0]) === 'stonePressurePlate' ? 0.5 : 1) ||
+            !['stoneButton', 'stonePressurePlate'].includes(edits.get(e[0])) ||
+            states.get(e[0])?.powered !== true,
+        ) ||
+        new Set(d.redstoneTimers.map(([k]) => k)).size !==
+          d.redstoneTimers.length
+      )
+        throw Error('红石按钮或压力板计时无效');
+      const timed = new Set(d.redstoneTimers.map(([k]) => k));
+      if (
+        [...states].some(
+          ([k, state]) =>
+            state.powered &&
+            ['stoneButton', 'stonePressurePlate'].includes(edits.get(k)) &&
+            !timed.has(k),
+        )
+      )
+        throw Error('红石按钮或压力板计时无效');
+    }
     if (
       d.furnaces !== undefined &&
       (!Array.isArray(d.furnaces) ||

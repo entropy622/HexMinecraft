@@ -147,7 +147,7 @@ export const BREW_ITEMS = {
   netherWart: { name: '下界疣', color: '#b4474e', use: true },
   blazeRod: { name: '烈焰棒', color: '#efb34a' },
   ghastTear: { name: '恶魂之泪', color: '#e6ded1' },
-  redstone: { name: '红石粉', color: '#cb514a' },
+  redstone: { name: '红石粉', color: '#cb514a', use: true },
   glowDust: { name: '萤石粉', color: '#e4cd76' },
   slimeBall: { name: '黏液球', color: '#91b95e' },
   magmaCream: { name: '岩浆膏', color: '#df9a47' },
