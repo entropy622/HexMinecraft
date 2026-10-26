@@ -19,13 +19,14 @@ export function createPostprocessing(
   lightUniforms,
   settings,
   cloudUniforms,
+  fluids,
 ) {
   const target = new WebGLRenderTarget(innerWidth, innerHeight, {
     type: HalfFloatType,
     depthBuffer: false,
   });
   const composer = new EffectComposer(renderer, target);
-  const frame = new SceneFramePass(scene, camera);
+  const frame = new SceneFramePass(scene, camera, fluids);
   const contact = new ContactOcclusionPass(scene, camera, frame);
   const bloom = new UnrealBloomPass(
     new Vector2(innerWidth, innerHeight),

@@ -268,6 +268,7 @@ export class Graphics {
         this.dynamicLight.uniforms,
         this.postOptions,
         this.cloudSystem.uniforms,
+        this.fluidRenderer,
       );
     if (!this.usePost && this.composer) {
       disposePostprocessing(this.composer);
@@ -1607,6 +1608,7 @@ export class Graphics {
       !!cameraFluid &&
       this.camera.position.y <
         Math.floor(this.camera.position.y) + fluidHeight(cameraFluid);
+    this.fluidRenderer.submerged = submerged;
     this.atmosphere.update({
       time,
       dt: renderDt,
