@@ -8,7 +8,8 @@ function polygonPrism(part) {
     uv = [],
     polygon = part.polygon;
   const low = -part.h / 2,
-    high = part.h / 2;
+    high = part.h / 2,
+    scale = part.topScale ?? 1;
   const triangle = (points, tex) => {
     points.forEach((p, i) => {
       positions.push(...p);
@@ -18,7 +19,7 @@ function polygonPrism(part) {
   for (let i = 1; i < polygon.length - 1; i++) {
     const tri = [polygon[0], polygon[i], polygon[i + 1]];
     triangle(
-      [...tri].reverse().map(([x, z]) => [x, high, z]),
+      [...tri].reverse().map(([x, z]) => [x * scale, high, z * scale]),
       [...tri].reverse().map(([x, z]) => [(x + 1) / 2, (z + 1) / 2]),
     );
     triangle(
@@ -42,8 +43,8 @@ function polygonPrism(part) {
       ];
       const points = [
         [a[0], low, a[1]],
-        [a[0], high, a[1]],
-        [b[0], high, b[1]],
+        [a[0] * scale, high, a[1] * scale],
+        [b[0] * scale, high, b[1] * scale],
         [b[0], low, b[1]],
       ];
       const width = part.uvFull ? 1 : Math.hypot(a[0] - b[0], a[1] - b[1]);

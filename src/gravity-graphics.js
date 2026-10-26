@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { axialToWorld } from './core.js';
+import { buildingItemMesh } from './building-graphics.js';
 
 export class FallingModels {
   constructor(scene, textures) {
@@ -19,6 +20,9 @@ export class FallingModels {
         ),
       ]),
     );
+    const spike = buildingItemMesh('pointedDripstone', textures);
+    this.spikeGeometry = spike.geometry.rotateZ(Math.PI).translate(0, 0.5, 0);
+    this.spikeMaterial = spike.material;
   }
   clear() {
     for (const mesh of this.models.values()) this.scene.remove(mesh);
@@ -30,14 +34,24 @@ export class FallingModels {
       if (!world.loaded(block.q, block.r)) continue;
       visible.add(block);
       if (!this.models.has(block)) {
-        const mesh = new THREE.Mesh(this.geometry, this.materials[block.type]);
+        const spike = block.type === 'pointedDripstone';
+        const mesh = new THREE.Mesh(
+          spike ? this.spikeGeometry : this.geometry,
+          spike ? this.spikeMaterial : this.materials[block.type],
+        );
         mesh.castShadow = mesh.receiveShadow = true;
         mesh.raycast = () => {};
         this.scene.add(mesh);
         this.models.set(block, mesh);
       }
       const p = axialToWorld(block.q, block.r);
-      this.models.get(block).position.set(p.x, block.y + 0.5, p.z);
+      this.models
+        .get(block)
+        .position.set(
+          p.x,
+          block.y + (block.type === 'pointedDripstone' ? 0 : 0.5),
+          p.z,
+        );
     }
     for (const [block, mesh] of this.models)
       if (!visible.has(block)) {

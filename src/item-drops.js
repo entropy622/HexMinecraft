@@ -157,6 +157,7 @@ export class ItemDrops {
         'button',
         'pressurePlate',
         'sporeBlossom',
+        'pointedDripstone',
       ].includes(BLOCKS[id]?.shape)
     ) {
       const mesh = buildingItemMesh(id, this.textures);

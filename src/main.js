@@ -70,6 +70,12 @@ import { pillarAxis, pillarAxisLabel } from './pillar-faces.js';
 import { leafDrops } from './leaves.js';
 import { isCaveVine, isHangingPlant } from './cave-data.js';
 import { canHang, harvestCavePlant, tickCavePlants } from './cave-plants.js';
+import {
+  pointedSupport,
+  tickDripstone,
+  spikeAtFeet,
+  spikeLandingDamage,
+} from './dripstone.js';
 import { ingredientCount, ingredientName } from './wood-ingredients.js';
 import { facingFromDirection, facingAngle } from './building-shapes.js';
 import {
@@ -176,7 +182,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.58 — LIFE BELOW</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.59 — STONE AND WATER</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -2923,6 +2929,15 @@ function place() {
     return;
   }
   if (!target || !BLOCKS[useItem()]) return;
+  if (useItem() === 'pointedDripstone' && target.type === 'pointedDripstone') {
+    const direction = world.state(target.q, target.y, target.r).upper ? -1 : 1;
+    placeBuilding('pointedDripstone', {
+      q: target.q,
+      y: target.y + direction,
+      r: target.r,
+    });
+    return;
+  }
   if (BLOCKS[useItem()].shape === 'slab' && target.type === useItem()) {
     const state = world.state(target.q, target.y, target.r);
     if (
@@ -3066,9 +3081,22 @@ function placeBuilding(type, p) {
   if (y < 1 || y >= 63 || (!creative && !(useCount(item) > 0))) return;
   const cut = ['slab', 'stairs', 'trapdoor'].includes(BLOCKS[type].shape);
   const upper =
-    cut &&
-    (target.normal?.y < -0.5 ||
-      (Math.abs(target.normal?.y || 0) < 0.5 && (target.hitHeight ?? 0) > 0.5));
+    type === 'pointedDripstone'
+      ? target.type === type
+        ? !!world.state(target.q, target.y, target.r).upper
+        : target.normal?.y < -0.5
+      : cut &&
+        (target.normal?.y < -0.5 ||
+          (Math.abs(target.normal?.y || 0) < 0.5 &&
+            (target.hitHeight ?? 0) > 0.5));
+  if (
+    type === 'pointedDripstone' &&
+    (!pointedSupport(world, q, y, r, upper) ||
+      (target.type !== type && Math.abs(target.normal?.y || 0) < 0.5))
+  ) {
+    toast('滴水石锥需要放在完整顶面、底面或同向尖锥上。');
+    return;
+  }
   if (BLOCKS[type].shape === 'slab' && world.get(q, y, r) === type) {
     const old = world.state(q, y, r);
     if (!old.double && !!old.upper !== !!upper) mergeSlab(q, y, r, type);
@@ -3416,6 +3444,8 @@ function growTree(k) {
   return true;
 }
 function updatePlants(dt) {
+  const stoneGrowth = tickDripstone(world, dt, growthOccupied);
+  if (stoneGrowth.length) graphics.updateCells(stoneGrowth);
   applyPlantChanges(tickCavePlants(world, dt), !creative);
   const leaves = world.leafDecay.update(dt);
   if (leaves.length) {
@@ -4123,6 +4153,27 @@ function updateFalling(dt) {
     drop(id, q, y, r) {
       dropAt(id, 1, q, y, r);
     },
+    impact(block, support, amount) {
+      const p = axialToWorld(block.q, block.r);
+      if (amount > 0) {
+        if (
+          Math.hypot(camera.position.x - p.x, camera.position.z - p.z) < 0.5 &&
+          playerFeet() < support + 1 &&
+          playerFeet() + playerHeight() > support
+        )
+          hurt(amount, 'fallingBlock');
+        for (const m of [...fauna.active])
+          if (
+            Math.hypot(m.mesh.position.x - p.x, m.mesh.position.z - p.z) <
+              0.3 + (MOBS[m.kind].radius || 0.35) &&
+            m.mesh.position.y < support + 1 &&
+            m.mesh.position.y + MOBS[m.kind].height > support
+          )
+            fauna.hit(m, amount, null, false);
+      }
+      graphics.burst(block.q, Math.floor(support), block.r, '#b58d70');
+      soundFX.play('break', 'stone');
+    },
   });
   if (changed.length) {
     graphics.updateCells(changed);
@@ -4694,7 +4745,14 @@ function hurt(amount, cause = 'combat', source = null) {
   stopEating();
   const enchantedProtection = equipment.enchantProtection();
   if (
-    ['combat', 'projectile', 'fireball', 'explosion', 'burn'].includes(cause)
+    [
+      'combat',
+      'projectile',
+      'fireball',
+      'explosion',
+      'burn',
+      'fallingBlock',
+    ].includes(cause)
   ) {
     const protection = equipment.protection();
     for (const id of Object.values(equipment.armor))
@@ -5044,7 +5102,15 @@ function hurtLanding(velocity) {
   const hay =
     support !== null &&
     world.get(a.q, Math.floor(support - 0.03), a.r) === 'hayBale';
-  const damage = Math.floor((-velocity - 12) * 0.6 * (hay ? 0.2 : 1));
+  const spike = spikeAtFeet(
+    world,
+    camera.position.x,
+    playerFeet(),
+    camera.position.z,
+  );
+  const damage = spike
+    ? spikeLandingDamage(velocity)
+    : Math.floor((-velocity - 12) * 0.6 * (hay ? 0.2 : 1));
   if (damage > 0) hurt(damage, 'fall');
 }
 function releaseBow(input) {
@@ -5125,7 +5191,7 @@ function moveGlider(dt) {
         delta[axis] = 0;
         if (axis === 'y' && amount < 0) {
           grounded = true;
-          if (velocity < -13) hurtLanding(velocity);
+          if (velocity < -3) hurtLanding(velocity);
           if (owner !== survival) return;
           stopGliding();
           vy = 0;
@@ -5418,7 +5484,7 @@ function movePlayer(dt) {
         camera.position.y = clear + playerEyeHeight();
         if (vy < 0) {
           grounded = true;
-          if (vy < -13 && !levitating) hurtLanding(vy);
+          if (vy < -3 && !levitating) hurtLanding(vy);
         }
         vy = 0;
         break;
@@ -6185,6 +6251,11 @@ function frame(now) {
           : ' · 骨粉结出浆果 · 空格攀爬 · 断根会脱落';
     if (target?.type === 'sporeBlossom')
       $('#target').textContent += ' · 采集后可悬挂在洞顶 · 飘落孢子';
+    if (target?.type === 'pointedDripstone')
+      $('#target').textContent += world.state(target.q, target.y, target.r)
+        .upper
+        ? ' · 钟乳石 · 断根会坠落 · 右键续接'
+        : ' · 石笋 · 避免跳落尖端 · 右键续接';
     if (target?.type === 'redstoneWire')
       $('#target').textContent +=
         ` · 信号 ${world.redstone.power(target.q, target.y, target.r)} / 15`;

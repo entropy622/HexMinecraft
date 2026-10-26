@@ -33,6 +33,7 @@ export function createHeldItem(id, textures) {
       'button',
       'pressurePlate',
       'sporeBlossom',
+      'pointedDripstone',
     ].includes(BLOCKS[id]?.shape)
   ) {
     const mesh = buildingItemMesh(id, textures);

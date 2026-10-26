@@ -25,7 +25,7 @@ import {
 } from './mineral-data.js';
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import { PROCESSING_BLOCKS, PROCESSING_RECIPES } from './processing-data.js';
-import { CAVE_BLOCKS, CAVE_ITEMS } from './cave-data.js';
+import { CAVE_BLOCKS, CAVE_ITEMS, CAVE_RECIPES } from './cave-data.js';
 import { CIRCUIT_BLOCKS, CIRCUIT_RECIPES } from './redstone-data.js';
 import {
   IGNITION_BLOCKS,
@@ -680,6 +680,7 @@ RECIPES.push(
   ...EXPLORATION_RECIPES,
   ...FARM_RECIPES,
   ...BUILDING_RECIPES,
+  ...CAVE_RECIPES,
 );
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (

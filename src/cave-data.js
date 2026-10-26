@@ -1,4 +1,18 @@
 export const CAVE_BLOCKS = {
+  dripstoneBlock: {
+    name: '滴水石块',
+    color: '#a78670',
+    side: '#92725d',
+    hardness: 1.5,
+    tool: 1,
+  },
+  pointedDripstone: {
+    name: '滴水石锥',
+    color: '#c49c80',
+    side: '#a17a60',
+    hardness: 1.5,
+    shape: 'pointedDripstone',
+  },
   caveVines: {
     name: '洞穴藤蔓',
     color: '#578b35',
@@ -52,3 +66,21 @@ export const isCaveVine = (type) =>
   type === 'caveVines' || type === 'caveVinesBerries';
 export const isHangingPlant = (type) =>
   isCaveVine(type) || type === 'sporeBlossom';
+export const CAVE_RECIPES = [
+  {
+    id: 'dripstoneBlock',
+    count: 1,
+    title: '沉积之石',
+    pattern: [
+      'pointedDripstone',
+      'pointedDripstone',
+      null,
+      null,
+      null,
+      'pointedDripstone',
+      'pointedDripstone',
+    ],
+    cost: { pointedDripstone: 4 },
+    desc: '四根滴水石锥合成一块滴水石，可作为上方钟乳石缓慢生长的基座。',
+  },
+];

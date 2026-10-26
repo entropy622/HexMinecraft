@@ -11,7 +11,7 @@ export function partSpan(x, z, part) {
     return Math.abs(px) < part.w / 2 && Math.abs(pz) < part.d / 2
       ? [part.y - part.h / 2, part.y + part.h / 2]
       : null;
-  if (!part.pitch) {
+  if (!part.pitch && part.topScale === undefined) {
     for (let i = 0; i < part.polygon.length; i++) {
       const a = part.polygon[i],
         b = part.polygon[(i + 1) % part.polygon.length];
@@ -27,7 +27,9 @@ export function partSpan(x, z, part) {
   const oy = -part.y * cp + pz * sp,
     oz = part.y * sp + pz * cp;
   const dy = cp,
-    dzRay = -sp;
+    dzRay = -sp,
+    taper = ((part.topScale ?? 1) - 1) / part.h,
+    scale = 1 + taper * (oy + part.h / 2);
   let low = -Infinity,
     high = Infinity;
   const clip = (a, b) => {
@@ -42,8 +44,11 @@ export function partSpan(x, z, part) {
     const a = polygon[i],
       b = polygon[(i + 1) % polygon.length];
     const ex = b[0] - a[0],
-      ez = b[1] - a[1];
-    if (!clip(-ex * dzRay, ez * a[0] - ex * a[1] - ez * px + ex * oz))
+      ez = b[1] - a[1],
+      edge = ez * a[0] - ex * a[1];
+    if (
+      !clip(-ex * dzRay - edge * taper * dy, edge * scale - ez * px + ex * oz)
+    )
       return null;
   }
   return Number.isFinite(low) && Number.isFinite(high) ? [low, high] : null;

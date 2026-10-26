@@ -6,6 +6,7 @@ import { CIRCUIT_BLOCKS } from './redstone-data.js';
 import { redstoneParts } from './redstone-shapes.js';
 import { isHangingPlant } from './cave-data.js';
 import { cavePlantParts } from './cave-plant-shapes.js';
+import { dripstoneParts } from './dripstone.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -31,6 +32,7 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (type === 'pointedDripstone') return dripstoneParts(world, q, y, r);
   if (isHangingPlant(type)) return cavePlantParts(world, q, y, r, collision);
   if (CIRCUIT_BLOCKS[type]?.shape)
     return redstoneParts(world, q, y, r, collision);
@@ -270,13 +272,16 @@ export function insidePart(x, y, z, part) {
   const pz = dx * Math.sin(part.angle) + dz * Math.cos(part.angle);
   if (part.polygon) {
     const pitch = part.pitch || 0,
-      dy = y - part.y;
+      dy = y - part.y,
+      height = dy * Math.cos(pitch) + pz * Math.sin(pitch),
+      scale = 1 + ((part.topScale ?? 1) - 1) * (height / part.h + 0.5);
     return (
-      Math.abs(dy * Math.cos(pitch) + pz * Math.sin(pitch)) < part.h / 2 &&
+      Math.abs(height) < part.h / 2 &&
+      scale > 0 &&
       polygonContains(
         part.polygon,
-        px,
-        -dy * Math.sin(pitch) + pz * Math.cos(pitch),
+        px / scale,
+        (-dy * Math.sin(pitch) + pz * Math.cos(pitch)) / scale,
       )
     );
   }

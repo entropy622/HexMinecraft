@@ -34,6 +34,9 @@ export function cutBlockIcon(id) {
       ];
     const tile = part.tile || def.base || id;
     const point = (x, y, z) => {
+      const scale = 1 + ((part.topScale ?? 1) - 1) * (y / part.h + 0.5);
+      x *= scale;
+      z *= scale;
       const pitch = part.pitch || 0,
         angle = part.angle || 0;
       const py = y * Math.cos(pitch) - z * Math.sin(pitch);

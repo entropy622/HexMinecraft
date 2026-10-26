@@ -4,6 +4,7 @@ import { World, chunkKey } from '../src/world.js';
 import { DIRECTIONS } from '../src/core.js';
 import { miningStats } from '../src/mining.js';
 import { miningLoot } from '../src/mining-loot.js';
+import { pointedSupport } from '../src/dripstone.js';
 
 // Failure modes: a room/ramp cliff, blocked headroom, a missing seam column,
 // bedrock excavation, ore-wall replacement, chunk-order dependence, and edits
@@ -15,6 +16,13 @@ test('generated cave mouths connect to chambers with headroom and one-block step
     const w = new World(seed, 'overworld', { load: false });
     for (const c of w.caves(0, 0, 140)) {
       w.ensureAround(c.q, c.r, 3);
+      for (const k of w.dripstoneCells) {
+        const [q, y, r] = k.split(',').map(Number);
+        assert.ok(
+          pointedSupport(w, q, y, r, !!w.state(q, y, r).upper),
+          `seed ${seed}: unsupported natural spike ${k}`,
+        );
+      }
       for (let tick = 0; tick < 80; tick++)
         w.gravity.tick(0.05, { canPlace: () => true, drop: () => {} });
       const end = c.path.at(-1),
@@ -60,7 +68,7 @@ test('generated cave mouths connect to chambers with headroom and one-block step
     }
   }
   assert.ok(checked >= 15);
-  assert.deepEqual([...kinds].sort(), ['limestone', 'lush']);
+  assert.deepEqual([...kinds].sort(), ['dripstone', 'limestone', 'lush']);
 });
 
 test('cave materials obey harvesting rules and survive chunk-order changes, edits and restoration', () => {

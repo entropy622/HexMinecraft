@@ -99,6 +99,20 @@ export function createTextures() {
         color.multiplyScalar(0.86 + Math.floor(rand(x, y) * 5) * 0.065);
         fill('#' + color.getHexString(), x, y);
       }
+    if (id === 'dripstoneBlock' || id === 'pointedDripstone') {
+      for (let x = 0; x < 16; x++)
+        for (let y = 0; y < 16; y++) {
+          const mineral = hash(Math.floor(x / 3), Math.floor(y / 4), 0, 825);
+          fill(
+            mineral > 0.7 ? '#bea28b' : mineral < 0.25 ? '#8e7665' : '#aa8b76',
+            x,
+            y,
+          );
+          if ((x + Math.floor(y / 5)) % 11 === 1 && hash(x, y, 0, 826) > 0.35)
+            fill('#806653', x, y);
+          else if (hash(x, y, 1, 826) > 0.88) fill('#d1b69c', x, y);
+        }
+    }
     if (['mossBlock', 'calcite', 'tuff'].includes(id)) {
       for (let y = 0; y < 16; y++)
         for (let x = 0; x < 16; x++) {

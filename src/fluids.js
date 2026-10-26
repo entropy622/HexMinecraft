@@ -1,6 +1,7 @@
 import { DIRECTIONS, key } from './core.js';
 import { CIRCUIT_BLOCKS } from './redstone-data.js';
 import { isHangingPlant } from './cave-data.js';
+import { caveFluidSources } from './caves.js';
 
 export const LIQUIDS = {
   water: {
@@ -132,7 +133,10 @@ export class Fluids {
                   level: 0,
                   falling: false,
                 });
-    for (const p of this.world.villageSources(cq, cr))
+    for (const p of [
+      ...this.world.villageSources(cq, cr),
+      ...caveFluidSources(this.world, cq, cr),
+    ])
       if (this.open(p.q, p.y, p.r))
         cells.set(key(p.q, p.y, p.r), {
           type: 'water',

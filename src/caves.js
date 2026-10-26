@@ -80,15 +80,26 @@ export function cavesNear(world, q, r, range = 0) {
         path = candidate;
       }
       if (!path) continue;
-      const lush = hash(a, 10, b, world.seed + 810) > 0.48;
+      const kindRoll = hash(a, 10, b, world.seed + 810),
+        kind =
+          kindRoll > 0.48
+            ? 'lush'
+            : kindRoll < 0.22
+              ? 'dripstone'
+              : 'limestone';
       caves.push({
         q: cq,
         r: cr,
         floor,
         radius,
         path,
-        kind: lush ? 'lush' : 'limestone',
-        name: lush ? '苔光溶洞' : '方解石溶洞',
+        kind,
+        name:
+          kind === 'lush'
+            ? '苔光溶洞'
+            : kind === 'dripstone'
+              ? '滴水石洞'
+              : '方解石溶洞',
       });
     }
   return caves;
@@ -133,7 +144,11 @@ export function stampCaves(world, cq, cr) {
         for (let y = Math.max(1, floor - 1); y <= floor; y++)
           world.blocks.set(
             key(q, y, r),
-            cave.kind === 'lush' && y === floor ? 'mossBlock' : 'tuff',
+            cave.kind === 'lush' && y === floor
+              ? 'mossBlock'
+              : cave.kind === 'dripstone'
+                ? 'dripstoneBlock'
+                : 'tuff',
           );
         for (let y = floor + 1; y <= ceiling; y++)
           world.blocks.delete(key(q, y, r));
@@ -152,7 +167,11 @@ export function stampCaves(world, cq, cr) {
           if (patch > 0.4)
             world.blocks.set(
               key(q, roof, r),
-              cave.kind === 'lush' ? 'mossBlock' : 'calcite',
+              cave.kind === 'lush'
+                ? 'mossBlock'
+                : cave.kind === 'dripstone'
+                  ? 'dripstoneBlock'
+                  : 'calcite',
             );
           // Sparse embedded crystals illuminate the chamber without filling
           // its route or replacing the naturally exposed ore walls.
@@ -186,6 +205,80 @@ export function stampCaves(world, cq, cr) {
               );
           }
         }
+        const formation = dripstoneFormation(world, cave, q, r);
+        if (formation) {
+          if (formation.pool) world.blocks.delete(key(q, floor, r));
+          if (formation.feed) {
+            world.blocks.set(key(q, roof, r), 'dripstoneBlock');
+            world.blocks.delete(key(q, roof + 1, r));
+          }
+          for (const [length, down] of [
+            [formation.down, true],
+            [formation.up, false],
+          ])
+            for (let i = 0; i < length; i++) {
+              const y = down ? ceiling - i : floor + 1 + i,
+                k = key(q, y, r);
+              world.blocks.set(k, 'pointedDripstone');
+              world.naturalStates.set(k, {
+                facing: 0,
+                open: false,
+                upper: down,
+              });
+            }
+        }
       }
   return caves;
+}
+
+// Geometry and natural water share this seed-only descriptor; neither depends
+// on which neighbour chunk happened to load first.
+function dripstoneFormation(world, cave, q, r) {
+  if (
+    cave.kind !== 'dripstone' ||
+    hexDistance(q - cave.q, r - cave.r) >= cave.radius ||
+    cave.path.some((p) => hexDistance(p.q - q, p.r - r) <= 2)
+  )
+    return null;
+  const column = caveColumn(cave, q, r);
+  if (!column) return null;
+  const roll = hash(q, 19, r, world.seed + 824),
+    gap = column.ceiling - column.floor;
+  const pool = roll > 0.965,
+    down =
+      roll > 0.48 && !pool && column.ceiling + 1 < world.terrainHeight(q, r)
+        ? Math.min(
+            gap - 3,
+            1 + Math.floor(hash(q, 20, r, world.seed + 824) * 4),
+          )
+        : 0,
+    up =
+      roll > 0.68 && !pool
+        ? Math.min(
+            gap - down,
+            1 + Math.floor(hash(q, 21, r, world.seed + 824) * 3),
+          )
+        : 0;
+  return {
+    ...column,
+    pool,
+    down,
+    up,
+    feed:
+      down > 0 &&
+      hash(q, 22, r, world.seed + 824) > 0.7 &&
+      column.ceiling + 2 < world.terrainHeight(q, r) - 1,
+  };
+}
+export function caveFluidSources(world, cq, cr) {
+  const sources = [];
+  for (const cave of cavesNear(world, cq * 8 + 4, cr * 8 + 4, 8))
+    for (let q = cq * 8; q < cq * 8 + 8; q++)
+      for (let r = cr * 8; r < cr * 8 + 8; r++) {
+        const p = dripstoneFormation(world, cave, q, r);
+        if (!p) continue;
+        if (p.pool) sources.push({ q, y: p.floor, r });
+        if (p.feed) sources.push({ q, y: p.ceiling + 2, r });
+      }
+  return sources;
 }
