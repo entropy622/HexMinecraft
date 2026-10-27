@@ -4,6 +4,7 @@ import {
   CLOUD_RADIUS,
   CLOUD_BASE,
   cloudDensity,
+  cloudNoiseData,
   cloudFieldGLSL,
 } from './cloud-field.js';
 
@@ -12,8 +13,17 @@ const CHUNK = 8,
 export class HexClouds {
   constructor(scene) {
     this.scene = scene;
+    this.noiseSeed = 0;
+    this.noise = new THREE.DataTexture(
+      cloudNoiseData(0),
+      127,
+      127,
+      THREE.RedFormat,
+      THREE.UnsignedByteType,
+    );
+    this.noise.needsUpdate = true;
     this.uniforms = {
-      cloudSeed: { value: 0 },
+      cloudNoise: { value: this.noise },
       cloudRadius: { value: CLOUD_RADIUS },
       cloudBase: { value: CLOUD_BASE },
       cloudWind: { value: new THREE.Vector2() },
@@ -22,6 +32,7 @@ export class HexClouds {
       cloudShade: { value: 0 },
       cloudEnabled: { value: 0 },
       cloudHeight: { value: 3 },
+      cloudVolumetric: { value: 0 },
       cloudAmbient: { value: new THREE.Color() },
       cloudDirect: { value: new THREE.Color() },
       cloudZenith: { value: new THREE.Color() },
@@ -43,7 +54,6 @@ export class HexClouds {
       vertexShader: /* glsl */ `
         ${cloudFieldGLSL}
         attribute float cloudDensityValue;
-        uniform float cloudHeight;
         varying vec3 vCloudWorld;
         varying vec3 vCloudNormal;
         varying float vCloudDensity;
@@ -64,7 +74,7 @@ export class HexClouds {
       fragmentShader: /* glsl */ `
         ${cloudFieldGLSL}
         uniform vec3 cloudAmbient; uniform vec3 cloudDirect;
-        uniform vec3 cloudZenith; uniform vec3 cloudHorizon; uniform float cloudFar;
+        uniform vec3 cloudZenith; uniform vec3 cloudHorizon;
         varying vec3 vCloudWorld; varying vec3 vCloudNormal;
         varying float vCloudDensity; varying float vCloudLevel;
         void main() {
@@ -132,13 +142,18 @@ export class HexClouds {
   }) {
     const u = this.uniforms,
       active = world.dimension === 'overworld' && enabled;
-    this.mesh.visible = active;
+    this.mesh.visible = active && quality < 1.7;
     u.cloudEnabled.value = active && quality >= 1 ? 1 : 0;
+    u.cloudVolumetric.value = active && quality >= 1.7 ? 1 : 0;
     if (!active) return;
-    u.cloudSeed.value = world.seed % 127;
+    if (this.noiseSeed !== world.seed % 127) {
+      this.noiseSeed = world.seed % 127;
+      this.noise.image.data.set(cloudNoiseData(this.noiseSeed));
+      this.noise.needsUpdate = true;
+    }
     u.cloudWind.value.set(time * 0.065, time * 0.017);
     u.cloudThreshold.value = 0.56 - rain * 0.2;
-    u.cloudHeight.value = 2.5 + rain * 6 + storm * 2.5;
+    u.cloudHeight.value = (quality >= 1.7 ? 5 : 2.5) + rain * 6 + storm * 2.5;
     u.cloudFar.value = quality < 1 ? 87 : 130;
     u.cloudLightDirection.value
       .subVectors(sun.position, sun.target.position)
@@ -153,6 +168,7 @@ export class HexClouds {
     u.cloudDirect.value.copy(sun.color).multiplyScalar(sun.intensity * 0.8);
     u.cloudZenith.value.copy(sky);
     u.cloudHorizon.value.copy(horizon);
+    if (quality >= 1.7) return;
     this.mesh.position.set(
       u.cloudWind.value.x,
       CLOUD_BASE,
@@ -218,7 +234,7 @@ export class HexClouds {
               );
         };
         material.customProgramCacheKey = () =>
-          cache.call(material) + '-hex-cloud-shadow-v1';
+          cache.call(material) + '-hex-cloud-shadow-v2';
         material.needsUpdate = true;
       }
     });

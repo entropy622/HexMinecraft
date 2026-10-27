@@ -11,16 +11,18 @@ import {
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
+import { CloudVolumePass } from './cloud-volume.js';
 
 // Keep the scene depth outside the composer's alternating color attachments.
 // Every later effect reads the same current-frame depth, even when passes are disabled.
 export class SceneFramePass extends Pass {
-  constructor(scene, camera, fluids) {
+  constructor(scene, camera, fluids, cloudUniforms) {
     super();
     this.needsSwap = false;
     this.scene = scene;
     this.camera = camera;
     this.fluids = fluids;
+    this.clouds = new CloudVolumePass(camera, cloudUniforms);
     this.frustum = new Frustum();
     this.viewProjection = new Matrix4();
     this.projectionBackup = new Matrix4();
@@ -50,6 +52,7 @@ export class SceneFramePass extends Pass {
       Math.max(1, Math.floor(height)),
     );
     this.opaque.setSize(this.target.width, this.target.height);
+    this.clouds.setSize(this.target.width, this.target.height);
   }
   render(renderer, writeBuffer, readBuffer) {
     const fluids = this.fluids,
@@ -91,6 +94,7 @@ export class SceneFramePass extends Pass {
         }
         for (const object of hidden) object.visible = false;
         this.beauty.render(renderer, writeBuffer, this.opaque);
+        this.clouds.render(renderer, this.opaque, writeBuffer);
         uniforms.waterProjection.value.copy(this.camera.projectionMatrix);
         uniforms.waterInverseProjection.value.copy(
           this.camera.projectionMatrixInverse,
@@ -110,10 +114,12 @@ export class SceneFramePass extends Pass {
       fluids.materials.water.depthWrite = true;
     }
     this.beauty.render(renderer, writeBuffer, this.target);
+    this.clouds.render(renderer, this.target, writeBuffer);
     renderer.setRenderTarget(this.renderToScreen ? null : readBuffer);
     this.quad.render(renderer);
   }
   dispose() {
+    this.clouds.dispose();
     this.fluids.waterUniforms.waterSceneReady.value = 0;
     this.fluids.waterUniforms.waterSceneColor.value = null;
     this.fluids.waterUniforms.waterSceneDepth.value = null;

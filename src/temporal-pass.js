@@ -93,9 +93,11 @@ export class TemporalResolvePass extends Pass {
         vec3 lower=vec3(1e10),upper=vec3(-1e10),sum=vec3(0.0),squares=vec3(0.0);
         for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
           ivec2 p=clamp(center+ivec2(x,y),ivec2(0),size-1);
-          vec3 c=toYCoCg(compressColor(texelFetch(sceneColor,p,0).rgb));
+          vec4 sampleColor=texelFetch(sceneColor,p,0);
+          vec3 c=toYCoCg(compressColor(sampleColor.rgb));
           lower=min(lower,c);upper=max(upper,c);sum+=c;squares+=c*c;
           reactive=max(reactive,texelFetch(protection,p,0).g);
+          reactive=max(reactive,sampleColor.a<.999?1.0:0.0);
           float d=texelFetch(sceneDepth,p,0).r;
           if(d>=.999999)neighborhoodSky=true;
           else {float z=linearDepth(d);nearDepth=min(nearDepth,z);farDepth=max(farDepth,z);neighborhoodSolid=true;}

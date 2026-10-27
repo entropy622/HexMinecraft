@@ -28,7 +28,7 @@ export function createPostprocessing(
     depthBuffer: false,
   });
   const composer = new EffectComposer(renderer, target);
-  const frame = new SceneFramePass(scene, camera, fluids);
+  const frame = new SceneFramePass(scene, camera, fluids, cloudUniforms);
   const protection = new SurfaceProtectionPass(scene, camera, frame);
   const contact = new ContactOcclusionPass(camera, frame, protection);
   const temporal = new TemporalResolvePass(renderer, camera, frame, protection);
