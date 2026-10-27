@@ -49,7 +49,7 @@ export class FlightEffects {
       }
     this.sound('fireworkBurst');
   }
-  launch(point) {
+  launch(point, direction = new THREE.Vector3(0, 1, 0)) {
     if (this.rockets.length >= 12) this.rockets.shift().mesh.removeFromParent();
     const mesh = new THREE.Group(),
       body = new THREE.Mesh(this.body, this.white),
@@ -57,8 +57,14 @@ export class FlightEffects {
     tip.position.y = 0.2;
     mesh.add(body, tip);
     mesh.position.copy(point);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
     this.scene.add(mesh);
-    this.rockets.push({ mesh, life: 1.3, trail: 0 });
+    this.rockets.push({
+      mesh,
+      life: 1.3,
+      trail: 0,
+      velocity: direction.clone().multiplyScalar(12),
+    });
   }
   update(dt, world, camera, glider) {
     for (const rocket of [...this.rockets]) {
@@ -67,7 +73,7 @@ export class FlightEffects {
       let burst = rocket.life <= 0;
       const steps = Math.max(1, Math.ceil((dt * 12) / 0.14));
       for (let i = 0; i < steps && !burst; i++) {
-        rocket.mesh.position.y += (dt * 12) / steps;
+        rocket.mesh.position.addScaledVector(rocket.velocity, dt / steps);
         const p = rocket.mesh.position,
           a = worldToAxial(p.x, p.z);
         burst = !world.loaded(a.q, a.r) || world.pointSolid(p.x, p.y, p.z);
@@ -76,7 +82,7 @@ export class FlightEffects {
         rocket.trail = 0.04;
         this.particle(
           rocket.mesh.position,
-          new THREE.Vector3(0, -0.5, 0),
+          rocket.velocity.clone().multiplyScalar(-1 / 24),
           0.3,
           true,
         );

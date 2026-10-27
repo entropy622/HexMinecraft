@@ -263,15 +263,23 @@ export class Fauna {
   slow(m, seconds) {
     if (this.active.includes(m)) m.slowness = Math.max(m.slowness, seconds);
   }
-  dodge(m) {
+  dodge(m, provoked = true) {
     if (!m || m.kind !== 'enderman' || !this.active.includes(m)) return false;
-    if (!this.creative && m.anger <= 0)
+    if (provoked && !this.creative && m.anger <= 0)
       this.callbacks.mobSound?.('endermanAngry', m.mesh.position);
-    if (!this.creative) m.anger = 60;
+    if (provoked && !this.creative) m.anger = 60;
     if (this.camera) teleportEnderman(this, m, this.camera);
     return true;
   }
-  hit(m, damage, direction, loot = true, provoked = true, knockback = 0.5) {
+  hit(
+    m,
+    damage,
+    direction,
+    loot = true,
+    provoked = true,
+    knockback = 0.5,
+    experience = loot,
+  ) {
     if (m.kind === 'shulker' && (m.peek || 0) < 0.15) damage *= 0.2;
     m.hp -= damage;
     m.hit = 0.3;
@@ -295,11 +303,12 @@ export class Fauna {
       return;
     }
     if (loot && !m.baby) {
-      this.callbacks.experience?.(
-        MOBS[m.kind].experience ??
-          (MOBS[m.kind].hostile ? 5 : 1 + Math.floor(Math.random() * 3)),
-        [m.mesh.position.x, m.mesh.position.y + 0.5, m.mesh.position.z],
-      );
+      if (experience)
+        this.callbacks.experience?.(
+          MOBS[m.kind].experience ??
+            (MOBS[m.kind].hostile ? 5 : 1 + Math.floor(Math.random() * 3)),
+          [m.mesh.position.x, m.mesh.position.y + 0.5, m.mesh.position.z],
+        );
       const drops = { ...MOBS[m.kind].drops };
       if (m.kind === 'stray' && provoked && Math.random() < 0.5)
         drops.slownessArrow = 1;

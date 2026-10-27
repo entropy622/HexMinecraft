@@ -4,7 +4,8 @@ import { stackSize, validStack, copyStack } from './inventory.js';
 export const CHEST_SLOTS = ITEMS.chest.storage;
 export const isStorage = (id) => !!ITEMS[id]?.storage;
 export function storageLidClear(world, q, y, r, camera, feet) {
-  if (['hopper', 'dropper'].includes(world.get(q, y, r))) return true;
+  if (['hopper', 'dropper', 'dispenser'].includes(world.get(q, y, r)))
+    return true;
   if (!ITEMS[world.get(q, y, r)]?.portable)
     return world.get(q, y + 1, r) === 'hopper' || !world.solid(q, y + 1, r);
   const p = axialToWorld(q, r);

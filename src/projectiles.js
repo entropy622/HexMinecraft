@@ -58,7 +58,13 @@ export class Projectiles {
       mesh,
       velocity: direction
         .clone()
-        .multiplyScalar(owner === 'player' ? power * 60 : 10 + power * 23),
+        .multiplyScalar(
+          owner === 'player'
+            ? power * 60
+            : owner === 'dispenser'
+              ? 22
+              : 10 + power * 23,
+        ),
       life: 40,
       damage: (2 + power * 8) * damageMultiplier,
       groundLife: null,
@@ -69,7 +75,7 @@ export class Projectiles {
       punch: options.punch || 0,
       critical: owner === 'player' && power >= 1,
       damageMultiplier,
-      playerPhysics: owner === 'player',
+      playerPhysics: owner !== 'hostile',
     });
   }
   update(
@@ -80,11 +86,25 @@ export class Projectiles {
     onHit,
     onPickup,
     onPlayerHit = () => {},
+    body = { feet: camera.position.y - 1.65, height: 1.8 },
   ) {
     const sphere = new THREE.Sphere(),
       ray = new THREE.Ray(),
-      point = new THREE.Vector3();
+      point = new THREE.Vector3(),
+      playerBox = new THREE.Box3(
+        new THREE.Vector3(
+          camera.position.x - 0.3,
+          body.feet,
+          camera.position.z - 0.3,
+        ),
+        new THREE.Vector3(
+          camera.position.x + 0.3,
+          body.feet + body.height,
+          camera.position.z + 0.3,
+        ),
+      );
     for (const arrow of [...this.arrows]) {
+      if (!this.arrows.includes(arrow)) continue;
       arrow.life -= dt;
       if (arrow.life <= 0) {
         this.remove(arrow);
@@ -135,38 +155,13 @@ export class Projectiles {
         ray.set(previous, direction);
         let nearest = null,
           nearestPart = null,
-          distance = Infinity;
-        if (arrow.owner === 'hostile') {
-          sphere.center
-            .copy(camera.position)
-            .add(new THREE.Vector3(0, -0.65, 0));
-          sphere.radius = 0.5;
-          if (
-            ray.intersectSphere(sphere, point) &&
-            previous.distanceTo(point) <= length
-          ) {
-            // A point upstream from impact preserves the incoming direction,
-            // even if this simulation step has crossed the player's center.
-            const source = point.clone().addScaledVector(direction, -2);
-            const blocked =
-              onPlayerHit(4, source, ARROW_ITEMS[arrow.item].effect) ===
-              'blocked';
-            if (blocked) {
-              arrow.owner = 'player';
-              arrow.damage = 1;
-              arrow.fixedDamage = 1;
-              arrow.critical = false;
-              arrow.punch = 0;
-              arrow.velocity.multiplyScalar(-0.12);
-              arrow.velocity.y = -1;
-              arrow.mesh.position
-                .copy(previous)
-                .addScaledVector(direction, -0.35);
-              arrow.life = Math.min(arrow.life, 15);
-              break;
-            }
-            this.remove(arrow);
-            break;
+          distance = Infinity,
+          playerDistance = Infinity;
+        if (arrow.owner !== 'player') {
+          const inside = playerBox.containsPoint(previous);
+          if (inside || ray.intersectBox(playerBox, point)) {
+            const d = inside ? 0 : previous.distanceTo(point);
+            if (d <= length) playerDistance = d;
           }
         }
         for (const mob of arrow.owner === 'hostile' ? [] : creatures) {
@@ -200,6 +195,31 @@ export class Projectiles {
             }
           }
         }
+        if (playerDistance !== Infinity && playerDistance <= distance) {
+          const source = previous
+              .clone()
+              .addScaledVector(direction, playerDistance - 2),
+            damage =
+              arrow.owner === 'dispenser'
+                ? arrowDamage(arrow.velocity.length())
+                : 4,
+            blocked =
+              onPlayerHit(damage, source, ARROW_ITEMS[arrow.item].effect) ===
+              'blocked';
+          if (blocked) {
+            arrow.owner = 'player';
+            arrow.damage = arrow.fixedDamage = 1;
+            arrow.critical = false;
+            arrow.punch = 0;
+            arrow.velocity.multiplyScalar(-0.12);
+            arrow.velocity.y = -1;
+            arrow.mesh.position
+              .copy(previous)
+              .addScaledVector(direction, -0.35);
+            arrow.life = Math.min(arrow.life, 15);
+          } else if (this.arrows.includes(arrow)) this.remove(arrow);
+          break;
+        }
         if (nearest) {
           const damage =
             arrow.fixedDamage ??
@@ -217,6 +237,7 @@ export class Projectiles {
             nearestPart,
             arrow.punch,
             arrow.item,
+            arrow.owner,
           );
           if (result === 'deflected') {
             arrow.velocity.multiplyScalar(-0.2);

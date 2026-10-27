@@ -130,7 +130,7 @@ export function validateSave(s) {
       if (
         [...states].some(
           ([k, state]) =>
-            (state.facing > 5 && edits.get(k) !== 'dropper') ||
+            (state.facing > 5 && BLOCKS[edits.get(k)]?.shape !== 'dropper') ||
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
             (state.down !== undefined && edits.get(k) !== 'hopper') ||
             ((state.output !== undefined || state.subtract !== undefined) &&
@@ -179,6 +179,7 @@ export function validateSave(s) {
                 repeater: 0.4,
                 comparator: 0.1,
                 dropper: 0.2,
+                dispenser: 0.2,
               }[edits.get(e[0])] || 0) ||
             (['stoneButton', 'stonePressurePlate'].includes(edits.get(e[0])) &&
               states.get(e[0])?.powered !== true),

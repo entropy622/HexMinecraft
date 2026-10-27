@@ -167,7 +167,7 @@ export class VoxelLight {
               ? this.world.state(q, y, r).open
                 ? 1
                 : 3
-              : type === 'dropper'
+              : block?.shape === 'dropper'
                 ? 16
                 : block?.shape
                   ? 2

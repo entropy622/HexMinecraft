@@ -14,11 +14,12 @@ test.afterEach(async ({ page }, info) => {
       if (!g) return { ready: false };
       g.save();
       const w = g.state.world,
-        s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+        s = JSON.parse(localStorage.getItem('hexwild-save-v16')),
+        t = g.state.target;
       return {
         playing: g.state.playing,
         position: g.state.position,
-        target: g.state.target,
+        target: t && { q: t.q, y: t.y, r: t.r, type: t.type },
         cell: w.get(0, 41, 0),
         state: w.state(0, 41, 0),
         circuits: [...w.circuitCells],
@@ -320,7 +321,18 @@ test.describe('mobile hopper inventory', () => {
         ),
       )
       .toBe(true);
-    await aim(page, -1, 40.85, 0, 'hopper');
+    // Releasing the touch crouch changes eye height. Wait for the real stance,
+    // then aim at the solid basin bottom rather than through the open mouth.
+    await check
+      .poll(() =>
+        page.evaluate(() => {
+          window.__hexwild.save();
+          return JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+            .overworld.crouching;
+        }),
+      )
+      .toBe(false);
+    await aim(page, -1, 40.325, 0, 'hopper');
     await page.locator('[data-action="interact"]').tap();
     await expect(page.locator('#station-overlay')).toBeVisible();
     await expect(

@@ -135,14 +135,24 @@ export class Throwables {
   }
   shoot(item, position, direction, inherited = null) {
     const def = THROWABLES[item];
-    if (!def || !this.ready(item) || this.active.length >= 32) return false;
+    if (
+      !def ||
+      !this.ready(item) ||
+      !this.spawn(item, position, direction, inherited)
+    )
+      return false;
+    this.cooldowns[item] = def.cooldown;
+    return true;
+  }
+  spawn(item, position, direction, inherited = null, owner = 'player') {
+    const def = THROWABLES[item];
+    if (!def || this.active.length >= 32) return false;
     const mesh = this.model(item);
     mesh.position.copy(position);
     this.scene.add(mesh);
     const velocity = direction.clone().normalize().multiplyScalar(def.speed);
     if (inherited) velocity.add(inherited);
-    this.active.push({ item, mesh, velocity, life: 8, trail: 0 });
-    this.cooldowns[item] = def.cooldown;
+    this.active.push({ item, mesh, velocity, life: 8, trail: 0, owner });
     return true;
   }
   burst(point, item, count = 12) {
@@ -259,14 +269,19 @@ export class Throwables {
         if (
           entity &&
           (!impact || entity.distance < impact.distance) &&
-          !this.callbacks.dodge?.(entity.mob)
+          !this.callbacks.dodge?.(entity.mob, record.owner)
         )
           impact = entity;
         if (impact) {
           // Remove first: teleport damage may clear the world during callback.
           this.remove(record);
           this.burst(impact.point, record.item);
-          this.callbacks.impact({ ...impact, item: record.item, direction });
+          this.callbacks.impact({
+            ...impact,
+            item: record.item,
+            direction,
+            owner: record.owner,
+          });
           break;
         }
         record.mesh.position.copy(to);

@@ -12,7 +12,7 @@ export function blockSlots(world, q, y, r) {
     k = key(q, y, r);
   if (BLOCKS[type]?.storage) {
     let list = world.chests.get(k);
-    if (!list && ['hopper', 'dropper'].includes(type)) {
+    if (!list && ['hopper', 'dropper', 'dispenser'].includes(type)) {
       list = Array(BLOCKS[type].storage).fill(null);
       world.chests.set(k, list);
     }

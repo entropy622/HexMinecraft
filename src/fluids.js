@@ -80,7 +80,8 @@ export class Fluids {
       y < 64 &&
       this.world.loaded(q, r) &&
       (!this.world.get(q, y, r) ||
-        !!CIRCUIT_BLOCKS[this.world.get(q, y, r)]?.shape ||
+        (!!CIRCUIT_BLOCKS[this.world.get(q, y, r)]?.shape &&
+          CIRCUIT_BLOCKS[this.world.get(q, y, r)].shape !== 'dropper') ||
         this.world.get(q, y, r) === 'cobweb' ||
         this.world.get(q, y, r) === 'powderSnow' ||
         isHangingPlant(this.world.get(q, y, r)))

@@ -18,6 +18,8 @@ export function createTextures() {
   names.push(
     'dropperMouth:top',
     'dropperMouth:side',
+    'dispenserMouth:top',
+    'dispenserMouth:side',
     'glowBerry:top',
     'glowBerry:side',
     'sporeCenter:top',
@@ -331,7 +333,9 @@ export function createTextures() {
             );
         }
     }
-    if (id === 'dropper' || id === 'dropperMouth') {
+    if (
+      ['dropper', 'dropperMouth', 'dispenser', 'dispenserMouth'].includes(id)
+    ) {
       for (let y = 0; y < 16; y++)
         for (let x = 0; x < 16; x++)
           fill(rand(x, y, 44) > 0.5 ? '#899193' : '#737b80', x, y);
@@ -344,6 +348,15 @@ export function createTextures() {
         fill('#8a9397', 4, 12, 8, 1);
         fill('#596367', 3, 5, 2, 2);
         fill('#303a3e', 10, 10, 3, 2);
+      }
+      if (id === 'dispenserMouth') {
+        fill('#3d4548', 2, 3, 3, 2);
+        fill('#3d4548', 11, 3, 3, 2);
+        for (let y = 5; y < 15; y++)
+          for (let x = 2; x < 14; x++) {
+            const d = Math.hypot(x - 7.5, y - 9.5);
+            if (d < 4.6) fill(d < 3.5 ? '#151d21' : '#bec4c2', x, y);
+          }
       }
     }
     if (id === 'hopper' || id === 'cauldron') {

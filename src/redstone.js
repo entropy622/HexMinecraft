@@ -39,7 +39,7 @@ export class Redstone {
       !block.foliage &&
       type !== 'glass' &&
       (!block.shape ||
-        type === 'dropper' ||
+        block.shape === 'dropper' ||
         (block.shape === 'slab' && this.world.state(q, y, r).double))
     );
   }
@@ -283,7 +283,7 @@ export class Redstone {
       if (time > 1e-8) this.timers.set(k, time);
       else {
         this.timers.delete(k);
-        if (type === 'dropper') dispense(q, y, r);
+        if (BLOCKS[type]?.shape === 'dropper') dispense(q, y, r);
         else if (['repeater', 'redstoneTorch', 'comparator'].includes(type))
           due.push(k);
         else change(q, y, r, false);
@@ -400,6 +400,7 @@ export class Redstone {
         type !== 'redstoneLamp' &&
         type !== 'hopper' &&
         type !== 'dropper' &&
+        type !== 'dispenser' &&
         !isOpenable(type)
       )
         continue;
@@ -413,7 +414,7 @@ export class Redstone {
         if (!operateDoor(...p, on)) continue;
       }
       change(...p, on);
-      if (type === 'dropper' && on && !this.timers.has(k))
+      if (BLOCKS[type]?.shape === 'dropper' && on && !this.timers.has(k))
         this.timers.set(k, 0.2);
     }
     this.revision = w.lightRevision;

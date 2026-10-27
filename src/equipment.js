@@ -80,29 +80,10 @@ export class Equipment {
     return this.damageStack(stack, amount, creative);
   }
   damageStack(stack, amount, creative = false) {
-    const id = stack?.item;
-    if (creative || !ITEMS[id]?.durability || !stack) return false;
-    const level = enchantmentsOf(stack.wear).unbreaking || 0;
-    let cost = Math.ceil(amount);
-    if (level) {
-      const chance =
-        ITEMS[id].armorSlot && !ITEMS[id].glider
-          ? 0.6 + 0.4 / (level + 1)
-          : 1 / (level + 1);
-      cost = 0;
-      for (let i = 0; i < Math.ceil(amount); i++)
-        if (Math.random() < chance) cost++;
-    }
-    if (!cost) return false;
-    const next = Math.max(
-      ITEMS[id].durabilityFloor || 0,
-      wearValue(stack.wear) - cost,
-    );
-    if (next > 0)
-      stack.wear =
-        typeof stack.wear === 'object' ? { ...stack.wear, value: next } : next;
-    else this.pack.remove(stack);
-    return next <= 0;
+    if (creative) return false;
+    const broken = wearStack(stack, amount);
+    if (broken) this.pack.remove(stack);
+    return broken;
   }
   protection() {
     return Math.min(
@@ -128,4 +109,29 @@ export function validWear(wear, inventory) {
         values.every((entry) => validWearEntry(ITEMS[id], entry)),
     )
   );
+}
+
+export function wearStack(stack, amount = 1) {
+  const id = stack?.item;
+  if (!ITEMS[id]?.durability || !stack) return false;
+  const level = enchantmentsOf(stack.wear).unbreaking || 0;
+  let cost = Math.ceil(amount);
+  if (level) {
+    const chance =
+      ITEMS[id].armorSlot && !ITEMS[id].glider
+        ? 0.6 + 0.4 / (level + 1)
+        : 1 / (level + 1);
+    cost = 0;
+    for (let i = 0; i < Math.ceil(amount); i++)
+      if (Math.random() < chance) cost++;
+  }
+  if (!cost) return false;
+  const next = Math.max(
+    ITEMS[id].durabilityFloor || 0,
+    wearValue(stack.wear) - cost,
+  );
+  if (next > 0)
+    stack.wear =
+      typeof stack.wear === 'object' ? { ...stack.wear, value: next } : next;
+  return next <= 0;
 }

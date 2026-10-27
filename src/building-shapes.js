@@ -39,7 +39,7 @@ export function buildingParts(world, q, y, r, collision = false) {
   if (type === 'pointedDripstone') return dripstoneParts(world, q, y, r);
   if (type === 'cobweb') return cobwebParts(collision);
   if (type === 'hopper') return hopperParts(state, angle);
-  if (type === 'dropper') {
+  if (shape === 'dropper') {
     const parts = [
       {
         x: 0,
@@ -47,7 +47,7 @@ export function buildingParts(world, q, y, r, collision = false) {
         z: 0,
         h: 1,
         angle: 0,
-        tile: 'dropper',
+        tile: type,
         polygon: HEX_POLYGON,
       },
     ];
@@ -63,7 +63,7 @@ export function buildingParts(world, q, y, r, collision = false) {
       h: dy ? 0.016 : 0.65,
       d: dy ? 0.65 : 0.016,
       angle: dy ? 0 : angle,
-      tile: 'dropperMouth',
+      tile: type + 'Mouth',
     });
     return parts;
   }

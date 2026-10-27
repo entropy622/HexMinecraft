@@ -44,7 +44,12 @@ import { canStonecut, stonecuttingResult } from './stonecutting.js';
 import { stonecutterPanel } from './stonecutter-ui.js';
 import { newChest, isStorage, storageLidClear } from './chests.js';
 import { chestPanel, updateChestPanel } from './chest-ui.js';
-import { fireDropper } from './droppers.js';
+import {
+  fireDropper,
+  dispensingSource,
+  ejectStack,
+  replaceDispensed,
+} from './droppers.js';
 import { blockSlots } from './block-inventory.js';
 import { isCauldron, cauldronAction, waterCauldron } from './cauldron-data.js';
 import { tickCauldrons, cauldronContact } from './cauldrons.js';
@@ -153,7 +158,7 @@ import { enchantingPanel } from './enchanting-ui.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
 import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack, textureURL } from './texture-pack.js';
-import { Equipment, miningStats } from './equipment.js';
+import { Equipment, miningStats, wearStack } from './equipment.js';
 import { miningRate } from './mining.js';
 import { miningLoot } from './mining-loot.js';
 import { moonPhase } from './sky-environment.js';
@@ -189,7 +194,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.76 — LIGHT SOFTENS WITH DISTANCE</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.77 — PUT YOUR MACHINES TO WORK</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -269,7 +274,7 @@ const fireballs = new Fireballs(graphics.scene, {
 });
 const throwables = new Throwables(graphics.scene, {
   impact: resolveThrow,
-  dodge: (mob) => fauna.dodge(mob),
+  dodge: (mob, owner) => fauna.dodge(mob, owner !== 'dispenser'),
   miss: () => toast('珍珠离开了已加载区域，未能传送。'),
 });
 const shulkerBullets = new ShulkerBullets(graphics.scene, {
@@ -2721,7 +2726,7 @@ function useThrowable() {
   return true;
 }
 function resolveThrow(impact) {
-  const { item, point, mob, direction } = impact;
+  const { item, point, mob, direction, owner } = impact;
   if (mob?.bossType === 'shulkerBullet') shulkerBullets.hit(mob);
   if (mob?.bossType === 'crystal') {
     const owner = survival;
@@ -2776,7 +2781,8 @@ function resolveThrow(impact) {
   }
   soundFX.play(item === 'snowball' ? 'snowImpact' : 'eggImpact');
   if (mob && fauna.active.includes(mob)) {
-    if (item === 'snowball' && mob.kind === 'blaze') hitMob(mob, 3, direction);
+    if (item === 'snowball' && mob.kind === 'blaze')
+      hitMob(mob, 3, direction, 'thrown', 'body', 0, owner !== 'dispenser');
     else fauna.nudge(mob, direction);
   }
   if (item === 'egg' && Math.random() < 1 / 8) {
@@ -2923,6 +2929,7 @@ function place() {
           'shulkerBox',
           'hopper',
           'dropper',
+          'dispenser',
           'bed',
           'portal',
           'endportal',
@@ -3059,7 +3066,7 @@ function fullSupport(q, y, r, top = false) {
   return (
     !!type &&
     !BLOCKS[type].nonSolid &&
-    (!BLOCKS[type].shape || type === 'dropper')
+    (!BLOCKS[type].shape || BLOCKS[type]?.shape === 'dropper')
   );
 }
 function mergeSlab(q, y, r, type) {
@@ -3140,7 +3147,7 @@ function placeBuilding(type, p) {
     return;
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
-  if (type === 'dropper') {
+  if (BLOCKS[type]?.shape === 'dropper') {
     const direction = camera.getWorldDirection(new THREE.Vector3());
     facing = facingFromDirection(-direction.x, -direction.z);
     const p = axialToWorld(...DIRECTIONS[facing]),
@@ -3148,7 +3155,10 @@ function placeBuilding(type, p) {
     if (Math.abs(direction.y) > horizontal) facing = direction.y > 0 ? 6 : 7;
   }
   let mount;
-  if (CIRCUIT_BLOCKS[type]?.shape && !['hopper', 'dropper'].includes(type)) {
+  if (
+    CIRCUIT_BLOCKS[type]?.shape &&
+    !['hopper', 'dropper', 'dispenser'].includes(type)
+  ) {
     const control = ['lever', 'stoneButton', 'redstoneTorch'].includes(type);
     if (type === 'redstoneTorch' && target.normal?.y < -0.5) {
       toast('红石火把需要地面或墙面支撑。');
@@ -3237,7 +3247,7 @@ function placeBuilding(type, p) {
     ...(type === 'redstoneTorch' ? { powered: true } : {}),
     ...(type === 'repeater' ? { delay: 1, powered: false } : {}),
     ...(type === 'comparator' ? { output: 0, subtract: false } : {}),
-    ...(type === 'dropper' ? { powered: false } : {}),
+    ...(BLOCKS[type]?.shape === 'dropper' ? { powered: false } : {}),
     ...(type === 'hopper'
       ? { down: Math.abs(target.normal?.y ?? 1) > 0.5, powered: false }
       : {}),
@@ -3252,7 +3262,8 @@ function placeBuilding(type, p) {
     return;
   }
   for (const [a, b, c, t] of cells) world.set(a, b, c, t);
-  if (['hopper', 'dropper'].includes(type)) blockSlots(world, q, y, r);
+  if (['hopper', 'dropper', 'dispenser'].includes(type))
+    blockSlots(world, q, y, r);
   if (type === 'chorusFlower')
     world.chorus.set(key(q, y, r), { stage: 0, time: 0 });
   if (crops.has(key(q, y - 1, r))) harvestPlant(key(q, y - 1, r), true, 3);
@@ -3289,7 +3300,8 @@ function removeBuilding(q, y, r, drop = true) {
     for (const slot of world.campfires.get(key(q, y, r))?.slots || [])
       if (slot) dropAt(slot.item, 1, q, y, r);
   }
-  if (['hopper', 'dropper'].includes(type)) spillChest(key(q, y, r));
+  if (['hopper', 'dropper', 'dispenser'].includes(type))
+    spillChest(key(q, y, r));
   world.set(q, y, r, null);
   if (doorUpper(type) && world.get(q, y + 1, r) === doorUpper(type))
     world.set(q, y + 1, r, null);
@@ -3347,7 +3359,7 @@ function maintainBuildings() {
       if (!fullSupport(q + dq, y, r + dr)) removeBuilding(q, y, r);
     } else if (
       CIRCUIT_BLOCKS[type]?.shape &&
-      !['hopper', 'dropper'].includes(type)
+      !['hopper', 'dropper', 'dispenser'].includes(type)
     ) {
       const state = world.state(q, y, r),
         support = attachmentCell(q, y, r, state, DIRECTIONS);
@@ -3360,6 +3372,212 @@ function maintainBuildings() {
     }
   }
 }
+function fertilizePlant(k) {
+  const plant = crops.get(k);
+  if (!plant) return false;
+  const def = PLANTS[plant.kind],
+    [q, y, r] = k.split(',').map(Number);
+  if (def.infernal) return false;
+  if (def.tree) return growTree(k);
+  if (plant.age >= def.seconds || plantingIssue(world, plant.kind, q, y, r))
+    return false;
+  plant.age = def.seconds;
+  graphics.crop(k, plant);
+  return true;
+}
+function fireDispenser(q, y, r) {
+  const source = dispensingSource(world, q, y, r);
+  if (!source) return false;
+  const {
+      slot,
+      target: [a, b, c],
+    } = source,
+    stack = slot.get(),
+    id = stack.item,
+    point = new THREE.Vector3(...source.position),
+    direction = new THREE.Vector3(...source.direction),
+    type = world.get(a, b, c);
+  const consume = () => takeSlot(slot, 1);
+  const wear = () => {
+    if (wearStack(slot.get(), 1)) slot.set(null);
+  };
+  const finishLiquid = (item, snow = false) => {
+    replaceDispensed(world, source, item, drops);
+    if (snow) graphics.updateCells([[a, b, c]]);
+    flushFluidChanges();
+    updateCampfires(0);
+    refreshNetherPortals();
+    graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
+    soundFX.play('splash');
+    return true;
+  };
+  if (ARROW_ITEMS[id]) {
+    const aim = direction
+      .clone()
+      .add(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * 0.05,
+          (Math.random() - 0.5) * 0.05 + 0.03,
+          (Math.random() - 0.5) * 0.05,
+        ),
+      )
+      .normalize();
+    projectiles.shoot(point, aim, 1, true, 'dispenser', 1, { item: id });
+    consume();
+    return true;
+  }
+  if (id === 'egg' || id === 'snowball') {
+    const aim = direction
+      .clone()
+      .add(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * 0.05,
+          (Math.random() - 0.5) * 0.05 + 0.03,
+          (Math.random() - 0.5) * 0.05,
+        ),
+      )
+      .normalize();
+    if (!throwables.spawn(id, point, aim, null, 'dispenser')) return false;
+    consume();
+    return true;
+  }
+  if (id === 'fireworkRocket') {
+    flightEffects.launch(point, direction);
+    consume();
+    soundFX.play('rocket');
+    return true;
+  }
+  const kind = ITEMS[id]?.bucket;
+  if (kind === 'empty') {
+    if (type === 'powderSnow') {
+      world.set(a, b, c, null);
+      return finishLiquid('powderSnowBucket', true);
+    }
+    const liquid = world.fluids.scoop(a, b, c);
+    if (liquid) return finishLiquid(LIQUIDS[liquid].bucket);
+  } else if (kind === 'powderSnow') {
+    if (!type && !world.fluids.get(a, b, c) && b >= 1 && b < WORLD_HEIGHT) {
+      world.set(a, b, c, 'powderSnow');
+      return finishLiquid('bucket', true);
+    }
+  } else if (LIQUIDS[kind] && world.fluids.source(a, b, c, kind))
+    return finishLiquid('bucket');
+  if (id === 'glassBottle') {
+    const f = world.fluids.get(a, b, c);
+    if (f?.type === 'water' && f.source) {
+      replaceDispensed(world, source, 'waterBottle', drops);
+      soundFX.play('splash');
+      return true;
+    }
+  }
+  if (id === 'boneMeal') {
+    if (type === 'caveVines') {
+      world.set(a, b, c, 'caveVinesBerries');
+      graphics.updateCells([[a, b, c]]);
+    } else if (!fertilizePlant(key(a, b - 1, c))) return false;
+    consume();
+    graphics.burst(a, b, c, '#a8cf75');
+    return true;
+  }
+  if (id === 'flintAndSteel') {
+    if (isCampfire(type)) {
+      if (!setCampfireLit(world, key(a, b, c), true)) return false;
+      graphics.updateLight(a, b, c);
+    } else {
+      if (dimension === 'end') return false;
+      const frame = findNetherFrame(world, a, b, c);
+      if (!frame || frame.cells.every((p) => world.get(...p) === 'portal'))
+        return false;
+      graphics.updateCells(lightNetherFrame(world, frame));
+    }
+    wear();
+    soundFX.play('campfireIgnite');
+    return true;
+  }
+  if (id === 'shears') {
+    const mob = fauna.active.find(
+      (m) =>
+        m.kind === 'sheep' &&
+        !m.baby &&
+        m.wool <= 0 &&
+        worldToAxial(m.mesh.position.x, m.mesh.position.z).q === a &&
+        worldToAxial(m.mesh.position.x, m.mesh.position.z).r === c &&
+        m.mesh.position.y < b + 1 &&
+        m.mesh.position.y + MOBS[m.kind].height > b,
+    );
+    if (!mob) return false;
+    const action = fauna.interact(mob, 'shears');
+    for (const [item, count] of Object.entries(action.give))
+      dropAt(item, count, a, b, c);
+    wear();
+    return true;
+  }
+  if (ITEMS[id]?.armorSlot) {
+    const index = GEAR_SLOTS.indexOf(ITEMS[id].armorSlot),
+      p = worldToAxial(camera.position.x, camera.position.z);
+    if (
+      index >= 0 &&
+      !pack.gear[index] &&
+      p.q === a &&
+      p.r === c &&
+      playerFeet() < b + 1 &&
+      playerFeet() + playerHeight() > b
+    ) {
+      pack.gear[index] = consume();
+      updateHUD();
+      return true;
+    }
+  }
+  if (ITEMS[id]?.portable) {
+    if (type || world.fluids.get(a, b, c) || b < 1 || b >= WORLD_HEIGHT)
+      return false;
+    const p = axialToWorld(a, c);
+    world.set(a, b, c, id, false);
+    const blocked =
+      collides(camera.position.x, playerFeet(), camera.position.z) ||
+      buildingOccupied(a, b, c) ||
+      boats.intersectsCell(p.x, b, p.z);
+    world.set(a, b, c, null, false);
+    if (blocked) return false;
+    const packed = consume();
+    world.set(a, b, c, id);
+    world.setState(a, b, c, {
+      facing: world.state(q, y, r).facing % 6,
+      open: false,
+    });
+    world.chests.set(
+      key(a, b, c),
+      structuredClone(packed.contents || newChest()),
+    );
+    graphics.updateCells([[a, b, c]]);
+    return true;
+  }
+  if (id === 'boat') {
+    let level = b,
+      fluid = world.fluids.get(a, b, c);
+    if (!fluid && !type) {
+      level--;
+      fluid = world.fluids.get(a, level, c);
+    }
+    if (
+      fluid?.type === 'water' &&
+      !fluid.falling &&
+      !world.fluids.get(a, level + 1, c)
+    ) {
+      const p = axialToWorld(a, c),
+        position = [p.x, level + fluidHeight(fluid), p.z];
+      if (boats.blocked(world, ...position, null, true)) return false;
+      if (!boats.add(position, Math.atan2(direction.x, direction.z)))
+        return false;
+      consume();
+      soundFX.play('splash');
+      return true;
+    }
+  }
+  ejectStack(world, drops, consume(), source.position, source.direction);
+  return true;
+}
+
 function updateRedstone(dt) {
   if (!world.circuitCells.size) return [];
   const actors = [
@@ -3377,7 +3595,10 @@ function updateRedstone(dt) {
     })),
   ];
   const changed = world.redstone.tick(dt, actors, toggleBuilding, (q, y, r) => {
-    const fired = fireDropper(world, q, y, r, drops),
+    const fired =
+        world.get(q, y, r) === 'dispenser'
+          ? fireDispenser(q, y, r)
+          : fireDropper(world, q, y, r, drops),
       p = axialToWorld(q, r);
     if (
       Math.hypot(
@@ -3604,22 +3825,14 @@ function interactPlant(k) {
         toast('下界疣无法用骨粉催熟，灵魂沙上会自然生长。');
         return true;
       }
-      if (def.tree) {
-        if (!growTree(k)) {
-          toast(
-            '请清理树干与两格半径的树冠空间；云杉需要更高的净空，生长不会挤进生物。',
-          );
-          return true;
-        }
-      } else if (plant.age < def.seconds) {
-        if (plantingIssue(world, plant.kind, q, y, r)) {
-          toast('先恢复植物需要的土地和水。');
-          return true;
-        }
-        plant.age = def.seconds;
-        graphics.crop(k, plant);
-      } else {
-        toast('作物已成熟，换下骨粉后右键收获。');
+      if (!fertilizePlant(k)) {
+        toast(
+          def.tree
+            ? '请清理树苗周围的生长空间。'
+            : plant.age >= def.seconds
+              ? '作物已成熟，换下骨粉后右键收获。'
+              : '先恢复植物需要的土地和水。',
+        );
         return true;
       }
       consumeUseItem('boneMeal');
@@ -3707,6 +3920,7 @@ function interact(preferContext = false) {
           'shulkerBox',
           'hopper',
           'dropper',
+          'dispenser',
           'farmland',
         ].includes(target.type) ||
         (plantForItem(useItem()) && ['grass', 'dirt'].includes(target.type))));
@@ -3841,7 +4055,7 @@ function interact(preferContext = false) {
     syncDecor();
     stationKey = k;
     openOverlay('#station-overlay');
-    if (!['hopper', 'dropper'].includes(type)) {
+    if (!['hopper', 'dropper', 'dispenser'].includes(type)) {
       graphics.chestModels.openKey = k;
       soundFX.play(ITEMS[type]?.portable ? 'shulkerOpen' : 'chestOpen');
     }
@@ -5018,6 +5232,7 @@ function hitMob(
   source = 'melee',
   part = 'body',
   punch = 0,
+  owned = true,
 ) {
   if (mob.bossType === 'shulkerBullet') return shulkerBullets.hit(mob);
   if (mob.bossType) return dragonFight.hit(mob, amount, source, part);
@@ -5025,12 +5240,12 @@ function hitMob(
     soundFX.play('shulkerBlock');
     return 'deflected';
   }
-  if (source === 'arrow' && fauna.dodge(mob)) return 'dodged';
+  if (source === 'arrow' && fauna.dodge(mob, owned)) return 'dodged';
   const p = mob.mesh.position,
     a = worldToAxial(p.x, p.z);
   graphics.burst(a.q, p.y, a.r, MOBS[mob.kind].color);
   beep(140, 0.07, 'triangle');
-  fauna.hit(mob, amount, direction, true, true, 0.5 + punch * 0.8);
+  fauna.hit(mob, amount, direction, true, owned, 0.5 + punch * 0.8, owned);
   return 'hit';
 }
 function interactCreature() {
@@ -6458,6 +6673,7 @@ function frame(now) {
           'shulkerBox',
           'hopper',
           'dropper',
+          'dispenser',
           'farmland',
           'bed',
           'portal',
@@ -6490,7 +6706,7 @@ function frame(now) {
     if (target?.type === 'redstoneWire')
       $('#target').textContent +=
         ` · 信号 ${world.redstone.power(target.q, target.y, target.r)} / 15`;
-    if (target?.type === 'dropper') {
+    if (BLOCKS[target?.type]?.shape === 'dropper') {
       const state = world.state(target.q, target.y, target.r),
         direction = ['东', '东南', '西南', '西', '西北', '东北', '下', '上'][
           state.facing
@@ -6687,8 +6903,16 @@ function frame(now) {
       world,
       [...creatures, ...dragonFight.combatants, ...shulkerBullets.combatants],
       camera,
-      (mob, amount, direction, part, punch, item) => {
-        const result = hitMob(mob, amount, direction, 'arrow', part, punch);
+      (mob, amount, direction, part, punch, item, owner) => {
+        const result = hitMob(
+          mob,
+          amount,
+          direction,
+          'arrow',
+          part,
+          punch,
+          owner !== 'dispenser',
+        );
         const effect = ARROW_ITEMS[item].effect;
         if (result === 'hit' && effect?.id === 'slowness')
           fauna.slow(mob, effect.time);
@@ -6701,6 +6925,7 @@ function frame(now) {
           survival.applyEffect(effect.id, effect.time);
         return result;
       },
+      { feet: playerFeet(), height: playerHeight() },
     );
     fireballs.update(dt, world, creatures, camera);
     shulkerBullets.update(
