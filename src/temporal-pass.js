@@ -186,7 +186,7 @@ export class TemporalResolvePass extends Pass {
     const c = this.camera,
       p = c.projectionMatrix.elements,
       old = this.previousProjection.elements,
-      medium = !!this.frame.fluids.submerged;
+      medium = this.frame.fluids.medium;
     if (
       this.valid &&
       (c.position.distanceToSquared(this.previousPosition) > 36 ||

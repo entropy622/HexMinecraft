@@ -8,6 +8,7 @@ import {
 } from 'three';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { cloudFieldGLSL } from './cloud-field.js';
+import { waterExtinctionGLSL } from './water-shader.js';
 
 const vertexShader = /* glsl */ `
 varying vec2 vUv;
@@ -15,6 +16,8 @@ void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(
 `;
 const volumeShader = /* glsl */ `
 ${cloudFieldGLSL}
+${waterExtinctionGLSL}
+uniform float waterCamera;
 varying vec2 vUv;
 uniform sampler2D sceneDepth;
 uniform highp sampler2DShadow airShadow;
@@ -80,6 +83,47 @@ void main() {
   vec3 delta = endPosition - airCameraPosition;
   float distance = min(length(delta), 58.0);
   vec3 direction = normalize(delta);
+  if (waterCamera > 0.5) {
+    // Alpha carries occupied water length; the composite reconstructs RGB
+    // transmission, keeping this shared half-resolution target at four channels.
+    if (distance < 0.8) { gl_FragColor = vec4(0.0); return; }
+    vec3 transmission = vec3(1.0), scattering = vec3(0.0);
+    float waterLength = 0.0;
+    float cosine = dot(direction, airSunDirection), g = 0.6;
+    float phase = (1.0 - g * g) / pow(max(0.08, 1.0 + g * g - 2.0 * g * cosine), 1.5);
+    float jitter = airHash(floor(vUv * fogResolution));
+    float cloudSun = hexCloudShadow(airCameraPosition + direction * distance * 0.5);
+    for (int i = 0; i < 32; i++) {
+      // Quadratic intervals retain sub-cell precision close to a waterline,
+      // while bounding long sky rays to the same 32 medium/shadow lookups.
+      float a = float(i) / 32.0, b = float(i + 1) / 32.0;
+      float start = distance * a * a, end = distance * b * b;
+      vec3 position = airCameraPosition + direction * mix(start, end, jitter);
+      vec4 packedLight = airVoxel(position);
+      float medium = mod(packedLight.a, 16.0);
+      if (medium < 0.5 || medium > 9.5) continue;
+      float height = medium < 1.5 ? 1.0 : 0.92 - (medium - 2.0) * 0.085;
+      float waterStep = end - start;
+      if (height < 0.999 && abs(direction.y) > 0.0001) {
+        float bottom = (floor(position.y) - airCameraPosition.y) / direction.y;
+        float top = (floor(position.y) + height - airCameraPosition.y) / direction.y;
+        waterStep = max(0.0, min(end, max(bottom, top)) - max(start, min(bottom, top)));
+      } else if (fract(position.y) > height) continue;
+      float sky = pow(floor(packedLight.a / 16.0) / 15.0, 2.0);
+      vec3 block = pow(packedLight.rgb / 15.0, vec3(2.0));
+      float sun = airSunVisibility(position, sky) * cloudSun;
+      vec2 beam = position.xz - position.y * airSunDirection.xz / max(0.15, airSunDirection.y);
+      float shafts = 0.35 + 1.3 * smoothstep(0.4, 0.72, airNoise(beam * 0.45 + vec2(airTime * 0.06, -airTime * 0.04)));
+      vec3 source = (airHorizon * airAmbient * sky * 0.35 + block * 0.9 +
+        airSunColor * airSunPower * sun * (0.06 + phase * 0.12) * shafts) * vec3(0.1, 0.6, 0.8);
+      vec3 stepTransmission = exp(-waterExtinction * waterStep);
+      scattering += transmission * (1.0 - stepTransmission) * source;
+      transmission *= stepTransmission;
+      waterLength += waterStep;
+    }
+    gl_FragColor = vec4(scattering, waterLength);
+    return;
+  }
   // First-person models and nearby surfaces stay crisp.
   if (distance < 0.8 || airDensity <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
   float stepLength = distance / float(AIR_STEPS);
@@ -97,8 +141,8 @@ void main() {
     vec3 position = airCameraPosition + direction * t;
     vec4 packedLight = airVoxel(position);
     float medium = mod(packedLight.a, 16.0);
-    // Zero denotes a solid; 1..3 denote water/lava/glow, not air.
-    if (medium < 4.0) continue;
+    // Only code 15 is air; water height codes and other liquids do not scatter air.
+    if (medium < 14.5) continue;
     float sky = pow(floor(packedLight.a / 16.0) / 15.0, 2.0);
     vec3 block = pow(packedLight.rgb / 15.0, vec3(2.0));
     float density = airDensity * exp(clamp(-(position.y - airBaseHeight) * airFalloff, -8.0, 1.4));
@@ -115,6 +159,8 @@ void main() {
 }
 `;
 const compositeShader = /* glsl */ `
+${waterExtinctionGLSL}
+uniform float waterCamera;
 varying vec2 vUv;
 uniform sampler2D sceneColor;
 uniform sampler2D sceneDepth;
@@ -126,23 +172,38 @@ float depthDistance(vec2 uv) {
   float depth = texture2D(sceneDepth, uv).x;
   return cameraNear * cameraFar / (cameraFar + (cameraNear - cameraFar) * depth);
 }
+void addFogSample(vec2 uv, float spatial, float centerDepth, inout vec4 fog, inout float weights) {
+  float weight = spatial * exp(-abs(depthDistance(uv) - centerDepth) / max(0.2, centerDepth * 0.025));
+  fog += texture2D(fogBuffer, uv) * weight;
+  weights += weight;
+}
 void main() {
   vec2 position = vUv * fogResolution - 0.5;
   vec2 base = floor(position), f = fract(position);
   float centerDepth = depthDistance(vUv);
   vec4 fog = vec4(0.0);
   float weights = 0.0;
-  for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++) {
-    vec2 offset = vec2(float(x), float(y));
-    vec2 uv = (base + offset + 0.5) / fogResolution;
-    vec2 spatial = mix(1.0 - f, f, offset);
-    float weight = spatial.x * spatial.y * exp(-abs(depthDistance(uv) - centerDepth) / max(0.2, centerDepth * 0.025));
-    fog += texture2D(fogBuffer, uv) * weight;
-    weights += weight;
+  if (waterCamera > 0.5) {
+    // Water extinction exposes ray/voxel/shadow jitter much more than thin air.
+    // Filter the volume, keeping the scene texture and depth silhouettes crisp.
+    vec2 center = floor(position + 0.5);
+    for (int y = -2; y <= 2; y++) for (int x = -2; x <= 2; x++) {
+      vec2 pixel = center + vec2(float(x), float(y)), delta = pixel - position;
+      vec2 uv = clamp((pixel + 0.5) / fogResolution, 0.5 / fogResolution, 1.0 - 0.5 / fogResolution);
+      addFogSample(uv, exp(-dot(delta, delta) * 0.35), centerDepth, fog, weights);
+    }
+  } else {
+    for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++) {
+      vec2 offset = vec2(float(x), float(y));
+      vec2 uv = (base + offset + 0.5) / fogResolution;
+      vec2 spatial = mix(1.0 - f, f, offset);
+      addFogSample(uv, spatial.x * spatial.y, centerDepth, fog, weights);
+    }
   }
-  fog = weights > 0.0001 ? fog / weights : vec4(0.0, 0.0, 0.0, 1.0);
+  fog = weights > 0.0001 ? fog / weights : vec4(0.0, 0.0, 0.0, waterCamera > 0.5 ? 0.0 : 1.0);
   vec4 color = texture2D(sceneColor, vUv);
-  gl_FragColor = vec4(color.rgb * fog.a + fog.rgb, color.a);
+  vec3 transmission = waterCamera > 0.5 ? exp(-waterExtinction * max(0.0, fog.a)) : vec3(fog.a);
+  gl_FragColor = vec4(color.rgb * transmission + fog.rgb, color.a);
 }
 `;
 
@@ -192,6 +253,7 @@ export class AtmospherePass extends Pass {
       toneMapped: false,
       uniforms: {
         ...shared,
+        waterCamera: atmosphere.uniforms.waterCamera,
         sceneColor: { value: null },
         fogBuffer: { value: this.target.texture },
         cameraNear: { value: camera.near },

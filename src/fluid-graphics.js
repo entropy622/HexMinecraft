@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { shadeWater } from './water-shader.js';
 import { applySkylight } from './skylight.js';
 import { axialToWorld, DIRECTIONS } from './core.js';
-import { LIQUIDS, fluidHeight } from './fluids.js';
+import { LIQUIDS } from './fluids.js';
 const corners = Array.from({ length: 6 }, (_, i) => [
   Math.cos(((i * 60 - 30) * Math.PI) / 180),
   Math.sin(((i * 60 - 30) * Math.PI) / 180),
@@ -12,6 +12,7 @@ export class FluidRenderer {
     this.group = new THREE.Group();
     scene.add(this.group);
     this.meshes = new Map();
+    this.medium = null;
     this.materials = {};
     for (const [type, def] of Object.entries(LIQUIDS)) {
       const map = textures.single(type === 'glow' ? 'water' : type).clone();
@@ -39,6 +40,7 @@ export class FluidRenderer {
       this.group.remove(mesh);
     }
     this.meshes.clear();
+    this.medium = null;
     this.world = null;
   }
   sync(world, wanted, immediate = false) {
@@ -78,7 +80,7 @@ export class FluidRenderer {
         p = axialToWorld(q, r),
         x = p.x - origin.x,
         z = p.z - origin.z,
-        h = fluidHeight(f),
+        h = this.world.fluids.height(q, y, r),
         d = data[f.type];
       const tri = (a, b, c, uv) => {
         d.p.push(...a, ...b, ...c);
@@ -101,15 +103,16 @@ export class FluidRenderer {
         }
       for (let i = 0; i < 6; i++) {
         const [dq, dr] = DIRECTIONS[i],
-          n = this.world.fluids.get(q + dq, y, r + dr);
+          n = this.world.fluids.get(q + dq, y, r + dr),
+          neighborHeight = this.world.fluids.height(q + dq, y, r + dr);
         if (
           this.world.solid(q + dq, y, r + dr) ||
-          (n?.type === f.type && fluidHeight(n) >= h)
+          (n?.type === f.type && neighborHeight >= h)
         )
           continue;
         const a = corners[i],
           b = corners[(i + 1) % 6],
-          bottom = n?.type === f.type ? fluidHeight(n) : 0;
+          bottom = n?.type === f.type ? neighborHeight : 0;
         const v0 = [x + a[0], y + bottom, z + a[1]],
           v1 = [x + b[0], y + bottom, z + b[1]],
           v2 = [x + b[0], y + h, z + b[1]],

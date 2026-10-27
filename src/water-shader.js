@@ -1,8 +1,12 @@
 import { Color, Matrix4, Vector2 } from 'three';
+import { WATER_EXTINCTION } from './fluids.js';
+
+export const waterExtinctionGLSL = /* glsl */ `const vec3 waterExtinction = vec3(${WATER_EXTINCTION.join(',')});`;
 
 // Current-frame view-space intersections. Opaque scene capture excludes water
 // and first-person models, so reflected rays cannot sample their own surface.
 const optics = /* glsl */ `
+${waterExtinctionGLSL}
 uniform sampler2D waterSceneColor;
 uniform sampler2D waterSceneDepth;
 uniform mat4 waterProjection;
@@ -124,7 +128,7 @@ export function shadeWater(material) {
           if (texture2D(waterSceneDepth, refractedUV).r <= gl_FragCoord.z) refractedUV = uv;
           float backDepth = texture2D(waterSceneDepth, refractedUV).r;
           thickness = clamp(length(waterView(refractedUV, backDepth)) - length(origin), 0.0, 24.0);
-          vec3 transmission = exp(-vec3(0.24, 0.075, 0.035) * thickness);
+          vec3 transmission = exp(-waterExtinction * thickness);
           vec3 scattering = vec3(0.025, 0.13, 0.15) * (0.08 + vSkylight * 0.92) + vBlockLight * 0.08;
           vec3 through = texture2D(waterSceneColor, refractedUV).rgb * transmission + scattering * (1.0 - transmission);
           outgoingLight = mix(through, reflected, fresnel) + reflectedLight.directSpecular * fresnel;

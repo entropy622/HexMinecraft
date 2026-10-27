@@ -26,7 +26,6 @@ import { createShield } from './shield-graphics.js';
 import { Atmosphere } from './atmosphere.js';
 import { HexClouds } from './clouds.js';
 import { SkyEnvironment, moonPhase } from './sky-environment.js';
-import { fluidHeight } from './fluids.js';
 import { EnchantingModels, applyEnchantGlow } from './enchanting-graphics.js';
 import { SmithingModels } from './smithing-graphics.js';
 import { isSmithingStation } from './smithing-data.js';
@@ -1618,8 +1617,13 @@ export class Graphics {
     const submerged =
       !!cameraFluid &&
       this.camera.position.y <
-        Math.floor(this.camera.position.y) + fluidHeight(cameraFluid);
-    this.fluidRenderer.submerged = submerged;
+        Math.floor(this.camera.position.y) +
+          this.world.fluids.height(
+            cameraHex.q,
+            Math.floor(this.camera.position.y),
+            cameraHex.r,
+          );
+    this.fluidRenderer.medium = submerged ? cameraFluid.type : null;
     this.atmosphere.update({
       time,
       dt: renderDt,
@@ -1630,7 +1634,7 @@ export class Graphics {
       horizon,
       sun: this.sun,
       cameraSky: perceivedSky,
-      submerged,
+      medium: this.fluidRenderer.medium,
       volume: this.usePost,
       flight: this.gliding,
     });

@@ -3,6 +3,8 @@ import { CIRCUIT_BLOCKS } from './redstone-data.js';
 import { isHangingPlant } from './cave-data.js';
 import { caveFluidSources } from './caves.js';
 
+export const WATER_EXTINCTION = [0.24, 0.075, 0.035];
+
 export const LIQUIDS = {
   water: {
     name: '水',
@@ -67,6 +69,11 @@ export class Fluids {
   get(q, y, r) {
     return this.chunks.get(chunk(q, r))?.get(key(q, y, r));
   }
+  // Interior cells touch the next layer; only an exposed top has a low surface.
+  height(q, y, r) {
+    const fluid = this.get(q, y, r);
+    return fluid ? (this.get(q, y + 1, r) ? 1 : fluidHeight(fluid)) : 0;
+  }
   open(q, y, r) {
     return (
       y >= 1 &&
@@ -99,8 +106,8 @@ export class Fluids {
       this.blockChanges.add(k);
       if (f.type === 'water') this.washedWebs.add(k);
     }
-    // Level animation does not change this cell's optical properties.
-    if (cells.get(k)?.type !== f?.type) this.world.lightRevision++;
+    // The packed optical medium includes the liquid's physical height.
+    this.world.lightRevision++;
     if (f) cells.set(k, { ...f });
     else cells.delete(k);
     if (record) {

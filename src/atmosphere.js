@@ -18,6 +18,7 @@ export class Atmosphere {
       airCameraSky: { value: 1 },
       airTime: { value: 0 },
       airVolume: { value: 0 },
+      waterCamera: { value: 0 },
       airFlight: { value: 0 },
     };
   }
@@ -32,12 +33,13 @@ export class Atmosphere {
     horizon,
     sun,
     cameraSky,
-    submerged,
+    medium,
     volume,
     flight = false,
   }) {
     const u = this.uniforms,
-      overworld = dimension === 'overworld';
+      overworld = dimension === 'overworld',
+      submerged = !!medium;
     let density = overworld
       ? 0.008 + dusk * 0.006 + rain * 0.008
       : dimension === 'nether'
@@ -55,12 +57,12 @@ export class Atmosphere {
     u.airSunDirection.value
       .subVectors(sun.position, sun.target.position)
       .normalize();
-    u.airSunPower.value =
-      overworld && !submerged ? sun.intensity * (1 + dusk * 0.65) : 0;
+    u.airSunPower.value = overworld ? sun.intensity * (1 + dusk * 0.65) : 0;
     u.airAmbient.value = overworld ? 1 : dimension === 'nether' ? 0.18 : 0.65;
     u.airCameraSky.value = cameraSky;
     u.airTime.value = time;
     u.airVolume.value = volume ? 1 : 0;
+    u.waterCamera.value = medium === 'water' ? 1 : 0;
     u.airFlight.value = MathUtils.damp(
       u.airFlight.value,
       flight ? 1 : 0,

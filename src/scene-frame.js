@@ -67,7 +67,7 @@ export class SceneFramePass extends Pass {
       if (object.userData.liquid === 'water') waters.push(object);
     });
     if (
-      !fluids.submerged &&
+      !fluids.medium &&
       waters.some((object) => this.frustum.intersectsObject(object))
     ) {
       const hidden = [

@@ -1,4 +1,5 @@
 import { Float32BufferAttribute } from 'three';
+import { WATER_EXTINCTION } from './fluids.js';
 import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
 import { isDoor, isTrapdoor } from './building-data.js';
 import { isCampfire } from './campfire-data.js';
@@ -187,7 +188,13 @@ export class VoxelLight {
         if (i < 0 || cost[i] === 16) continue;
         cost[i] = fluid.type === 'water' ? 2 : 1;
         this.medium[i] =
-          fluid.type === 'water' ? 1 : fluid.type === 'lava' ? 2 : 3;
+          fluid.type === 'water'
+            ? this.world.fluids.height(q, y, r) === 1
+              ? 1
+              : 2 + fluid.level
+            : fluid.type === 'lava'
+              ? 10
+              : 11;
         if (EMISSION[fluid.type]) emitters.push([i, EMISSION[fluid.type]]);
       }
     this.cost = cost;
@@ -199,9 +206,18 @@ export class VoxelLight {
       for (let y = HEIGHT - 1; y >= 0 && level > 0; y--) {
         const i = column + y;
         if (cost[i] === 16) break;
-        level = Math.max(0, level - (cost[i] > 1 ? cost[i] : 0));
-        this.sky[i] = level;
-        if (level) skyBuckets[level].push(i);
+        if (this.medium[i] >= 1 && this.medium[i] <= 9) {
+          // Sky visibility follows optical distance through water. Keeping the
+          // running level fractional avoids truncating a full level per cell.
+          const q = this.minQ + Math.floor(column / (this.depth * HEIGHT)),
+            r = this.minR + ((column / HEIGHT) % this.depth);
+          level *= Math.exp(
+            -WATER_EXTINCTION[1] * this.world.fluids.height(q, y, r),
+          );
+        } else level = Math.max(0, level - (cost[i] > 1 ? cost[i] : 0));
+        const quantized = Math.floor(level);
+        this.sky[i] = quantized;
+        if (quantized) skyBuckets[quantized].push(i);
       }
     }
     this.spread(this.sky, skyBuckets);
