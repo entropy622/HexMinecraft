@@ -25,6 +25,7 @@ import { isStorage } from './chests.js';
 import { createHeldItem, disposeHeldItem } from './held-item.js';
 import { createShield } from './shield-graphics.js';
 import { Atmosphere } from './atmosphere.js';
+import { SoftShadows } from './soft-shadows.js';
 import { HexClouds } from './clouds.js';
 import { SkyEnvironment, moonPhase } from './sky-environment.js';
 import { EnchantingModels, applyEnchantGlow } from './enchanting-graphics.js';
@@ -105,6 +106,7 @@ export class Graphics {
     this.sun.shadow.normalBias = 0.035;
     this.sun.shadow.radius = 2;
     this.sun.shadow.bias = -0.0002;
+    this.softShadows = new SoftShadows(this.sun);
     this.scene.add(this.sun, this.sun.target);
     this.textures = createTextures();
     this.leafParticles = new LeafParticles(this.scene, this.textures);
@@ -273,6 +275,9 @@ export class Graphics {
     this.quality = value;
     this.weatherEffects.quality = value;
     this.usePost = value >= 1.7;
+    this.renderer.shadowMap.type = this.usePost
+      ? THREE.BasicShadowMap
+      : THREE.PCFShadowMap;
     if (this.usePost && !this.composer)
       this.composer = createPostprocessing(
         this.renderer,
@@ -1664,6 +1669,10 @@ export class Graphics {
       flight: this.gliding,
     });
     this.atmosphere.attach(this.scene);
+    this.softShadows.attach(
+      this.scene,
+      elevation >= 0 ? this.sunDisk : this.moonDisk,
+    );
     this.enchantingModels.frame(time);
     if (this.smithingModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;

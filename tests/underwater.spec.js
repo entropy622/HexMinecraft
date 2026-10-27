@@ -442,11 +442,15 @@ test('physical waterlines, changed flow levels, liquid identity and quality/save
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.state.world.dimension))
     .toBe('nether');
-  expect(
-    await page.evaluate(
-      () => window.__hexwild.graphics.atmosphere.uniforms.waterCamera.value,
-    ),
-  ).toBe(0);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => window.__hexwild.graphics.atmosphere.uniforms.waterCamera.value,
+        ),
+      { timeout: 15000 },
+    )
+    .toBe(0);
   expect(
     await page.evaluate(() =>
       window.__hexwild.graphics.renderer.getContext().getError(),

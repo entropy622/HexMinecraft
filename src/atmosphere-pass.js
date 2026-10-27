@@ -22,7 +22,7 @@ ${waterScatteringGLSL}
 uniform float waterCamera;
 varying vec2 vUv;
 uniform sampler2D sceneDepth;
-uniform highp sampler2DShadow airShadow;
+uniform highp sampler2D airShadow;
 uniform mat4 airShadowMatrix;
 uniform mat4 inverseProjection;
 uniform mat4 airCameraWorld;
@@ -62,7 +62,14 @@ float airSunVisibility(vec3 position, float sky) {
   vec3 p = projected.xyz / projected.w;
   if (p.z < 0.0 || p.z > 1.0) return sky;
   float edge = min(min(p.x, p.y), min(1.0 - p.x, 1.0 - p.y));
-  float lit = texture(airShadow, vec3(p.xy, p.z - 0.0005));
+  // Light Effects shares the raw depth map with contact-hardening surfaces.
+  // Reconstruct hardware-style comparison filtering for volume samples.
+  vec2 size = vec2(textureSize(airShadow, 0));
+  vec2 pixel = p.xy * size - 0.5, base = floor(pixel), f = fract(pixel);
+  vec2 a = (base + 0.5) / size, b = a + 1.0 / size;
+  float lit = mix(
+    mix(step(p.z - 0.0005, texture2D(airShadow, a).r), step(p.z - 0.0005, texture2D(airShadow, vec2(b.x, a.y)).r), f.x),
+    mix(step(p.z - 0.0005, texture2D(airShadow, vec2(a.x, b.y)).r), step(p.z - 0.0005, texture2D(airShadow, b).r), f.x), f.y);
   return mix(sky, lit * min(1.0, sky * 2.0), smoothstep(0.0, 0.08, edge));
 }
 void main() {

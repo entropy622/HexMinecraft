@@ -182,8 +182,17 @@ async function frames(page, count) {
     count,
   );
 }
-async function cloudSample(page) {
-  const raw = await page.evaluate(() => {
+async function cloudSample(page, phase = null) {
+  const raw = await page.evaluate(async (phase) => {
+    if (phase !== null)
+      await new Promise((resolve) => {
+        const next = () =>
+          window.__hexwild.graphics.composer.effects.temporal.phase % 8 ===
+          phase
+            ? resolve()
+            : requestAnimationFrame(next);
+        next();
+      });
     const g = window.__hexwild.graphics,
       f = g.composer.passes[0],
       t = f.target,
@@ -228,9 +237,10 @@ async function cloudSample(page) {
         g.composer.effects.temporal.jitter.y * t.height,
       ],
       metadata: Array.from(metadata),
+      phase: g.composer.effects.temporal.phase % 8,
       error: g.renderer.getContext().getError(),
     };
-  });
+  }, phase);
   const rgba = [0, 0, 0, 0],
     data = raw.out.map(DataUtils.fromHalfFloat),
     meta = raw.metadata.map(DataUtils.fromHalfFloat);
@@ -251,6 +261,7 @@ async function cloudSample(page) {
       );
     }
   return {
+    phase: raw.phase,
     rgba,
     field,
     age: meta.filter((_, i) => i % 4 === 2).reduce((a, b) => a + b, 0) / 121,
@@ -304,7 +315,7 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
     g.setPostOptions({ ...g.postOptions, clouds: true });
   });
   await frames(page, 32);
-  const reference = await cloudSample(page);
+  const reference = await cloudSample(page, moving.phase);
   expect(Math.abs(moving.rgba[3] - reference.rgba[3])).toBeLessThan(0.03);
   const fieldError = (a, b) =>
     Math.sqrt(
@@ -352,8 +363,11 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
           g.setPostOptions({ ...g.postOptions, clouds: true });
         });
         await frames(page, 32);
-        const fresh = await cloudSample(page),
+        // Match the projection phase at the silhouette: bilinear unjittering
+        // alone cannot make different subpixel coverage identical.
+        const fresh = await cloudSample(page, immediate.phase),
           error = fieldError(immediate, fresh);
+        expect(fresh.phase).toBe(immediate.phase);
         occlusion.push({
           height,
           transmission: immediate.rgba[3],
