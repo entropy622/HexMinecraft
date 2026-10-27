@@ -4394,3 +4394,9 @@ input:focus-visible {
   color: #a8e5ff;
   text-shadow: 1px 1px #26649a;
 }
+
+.mc-grid.dropper-storage {
+  grid-template-columns: repeat(3, minmax(0, 48px));
+  width: max-content;
+  margin-inline: auto;
+}

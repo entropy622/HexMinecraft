@@ -8,6 +8,7 @@ import { isHangingPlant } from './cave-data.js';
 import { cavePlantParts } from './cave-plant-shapes.js';
 import { dripstoneParts } from './dripstone.js';
 import { cobwebParts } from './cobwebs.js';
+import { dropperOffset } from './droppers.js';
 import { hopperParts } from './hopper-shape.js';
 import { cauldronParts } from './cauldron-shape.js';
 
@@ -38,6 +39,34 @@ export function buildingParts(world, q, y, r, collision = false) {
   if (type === 'pointedDripstone') return dripstoneParts(world, q, y, r);
   if (type === 'cobweb') return cobwebParts(collision);
   if (type === 'hopper') return hopperParts(state, angle);
+  if (type === 'dropper') {
+    const parts = [
+      {
+        x: 0,
+        y: 0.5,
+        z: 0,
+        h: 1,
+        angle: 0,
+        tile: 'dropper',
+        polygon: HEX_POLYGON,
+      },
+    ];
+    if (collision) return parts;
+    const [dq, dy, dr] = dropperOffset(state.facing),
+      p = axialToWorld(dq, dr),
+      length = Math.hypot(p.x, p.z) || 1;
+    parts.push({
+      x: dy ? 0 : (p.x / length) * 0.875,
+      y: 0.5 + dy * 0.508,
+      z: dy ? 0 : (p.z / length) * 0.875,
+      w: 0.65,
+      h: dy ? 0.016 : 0.65,
+      d: dy ? 0.65 : 0.016,
+      angle: dy ? 0 : angle,
+      tile: 'dropperMouth',
+    });
+    return parts;
+  }
   if (shape === 'cauldron') return cauldronParts(type, collision);
   if (isHangingPlant(type)) return cavePlantParts(world, q, y, r, collision);
   if (CIRCUIT_BLOCKS[type]?.shape)

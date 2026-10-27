@@ -16,6 +16,8 @@ export function createTextures() {
     id + ':side',
   ]);
   names.push(
+    'dropperMouth:top',
+    'dropperMouth:side',
     'glowBerry:top',
     'glowBerry:side',
     'sporeCenter:top',
@@ -328,6 +330,21 @@ export function createTextures() {
               Math.round(ay + ((by - ay) * j) / steps),
             );
         }
+    }
+    if (id === 'dropper' || id === 'dropperMouth') {
+      for (let y = 0; y < 16; y++)
+        for (let x = 0; x < 16; x++)
+          fill(rand(x, y, 44) > 0.5 ? '#899193' : '#737b80', x, y);
+      fill('#b0b6b5', 0, 0, 16, 1);
+      fill('#50575c', 0, 15, 16, 1);
+      if (id === 'dropperMouth') {
+        fill('#bec3c0', 1, 2, 14, 1);
+        fill('#41494d', 2, 4, 12, 9);
+        fill('#161e23', 3, 5, 10, 7);
+        fill('#8a9397', 4, 12, 8, 1);
+        fill('#596367', 3, 5, 2, 2);
+        fill('#303a3e', 10, 10, 3, 2);
+      }
     }
     if (id === 'hopper' || id === 'cauldron') {
       // Original iron panels: cool gray grain, bright rolled lip and dark seams.

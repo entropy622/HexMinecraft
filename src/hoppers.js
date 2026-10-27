@@ -1,5 +1,5 @@
 import { DIRECTIONS, key } from './core.js';
-import { blockSlots } from './block-inventory.js';
+import { blockSlots, insertionSlots } from './block-inventory.js';
 import { insertSlot, takeSlot } from './container-actions.js';
 import { isFurnace } from './processing-data.js';
 
@@ -58,17 +58,11 @@ export class Hoppers {
       const own = blockSlots(w, q, y, r);
       const [dq, dr] = DIRECTIONS[state.facing || 0];
       const output = state.down !== false ? [q, y - 1, r] : [q + dq, y, r + dr];
-      let target = blockSlots(w, ...output);
-      if (target && isFurnace(w.get(...output)))
-        target =
-          state.down !== false
-            ? { input: target.input }
-            : { fuel: target.fuel };
-      if (target && w.get(...output) === 'brewingStand')
-        target =
-          state.down !== false
-            ? { ingredient: target.ingredient }
-            : { 0: target[0], 1: target[1], 2: target[2], fuel: target.fuel };
+      const target = insertionSlots(
+        w,
+        ...output,
+        state.down !== false ? 'top' : 'side',
+      );
       const pushed = move(own, target, k, key(...output));
       const above = [q, y + 1, r],
         aboveType = w.get(...above);

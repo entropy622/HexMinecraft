@@ -39,6 +39,7 @@ export class Redstone {
       !block.foliage &&
       type !== 'glass' &&
       (!block.shape ||
+        type === 'dropper' ||
         (block.shape === 'slab' && this.world.state(q, y, r).double))
     );
   }
@@ -225,7 +226,7 @@ export class Redstone {
     }
     return { strong, weak, direct, levels };
   }
-  tick(dt, actors, operateDoor) {
+  tick(dt, actors, operateDoor, dispense) {
     const w = this.world,
       changed = new Map(),
       occupied = new Set(),
@@ -282,7 +283,8 @@ export class Redstone {
       if (time > 1e-8) this.timers.set(k, time);
       else {
         this.timers.delete(k);
-        if (['repeater', 'redstoneTorch', 'comparator'].includes(type))
+        if (type === 'dropper') dispense(q, y, r);
+        else if (['repeater', 'redstoneTorch', 'comparator'].includes(type))
           due.push(k);
         else change(q, y, r, false);
       }
@@ -394,7 +396,12 @@ export class Redstone {
     for (const k of w.circuitCells) {
       const p = coords(k),
         type = w.get(...p);
-      if (type !== 'redstoneLamp' && type !== 'hopper' && !isOpenable(type))
+      if (
+        type !== 'redstoneLamp' &&
+        type !== 'hopper' &&
+        type !== 'dropper' &&
+        !isOpenable(type)
+      )
         continue;
       const on =
         powered(p) || (!!doorUpper(type) && powered([p[0], p[1] + 1, p[2]]));
@@ -406,6 +413,8 @@ export class Redstone {
         if (!operateDoor(...p, on)) continue;
       }
       change(...p, on);
+      if (type === 'dropper' && on && !this.timers.has(k))
+        this.timers.set(k, 0.2);
     }
     this.revision = w.lightRevision;
     return [...changed.values()];

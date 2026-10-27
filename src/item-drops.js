@@ -216,6 +216,7 @@ export class ItemDrops {
         'repeater',
         'comparator',
         'hopper',
+        'dropper',
         'cauldron',
         'cobweb',
         'sporeBlossom',

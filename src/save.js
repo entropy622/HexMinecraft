@@ -101,7 +101,7 @@ export function validateSave(s) {
             !e[1] ||
             !Number.isInteger(e[1].facing) ||
             e[1].facing < 0 ||
-            e[1].facing > 5 ||
+            e[1].facing > 7 ||
             typeof e[1].open !== 'boolean' ||
             (e[1].upper !== undefined && typeof e[1].upper !== 'boolean') ||
             (e[1].double !== undefined && typeof e[1].double !== 'boolean') ||
@@ -130,6 +130,7 @@ export function validateSave(s) {
       if (
         [...states].some(
           ([k, state]) =>
+            (state.facing > 5 && edits.get(k) !== 'dropper') ||
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
             (state.down !== undefined && edits.get(k) !== 'hopper') ||
             ((state.output !== undefined || state.subtract !== undefined) &&
@@ -177,6 +178,7 @@ export function validateSave(s) {
                 redstoneTorch: 0.1,
                 repeater: 0.4,
                 comparator: 0.1,
+                dropper: 0.2,
               }[edits.get(e[0])] || 0) ||
             (['stoneButton', 'stonePressurePlate'].includes(edits.get(e[0])) &&
               states.get(e[0])?.powered !== true),

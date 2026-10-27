@@ -44,6 +44,7 @@ import { canStonecut, stonecuttingResult } from './stonecutting.js';
 import { stonecutterPanel } from './stonecutter-ui.js';
 import { newChest, isStorage, storageLidClear } from './chests.js';
 import { chestPanel, updateChestPanel } from './chest-ui.js';
+import { fireDropper } from './droppers.js';
 import { blockSlots } from './block-inventory.js';
 import { isCauldron, cauldronAction, waterCauldron } from './cauldron-data.js';
 import { tickCauldrons, cauldronContact } from './cauldrons.js';
@@ -188,7 +189,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.65 — SUNLIGHT THROUGH WATER</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.75 — PULSES MOVE ITEMS</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -2921,6 +2922,7 @@ function place() {
           'chest',
           'shulkerBox',
           'hopper',
+          'dropper',
           'bed',
           'portal',
           'endportal',
@@ -3054,7 +3056,11 @@ function fullSupport(q, y, r, top = false) {
     const state = world.state(q, y, r);
     return !!state.double || (top && !!state.upper);
   }
-  return !!type && !BLOCKS[type].nonSolid && !BLOCKS[type].shape;
+  return (
+    !!type &&
+    !BLOCKS[type].nonSolid &&
+    (!BLOCKS[type].shape || type === 'dropper')
+  );
 }
 function mergeSlab(q, y, r, type) {
   const old = world.state(q, y, r);
@@ -3134,8 +3140,15 @@ function placeBuilding(type, p) {
     return;
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
+  if (type === 'dropper') {
+    const direction = camera.getWorldDirection(new THREE.Vector3());
+    facing = facingFromDirection(-direction.x, -direction.z);
+    const p = axialToWorld(...DIRECTIONS[facing]),
+      horizontal = -(p.x * direction.x + p.z * direction.z) / Math.sqrt(3);
+    if (Math.abs(direction.y) > horizontal) facing = direction.y > 0 ? 6 : 7;
+  }
   let mount;
-  if (CIRCUIT_BLOCKS[type]?.shape && type !== 'hopper') {
+  if (CIRCUIT_BLOCKS[type]?.shape && !['hopper', 'dropper'].includes(type)) {
     const control = ['lever', 'stoneButton', 'redstoneTorch'].includes(type);
     if (type === 'redstoneTorch' && target.normal?.y < -0.5) {
       toast('红石火把需要地面或墙面支撑。');
@@ -3224,6 +3237,7 @@ function placeBuilding(type, p) {
     ...(type === 'redstoneTorch' ? { powered: true } : {}),
     ...(type === 'repeater' ? { delay: 1, powered: false } : {}),
     ...(type === 'comparator' ? { output: 0, subtract: false } : {}),
+    ...(type === 'dropper' ? { powered: false } : {}),
     ...(type === 'hopper'
       ? { down: Math.abs(target.normal?.y ?? 1) > 0.5, powered: false }
       : {}),
@@ -3238,7 +3252,7 @@ function placeBuilding(type, p) {
     return;
   }
   for (const [a, b, c, t] of cells) world.set(a, b, c, t);
-  if (type === 'hopper') blockSlots(world, q, y, r);
+  if (['hopper', 'dropper'].includes(type)) blockSlots(world, q, y, r);
   if (type === 'chorusFlower')
     world.chorus.set(key(q, y, r), { stage: 0, time: 0 });
   if (crops.has(key(q, y - 1, r))) harvestPlant(key(q, y - 1, r), true, 3);
@@ -3275,7 +3289,7 @@ function removeBuilding(q, y, r, drop = true) {
     for (const slot of world.campfires.get(key(q, y, r))?.slots || [])
       if (slot) dropAt(slot.item, 1, q, y, r);
   }
-  if (type === 'hopper') spillChest(key(q, y, r));
+  if (['hopper', 'dropper'].includes(type)) spillChest(key(q, y, r));
   world.set(q, y, r, null);
   if (doorUpper(type) && world.get(q, y + 1, r) === doorUpper(type))
     world.set(q, y + 1, r, null);
@@ -3331,7 +3345,10 @@ function maintainBuildings() {
       const [dq, dr] = DIRECTIONS[world.state(q, y, r).facing];
       if (!world.loaded(q + dq, r + dr)) continue;
       if (!fullSupport(q + dq, y, r + dr)) removeBuilding(q, y, r);
-    } else if (CIRCUIT_BLOCKS[type]?.shape && type !== 'hopper') {
+    } else if (
+      CIRCUIT_BLOCKS[type]?.shape &&
+      !['hopper', 'dropper'].includes(type)
+    ) {
       const state = world.state(q, y, r),
         support = attachmentCell(q, y, r, state, DIRECTIONS);
       if (!world.loaded(support[0], support[2])) continue;
@@ -3359,7 +3376,18 @@ function updateRedstone(dt) {
       radius: mob.baby ? 0.16 : 0.3,
     })),
   ];
-  const changed = world.redstone.tick(dt, actors, toggleBuilding);
+  const changed = world.redstone.tick(dt, actors, toggleBuilding, (q, y, r) => {
+    const fired = fireDropper(world, q, y, r, drops),
+      p = axialToWorld(q, r);
+    if (
+      Math.hypot(
+        p.x - camera.position.x,
+        y + 0.5 - camera.position.y,
+        p.z - camera.position.z,
+      ) < 12
+    )
+      beep(fired ? 180 : 100, 0.035, 'square');
+  });
   world.hoppers.tick(dt, drops);
   return changed;
 }
@@ -3678,6 +3706,7 @@ function interact(preferContext = false) {
           'chest',
           'shulkerBox',
           'hopper',
+          'dropper',
           'farmland',
         ].includes(target.type) ||
         (plantForItem(useItem()) && ['grass', 'dirt'].includes(target.type))));
@@ -3812,7 +3841,7 @@ function interact(preferContext = false) {
     syncDecor();
     stationKey = k;
     openOverlay('#station-overlay');
-    if (type !== 'hopper') {
+    if (!['hopper', 'dropper'].includes(type)) {
       graphics.chestModels.openKey = k;
       soundFX.play(ITEMS[type]?.portable ? 'shulkerOpen' : 'chestOpen');
     }
@@ -6428,6 +6457,7 @@ function frame(now) {
           'chest',
           'shulkerBox',
           'hopper',
+          'dropper',
           'farmland',
           'bed',
           'portal',
@@ -6460,6 +6490,14 @@ function frame(now) {
     if (target?.type === 'redstoneWire')
       $('#target').textContent +=
         ` · 信号 ${world.redstone.power(target.q, target.y, target.r)} / 15`;
+    if (target?.type === 'dropper') {
+      const state = world.state(target.q, target.y, target.r),
+        direction = ['东', '东南', '西南', '西', '西北', '东北', '下', '上'][
+          state.facing
+        ];
+      $('#target').textContent +=
+        ` · 出口 ${direction}${state.powered ? ' · 通电' : ''}`;
+    }
     if (target?.type === 'comparator') {
       const state = world.state(target.q, target.y, target.r);
       $('#target').textContent +=

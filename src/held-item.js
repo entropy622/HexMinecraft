@@ -36,6 +36,7 @@ export function createHeldItem(id, textures) {
       'repeater',
       'comparator',
       'hopper',
+      'dropper',
       'cauldron',
       'cobweb',
       'sporeBlossom',

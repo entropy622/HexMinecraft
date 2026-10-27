@@ -1,6 +1,14 @@
 import { isOpenable, isDoorTop } from './building-data.js';
 
 export const CIRCUIT_BLOCKS = {
+  dropper: {
+    name: '投掷器',
+    color: '#858b8e',
+    hardness: 3.5,
+    tool: 1,
+    shape: 'dropper',
+    storage: 9,
+  },
   hopper: {
     name: '漏斗',
     color: '#5a6166',
@@ -78,6 +86,11 @@ export const circuitItem = (type) =>
 // The hex crafting grid uses logs for the wooden handle, like existing ladders.
 export const CIRCUIT_RECIPES = [
   [
+    'dropper',
+    ['cobble', 'cobble', 'cobble', 'cobble', 'cobble', 'cobble', 'redstone'],
+    '七块圆石与一份红石制成；每次通电延迟 0.2 秒输出一件，面向容器时转入，否则喷出。出口朝向玩家，仰俯可朝上下。',
+  ],
+  [
     'hopper',
     ['ingot', 'ingot', 'ingot', 'chest', 'ingot', 'ingot'],
     '从上方吸入物品，沿出口自动运出；通电停止。Shift 右键容器放置，侧面点击决定出口。',
@@ -126,43 +139,57 @@ export const CIRCUIT_RECIPES = [
   count: 1,
   title: CIRCUIT_BLOCKS[id].name,
   desc,
-  station: ['redstoneLamp', 'repeater', 'comparator', 'hopper'].includes(id),
+  station: [
+    'redstoneLamp',
+    'repeater',
+    'comparator',
+    'hopper',
+    'dropper',
+  ].includes(id),
+  ...(id === 'dropper'
+    ? { patternCounts: [2, 1, 1, 1, 1, 1, 1], cobbleGroup: true }
+    : {}),
   pattern:
-    id === 'hopper'
-      ? ['ingot', null, 'ingot', 'ingot', 'chest', 'ingot', 'ingot']
-      : id === 'comparator'
-        ? ingredients
-        : id === 'repeater'
-          ? [
-              'redstoneTorch',
-              'redstone',
-              'redstoneTorch',
-              'stone',
-              'stone',
-              'stone',
-              null,
-            ]
-          : id === 'redstoneLamp'
+    id === 'dropper'
+      ? ingredients
+      : id === 'hopper'
+        ? ['ingot', null, 'ingot', 'ingot', 'chest', 'ingot', 'ingot']
+        : id === 'comparator'
+          ? ingredients
+          : id === 'repeater'
             ? [
+                'redstoneTorch',
                 'redstone',
+                'redstoneTorch',
+                'stone',
+                'stone',
+                'stone',
                 null,
-                'redstone',
-                'glowstone',
-                'redstone',
-                null,
-                'redstone',
               ]
-            : [
-                null,
-                null,
-                null,
-                ...ingredients,
-                ...Array(4 - ingredients.length).fill(null),
-              ],
-  cost: ingredients.reduce(
-    (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
-    {},
-  ),
+            : id === 'redstoneLamp'
+              ? [
+                  'redstone',
+                  null,
+                  'redstone',
+                  'glowstone',
+                  'redstone',
+                  null,
+                  'redstone',
+                ]
+              : [
+                  null,
+                  null,
+                  null,
+                  ...ingredients,
+                  ...Array(4 - ingredients.length).fill(null),
+                ],
+  cost:
+    id === 'dropper'
+      ? { cobble: 7, redstone: 1 }
+      : ingredients.reduce(
+          (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
+          {},
+        ),
 }));
 
 export function attachmentCell(q, y, r, state, directions) {

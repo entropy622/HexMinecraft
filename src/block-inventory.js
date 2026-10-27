@@ -12,7 +12,7 @@ export function blockSlots(world, q, y, r) {
     k = key(q, y, r);
   if (BLOCKS[type]?.storage) {
     let list = world.chests.get(k);
-    if (!list && type === 'hopper') {
+    if (!list && ['hopper', 'dropper'].includes(type)) {
       list = Array(BLOCKS[type].storage).fill(null);
       world.chests.set(k, list);
     }
@@ -86,5 +86,30 @@ export function blockSlots(world, q, y, r) {
     },
     accepts: (s) => s.item === 'ember',
   };
+  return slots;
+}
+
+export function insertionSlots(world, q, y, r, face) {
+  const slots = blockSlots(world, q, y, r),
+    type = world.get(q, y, r);
+  if (!slots) return null;
+  if (isFurnace(type))
+    return face === 'top'
+      ? { input: slots.input }
+      : face === 'bottom'
+        ? {
+            fuel: { ...slots.fuel, accepts: (s) => s.item === 'bucket' },
+          }
+        : { fuel: slots.fuel };
+  if (type === 'brewingStand')
+    return face === 'top'
+      ? { ingredient: slots.ingredient }
+      : face === 'bottom'
+        ? {
+            0: slots[0],
+            1: slots[1],
+            2: slots[2],
+          }
+        : { 0: slots[0], 1: slots[1], 2: slots[2], fuel: slots.fuel };
   return slots;
 }

@@ -167,11 +167,13 @@ export class VoxelLight {
               ? this.world.state(q, y, r).open
                 ? 1
                 : 3
-              : block?.shape
-                ? 2
-                : block?.nonSolid
-                  ? 1
-                  : 16;
+              : type === 'dropper'
+                ? 16
+                : block?.shape
+                  ? 2
+                  : block?.nonSolid
+                    ? 1
+                    : 16;
       const emission =
         (isFurnace(type) && !(this.world.furnaces.get(key)?.burn > 0)) ||
         (isCampfire(type) && !this.world.campfires.get(key)?.lit) ||
