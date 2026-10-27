@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { worldToAxial } from './core.js';
-import { MOBS } from './mob-data.js';
+import { MOBS, mobSpeedScale } from './mob-data.js';
 import { LIQUIDS } from './fluids.js';
 import { animateNetherMob } from './nether-mob-graphics.js';
 
@@ -77,7 +77,7 @@ export function updateNetherFlier(fauna, m, dt, time, camera, creative) {
   m.flight.lerp(desiredVelocity, 1 - Math.exp(-dt * 2));
   for (const axis of ['x', 'y', 'z']) {
     const next = p.clone();
-    next[axis] += m.flight[axis] * dt;
+    next[axis] += m.flight[axis] * dt * mobSpeedScale(m);
     if (flyingClear(fauna.world, next, m.kind)) p.copy(next);
     else {
       m.flight[axis] = 0;

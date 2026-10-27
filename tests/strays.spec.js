@@ -244,6 +244,12 @@ test('a real spawner skeleton converts inside powder snow without freezing to de
     .poll(() => page.evaluate(() => window.strayShieldSeen), { timeout: 30000 })
     .toBe(true);
   await waitGame(page, 3);
+  expect(
+    await page.evaluate(
+      () => window.__hexwild.state.inventory.slownessArrow || 0,
+    ),
+  ).toBe(0);
+  result.reflectedArrowsUnrecoverable = true;
   expect(await page.evaluate(() => window.__hexwild.state.health)).toBe(20);
   await expect(page.locator('#effect-list')).not.toContainText('缓慢');
   await page.keyboard.up('KeyR');
@@ -253,6 +259,69 @@ test('a real spawner skeleton converts inside powder snow without freezing to de
   await expect(page.locator('#effect-list')).toContainText('缓慢 I', {
     timeout: 20000,
   });
+  // Complete the real acquisition path, with randomness fixed only at its
+  // external boundary. The entity still comes from the spawner and conversion.
+  await page.evaluate(() => {
+    const g = window.__hexwild;
+    g.give('axe4', 1);
+    g.selectItem('axe4');
+    window.strayRandom = Math.random;
+    Math.random = () => 0;
+  });
+  for (let i = 0; i < 2; i++) {
+    await page.evaluate(() => {
+      const g = window.__hexwild,
+        p = g.graphics.scene.children.find(
+          (m) => m.userData.kind === 'stray',
+        ).position;
+      g.teleport((p.x - 1.5) / Math.sqrt(3) - p.z / 3, 40, (2 * p.z) / 3);
+      g.lookAt(p.x / Math.sqrt(3) - p.z / 3, p.y + 1, (2 * p.z) / 3);
+    });
+    await waitGame(page, 0.3);
+    await page.evaluate(() =>
+      document
+        .querySelector('#world')
+        .dispatchEvent(
+          new MouseEvent('mousedown', { button: 0, bubbles: true }),
+        ),
+    );
+    await waitGame(page, 0.2);
+    await page.evaluate(() =>
+      document
+        .querySelector('#world')
+        .dispatchEvent(new MouseEvent('mouseup', { button: 0, bubbles: true })),
+    );
+    await waitGame(page, 1);
+  }
+  await page.evaluate(() => {
+    Math.random = window.strayRandom;
+  });
+  expect(await kindCount(page, 'stray')).toBe(0);
+  const loot = await page.evaluate(() => {
+    const g = window.__hexwild;
+    g.save();
+    const drops = JSON.parse(
+      localStorage.getItem('hexwild-save-v16'),
+    ).dimensions.overworld.drops.filter((d) => d.item === 'slownessArrow');
+    const carried = g.state.inventory.slownessArrow || 0;
+    if (drops.length) {
+      const [x, , z] = drops[0].position;
+      g.teleport(x / Math.sqrt(3) - z / 3, 40, (2 * z) / 3);
+    }
+    return { drops, carried };
+  });
+  expect(loot.carried + loot.drops.reduce((n, d) => n + d.count, 0)).toBe(1);
+  result.lootBeforePickup = loot;
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => window.__hexwild.state.inventory.slownessArrow || 0,
+        ),
+      { timeout: 15000 },
+    )
+    .toBe(1);
+  result.playerKillLoot = { slownessArrow: 1 };
   await page.keyboard.press('Escape');
   await page.locator('#home').click();
   await page.locator('#continue').click();

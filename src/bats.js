@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mobSpeedScale } from './mob-data.js';
 import { axialToWorld, worldToAxial, hash } from './core.js';
 import { flyingClear } from './nether-mobs.js';
 import { ceilingSupport } from './cave-plants.js';
@@ -124,7 +125,9 @@ export function updateBat(fauna, m, dt, time, camera) {
       m.angle = Math.atan2(direction.x, direction.z);
       const movement = direction
           .normalize()
-          .multiplyScalar(Math.min(distance, dt * (startled ? 3 : 1.8))),
+          .multiplyScalar(
+            Math.min(distance, dt * (startled ? 3 : 1.8) * mobSpeedScale(m)),
+          ),
         steps = Math.max(1, Math.ceil(movement.length() / 0.1));
       for (let i = 0; i < steps; i++) {
         const next = p.clone().addScaledVector(movement, 1 / steps);

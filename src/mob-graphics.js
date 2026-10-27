@@ -61,7 +61,7 @@ export function createMob(kind, textures) {
     return pivot;
   };
   if (['zombie', 'skeleton', 'stray', 'crawler'].includes(kind)) {
-    const bone = MOBS[kind].ranged,
+    const bone = MOBS[kind].arrow,
       alien = kind === 'crawler',
       scale = alien ? 0.78 : 1;
     const uv = (x, y, w, h, d) => (alien ? full : skinBox(x, y, w, h, d));
@@ -408,7 +408,7 @@ export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
       ? Math.sin(time * 35) * 0.025
       : 0;
   data.arms.forEach((arm, i) => {
-    const target = MOBS[mob.kind].ranged
+    const target = MOBS[mob.kind].arrow
       ? 1.18
       : aggressive
         ? 1.35

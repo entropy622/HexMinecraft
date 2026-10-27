@@ -330,6 +330,25 @@ export const plantImage = (kind, stage) => {
 const generatedItems = new Map();
 let berriesImage;
 export const itemImage = (id) => {
+  if (id === 'slownessArrow') {
+    if (!generatedItems.has(id)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 16;
+      const c = canvas.getContext('2d');
+      c.drawImage(images.get(itemTextures.arrow), 0, 0, 16, 16);
+      // Tint the existing arrowhead; preserve its pixel shading and alpha.
+      const pixels = c.getImageData(11, 0, 5, 5);
+      for (let i = 0; i < pixels.data.length; i += 4) {
+        const light = pixels.data[i] / 255;
+        pixels.data[i] = 100 * light;
+        pixels.data[i + 1] = 164 * light;
+        pixels.data[i + 2] = 205 * light;
+      }
+      c.putImageData(pixels, 11, 0);
+      generatedItems.set(id, canvas);
+    }
+    return generatedItems.get(id);
+  }
   if (id === 'powderSnowBucket') {
     if (!generatedItems.has(id)) {
       const canvas = document.createElement('canvas');

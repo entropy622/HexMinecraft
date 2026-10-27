@@ -52,6 +52,7 @@ import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
 import './style.css';
 import * as THREE from 'three';
+import { ARROW_ITEMS } from './arrow-data.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -410,7 +411,7 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
     )
       soundFX.play('endermanTeleport');
   },
-  shoot: (from, to, effect) => {
+  shoot: (from, to, item) => {
     const aim = to
       .clone()
       .add(new THREE.Vector3(0, -0.65, 0))
@@ -418,7 +419,7 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
     const flight = aim.length() / 25;
     aim.y += 6.5 * flight * flight;
     projectiles.shoot(from, aim.normalize(), 0.65, false, 'hostile', 1, {
-      effect,
+      item,
     });
   },
 });
@@ -1546,25 +1547,25 @@ function validHandUse(use, item) {
   );
 }
 function arrowSlot() {
-  if (pack.gear[4]?.item === 'arrow') return resolveInventorySlot('gear:4');
-  if (pack.slots[selected]?.item === 'arrow')
+  if (ARROW_ITEMS[pack.gear[4]?.item]) return resolveInventorySlot('gear:4');
+  if (ARROW_ITEMS[pack.slots[selected]?.item])
     return resolveInventorySlot('pack:' + selected);
-  const index = pack.slots.findIndex((stack) => stack?.item === 'arrow');
+  const index = pack.slots.findIndex((stack) => ARROW_ITEMS[stack?.item]);
   return index < 0 ? null : resolveInventorySlot('pack:' + index);
 }
-function collectArrow() {
+function collectArrow(item) {
   const offhand = pack.gear[4];
-  if (offhand?.item === 'arrow' && offhand.count < stackSize('arrow'))
+  if (offhand?.item === item && offhand.count < stackSize(item))
     offhand.count++;
-  else if (!pack.insertStack({ item: 'arrow', count: 1 })) return false;
-  pickupNotice('arrow', 1);
+  else if (!pack.insertStack({ item, count: 1 })) return false;
+  pickupNotice(item, 1);
   updateHUD();
   return true;
 }
-function arrowCount() {
+function arrowCount(item) {
   return (
-    (inventory.arrow || 0) +
-    (pack.gear[4]?.item === 'arrow' ? pack.gear[4].count : 0)
+    (inventory[item] || 0) +
+    (pack.gear[4]?.item === item ? pack.gear[4].count : 0)
   );
 }
 function cancelBow() {
@@ -5001,6 +5002,7 @@ function hitMob(
   graphics.burst(a.q, p.y, a.r, MOBS[mob.kind].color);
   beep(140, 0.07, 'triangle');
   fauna.hit(mob, amount, direction, true, true, 0.5 + punch * 0.8);
+  return 'hit';
 }
 function interactCreature() {
   const mob = fauna.target(
@@ -5261,8 +5263,9 @@ function releaseBow(input) {
     return;
   const ammo = arrowSlot();
   if (!creative && !ammo) return;
-  const enchant = enchantmentsOf(use.stack.wear),
-    infinite = creative || !!enchant.infinity;
+  const item = ammo?.get()?.item || 'arrow',
+    enchant = enchantmentsOf(use.stack.wear),
+    infinite = creative || (item === 'arrow' && !!enchant.infinity);
   if (!infinite) takeSlot(ammo, 1);
   const direction = camera.getWorldDirection(new THREE.Vector3());
   projectiles.shoot(
@@ -5272,7 +5275,7 @@ function releaseBow(input) {
     !infinite,
     'player',
     1,
-    { power: enchant.power || 0, punch: enchant.punch || 0 },
+    { item, power: enchant.power || 0, punch: enchant.punch || 0 },
   );
   attackCooldown = 0.25;
   attackPeriod = attackCooldown;
@@ -6592,7 +6595,8 @@ function frame(now) {
                         ? ' · ♥ 寻找伙伴'
                         : m.kind === 'chicken' && m.eggs > 0
                           ? ' · 右键收集鸡蛋 ×' + m.eggs
-                          : ' · 右键喂养 / 互动');
+                          : ' · 右键喂养 / 互动') +
+        (m.slowness > 0 ? ` · 缓慢 I ${Math.ceil(m.slowness)} 秒` : '');
     }
     if (boatTarget && !creatureTarget && !villagerTarget) {
       $('#target').classList.remove('hidden');
@@ -6645,8 +6649,13 @@ function frame(now) {
       world,
       [...creatures, ...dragonFight.combatants, ...shulkerBullets.combatants],
       camera,
-      (mob, amount, direction, part, punch) =>
-        hitMob(mob, amount, direction, 'arrow', part, punch),
+      (mob, amount, direction, part, punch, item) => {
+        const result = hitMob(mob, amount, direction, 'arrow', part, punch);
+        const effect = ARROW_ITEMS[item].effect;
+        if (result === 'hit' && effect?.id === 'slowness')
+          fauna.slow(mob, effect.time);
+        return result;
+      },
       collectArrow,
       (amount, source, effect) => {
         const result = hurt(amount, 'projectile', source);
@@ -6732,15 +6741,21 @@ function frame(now) {
         : pack.gear[4]?.item === 'fishingRod'
           ? 'offhand'
           : null);
+    const ammoItem = bowHand ? arrowSlot()?.get()?.item || 'arrow' : null;
     $('#combat-status').textContent = bowHand
       ? (bowUse
           ? '拉弓 ' + Math.round(bowPull(bowCharge) * 100) + '% · 松开发射'
           : '按住右键拉弓') +
         ' · ' +
         (bowHand === 'offhand' ? '副手' : '主手') +
-        ' · 箭矢 ' +
-        (creative ? '∞' : arrowCount()) +
-        (enchantmentsOf(handStack(bowHand)?.wear).infinity ? '（无限）' : '')
+        ' · ' +
+        ITEMS[ammoItem].name +
+        ' ' +
+        (creative ? '∞' : arrowCount(ammoItem)) +
+        (enchantmentsOf(handStack(bowHand)?.wear).infinity &&
+        ammoItem === 'arrow'
+          ? '（无限）'
+          : '')
       : rodHand
         ? fishing.status + ' · ' + (rodHand === 'offhand' ? '副手' : '主手')
         : THROWABLES[heldItem()]

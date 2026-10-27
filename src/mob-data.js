@@ -4,7 +4,7 @@ const SKELETON = {
   height: 1.9,
   hostile: true,
   sunlight: true,
-  ranged: true,
+  arrow: 'arrow',
   freezeImmune: true,
   drops: { bone: 2, arrow: 3 },
 };
@@ -152,7 +152,7 @@ export const MOBS = {
     ...SKELETON,
     name: '流浪者',
     color: '#94b2c1',
-    arrowEffect: { id: 'slowness', time: 30 },
+    arrow: 'slownessArrow',
   },
   spider: {
     webImmune: true,
@@ -185,3 +185,5 @@ export const MOBS = {
 };
 export const ANIMALS = ['sheep', 'cow', 'pig', 'chicken'];
 export const HOSTILES = ['zombie', 'skeleton', 'spider', 'creeper'];
+
+export const mobSpeedScale = (mob) => (mob.slowness > 0 ? 0.85 : 1);

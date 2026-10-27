@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ARROW_ITEMS } from './arrow-data.js';
 import { MOBS } from './mob-data.js';
 import { worldToAxial } from './core.js';
 import { arrowDamage } from './archery.js';
@@ -40,7 +41,7 @@ export class Projectiles {
     mesh.add(new THREE.Mesh(this.shaft, this.wood));
     const tip = new THREE.Mesh(
       this.tip,
-      options.effect ? this.coldTip : this.metal,
+      ARROW_ITEMS[options.item]?.effect ? this.coldTip : this.metal,
     );
     tip.position.y = 0.38;
     mesh.add(tip);
@@ -60,10 +61,10 @@ export class Projectiles {
         .multiplyScalar(owner === 'player' ? power * 60 : 10 + power * 23),
       life: 40,
       damage: (2 + power * 8) * damageMultiplier,
-      stuck: false,
+      groundLife: null,
       recoverable,
       owner,
-      effect: options.effect,
+      item: options.item || 'arrow',
       power: options.power || 0,
       punch: options.punch || 0,
       critical: owner === 'player' && power >= 1,
@@ -89,13 +90,21 @@ export class Projectiles {
         this.remove(arrow);
         continue;
       }
-      if (arrow.stuck) {
+      if (arrow.groundLife !== null) {
+        if (
+          ARROW_ITEMS[arrow.item].effect &&
+          arrow.groundLife - arrow.life >= 30
+        ) {
+          arrow.item = 'arrow';
+          arrow.mesh.children.find((m) => m.geometry === this.tip).material =
+            this.metal;
+        }
         if (
           arrow.recoverable &&
-          arrow.life < 39.5 &&
+          arrow.groundLife - arrow.life > 0.5 &&
           arrow.mesh.position.distanceTo(camera.position) < 2.1
         ) {
-          if (onPickup()) this.remove(arrow);
+          if (onPickup(arrow.item)) this.remove(arrow);
         }
         continue;
       }
@@ -120,7 +129,7 @@ export class Projectiles {
         }
         if (world.pointSolid(p.x, p.y, p.z)) {
           arrow.mesh.position.copy(previous);
-          arrow.stuck = true;
+          arrow.groundLife = arrow.life;
           break;
         }
         ray.set(previous, direction);
@@ -139,10 +148,11 @@ export class Projectiles {
             // A point upstream from impact preserves the incoming direction,
             // even if this simulation step has crossed the player's center.
             const source = point.clone().addScaledVector(direction, -2);
-            const blocked = onPlayerHit(4, source, arrow.effect) === 'blocked';
+            const blocked =
+              onPlayerHit(4, source, ARROW_ITEMS[arrow.item].effect) ===
+              'blocked';
             if (blocked) {
               arrow.owner = 'player';
-              arrow.recoverable = true;
               arrow.damage = 1;
               arrow.fixedDamage = 1;
               arrow.critical = false;
@@ -206,6 +216,7 @@ export class Projectiles {
             direction,
             nearestPart,
             arrow.punch,
+            arrow.item,
           );
           if (result === 'deflected') {
             arrow.velocity.multiplyScalar(-0.2);

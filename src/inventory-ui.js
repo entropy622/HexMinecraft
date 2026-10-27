@@ -16,6 +16,9 @@ export function stackTitle(s) {
     customName(s.wear) || item.name,
     enchantLabel(s.wear),
     potionDescription(s.item),
+    s.item === 'slownessArrow'
+      ? `缓慢 I · ${item.effect.time} 秒 · 流浪者掉落 · 无限附魔仍会消耗`
+      : '',
     item.kind === 'bow' ? '主手 / 副手 · 按住右键约一秒满弓，松开发射' : '',
     s.item === 'fishingRod' ? '主手 / 副手 · 右键抛线 / 收杆' : '',
     s.item === 'shield'

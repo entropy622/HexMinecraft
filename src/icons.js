@@ -117,6 +117,7 @@ export function itemIcon(id) {
         'netherQuartz',
         'netherQuartzOre',
         'powderSnowBucket',
+        'slownessArrow',
       ].includes(id)
     ) {
       cache.set(

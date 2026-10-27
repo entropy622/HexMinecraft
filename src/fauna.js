@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { axialToWorld, worldToAxial, hash } from './core.js';
-import { MOBS, ANIMALS, HOSTILES } from './mob-data.js';
+import { MOBS, ANIMALS, HOSTILES, mobSpeedScale } from './mob-data.js';
 import { createMob, disposeMob, animateMob } from './mob-graphics.js';
 import { flyingClear, updateNetherFlier } from './nether-mobs.js';
 import { updateEnderman, teleportEnderman } from './endermen.js';
@@ -59,6 +59,7 @@ export class Fauna {
       eggs: m.eggs,
       ...(m.kind === 'enderman' ? { carried: m.carried } : {}),
       ...(m.kind === 'shulker' ? { attach: m.attach } : {}),
+      ...(m.slowness > 0 ? { slowness: m.slowness } : {}),
     };
     for (const field of timers) record[field] = m[field];
     this.records.set(m.id, record);
@@ -77,6 +78,7 @@ export class Fauna {
     this.scene.add(mesh);
     const m = {
       ...record,
+      slowness: record.slowness || 0,
       mesh,
       think: 0,
       hit: 0,
@@ -258,6 +260,9 @@ export class Fauna {
     }
     return spawned;
   }
+  slow(m, seconds) {
+    if (this.active.includes(m)) m.slowness = Math.max(m.slowness, seconds);
+  }
   dodge(m) {
     if (!m || m.kind !== 'enderman' || !this.active.includes(m)) return false;
     if (!this.creative && m.anger <= 0)
@@ -296,6 +301,8 @@ export class Fauna {
         [m.mesh.position.x, m.mesh.position.y + 0.5, m.mesh.position.z],
       );
       const drops = { ...MOBS[m.kind].drops };
+      if (m.kind === 'stray' && provoked && Math.random() < 0.5)
+        drops.slownessArrow = 1;
       if (m.kind === 'enderman' && Math.random() < 0.5) delete drops.pearl;
       if (m.kind === 'shulker' && Math.random() < 0.5)
         delete drops.shulkerShell;
@@ -504,6 +511,7 @@ export class Fauna {
       m.flee = Math.max(0, m.flee - dt);
       m.anger = Math.max(0, m.anger - dt);
       m.attack -= dt;
+      m.slowness = Math.max(0, m.slowness - dt);
       const cell = worldToAxial(p.x, p.z);
       if (
         m.wool > 0 &&
@@ -621,7 +629,7 @@ export class Fauna {
       } else if ((aggressive && dist < 20) || attracted) {
         m.angle = Math.atan2(camera.position.x - p.x, camera.position.z - p.z);
         if (attracted) speed = dist < 2 ? 0 : 1.4;
-        if (def.ranged && dist < 8) {
+        if (def.arrow && dist < 8) {
           speed = dist < 5 ? 0.8 : 0;
           if (dist < 5) m.angle += Math.PI;
         }
@@ -676,13 +684,14 @@ export class Fauna {
           speed = 1.3;
         }
       }
-      if (aggressive && !def.ranged && withinMeleeReach) speed = 0;
+      if (aggressive && !def.arrow && withinMeleeReach) speed = 0;
       if (
         !def.webImmune &&
         touchesWeb(world, p.x, p.y, p.z, def.height, def.radius || 0.32)
       )
         speed *= 0.25;
       if (snow) speed *= 0.2;
+      speed *= mobSpeedScale(m);
       const previousX = p.x,
         previousZ = p.z;
       const x = p.x + Math.sin(m.angle) * speed * dt,
@@ -757,8 +766,8 @@ export class Fauna {
           m.sightTimer = 0.25;
         }
         const sight = m.sight;
-        if (def.ranged && sight && m.attack <= 0) {
-          this.callbacks.shoot(eye, camera.position, def.arrowEffect);
+        if (def.arrow && sight && m.attack <= 0) {
+          this.callbacks.shoot(eye, camera.position, def.arrow);
           m.attack = 2.7;
         } else if (m.kind === 'creeper') {
           if (m.fuse === 0 && dist < 2.7 && sight) this.callbacks.fuse?.();
@@ -823,6 +832,8 @@ export function validFauna(state) {
       m.hp <= 0 ||
       m.hp > MOBS[m.kind].hp ||
       !Number.isFinite(m.angle) ||
+      (m.slowness !== undefined &&
+        (!Number.isFinite(m.slowness) || m.slowness <= 0 || m.slowness > 30)) ||
       !Number.isInteger(m.eggs) ||
       m.eggs < 0 ||
       m.eggs > 8 ||

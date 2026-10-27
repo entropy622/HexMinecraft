@@ -3,6 +3,7 @@ import {
   EXPLORATION_ITEMS,
   EXPLORATION_RECIPES,
 } from './exploration-data.js';
+import { ARROW_ITEMS } from './arrow-data.js';
 import { GEAR, GEAR_RECIPES } from './gear-data.js';
 import { FARM_BLOCKS, FARM_ITEMS, FARM_RECIPES } from './farming-data.js';
 import { BUILDING_BLOCKS, BUILDING_RECIPES } from './building-data.js';
@@ -288,7 +289,7 @@ export const ITEMS = {
   meat: { name: '生肉', color: '#cf9786' },
   cooked: { name: '烤肉', color: '#bd875d' },
   string: { name: '纤维线', color: '#eee3c9' },
-  arrow: { name: '箭矢', color: '#c5b48a' },
+  ...ARROW_ITEMS,
   leather: { name: '皮革', color: '#a87542' },
   feather: { name: '羽毛', color: '#ede7d5' },
   egg: { name: '鸡蛋', color: '#e5d5b9', use: true },
