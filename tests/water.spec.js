@@ -73,6 +73,30 @@ async function waterSample(page, samplePoint = [0, 31.88, -3]) {
       21,
       background,
     );
+    const flags = new Uint8Array(7 * 7 * 4),
+      history = new Uint16Array(flags.length);
+    gfx.renderer.readRenderTargetPixels(
+      gfx.composer.effects.protection.target,
+      x - 3,
+      y - 3,
+      7,
+      7,
+      flags,
+    );
+    gfx.renderer.readRenderTargetPixels(
+      gfx.composer.effects.temporal.history[0],
+      x - 3,
+      y - 3,
+      7,
+      7,
+      history,
+    );
+    let reactive = 0,
+      fresh = 0;
+    for (let i = 0; i < flags.length; i += 4) {
+      reactive += flags[i + 1] / 255;
+      if (history[i + 3] & 0x8000) fresh++;
+    }
     return {
       x,
       y,
@@ -80,6 +104,7 @@ async function waterSample(page, samplePoint = [0, 31.88, -3]) {
       height: target.height,
       pixels: Array.from(pixels),
       background: Array.from(background),
+      temporal: { reactive: reactive / 49, freshRatio: fresh / 49 },
     };
   }, samplePoint);
   const rgb = [0, 0, 0];
@@ -91,7 +116,13 @@ async function waterSample(page, samplePoint = [0, 31.88, -3]) {
     for (let c = 0; c < 3; c++)
       background[c] +=
         DataUtils.fromHalfFloat(result.background[i + c]) / (21 * 21);
-  return { x: result.x, y: result.y, rgb, background };
+  return {
+    x: result.x,
+    y: result.y,
+    rgb,
+    background,
+    temporal: result.temporal,
+  };
 }
 
 // An actual tower changes above the water, while the camera, water, clock and
@@ -106,6 +137,8 @@ test('water reflects current scene geometry and releases optical targets across 
   });
   await pool(page);
   const red = await waterSample(page);
+  expect(red.temporal.reactive).toBeGreaterThan(0.9);
+  expect(red.temporal.freshRatio).toBeGreaterThan(0.9);
   await page.screenshot({ path: info.outputPath('water-red-tower.png') });
   await page.evaluate(() => {
     const g = window.__hexwild;

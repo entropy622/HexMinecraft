@@ -1,8 +1,6 @@
 import {
   Color,
-  DoubleSide,
   HalfFloatType,
-  MeshBasicMaterial,
   NearestFilter,
   ShaderMaterial,
   UniformsUtils,
@@ -65,117 +63,8 @@ void main() {
 }
 `;
 
-// A small extra draw protects transparent surfaces from receiving AO computed
-// for opaque geometry behind them. Layers filter drawables without hiding a
-// chunk Mesh's transparent children. Original scene state is always restored.
-class OcclusionProtection {
-  constructor(scene, camera, frame) {
-    this.scene = scene;
-    this.camera = camera;
-    this.target = new WebGLRenderTarget(1, 1, { depthBuffer: false });
-    this.clearColor = new Color();
-    this.saved = [];
-    this.uniforms = {
-      protectedDepth: { value: frame.depthTexture },
-      protectedResolution: { value: new Vector2(1, 1) },
-    };
-    this.material = new MeshBasicMaterial({
-      color: '#ffffff',
-      side: DoubleSide,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-      fog: false,
-    });
-    this.material.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, this.uniforms);
-      shader.fragmentShader =
-        'uniform sampler2D protectedDepth; uniform vec2 protectedResolution;\n' +
-        shader.fragmentShader.replace(
-          '#include <opaque_fragment>',
-          /* glsl */ `
-        float opaqueDepth = texture2D(protectedDepth, gl_FragCoord.xy / protectedResolution).r;
-        if (gl_FragCoord.z > opaqueDepth + 0.000001) discard;
-        gl_FragColor = vec4(1.0);`,
-        );
-    };
-    this.material.customProgramCacheKey = () => 'hex-occlusion-protection-v1';
-  }
-  setSize(width, height) {
-    const w = Math.max(1, Math.floor(width)),
-      h = Math.max(1, Math.floor(height));
-    this.target.setSize(w, h);
-    this.uniforms.protectedResolution.value.set(w, h);
-  }
-  render(renderer) {
-    const scene = this.scene,
-      camera = this.camera;
-    const cameraMask = camera.layers.mask,
-      background = scene.background,
-      override = scene.overrideMaterial;
-    const autoClear = renderer.autoClear,
-      shadows = renderer.shadowMap.enabled,
-      clearAlpha = renderer.getClearAlpha();
-    renderer.getClearColor(this.clearColor);
-    this.saved.length = 0;
-    try {
-      scene.traverse((object) => {
-        if (
-          !object.isMesh &&
-          !object.isPoints &&
-          !object.isLine &&
-          !object.isSprite
-        )
-          return;
-        const material = object.material;
-        const protects = (m) =>
-          m &&
-          ((m.transparent && !m.depthWrite) ||
-            m.isMeshBasicMaterial ||
-            m.userData.skipOcclusion);
-        let ancestor = object;
-        while (ancestor && !ancestor.userData.skipOcclusion)
-          ancestor = ancestor.parent;
-        const protect =
-          object.isMesh &&
-          (ancestor ||
-            (Array.isArray(material)
-              ? material.some(protects)
-              : protects(material)));
-        const previous = object.layers.mask;
-        this.saved.push(object, previous);
-        object.layers.mask =
-          protect && (previous & cameraMask) !== 0 ? 1 << 31 : 0;
-      });
-      camera.layers.set(31);
-      scene.background = null;
-      scene.overrideMaterial = this.material;
-      renderer.shadowMap.enabled = false;
-      renderer.autoClear = false;
-      renderer.setRenderTarget(this.target);
-      renderer.setClearColor(0x000000, 1);
-      renderer.clear(true, false, false);
-      renderer.render(scene, camera);
-    } finally {
-      for (let i = 0; i < this.saved.length; i += 2)
-        this.saved[i].layers.mask = this.saved[i + 1];
-      camera.layers.mask = cameraMask;
-      scene.background = background;
-      scene.overrideMaterial = override;
-      renderer.shadowMap.enabled = shadows;
-      renderer.autoClear = autoClear;
-      renderer.setClearColor(this.clearColor, clearAlpha);
-      this.saved.length = 0;
-    }
-  }
-  dispose() {
-    this.target.dispose();
-    this.material.dispose();
-  }
-}
-
 export class ContactOcclusionPass extends Pass {
-  constructor(scene, camera, frame) {
+  constructor(camera, frame, protection) {
     super();
     this.camera = camera;
     this.noise = generateMagicSquareNoise();
@@ -186,7 +75,7 @@ export class ContactOcclusionPass extends Pass {
       magFilter: NearestFilter,
     });
     this.denoised = this.ao.clone();
-    this.protection = new OcclusionProtection(scene, camera, frame);
+    this.protection = protection;
     this.gtao = new ShaderMaterial({
       defines: {
         ...GTAOShader.defines,
@@ -261,7 +150,6 @@ export class ContactOcclusionPass extends Pass {
     this.gtao.uniforms.resolution.value.set(w, h);
     this.denoise.uniforms.resolution.value.set(w, h);
     this.composite.uniforms.aoResolution.value.set(w, h);
-    this.protection.setSize(width, height);
   }
   render(renderer, writeBuffer, readBuffer) {
     const camera = this.camera,
@@ -277,7 +165,6 @@ export class ContactOcclusionPass extends Pass {
     this.composite.uniforms.cameraNear.value = camera.near;
     this.composite.uniforms.cameraFar.value = camera.far;
     this.composite.uniforms.sceneColor.value = readBuffer.texture;
-    this.protection.render(renderer);
     const autoClear = renderer.autoClear,
       alpha = renderer.getClearAlpha();
     renderer.getClearColor(this.clearColor);
@@ -304,7 +191,6 @@ export class ContactOcclusionPass extends Pass {
   dispose() {
     this.ao.dispose();
     this.denoised.dispose();
-    this.protection.dispose();
     this.noise.dispose();
     this.gtao.dispose();
     this.denoise.dispose();

@@ -59,8 +59,10 @@ export class SkyEnvironment {
       }),
     );
     this.dome.renderOrder = -10;
+    this.dome.userData.temporalSky = true;
     scene.add(this.dome);
     this.objects = new THREE.Group();
+    this.objects.userData.temporalSky = true;
     this.sunDisk = new THREE.Mesh(
       new THREE.CircleGeometry(4.5, 6),
       new THREE.MeshBasicMaterial({

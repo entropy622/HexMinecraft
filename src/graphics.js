@@ -332,6 +332,7 @@ export class Graphics {
     this.relightQueue = new Set();
     this.caveSky = null;
     this.composer?.effects.exposure.reset();
+    this.composer?.effects.temporal.reset();
     this.fluidRenderer.clear();
     this.chestModels.openKey = null;
     for (const mesh of this.chunks.values()) {
@@ -1640,13 +1641,21 @@ export class Graphics {
     const stepOffset = this.stepOffset || 0;
     this.camera.position.y -= stepOffset;
     this.camera.updateMatrixWorld();
+    let temporal,
+      rendered = false;
     try {
       if (this.usePost) {
         this.composer.effects.contact.enabled =
           this.postOptions.occlusion > 0 && !submerged;
+        temporal = this.composer.effects.temporal;
+        this.composer.effects.protection.enabled =
+          this.composer.effects.contact.enabled || temporal.enabled;
+        temporal.beginFrame();
         this.composer.render(renderDt);
       } else this.renderer.render(this.scene, this.camera);
+      rendered = true;
     } finally {
+      temporal?.endFrame(rendered);
       this.camera.position.y += stepOffset;
       this.camera.updateMatrixWorld();
       this.stepOffset = stepOffset * Math.exp(-renderDt * 14);

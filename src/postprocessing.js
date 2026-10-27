@@ -3,6 +3,8 @@ import { AtmospherePass } from './atmosphere-pass.js';
 import { SceneFramePass } from './scene-frame.js';
 import { ContactOcclusionPass } from './contact-occlusion.js';
 import { ExposurePass } from './exposure-pass.js';
+import { SurfaceProtectionPass } from './surface-protection.js';
+import { TemporalResolvePass } from './temporal-pass.js';
 import { postSettings } from './render-settings.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -27,7 +29,9 @@ export function createPostprocessing(
   });
   const composer = new EffectComposer(renderer, target);
   const frame = new SceneFramePass(scene, camera, fluids);
-  const contact = new ContactOcclusionPass(scene, camera, frame);
+  const protection = new SurfaceProtectionPass(scene, camera, frame);
+  const contact = new ContactOcclusionPass(camera, frame, protection);
+  const temporal = new TemporalResolvePass(renderer, camera, frame, protection);
   const bloom = new UnrealBloomPass(
     new Vector2(innerWidth, innerHeight),
     0.24,
@@ -37,6 +41,7 @@ export function createPostprocessing(
   const antialias = new SMAAPass();
   const exposure = new ExposurePass();
   composer.addPass(frame);
+  composer.addPass(protection);
   composer.addPass(contact);
   composer.addPass(
     new AtmospherePass(
@@ -48,21 +53,35 @@ export function createPostprocessing(
       cloudUniforms,
     ),
   );
+  composer.addPass(temporal);
   composer.addPass(bloom);
   composer.addPass(exposure);
   // Three.js SMAA operates in linear-sRGB, before the final display conversion.
   composer.addPass(antialias);
   composer.addPass(new OutputPass());
-  composer.effects = { contact, bloom, antialias, exposure };
+  composer.effects = {
+    contact,
+    bloom,
+    antialias,
+    exposure,
+    protection,
+    temporal,
+  };
   setPostprocessingOptions(composer, settings);
   return composer;
 }
 export function setPostprocessingOptions(composer, settings) {
   const values = postSettings(settings),
     effects = composer.effects;
+  if (
+    effects.temporal.enabled !== values.antialias ||
+    effects.contact.composite.uniforms.strength.value !== values.occlusion
+  )
+    effects.temporal.reset();
   effects.contact.enabled = values.occlusion > 0;
   effects.contact.composite.uniforms.strength.value = values.occlusion;
   effects.antialias.enabled = values.antialias;
+  effects.temporal.enabled = values.antialias;
   effects.bloom.enabled = values.bloom > 0;
   effects.bloom.strength = values.bloom;
   if (effects.exposure.enabled !== values.exposure) effects.exposure.reset();
