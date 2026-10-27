@@ -402,7 +402,7 @@ test('Ctrl and double forward sprint; right-click interacts and Shift builds alo
     return { version: data.version, valid: !!validateSave(data), rejected };
   });
   expect(validation).toEqual({
-    version: 15,
+    version: 16,
     valid: true,
     rejected: [true, true, true],
   });

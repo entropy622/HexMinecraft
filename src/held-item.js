@@ -32,6 +32,8 @@ export function createHeldItem(id, textures) {
       'lever',
       'button',
       'pressurePlate',
+      'redstoneTorch',
+      'repeater',
       'sporeBlossom',
       'pointedDripstone',
     ].includes(BLOCKS[id]?.shape)

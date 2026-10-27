@@ -38,6 +38,21 @@ export const CIRCUIT_BLOCKS = {
     hardness: 0.3,
     light: '#ffbe76',
   },
+  redstoneTorch: {
+    name: '红石火把',
+    color: '#a52a20',
+    hardness: 0,
+    shape: 'redstoneTorch',
+    nonSolid: true,
+    light: '#f74c2c',
+  },
+  repeater: {
+    name: '红石中继器',
+    color: '#c5b8ab',
+    hardness: 0,
+    shape: 'repeater',
+    nonSolid: true,
+  },
 };
 export const isCircuit = (type) =>
   !!CIRCUIT_BLOCKS[type] || (isOpenable(type) && !isDoorTop(type));
@@ -63,30 +78,50 @@ export const CIRCUIT_RECIPES = [
     ['redstone', 'redstone', 'glowstone', 'redstone', 'redstone'],
     '连接红石线，通电后照亮周围；单条线路每格衰减一级。',
   ],
+  [
+    'redstoneTorch',
+    ['wood', 'redstone'],
+    '装在地面或墙面；支撑块通电后熄灭，提供反相信号。',
+  ],
+  [
+    'repeater',
+    ['redstoneTorch', 'redstoneTorch', 'redstone', 'stone', 'stone', 'stone'],
+    '只从后方输入、前方输出；右键调整 1–4 红石刻延迟，侧面中继器可锁定。',
+  ],
 ].map(([id, ingredients, desc]) => ({
   id,
   count: 1,
   title: CIRCUIT_BLOCKS[id].name,
   desc,
-  station: id === 'redstoneLamp',
+  station: ['redstoneLamp', 'repeater'].includes(id),
   pattern:
-    id === 'redstoneLamp'
+    id === 'repeater'
       ? [
+          'redstoneTorch',
           'redstone',
+          'redstoneTorch',
+          'stone',
+          'stone',
+          'stone',
           null,
-          'redstone',
-          'glowstone',
-          'redstone',
-          null,
-          'redstone',
         ]
-      : [
-          null,
-          null,
-          null,
-          ...ingredients,
-          ...Array(4 - ingredients.length).fill(null),
-        ],
+      : id === 'redstoneLamp'
+        ? [
+            'redstone',
+            null,
+            'redstone',
+            'glowstone',
+            'redstone',
+            null,
+            'redstone',
+          ]
+        : [
+            null,
+            null,
+            null,
+            ...ingredients,
+            ...Array(4 - ingredients.length).fill(null),
+          ],
   cost: ingredients.reduce(
     (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
     {},

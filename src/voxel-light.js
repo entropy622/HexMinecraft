@@ -9,6 +9,7 @@ import { FURNACES, isFurnace } from './processing-data.js';
 const EMISSION = {
   caveVinesBerries: [14, 10, 5],
   redstoneLamp: [15, 13, 9],
+  redstoneTorch: [7, 2, 1],
   campfire: [15, 10, 5],
   soulCampfire: [6, 11, 12],
   endRod: [15, 14, 15],
@@ -27,6 +28,7 @@ const EMISSION = {
 };
 const HEIGHT = 64;
 export const HELD_LIGHTS = {
+  redstoneTorch: 'redstoneTorch',
   endRod: 'endRod',
   torch: 'torch',
   lantern: 'lantern',
@@ -171,7 +173,9 @@ export class VoxelLight {
       const emission =
         (isFurnace(type) && !(this.world.furnaces.get(key)?.burn > 0)) ||
         (isCampfire(type) && !this.world.campfires.get(key)?.lit) ||
-        (type === 'redstoneLamp' && !this.world.state(q, y, r).powered)
+        (type === 'redstoneLamp' && !this.world.state(q, y, r).powered) ||
+        (type === 'redstoneTorch' &&
+          this.world.state(q, y, r).powered === false)
           ? null
           : EMISSION[type];
       if (emission) emitters.push([i, emission]);

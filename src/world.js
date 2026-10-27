@@ -102,6 +102,7 @@ export class World {
     this.redstone = new Redstone(this);
     if (options.edits) this.applyEdits(options.edits);
     this.redstone.timers = new Map(options.redstoneTimers || []);
+    this.redstone.burnouts = new Map(options.torchBurnouts || []);
     this.persistentLeaves = new Set(options.persistentLeaves || []);
     this.leafDecay = new LeafDecay(this, options.leafDecay);
     this.blockStates = new Map(options.blockStates || []);
@@ -233,6 +234,7 @@ export class World {
       axis: state.axis ?? 0,
       ...(state.powered !== undefined ? { powered: state.powered } : {}),
       ...(state.mount !== undefined ? { mount: state.mount } : {}),
+      ...(state.delay !== undefined ? { delay: state.delay } : {}),
     });
     this.shapeCache.clear();
   }
@@ -351,6 +353,7 @@ export class World {
     if (record && previous !== type) {
       this.blockStates.delete(k);
       this.redstone.timers.delete(k);
+      this.redstone.burnouts.delete(k);
     }
     if (this.loaded(q, r)) {
       this.indexTreeCell(k, type);
@@ -649,6 +652,7 @@ export class World {
       edits: [...this.edits],
       blockStates: [...this.blockStates],
       redstoneTimers: [...this.redstone.timers],
+      torchBurnouts: [...this.redstone.burnouts],
       persistentLeaves: [...this.persistentLeaves],
       leafDecay: [...this.leafDecay.pending],
       furnaces: [...this.furnaces],

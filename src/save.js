@@ -18,7 +18,7 @@ import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
 import { BLOCKS } from './core.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v15';
+export const SAVE_KEY = 'hexwild-save-v16';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -41,7 +41,7 @@ const position = (p) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 15 ||
+    s.version !== 16 ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
@@ -106,6 +106,10 @@ export function validateSave(s) {
             (e[1].upper !== undefined && typeof e[1].upper !== 'boolean') ||
             (e[1].double !== undefined && typeof e[1].double !== 'boolean') ||
             (e[1].powered !== undefined && typeof e[1].powered !== 'boolean') ||
+            (e[1].delay !== undefined &&
+              (!Number.isInteger(e[1].delay) ||
+                e[1].delay < 1 ||
+                e[1].delay > 4)) ||
             (e[1].mount !== undefined &&
               !['floor', 'wall', 'ceiling'].includes(e[1].mount)) ||
             (e[1].axis !== undefined &&
@@ -117,6 +121,17 @@ export function validateSave(s) {
       const edits = new Map(d.edits),
         states = new Map(d.blockStates || []);
       if (
+        [...states].some(
+          ([k, state]) =>
+            (state.delay !== undefined && edits.get(k) !== 'repeater') ||
+            (edits.get(k) === 'redstoneTorch' && state.mount === 'ceiling') ||
+            (edits.get(k) === 'repeater' &&
+              state.mount !== undefined &&
+              state.mount !== 'floor'),
+        )
+      )
+        throw Error('中继器延迟状态无效');
+      if (
         !Array.isArray(d.redstoneTimers) ||
         d.redstoneTimers.length > 200000 ||
         d.redstoneTimers.some(
@@ -126,14 +141,43 @@ export function validateSave(s) {
             !cell(e[0]) ||
             !Number.isFinite(e[1]) ||
             e[1] <= 0 ||
-            e[1] > (edits.get(e[0]) === 'stonePressurePlate' ? 0.5 : 1) ||
-            !['stoneButton', 'stonePressurePlate'].includes(edits.get(e[0])) ||
-            states.get(e[0])?.powered !== true,
+            e[1] >
+              ({
+                stonePressurePlate: 0.5,
+                stoneButton: 1,
+                redstoneTorch: 0.1,
+                repeater: 0.4,
+              }[edits.get(e[0])] || 0) ||
+            (['stoneButton', 'stonePressurePlate'].includes(edits.get(e[0])) &&
+              states.get(e[0])?.powered !== true),
         ) ||
         new Set(d.redstoneTimers.map(([k]) => k)).size !==
           d.redstoneTimers.length
       )
-        throw Error('红石按钮或压力板计时无效');
+        throw Error('红石延时记录无效');
+      if (
+        !Array.isArray(d.torchBurnouts) ||
+        d.torchBurnouts.length > 200000 ||
+        new Set(d.torchBurnouts.map((e) => (Array.isArray(e) ? e[0] : null)))
+          .size !== d.torchBurnouts.length ||
+        d.torchBurnouts.some(
+          (e) =>
+            !Array.isArray(e) ||
+            e.length !== 2 ||
+            !cell(e[0]) ||
+            edits.get(e[0]) !== 'redstoneTorch' ||
+            !e[1] ||
+            !Number.isFinite(e[1].cooldown) ||
+            e[1].cooldown < 0 ||
+            e[1].cooldown > 8 ||
+            !Array.isArray(e[1].recent) ||
+            e[1].recent.length > 8 ||
+            (!e[1].recent.length && !e[1].cooldown) ||
+            e[1].recent.some((t) => !Number.isFinite(t) || t <= 0 || t > 3) ||
+            (e[1].cooldown > 0 && states.get(e[0])?.powered !== false),
+        )
+      )
+        throw Error('红石火把冷却记录无效');
       const timed = new Set(d.redstoneTimers.map(([k]) => k));
       if (
         [...states].some(

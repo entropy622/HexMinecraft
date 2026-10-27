@@ -367,7 +367,7 @@ test('build a working circuit by ray, light the scene, break and restore it', as
     .toBe(null);
   await page.evaluate(() => window.__hexwild.save());
   const saved = await page.evaluate(() =>
-    JSON.parse(localStorage.getItem('hexwild-save-v15')),
+    JSON.parse(localStorage.getItem('hexwild-save-v16')),
   );
   expect(
     saved.dimensions.overworld.drops.some((d) => d.item === 'redstone'),

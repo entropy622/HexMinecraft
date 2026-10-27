@@ -324,7 +324,7 @@ test('berries feed the player and a planted vine chain supports climbing', async
     g.give('glowBerries', 2);
     g.selectItem('glowBerries');
     g.save();
-    const save = JSON.parse(localStorage.getItem('hexwild-save-v15'));
+    const save = JSON.parse(localStorage.getItem('hexwild-save-v16'));
     save.hunger = 16;
     save.survival.saturation = 0;
     save.survival.exhaustion = 0;
@@ -333,7 +333,7 @@ test('berries feed the player and a planted vine chain supports climbing', async
   // beforeunload saves the live game. Seed the next document after that hook,
   // then let the normal Continue flow validate and restore this hungry player.
   await page.addInitScript(
-    (save) => localStorage.setItem('hexwild-save-v15', JSON.stringify(save)),
+    (save) => localStorage.setItem('hexwild-save-v16', JSON.stringify(save)),
     foodSave,
   );
   await page.reload();

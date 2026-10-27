@@ -182,7 +182,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.60 — A STEADIER HORIZON</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.61 — SIGNAL AND SILENCE</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -937,6 +937,7 @@ function startGame(mode = false, save = null) {
     brewing: data.brewing,
     campfires: data.campfires,
     redstoneTimers: data.redstoneTimers,
+    torchBurnouts: data.torchBurnouts,
     falling: data.falling,
     chorus: data.chorus,
     fluids: data.fluids,
@@ -1187,6 +1188,7 @@ function travel(to) {
     brewing: data.brewing,
     campfires: data.campfires,
     redstoneTimers: data.redstoneTimers,
+    torchBurnouts: data.torchBurnouts,
     falling: data.falling,
     chorus: data.chorus,
     fluids: data.fluids,
@@ -1267,7 +1269,7 @@ function saveData() {
   const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 15,
+    version: 16,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
@@ -2802,7 +2804,7 @@ function stripLog() {
 function useCircuitControl() {
   if (
     target &&
-    ['lever', 'stoneButton'].includes(target.type) &&
+    ['lever', 'stoneButton', 'repeater'].includes(target.type) &&
     !keys.has('ShiftLeft') &&
     !keys.has('ShiftRight')
   ) {
@@ -3105,7 +3107,11 @@ function placeBuilding(type, p) {
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
   let mount;
   if (CIRCUIT_BLOCKS[type]?.shape) {
-    const control = ['lever', 'stoneButton'].includes(type);
+    const control = ['lever', 'stoneButton', 'redstoneTorch'].includes(type);
+    if (type === 'redstoneTorch' && target.normal?.y < -0.5) {
+      toast('红石火把需要地面或墙面支撑。');
+      return;
+    }
     mount =
       control && target.normal?.y < -0.5
         ? 'ceiling'
@@ -3184,6 +3190,8 @@ function placeBuilding(type, p) {
     upper,
     double: false,
     ...(mount ? { mount } : {}),
+    ...(type === 'redstoneTorch' ? { powered: true } : {}),
+    ...(type === 'repeater' ? { delay: 1, powered: false } : {}),
   });
   if (
     collides(camera.position.x, playerFeet(), camera.position.z) ||
@@ -6259,6 +6267,21 @@ function frame(now) {
     if (target?.type === 'redstoneWire')
       $('#target').textContent +=
         ` · 信号 ${world.redstone.power(target.q, target.y, target.r)} / 15`;
+    if (target?.type === 'repeater') {
+      const { q, y, r } = target,
+        state = world.state(q, y, r);
+      $('#target').textContent +=
+        ` · 延迟 ${state.delay || 1} 红石刻 · ${state.powered ? '已通电' : '未通电'}${world.redstone.locked(q, y, r) ? ' · 已锁定' : ''} · 右键调节 · Shift 旁建`;
+    }
+    if (target?.type === 'redstoneTorch') {
+      const { q, y, r } = target,
+        heat = world.redstone.burnouts.get(key(q, y, r));
+      $('#target').textContent += heat?.cooldown
+        ? ` · 过热冷却 ${heat.cooldown.toFixed(1)}s`
+        : world.state(q, y, r).powered === false
+          ? ' · 支撑块供电，已熄灭'
+          : ' · 输出 15 · 支撑块供电后熄灭';
+    }
     if (isCircuitInput(target?.type) || target?.type === 'redstoneLamp') {
       $('#target').textContent += world.state(target.q, target.y, target.r)
         .powered

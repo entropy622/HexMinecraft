@@ -949,7 +949,9 @@ export class Graphics {
       type = this.world.get(q, y, r),
       color =
         (isCampfire(type) && !this.world.campfires.get(k)?.lit) ||
-        (type === 'redstoneLamp' && !this.world.state(q, y, r).powered)
+        (type === 'redstoneLamp' && !this.world.state(q, y, r).powered) ||
+        (type === 'redstoneTorch' &&
+          this.world.state(q, y, r).powered === false)
           ? null
           : isFurnace(type) && this.world.furnaces.get(k)?.burn > 0
             ? '#ff9d47'
