@@ -1,4 +1,6 @@
 import { Data3DTexture, NearestFilter, Vector3 } from 'three';
+import { lightVolumeGLSL } from './light-volume-shader.js';
+import { waterLightingGLSL } from './water-lighting.js';
 import { axialToWorld } from './core.js';
 import { voxelLightingChunk, visionUniforms } from './skylight.js';
 
@@ -8,24 +10,16 @@ import { voxelLightingChunk, visionUniforms } from './skylight.js';
 // This shares one small
 // volume across every animated mesh, including those sharing a material.
 const sampleShader = /* glsl */ `
-uniform highp sampler3D entityLightVolume;
-uniform vec3 entityLightOrigin;
-uniform vec3 entityLightSize;
-uniform float entityOutsideSky;
+${lightVolumeGLSL}
 varying float vSkylight;
 varying vec3 vBlockLight;
+varying vec3 vLightPosition;
 
-vec4 readEntityCell(ivec3 cell) {
-  if (cell.x < 0) return vec4(0.0, 0.0, 0.0, 15.0);
-  if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(entityLightSize))))
-    return vec4(0.0, 0.0, 0.0, entityOutsideSky * 240.0 + 15.0);
-  return floor(texelFetch(entityLightVolume, cell, 0) * 255.0 + 0.5);
-}
 vec4 decodeEntityLight(vec4 packedLight) {
   return vec4(packedLight.rgb, floor(packedLight.a / 16.0)) / 15.0;
 }
 void addEntitySample(ivec3 cell, float weight, inout vec4 total, inout float weights) {
-  vec4 packedLight = readEntityCell(cell);
+  vec4 packedLight = readLightCell(cell);
   // Solid cells never contribute to interpolation through a wall or floor.
   if (mod(packedLight.a, 16.0) < 0.5) return;
   total += decodeEntityLight(packedLight) * weight;
@@ -33,14 +27,9 @@ void addEntitySample(ivec3 cell, float weight, inout vec4 total, inout float wei
 }
 vec4 sampleEntityLight(vec3 worldPosition) {
   vec3 local = worldPosition - entityLightOrigin;
-  vec2 axial = vec2(local.x / 1.7320508075688772 - local.z / 3.0, local.z * (2.0 / 3.0));
-  vec3 cube = vec3(axial, -axial.x - axial.y);
-  vec3 rounded = floor(cube + 0.5);
-  vec3 error = abs(cube - rounded);
-  if (error.x > error.y && error.x > error.z) rounded.x = -rounded.y - rounded.z;
-  else if (error.y > error.z) rounded.y = -rounded.x - rounded.z;
-  ivec3 nearest = ivec3(int(floor(local.y)), int(rounded.y), int(rounded.x));
-  vec4 center = readEntityCell(nearest);
+  vec2 axial = lightAxial(worldPosition);
+  ivec3 nearest = lightCell(worldPosition);
+  vec4 center = readLightCell(nearest);
   if (mod(center.a, 16.0) < 0.5) return vec4(0.0);
 
   // Linear interpolation over the axial triangle and two vertical layers.
@@ -79,6 +68,8 @@ export class DynamicLight {
       entityLightOrigin: { value: new Vector3() },
       entityLightSize: { value: new Vector3() },
       entityOutsideSky: { value: 1 },
+      waterTime: { value: 0 },
+      waterSunlight: { value: 0 },
     };
   }
 
@@ -148,19 +139,21 @@ export class DynamicLight {
           lightWorldPosition = instanceMatrix * lightWorldPosition;
         #endif
         lightWorldPosition = modelMatrix * lightWorldPosition;
+        vLightPosition = lightWorldPosition.xyz;
         vec3 lightNormal = inverseTransformDirection(transformedNormal, viewMatrix);
         vec4 entityLight = sampleEntityLight(lightWorldPosition.xyz + lightNormal * 0.06 + vec3(0.0, 0.04, 0.0));
         vSkylight = entityLight.a;
         vBlockLight = entityLight.rgb;`,
         );
       shader.fragmentShader =
-        `varying float vSkylight; varying vec3 vBlockLight; uniform float nightVision;\n` +
+        `${!material.transparent ? '#define HEX_WATER_RECEIVER\n' + waterLightingGLSL : ''}
+        varying float vSkylight; varying vec3 vBlockLight; varying vec3 vLightPosition; uniform float nightVision;\n` +
         shader.fragmentShader.replace(
           '#include <lights_fragment_begin>',
           voxelLightingChunk,
         );
     };
-    material.customProgramCacheKey = () => 'hex-dynamic-volume-v2';
+    material.customProgramCacheKey = () => 'hex-dynamic-volume-water-v3';
     material.needsUpdate = true;
   }
 }

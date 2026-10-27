@@ -1,11 +1,19 @@
 import { ShaderChunk, Color } from 'three';
+import { waterLightingGLSL } from './water-lighting.js';
 export const visionUniforms = { nightVision: { value: 0 } };
 
 // Both static surfaces and moving models use the same response to voxel light.
 export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
   .replace(
     'getDirectionalLightInfo( directionalLight, directLight );',
-    'getDirectionalLightInfo( directionalLight, directLight ); directLight.color *= smoothstep(0.45, 0.95, vSkylight);',
+    `getDirectionalLightInfo( directionalLight, directLight );
+    #ifdef HEX_WATER_RECEIVER
+      vec3 waterLightDirection = inverseTransformDirection(directLight.direction, viewMatrix);
+      directLight.color *= waterSunResponse(vLightPosition, inverseTransformDirection(normal, viewMatrix), waterLightDirection, vSkylight);
+      directLight.direction = normalize((viewMatrix * vec4(waterLightDirection, 0.0)).xyz);
+    #else
+      directLight.color *= smoothstep(0.45, 0.95, vSkylight);
+    #endif`,
   )
   .replace(
     'vec3 irradiance = getAmbientLightIrradiance( ambientLightColor );',
@@ -28,30 +36,31 @@ export function applySkylight(material, sharedUniforms) {
     Object.assign(shader.uniforms, uniforms, visionUniforms);
     shader.vertexShader =
       `attribute float skylight; attribute float rainExposure; attribute vec3 blocklight;
-      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 wetPosition;\n${shader.vertexShader}`.replace(
+      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 vLightPosition;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vSkylight = skylight;
         vBlockLight = blocklight;
         vWetTop = rainExposure * max(0.0, normal.y);
-        wetPosition = (modelMatrix * vec4(position, 1.0)).xyz;`,
+        vLightPosition = (modelMatrix * vec4(position, 1.0)).xyz;`,
       );
     shader.fragmentShader =
-      `varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 wetPosition;
+      `${!material.transparent ? '#define HEX_WATER_RECEIVER\n' + waterLightingGLSL : ''}
+      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 vLightPosition;
       uniform float terrainWetness; uniform vec3 wetSky; uniform float nightVision;\n${shader.fragmentShader}`
         .replace('#include <lights_fragment_begin>', voxelLightingChunk)
         .replace(
           '#include <opaque_fragment>',
           `
-        vec2 pixel = floor(wetPosition.xz * 4.0);
+        vec2 pixel = floor(vLightPosition.xz * 4.0);
         float grain = fract(sin(dot(pixel, vec2(12.9898, 78.233))) * 43758.5453);
         float wet = terrainWetness * vWetTop * (0.35 + smoothstep(0.3, 0.7, grain) * 0.65);
-        float grazing = pow(1.0 - abs(normalize(cameraPosition - wetPosition).y), 4.0);
+        float grazing = pow(1.0 - abs(normalize(cameraPosition - vLightPosition).y), 4.0);
         outgoingLight *= 1.0 - wet * 0.18;
         outgoingLight = mix(outgoingLight, wetSky, wet * (0.04 + grazing * 0.38));
         #include <opaque_fragment>`,
         );
   };
-  material.customProgramCacheKey = () => 'hex-colored-voxel-wet-v4';
+  material.customProgramCacheKey = () => 'hex-colored-voxel-water-v5';
   return uniforms;
 }

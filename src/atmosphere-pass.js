@@ -8,6 +8,7 @@ import {
 } from 'three';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { cloudFieldGLSL } from './cloud-field.js';
+import { lightVolumeGLSL } from './light-volume-shader.js';
 import { waterExtinctionGLSL } from './water-shader.js';
 
 const vertexShader = /* glsl */ `
@@ -27,10 +28,7 @@ uniform mat4 airCameraWorld;
 uniform vec3 airCameraPosition;
 uniform float airShadowReady;
 uniform vec2 fogResolution;
-uniform highp sampler3D entityLightVolume;
-uniform vec3 entityLightOrigin;
-uniform vec3 entityLightSize;
-uniform float entityOutsideSky;
+${lightVolumeGLSL}
 uniform float airDensity;
 uniform float airBaseHeight;
 uniform float airFalloff;
@@ -54,17 +52,8 @@ float airNoise(vec2 p) {
     mix(airHash(cell + vec2(0.0, 1.0)), airHash(cell + vec2(1.0)), f.x), f.y);
 }
 vec4 airVoxel(vec3 position) {
-  vec3 local = position - entityLightOrigin;
-  vec2 axial = vec2(local.x / 1.7320508075688772 - local.z / 3.0, local.z * (2.0 / 3.0));
-  vec3 cube = vec3(axial, -axial.x - axial.y), rounded = floor(cube + 0.5);
-  vec3 error = abs(cube - rounded);
-  if (error.x > error.y && error.x > error.z) rounded.x = -rounded.y - rounded.z;
-  else if (error.y > error.z) rounded.y = -rounded.x - rounded.z;
-  ivec3 cell = ivec3(int(floor(local.y)), int(rounded.y), int(rounded.x));
-  if (cell.x < 0) return vec4(0.0);
-  if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ivec3(entityLightSize))))
-    return vec4(0.0, 0.0, 0.0, entityOutsideSky * 240.0 + 15.0);
-  return floor(texelFetch(entityLightVolume, cell, 0) * 255.0 + 0.5);
+  ivec3 cell = lightCell(position);
+  return cell.x < 0 ? vec4(0.0) : readLightCell(cell);
 }
 float airSunVisibility(vec3 position, float sky) {
   if (airShadowReady < 0.5) return sky;
@@ -102,7 +91,7 @@ void main() {
       vec4 packedLight = airVoxel(position);
       float medium = mod(packedLight.a, 16.0);
       if (medium < 0.5 || medium > 9.5) continue;
-      float height = medium < 1.5 ? 1.0 : 0.92 - (medium - 2.0) * 0.085;
+      float height = lightWaterHeight(medium);
       float waterStep = end - start;
       if (height < 0.999 && abs(direction.y) > 0.0001) {
         float bottom = (floor(position.y) - airCameraPosition.y) / direction.y;

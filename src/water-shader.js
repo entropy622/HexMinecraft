@@ -3,17 +3,27 @@ import { WATER_EXTINCTION } from './fluids.js';
 
 export const waterExtinctionGLSL = /* glsl */ `const vec3 waterExtinction = vec3(${WATER_EXTINCTION.join(',')});`;
 
+// One conservative slope field for the visible water and refracted sunlight.
+export const waterWavesGLSL = /* glsl */ `
+vec3 waterNormal(vec2 p, float time) {
+  vec2 slope = vec2(0.92, 0.40) * (0.045 * cos(dot(p, vec2(3.0, 1.3)) + time * 1.5));
+  slope += vec2(-0.33, 0.94) * (0.035 * cos(dot(p, vec2(-1.4, 4.0)) - time * 1.1));
+  slope += vec2(0.82, -0.57) * (0.025 * cos(dot(p, vec2(7.4, -5.2)) + time * 1.8));
+  return normalize(vec3(slope.x, 1.0, slope.y));
+}
+`;
+
 // Current-frame view-space intersections. Opaque scene capture excludes water
 // and first-person models, so reflected rays cannot sample their own surface.
 const optics = /* glsl */ `
 ${waterExtinctionGLSL}
+${waterWavesGLSL}
 uniform sampler2D waterSceneColor;
 uniform sampler2D waterSceneDepth;
 uniform mat4 waterProjection;
 uniform mat4 waterInverseProjection;
 uniform vec2 waterResolution;
 uniform float waterSceneReady;
-vec3 waterSlope(vec2 wave) { return vec3(wave.x, 0.0, wave.y) * 0.035; }
 vec3 waterView(vec2 uv, float depth) {
   vec4 p = waterInverseProjection * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
   return p.xyz / p.w;
@@ -99,16 +109,16 @@ export function shadeWater(material) {
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
-        vec2 wave = vec2(cos(waterPosition.x * 2.7 + waterPosition.z * 1.3 + waterTime * 1.5),
-          sin(waterPosition.z * 3.1 - waterPosition.x * 0.8 + waterTime * 1.1));
-        normal = normalize(normal + (viewMatrix * vec4(waterSlope(wave), 0.0)).xyz * waterTop);`,
+        vec3 waveNormal = waterNormal(waterPosition.xz, waterTime);
+        vec2 wave = waveNormal.xz / max(waveNormal.y, 0.001);
+        normal = normalize(normal + (viewMatrix * vec4(wave.x, 0.0, wave.y, 0.0)).xyz * waterTop);`,
       )
       .replace(
         '#include <opaque_fragment>',
         `
         float fresnel = 0.0204 + 0.9796 * pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 5.0);
         vec3 viewDirection = normalize(cameraPosition - waterPosition);
-        vec3 worldNormal = normalize(vec3(0.0, 1.0, 0.0) + waterSlope(wave));
+        vec3 worldNormal = waveNormal;
         vec3 reflectedDirection = reflect(-viewDirection, worldNormal);
         // Shading ripples do not displace the physical plane. Keep reflected
         // rays above that plane rather than incorrectly hitting the pool floor.
@@ -122,7 +132,7 @@ export function shadeWater(material) {
           float depth = texture2D(waterSceneDepth, uv).r;
           float thickness = clamp(length(waterView(uv, depth)) - length(origin), 0.0, 24.0);
           vec2 ripple = (viewMatrix * vec4(wave.x, 0.0, wave.y, 0.0)).xy;
-          vec2 bend = ripple * vec2(waterProjection[0][0], waterProjection[1][1]) * min(thickness, 6.0) * 0.035 / max(length(origin), 1.0);
+          vec2 bend = ripple * vec2(waterProjection[0][0], waterProjection[1][1]) * min(thickness, 6.0) / max(length(origin), 1.0);
           vec2 refractedUV = clamp(uv + bend, 0.5 / waterResolution, 1.0 - 0.5 / waterResolution);
           // A refracted sample must stay behind the visible water surface.
           if (texture2D(waterSceneDepth, refractedUV).r <= gl_FragCoord.z) refractedUV = uv;
@@ -141,6 +151,6 @@ export function shadeWater(material) {
       );
   };
   material.userData.skipOcclusion = true;
-  material.customProgramCacheKey = () => 'hex-water-scene-optics-v3';
+  material.customProgramCacheKey = () => 'hex-water-scene-optics-v4';
   return uniforms;
 }

@@ -132,6 +132,8 @@ export class Graphics {
     this.netherPortalTexture.needsUpdate = true;
     sharedTextures = this.textures;
     this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
+    this.dynamicLight.uniforms.waterTime =
+      this.fluidRenderer.waterUniforms.waterTime;
     this.terrain = new THREE.Group();
     this.scene.add(this.terrain);
     this.chunks = new Map();
@@ -139,7 +141,11 @@ export class Graphics {
       vertexColors: true,
       map: this.textures.atlas,
     });
-    this.weatherUniforms = applySkylight(this.material);
+    this.weatherUniforms = applySkylight(this.material, {
+      ...this.dynamicLight.uniforms,
+      terrainWetness: { value: 0 },
+      wetSky: { value: new THREE.Color('#7c96a5') },
+    });
     this.doorMaterial = new THREE.MeshLambertMaterial({
       map: this.textures.atlas,
       vertexColors: true,
@@ -1309,6 +1315,8 @@ export class Graphics {
         : sky;
     const overworld = this.world?.dimension === 'overworld';
     const elevation = Math.sin(phase * Math.PI * 2);
+    this.dynamicLight.uniforms.waterSunlight.value =
+      this.usePost && overworld && elevation > 0 ? 1 : 0;
     const dusk = overworld ? Math.max(0, 1 - Math.abs(elevation) * 3.5) : 0;
     if (overworld) horizon.lerp(new THREE.Color('#e49a69'), dusk * 0.22);
     if (overworld) {

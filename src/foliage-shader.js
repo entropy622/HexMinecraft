@@ -68,7 +68,7 @@ export function leafMaterials(atlas, weather, uniforms) {
         '#include <opaque_fragment>',
         /* glsl */ `
         // A small forward-scattering approximation for sunlit foliage.
-        float leafTransmission = pow(max(dot(normalize(wetPosition - cameraPosition), leafSunDirection), 0.0), 4.0);
+        float leafTransmission = pow(max(dot(normalize(vLightPosition - cameraPosition), leafSunDirection), 0.0), 4.0);
         outgoingLight += diffuseColor.rgb * leafSunColor * leafTransmission * vSkylight;
         #include <opaque_fragment>
       `,
