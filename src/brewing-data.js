@@ -1,4 +1,5 @@
 export const EFFECTS = {
+  slowness: { name: '缓慢', maxRank: 1, color: '#8698ab', icon: null },
   poison: { name: '中毒', maxRank: 2, color: '#85a348', icon: null },
   levitation: {
     name: '漂浮',

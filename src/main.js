@@ -410,11 +410,16 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
     )
       soundFX.play('endermanTeleport');
   },
-  shoot: (from, to) => {
-    const aim = to.clone().sub(from);
+  shoot: (from, to, effect) => {
+    const aim = to
+      .clone()
+      .add(new THREE.Vector3(0, -0.65, 0))
+      .sub(from);
     const flight = aim.length() / 25;
     aim.y += 6.5 * flight * flight;
-    projectiles.shoot(from, aim.normalize(), 0.65, false, 'hostile');
+    projectiles.shoot(from, aim.normalize(), 0.65, false, 'hostile', 1, {
+      effect,
+    });
   },
 });
 let equipment = new Equipment();
@@ -4765,7 +4770,7 @@ function survivalHUD() {
     Object.entries(survival.effects)
       .map(
         ([id, e]) =>
-          `<span class="effect-badge" style="--effect:${EFFECTS[id].color}">${EFFECTS[id].icon ? `<img src="${textureURL('mcl_potions_effect_' + EFFECTS[id].icon)}" alt="">` : '<span aria-hidden="true">☠</span>'}${EFFECTS[id].name} ${e.rank === 2 ? 'II' : 'I'} ${Math.ceil(e.time)}s</span>`,
+          `<span class="effect-badge" style="--effect:${EFFECTS[id].color}">${EFFECTS[id].icon ? `<img src="${textureURL('mcl_potions_effect_' + EFFECTS[id].icon)}" alt="">` : `<span aria-hidden="true">${id === 'slowness' ? '⌛' : '☠'}</span>`}${EFFECTS[id].name} ${e.rank === 2 ? 'II' : 'I'} ${Math.ceil(e.time)}s</span>`,
       )
       .join('');
   if ($('#effect-list').dataset.value !== effectHTML) {
@@ -5499,7 +5504,10 @@ function movePlayer(dt) {
   const speed =
     baseSpeed *
     (!fly && (foodUse || combat.raised || bowUse) ? 0.35 : 1) *
-    (!fly && !swimming && !climbing ? 1 + survival.rank('speed') * 0.2 : 1) *
+    (!fly && !swimming && !climbing
+      ? (1 + survival.rank('speed') * 0.2) *
+        (1 - survival.rank('slowness') * 0.15)
+      : 1) *
     soulSlow;
   let { dx, dz } = motion.update(
     dt,
@@ -6563,26 +6571,28 @@ function frame(now) {
         Math.ceil(m.hp) +
         ' / ' +
         def.hp +
-        (m.kind === 'creeper' && m.fuse > 0
-          ? ' · 即将爆炸！'
-          : m.kind === 'shulker'
-            ? (m.peek || 0) < 0.15
-              ? ' · 闭壳减伤 / 抵挡箭矢'
-              : ' · 开壳射击 · 小心漂浮'
-            : def.flying && m.charge > 0
-              ? ' · 正在蓄力！'
-              : m.kind === 'enderman'
-                ? (m.anger > 0 ? ' · 已被激怒！' : ' · 中立 · 避免直视双眼') +
-                  (m.carried ? ' · 搬着' + BLOCKS[m.carried].name : '')
-                : def.ambient
-                  ? ' · 洞穴生物 · 靠近会惊飞'
-                  : def.hostile
-                    ? ''
-                    : m.love > 0
-                      ? ' · ♥ 寻找伙伴'
-                      : m.kind === 'chicken' && m.eggs > 0
-                        ? ' · 右键收集鸡蛋 ×' + m.eggs
-                        : ' · 右键喂养 / 互动');
+        (m.kind === 'skeleton' && m.conversion >= 7
+          ? ' · 冻结转化中'
+          : m.kind === 'creeper' && m.fuse > 0
+            ? ' · 即将爆炸！'
+            : m.kind === 'shulker'
+              ? (m.peek || 0) < 0.15
+                ? ' · 闭壳减伤 / 抵挡箭矢'
+                : ' · 开壳射击 · 小心漂浮'
+              : def.flying && m.charge > 0
+                ? ' · 正在蓄力！'
+                : m.kind === 'enderman'
+                  ? (m.anger > 0 ? ' · 已被激怒！' : ' · 中立 · 避免直视双眼') +
+                    (m.carried ? ' · 搬着' + BLOCKS[m.carried].name : '')
+                  : def.ambient
+                    ? ' · 洞穴生物 · 靠近会惊飞'
+                    : def.hostile
+                      ? ''
+                      : m.love > 0
+                        ? ' · ♥ 寻找伙伴'
+                        : m.kind === 'chicken' && m.eggs > 0
+                          ? ' · 右键收集鸡蛋 ×' + m.eggs
+                          : ' · 右键喂养 / 互动');
     }
     if (boatTarget && !creatureTarget && !villagerTarget) {
       $('#target').classList.remove('hidden');
@@ -6638,7 +6648,12 @@ function frame(now) {
       (mob, amount, direction, part, punch) =>
         hitMob(mob, amount, direction, 'arrow', part, punch),
       collectArrow,
-      (amount, source) => hurt(amount, 'projectile', source),
+      (amount, source, effect) => {
+        const result = hurt(amount, 'projectile', source);
+        if (result === 'hit' && effect)
+          survival.applyEffect(effect.id, effect.time);
+        return result;
+      },
     );
     fireballs.update(dt, world, creatures, camera);
     shulkerBullets.update(

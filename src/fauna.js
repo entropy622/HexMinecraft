@@ -11,7 +11,7 @@ import {
   orientShulker,
   shulkerHitboxes,
 } from './shulkers.js';
-import { findFloor, bodyClear } from './grounding.js';
+import { findFloor, bodyClear, bodyOffsets } from './grounding.js';
 import { Freezing } from './survival.js';
 import { powderContact } from './powder-snow.js';
 import { campfireHeat } from './campfires.js';
@@ -86,6 +86,7 @@ export class Fauna {
       anger: 0,
       frost: new Freezing(),
       snowFall: false,
+      conversion: 0,
     };
     this.active.push(m);
     if (m.kind === 'shulker') {
@@ -455,7 +456,7 @@ export class Fauna {
         const endermen = this.active.filter(
           (m) => m.kind === 'enderman',
         ).length;
-        const kind =
+        let kind =
           world.dimension === 'overworld'
             ? endermen < 3 && Math.random() < 0.12
               ? 'enderman'
@@ -479,6 +480,13 @@ export class Fauna {
         )
           continue;
         if (y !== null && y > 5 && this.canSpawnAt(kind, p.x, y, p.z)) {
+          if (
+            kind === 'skeleton' &&
+            world.biome(q, r) === '雪原' &&
+            world.surface(q, r) <= y &&
+            Math.random() < 0.8
+          )
+            kind = 'stray';
           this.spawn(kind, [p.x, y, p.z]);
           break;
         }
@@ -486,7 +494,7 @@ export class Fauna {
     }
     for (const m of [...this.active]) {
       if (!this.active.includes(m)) continue;
-      const def = MOBS[m.kind],
+      let def = MOBS[m.kind],
         p = m.mesh.position;
       for (const field of timers)
         if (field !== 'wool' && field !== 'eggTimer')
@@ -524,7 +532,25 @@ export class Fauna {
       const snow =
         powderContact(world, p.x, p.y, p.z, def.height, def.radius || 0.32)
           .length > 0;
-      const frozen = m.frost.tick(dt, snow);
+      if (m.kind === 'skeleton') {
+        const headInSnow =
+          world.get(cell.q, Math.floor(p.y + def.height * 0.9), cell.r) ===
+          'powderSnow';
+        m.conversion = m.conversion >= 7 || headInSnow ? m.conversion + dt : 0;
+        if (m.conversion >= 22) {
+          const mesh = createMob('stray', this.textures);
+          mesh.position.copy(p);
+          mesh.rotation.copy(m.mesh.rotation);
+          disposeMob(m.mesh);
+          this.scene.add(mesh);
+          m.mesh = mesh;
+          m.kind = 'stray';
+          m.conversion = 0;
+          p = mesh.position;
+          def = MOBS.stray;
+        }
+      }
+      const frozen = m.frost.tick(dt, snow && !def.freezeImmune);
       if (frozen) {
         this.hit(
           m,
@@ -595,7 +621,7 @@ export class Fauna {
       } else if ((aggressive && dist < 20) || attracted) {
         m.angle = Math.atan2(camera.position.x - p.x, camera.position.z - p.z);
         if (attracted) speed = dist < 2 ? 0 : 1.4;
-        if (m.kind === 'skeleton' && dist < 8) {
+        if (def.ranged && dist < 8) {
           speed = dist < 5 ? 0.8 : 0;
           if (dist < 5) m.angle += Math.PI;
         }
@@ -650,7 +676,7 @@ export class Fauna {
           speed = 1.3;
         }
       }
-      if (aggressive && m.kind !== 'skeleton' && withinMeleeReach) speed = 0;
+      if (aggressive && !def.ranged && withinMeleeReach) speed = 0;
       if (
         !def.webImmune &&
         touchesWeb(world, p.x, p.y, p.z, def.height, def.radius || 0.32)
@@ -682,7 +708,19 @@ export class Fauna {
           p.y + def.height - 0.025,
           def.radius || 0.32,
         );
-        const floor = clear ? y : this.floor(p.x, p.z, p.y, m.kind, 0);
+        let floor = clear ? y : this.floor(p.x, p.z, p.y, m.kind, 0);
+        // A block placed into a mob can invalidate standing clearance, but
+        // cannot remove the solid support crossed by this downward step.
+        if (floor === null)
+          for (const [dx, dz] of bodyOffsets(def.radius || 0.32)) {
+            const support = world.groundAt(
+              p.x + dx,
+              p.z + dz,
+              p.y - descent - 0.025,
+              p.y + 0.025,
+            );
+            if (support !== null) floor = Math.max(floor ?? -Infinity, support);
+          }
         if (clear) {
           p.x = x;
           p.z = z;
@@ -719,8 +757,8 @@ export class Fauna {
           m.sightTimer = 0.25;
         }
         const sight = m.sight;
-        if (m.kind === 'skeleton' && sight && m.attack <= 0) {
-          this.callbacks.shoot(eye, camera.position);
+        if (def.ranged && sight && m.attack <= 0) {
+          this.callbacks.shoot(eye, camera.position, def.arrowEffect);
           m.attack = 2.7;
         } else if (m.kind === 'creeper') {
           if (m.fuse === 0 && dist < 2.7 && sight) this.callbacks.fuse?.();

@@ -22,16 +22,23 @@ export function createMob(kind, textures) {
       ? 'vl_stalker_default'
       : kind === 'crawler'
         ? null
-        : 'mobs_mc_' + (kind === 'caveSpider' ? 'spider' : kind);
+        : 'mobs_mc_' +
+          (kind === 'caveSpider'
+            ? 'spider'
+            : kind === 'stray'
+              ? 'skeleton'
+              : kind);
   const skin = rig.material(
     file,
     kind === 'creeper'
       ? '#b7e780'
       : kind === 'crawler'
         ? '#334852'
-        : kind === 'caveSpider'
-          ? '#6cb3cb'
-          : '#ffffff',
+        : kind === 'stray'
+          ? '#b1cddc'
+          : kind === 'caveSpider'
+            ? '#6cb3cb'
+            : '#ffffff',
   );
   const plain = rig.material(null, '#39352e'),
     cream = rig.material(null, '#d8c397');
@@ -53,8 +60,8 @@ export function createMob(kind, textures) {
     rig.part(w, length, d, uv, material, 0, -length / 2, 0, pivot);
     return pivot;
   };
-  if (['zombie', 'skeleton', 'crawler'].includes(kind)) {
-    const bone = kind === 'skeleton',
+  if (['zombie', 'skeleton', 'stray', 'crawler'].includes(kind)) {
+    const bone = MOBS[kind].ranged,
       alien = kind === 'crawler',
       scale = alien ? 0.78 : 1;
     const uv = (x, y, w, h, d) => (alien ? full : skinBox(x, y, w, h, d));
@@ -105,6 +112,23 @@ export function createMob(kind, textures) {
           uv(40, 16, bone ? 2 : 4, 12, bone ? 2 : 4),
         ),
       );
+    if (kind === 'stray') {
+      const cloth = rig.material('stray_cloth', '#ffffff');
+      rig.part(0.62, 0.08, 0.54, full, cloth, 0, 0.27, 0, head);
+      for (const x of [-0.285, 0.285])
+        rig.part(0.07, 0.5, 0.54, full, cloth, x, 0, 0, head);
+      rig.part(0.53, 0.6, 0.08, full, cloth, 0, 1.16, 0.19);
+      for (const [x, h] of [
+        [-0.19, 0.48],
+        [0.02, 0.34],
+        [0.19, 0.57],
+      ])
+        rig.part(0.15, h, 0.07, full, cloth, x, 0.9 - h / 2, 0.19);
+      rig.part(0.48, 0.16, 0.35, full, cloth, 0, 1.46, 0);
+      const eyes = rig.material(null, '#bddbe4', true);
+      for (const x of [-0.12, 0.12])
+        rig.solid(0.09, 0.06, 0.02, eyes, x, 0.02, -0.25, head);
+    }
     if (alien) {
       const glow = rig.material(null, '#b4e9e3', true);
       glow.color.multiplyScalar(1.6);
@@ -379,13 +403,16 @@ export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
     mob.hit,
     mob.baby > 0,
   );
+  data.body.rotation.z =
+    mob.kind === 'skeleton' && mob.conversion >= 7
+      ? Math.sin(time * 35) * 0.025
+      : 0;
   data.arms.forEach((arm, i) => {
-    const target =
-      mob.kind === 'skeleton'
-        ? 1.18
-        : aggressive
-          ? 1.35
-          : Math.sin(phase + i * Math.PI) * 0.2 * weight;
+    const target = MOBS[mob.kind].ranged
+      ? 1.18
+      : aggressive
+        ? 1.35
+        : Math.sin(phase + i * Math.PI) * 0.2 * weight;
     arm.rotation.x = THREE.MathUtils.damp(arm.rotation.x, target, 8, dt);
   });
   data.wings.forEach((wing) => {

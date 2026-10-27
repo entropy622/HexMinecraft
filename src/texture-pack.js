@@ -270,7 +270,22 @@ const mobTextures = [
   'mobs_mc_ghast_firing',
   'mcl_fire_fire_charge',
 ];
-export const mobImage = (name) => images.get(name);
+export const mobImage = (name) => {
+  if (name === 'stray_cloth' && !images.has(name)) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 16;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#718996';
+    c.fillRect(0, 0, 16, 16);
+    for (let y = 0; y < 16; y++)
+      for (let x = 0; x < 16; x++) {
+        c.fillStyle = (x * 7 + y * 11) % 9 < 2 ? '#9aafba' : '#607580';
+        if ((x * 3 + y * 5) % 7 < 3) c.fillRect(x, y, 1, 1);
+      }
+    images.set(name, canvas);
+  }
+  return images.get(name);
+};
 const plantTextures = {
   netherWart: [
     'mcl_nether_nether_wart_stage_0',

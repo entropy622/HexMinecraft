@@ -12,6 +12,7 @@ export class Projectiles {
     this.tip = new THREE.ConeGeometry(0.055, 0.15, 4);
     this.wood = new THREE.MeshLambertMaterial({ color: '#99713d' });
     this.metal = new THREE.MeshLambertMaterial({ color: '#bbc5c6' });
+    this.coldTip = new THREE.MeshLambertMaterial({ color: '#83a6c2' });
     this.feather = new THREE.MeshLambertMaterial({
       color: '#f0e7cb',
       side: THREE.DoubleSide,
@@ -32,12 +33,15 @@ export class Projectiles {
     recoverable,
     owner = 'player',
     damageMultiplier = 1,
-    enchant = {},
+    options = {},
   ) {
     if (this.arrows.length >= 32) this.remove(this.arrows[0]);
     const mesh = new THREE.Group();
     mesh.add(new THREE.Mesh(this.shaft, this.wood));
-    const tip = new THREE.Mesh(this.tip, this.metal);
+    const tip = new THREE.Mesh(
+      this.tip,
+      options.effect ? this.coldTip : this.metal,
+    );
     tip.position.y = 0.38;
     mesh.add(tip);
     for (const angle of [0, Math.PI / 2]) {
@@ -59,8 +63,9 @@ export class Projectiles {
       stuck: false,
       recoverable,
       owner,
-      power: enchant.power || 0,
-      punch: enchant.punch || 0,
+      effect: options.effect,
+      power: options.power || 0,
+      punch: options.punch || 0,
       critical: owner === 'player' && power >= 1,
       damageMultiplier,
       playerPhysics: owner === 'player',
@@ -134,7 +139,7 @@ export class Projectiles {
             // A point upstream from impact preserves the incoming direction,
             // even if this simulation step has crossed the player's center.
             const source = point.clone().addScaledVector(direction, -2);
-            const blocked = onPlayerHit(4, source) === 'blocked';
+            const blocked = onPlayerHit(4, source, arrow.effect) === 'blocked';
             if (blocked) {
               arrow.owner = 'player';
               arrow.recoverable = true;

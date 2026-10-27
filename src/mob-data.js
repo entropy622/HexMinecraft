@@ -1,3 +1,13 @@
+const SKELETON = {
+  hp: 16,
+  speed: 1.15,
+  height: 1.9,
+  hostile: true,
+  sunlight: true,
+  ranged: true,
+  freezeImmune: true,
+  drops: { bone: 2, arrow: 3 },
+};
 export const MOBS = {
   caveSpider: {
     name: '洞穴蜘蛛',
@@ -134,14 +144,15 @@ export const MOBS = {
     drops: { meat: 1, ingot: 1 },
   },
   skeleton: {
+    ...SKELETON,
     name: '骷髅弓手',
-    hp: 16,
-    speed: 1.15,
-    height: 1.9,
-    hostile: true,
-    sunlight: true,
     color: '#dedac5',
-    drops: { bone: 2, arrow: 3 },
+  },
+  stray: {
+    ...SKELETON,
+    name: '流浪者',
+    color: '#94b2c1',
+    arrowEffect: { id: 'slowness', time: 30 },
   },
   spider: {
     webImmune: true,
