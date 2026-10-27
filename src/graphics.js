@@ -345,6 +345,7 @@ export class Graphics {
     this.caveSky = null;
     this.composer?.effects.exposure.reset();
     this.composer?.effects.temporal.reset();
+    this.composer?.passes[0].clouds.reset();
     this.fluidRenderer.clear();
     this.chestModels.openKey = null;
     for (const mesh of this.chunks.values()) {

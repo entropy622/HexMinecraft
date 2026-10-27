@@ -527,6 +527,9 @@ test('water captures the same clouds and cloud targets resize and dispose with t
               (group) => group.children.every((o) => o.visible),
             ),
             valid: g.composer.effects.temporal.valid,
+            cloudHistoryReset: [
+              ...g.composer.passes[0].clouds.histories.values(),
+            ].every((s) => s.frames === 0),
           }),
         );
       }),
@@ -537,6 +540,7 @@ test('water captures the same clouds and cloud targets resize and dispose with t
   expect(failure.targetRestored).toBe(true);
   expect(failure.allWaterVisible).toBe(true);
   expect(failure.valid).toBe(false);
+  expect(failure.cloudHistoryReset).toBe(true);
   await fresh(page);
   const recovered = await sample(page, { opaque: true });
   expect(recovered.transmission).toBeLessThan(0.99);
@@ -547,9 +551,19 @@ test('water captures the same clouds and cloud targets resize and dispose with t
     f.clouds.target.addEventListener('dispose', () => {
       window.cloudDisposed = true;
     });
+    const states = [...f.clouds.histories.values()],
+      targets = states.flatMap((s) => s.history);
+    window.cloudHistoryDisposed = 0;
+    for (const t of targets)
+      t.addEventListener('dispose', () => window.cloudHistoryDisposed++);
     return {
       scene: [f.target.width, f.target.height],
       cloud: [f.clouds.target.width, f.clouds.target.height],
+      history: targets.map((t) => [t.width, t.height]),
+      independent: new Set(targets.flatMap((t) => t.textures)).size,
+      scaleRatio:
+        f.clouds.histories.get(f.opaque).scale.x /
+        f.clouds.histories.get(f.target).scale.x,
     };
   });
   await page.keyboard.press('Escape');
@@ -558,6 +572,7 @@ test('water captures the same clouds and cloud targets resize and dispose with t
   await page.evaluate(() => window.__hexwild.setPlaying(false));
   const medium = await page.evaluate(() => ({
     disposed: window.cloudDisposed,
+    historyDisposed: window.cloudHistoryDisposed,
     composer: !!window.__hexwild.graphics.composer,
     geometry: window.__hexwild.graphics.clouds.visible,
   }));
@@ -604,7 +619,18 @@ test('water captures the same clouds and cloud targets resize and dispose with t
   expect(clearCapture.transmission).toBeCloseTo(1, 3);
   expect(difference).toBeGreaterThan(0.01);
   expect(size.cloud).toEqual(size.scene.map((n) => Math.ceil(n / 2)));
-  expect(medium).toEqual({ disposed: true, composer: false, geometry: true });
+  expect(size.history).toHaveLength(4);
+  expect(
+    size.history.every((s) => s[0] === size.cloud[0] && s[1] === size.cloud[1]),
+  ).toBe(true);
+  expect(size.independent).toBe(8);
+  expect(size.scaleRatio).toBeCloseTo(0.4, 2);
+  expect(medium).toEqual({
+    disposed: true,
+    historyDisposed: 4,
+    composer: false,
+    geometry: true,
+  });
   expect(rebuilt.finite).toBe(true);
   expect(rebuilt.error).toBe(0);
   expect(nether).toEqual({ volume: 0, geometry: false });

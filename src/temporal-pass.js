@@ -166,7 +166,10 @@ export class TemporalResolvePass extends Pass {
     });
     this.quad = new FullScreenQuad();
     this.canvas = renderer.domElement;
-    this.restored = () => this.reset();
+    this.restored = () => {
+      this.reset();
+      this.frame.clouds.reset();
+    };
     this.canvas.addEventListener('webglcontextrestored', this.restored);
     this.reset();
   }
