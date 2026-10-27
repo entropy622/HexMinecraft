@@ -1,3 +1,4 @@
+import { wetPorosity } from './wet-surfaces.js';
 import { applySkylight, visionUniforms } from './skylight.js';
 import {
   foliageUniforms,
@@ -147,8 +148,10 @@ export class Graphics {
     this.weatherUniforms = applySkylight(this.material, {
       ...this.dynamicLight.uniforms,
       terrainWetness: { value: 0 },
+      terrainRain: { value: 0 },
       wetSky: { value: new THREE.Color('#7c96a5') },
     });
+    this.material.userData.wetSurface = true;
     this.doorMaterial = new THREE.MeshLambertMaterial({
       map: this.textures.atlas,
       vertexColors: true,
@@ -281,6 +284,7 @@ export class Graphics {
         this.postOptions,
         this.cloudSystem.uniforms,
         this.fluidRenderer,
+        this.weatherUniforms,
       );
     if (!this.usePost && this.composer) {
       disposePostprocessing(this.composer);
@@ -536,14 +540,15 @@ export class Graphics {
     const [cq, cr] = k.split(',').map(Number),
       world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
-    const solid = { p: [], c: [], uv: [], sky: [], rain: [] },
-      leaves = { p: [], c: [], uv: [], sky: [], rain: [] },
-      glass = { p: [], c: [], uv: [], sky: [], rain: [] },
-      plants = { p: [], c: [], uv: [], sky: [], rain: [] },
-      torches = { p: [], c: [], uv: [], sky: [], rain: [] },
-      lamps = { p: [], c: [], uv: [], sky: [], rain: [] };
+    const solid = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
+      leaves = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
+      glass = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
+      plants = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
+      torches = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
+      lamps = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] };
     let out = solid,
-      rainExposure = 0;
+      rainExposure = 0,
+      porosity = 1;
     const shaped = [];
     const chestCells = [];
     const enchantCells = [];
@@ -565,6 +570,7 @@ export class Graphics {
         out.p.push(...verts[i]);
         out.sky.push(1);
         out.rain.push(rainExposure);
+        out.porosity.push(porosity);
         out.uv.push(...this.textures.uv(tile, ...uvs[i]));
         out.c.push(shade * ao[i], shade * ao[i], shade * ao[i]);
       }
@@ -611,7 +617,9 @@ export class Graphics {
             if (BLOCKS[type].light) this.updateLight(q, y, r);
             continue;
           }
+          porosity = wetPorosity(type);
           rainExposure =
+            porosity < 1 &&
             world.dimension === 'overworld' &&
             rainRoofs.get(q + ',' + r) === y &&
             !['沙漠', '雪原'].includes(world.biome(q, r))
@@ -831,6 +839,10 @@ export class Graphics {
       g.setAttribute(
         'rainExposure',
         new THREE.Float32BufferAttribute(data.rain, 1),
+      );
+      g.setAttribute(
+        'surfacePorosity',
+        new THREE.Float32BufferAttribute(data.porosity, 1),
       );
       g.computeVertexNormals();
       g.computeBoundingSphere();
@@ -1338,6 +1350,7 @@ export class Graphics {
       ? weather?.wetness || 0
       : 0;
     this.weatherUniforms.wetSky.value.copy(horizon);
+    this.weatherUniforms.terrainRain.value = rain;
     this.sun.color.set(overworld ? '#fff3d2' : '#dac4ff');
     if (overworld) this.sun.color.lerp(new THREE.Color('#ff9857'), dusk * 0.8);
     this.hemi.groundColor.set(overworld ? '#77715b' : '#514353');
@@ -1664,9 +1677,13 @@ export class Graphics {
       if (this.usePost) {
         this.composer.effects.contact.enabled =
           this.postOptions.occlusion > 0 && !submerged;
+        this.composer.effects.wet.enabled =
+          this.weatherUniforms.terrainWetness.value > 0.001 && !submerged;
         temporal = this.composer.effects.temporal;
         this.composer.effects.protection.enabled =
-          this.composer.effects.contact.enabled || temporal.enabled;
+          this.composer.effects.contact.enabled ||
+          temporal.enabled ||
+          this.composer.effects.wet.enabled;
         temporal.beginFrame();
         this.composer.render(renderDt);
       } else this.renderer.render(this.scene, this.camera);

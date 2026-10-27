@@ -1,4 +1,4 @@
-import { ShaderChunk, Color } from 'three';
+import { ShaderChunk } from 'three';
 import { waterLightingGLSL } from './water-lighting.js';
 export const visionUniforms = { nightVision: { value: 0 } };
 
@@ -30,37 +30,33 @@ export function applySkylight(material, sharedUniforms) {
   material.userData.voxelLighting = 'surface';
   const uniforms = sharedUniforms || {
     terrainWetness: { value: 0 },
-    wetSky: { value: new Color('#7c96a5') },
   };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, visionUniforms);
     shader.vertexShader =
-      `attribute float skylight; attribute float rainExposure; attribute vec3 blocklight;
-      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 vLightPosition;\n${shader.vertexShader}`.replace(
+      `attribute float skylight; attribute float rainExposure; attribute float surfacePorosity; attribute vec3 blocklight;
+      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vSkylight = skylight;
         vBlockLight = blocklight;
+        vPorosity = surfacePorosity;
         vWetTop = rainExposure * max(0.0, normal.y);
         vLightPosition = (modelMatrix * vec4(position, 1.0)).xyz;`,
       );
     shader.fragmentShader =
       `${!material.transparent ? '#define HEX_WATER_RECEIVER\n' + waterLightingGLSL : ''}
-      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying vec3 vLightPosition;
-      uniform float terrainWetness; uniform vec3 wetSky; uniform float nightVision;\n${shader.fragmentShader}`
+      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;
+      uniform float terrainWetness; uniform float nightVision;\n${shader.fragmentShader}`
         .replace('#include <lights_fragment_begin>', voxelLightingChunk)
         .replace(
           '#include <opaque_fragment>',
           `
-        vec2 pixel = floor(vLightPosition.xz * 4.0);
-        float grain = fract(sin(dot(pixel, vec2(12.9898, 78.233))) * 43758.5453);
-        float wet = terrainWetness * vWetTop * (0.35 + smoothstep(0.3, 0.7, grain) * 0.65);
-        float grazing = pow(1.0 - abs(normalize(cameraPosition - vLightPosition).y), 4.0);
-        outgoingLight *= 1.0 - wet * 0.18;
-        outgoingLight = mix(outgoingLight, wetSky, wet * (0.04 + grazing * 0.38));
+        float wet = terrainWetness * vWetTop;
+        outgoingLight *= 1.0 - wet * (0.12 + 0.18 * vPorosity);
         #include <opaque_fragment>`,
         );
   };
-  material.customProgramCacheKey = () => 'hex-colored-voxel-water-v5';
+  material.customProgramCacheKey = () => 'hex-colored-voxel-wet-v6';
   return uniforms;
 }

@@ -1,3 +1,4 @@
+import { WetSurfacePass } from './wet-surfaces.js';
 import { HalfFloatType, Vector2, WebGLRenderTarget } from 'three';
 import { AtmospherePass } from './atmosphere-pass.js';
 import { SceneFramePass } from './scene-frame.js';
@@ -22,6 +23,7 @@ export function createPostprocessing(
   settings,
   cloudUniforms,
   fluids,
+  weatherUniforms,
 ) {
   const target = new WebGLRenderTarget(innerWidth, innerHeight, {
     type: HalfFloatType,
@@ -29,7 +31,8 @@ export function createPostprocessing(
   });
   const composer = new EffectComposer(renderer, target);
   const frame = new SceneFramePass(scene, camera, fluids, cloudUniforms);
-  const protection = new SurfaceProtectionPass(scene, camera, frame);
+  const wet = new WetSurfacePass(camera, frame, weatherUniforms);
+  const protection = new SurfaceProtectionPass(scene, camera, frame, wet);
   const contact = new ContactOcclusionPass(camera, frame, protection);
   const temporal = new TemporalResolvePass(renderer, camera, frame, protection);
   const bloom = new UnrealBloomPass(
@@ -43,6 +46,7 @@ export function createPostprocessing(
   composer.addPass(frame);
   composer.addPass(protection);
   composer.addPass(contact);
+  composer.addPass(wet);
   composer.addPass(
     new AtmospherePass(
       camera,
@@ -61,6 +65,7 @@ export function createPostprocessing(
   composer.addPass(new OutputPass());
   composer.effects = {
     contact,
+    wet,
     bloom,
     antialias,
     exposure,
