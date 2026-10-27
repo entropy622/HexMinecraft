@@ -158,6 +158,7 @@ export class ItemDrops {
         'pressurePlate',
         'redstoneTorch',
         'repeater',
+        'cobweb',
         'sporeBlossom',
         'pointedDripstone',
       ].includes(BLOCKS[id]?.shape)

@@ -1,3 +1,4 @@
+import { touchesWeb } from './cobwebs.js';
 import {
   STRUCTURE_NAMES,
   structureLoot,
@@ -182,7 +183,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.61 — SIGNAL AND SILENCE</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.62 — WEBS BELOW</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -373,7 +374,11 @@ let portalExposure = 0,
   portalCooldown = 0;
 let lastDeath = null;
 const fauna = new Fauna(graphics.scene, graphics.textures, {
-  damage: (amount, source) => hurt(amount, 'combat', source),
+  damage: (amount, source, poison) => {
+    const result = hurt(amount, 'combat', source);
+    if (result === 'hit' && poison > 0) survival.applyEffect('poison', poison);
+    return result;
+  },
   drop: (id, n, position) => drops.spawn(id, n, position),
   experience: (value, position) => awardXP(value, position),
   notice: toast,
@@ -2079,8 +2084,12 @@ function mine(dt) {
     return;
   }
   if (BLOCKS[type].shape) {
-    removeBuilding(q, y, r, !creative && stats.harvest);
-    wearItem(held);
+    removeBuilding(q, y, r, !creative && stats.harvest && type !== 'cobweb');
+    if (type === 'cobweb' && !creative && stats.harvest)
+      for (const stack of miningLoot(type, { tool: ITEMS[held]?.kind, enchant })
+        .stacks)
+        dropAt(stack.item, stack.count, q, y, r);
+    wearItem(held, type === 'cobweb' && ITEMS[held]?.kind === 'sword' ? 2 : 1);
     mining = 0;
     target = null;
     return;
@@ -2178,6 +2187,9 @@ function useBucket() {
   return true;
 }
 function flushFluidChanges() {
+  for (const k of world.fluids.washedWebs)
+    dropAt('string', 1, ...k.split(',').map(Number));
+  world.fluids.washedWebs.clear();
   const chunks = new Set();
   for (const k of world.fluids.blockChanges) {
     const [q, y, r] = k.split(',').map(Number);
@@ -4585,7 +4597,7 @@ function updateSurvival(dt) {
     survivalSubmerged = false;
     const vitals = { health, hunger };
     survival.tickEffects(dt, vitals);
-    health = vitals.health;
+    health = Math.max(health, vitals.health);
     return;
   }
   const head = playerFluidAt(camera.position.y),
@@ -4649,6 +4661,17 @@ function survivalHUD() {
     if (survival.absorptionTime > 0)
       effects.push('伤害吸收 ' + Math.ceil(survival.absorptionTime) + 's');
     if (hunger <= 0) effects.push('饥饿 · 需要食物');
+    if (
+      touchesWeb(
+        world,
+        camera.position.x,
+        playerFeet(),
+        camera.position.z,
+        playerHeight(),
+        0.24,
+      )
+    )
+      effects.push('蛛网缠身');
   }
   const effectHTML =
     effects
@@ -4657,7 +4680,7 @@ function survivalHUD() {
     Object.entries(survival.effects)
       .map(
         ([id, e]) =>
-          `<span class="effect-badge" style="--effect:${EFFECTS[id].color}"><img src="${textureURL('mcl_potions_effect_' + EFFECTS[id].icon)}" alt="">${EFFECTS[id].name} ${e.rank === 2 ? 'II' : 'I'} ${Math.ceil(e.time)}s</span>`,
+          `<span class="effect-badge" style="--effect:${EFFECTS[id].color}">${EFFECTS[id].icon ? `<img src="${textureURL('mcl_potions_effect_' + EFFECTS[id].icon)}" alt="">` : '<span aria-hidden="true">☠</span>'}${EFFECTS[id].name} ${e.rank === 2 ? 'II' : 'I'} ${Math.ceil(e.time)}s</span>`,
       )
       .join('');
   if ($('#effect-list').dataset.value !== effectHTML) {
@@ -4834,8 +4857,10 @@ function hurt(amount, cause = 'combat', source = null) {
           : '') + '已在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。',
     );
     saveGame();
+    return 'dead';
   }
   updateHUD();
+  return 'hit';
 }
 function updateMobs(dt) {
   fauna.update(
@@ -5296,7 +5321,17 @@ function movePlayer(dt) {
   const swimming = !!feetFluid,
     fly = creative && creativeFlying,
     levitating = !creative && survival.rank('levitation') > 0,
-    climbing = !creative && onLadder();
+    climbing = !creative && onLadder(),
+    webbed =
+      !fly &&
+      touchesWeb(
+        world,
+        camera.position.x,
+        playerFeet(),
+        camera.position.z,
+        playerHeight(),
+        0.24,
+      );
   if (glider.active) {
     const stack = wornElytra();
     if (
@@ -5304,6 +5339,7 @@ function movePlayer(dt) {
       swimming ||
       climbing ||
       levitating ||
+      webbed ||
       !stack ||
       wearValue(stack.wear) <= 1
     )
@@ -5359,7 +5395,7 @@ function movePlayer(dt) {
     (!fly && (foodUse || combat.raised || bowUse) ? 0.35 : 1) *
     (!fly && !swimming && !climbing ? 1 + survival.rank('speed') * 0.2 : 1) *
     soulSlow;
-  const { dx, dz } = motion.update(
+  let { dx, dz } = motion.update(
     dt,
     (-Math.sin(yaw) * forward + Math.cos(yaw) * side) * speed,
     (-Math.cos(yaw) * forward - Math.sin(yaw) * side) * speed,
@@ -5367,6 +5403,11 @@ function movePlayer(dt) {
     swimming,
     fly,
   );
+  if (webbed) {
+    dx *= 0.25;
+    dz *= 0.25;
+    motion.sprintRequested = false;
+  }
   if (
     !forward ||
     sneaking ||
@@ -5475,6 +5516,7 @@ function movePlayer(dt) {
       vy = Math.max(-2, vy - dt * 4);
       if (keys.has('Space')) vy = 4;
     } else vy -= dt * DIMENSIONS[dimension].gravity;
+    if (webbed) vy = Math.max(-0.5, Math.min(0.1, vy));
     const dy = vy * dt,
       steps = Math.max(1, Math.ceil(Math.abs(dy) / 0.12));
     grounded = false;

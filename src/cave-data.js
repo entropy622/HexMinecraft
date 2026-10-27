@@ -1,4 +1,12 @@
 export const CAVE_BLOCKS = {
+  cobweb: {
+    name: '蛛网',
+    color: '#d7ddd5',
+    side: '#aebfb2',
+    hardness: 4,
+    shape: 'cobweb',
+    nonSolid: true,
+  },
   dripstoneBlock: {
     name: '滴水石块',
     color: '#a78670',

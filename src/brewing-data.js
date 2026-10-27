@@ -1,4 +1,5 @@
 export const EFFECTS = {
+  poison: { name: '中毒', maxRank: 2, color: '#85a348', icon: null },
   levitation: {
     name: '漂浮',
     maxRank: 1,

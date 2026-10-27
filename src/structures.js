@@ -1,6 +1,7 @@
 import { BLOCKS, DIRECTIONS, hash, hexDistance, key } from './core.js';
 import { FIRST_END_SHIP } from './flight-data.js';
 import { stampEndShip } from './end-ship.js';
+import { mineshaftPlan, stampMineshaft } from './mineshafts.js';
 import { FIRST_END_CITY } from './end-city-data.js';
 import {
   endCityPlan,
@@ -32,7 +33,12 @@ function descriptor(world, id, q, r, kind) {
     q,
     r,
     h,
-    y: kind === 'endship' ? h + 10 : underground ? Math.max(3, h - 7) : h,
+    y:
+      kind === 'endship'
+        ? h + 10
+        : underground
+          ? Math.max(3, h - (kind === 'mine' ? 10 : 7))
+          : h,
     kind,
     radius: underground
       ? 30
@@ -53,6 +59,10 @@ function descriptor(world, id, q, r, kind) {
             : 'mossybrick',
   };
   if (kind === 'endcity') result.city = endCityPlan(world, result);
+  if (kind === 'mine') {
+    result.mine = mineshaftPlan(world, result);
+    if (!result.mine) return null;
+  }
   return result;
 }
 export function structuresNear(world, q, r, range = 32) {
@@ -133,6 +143,7 @@ export function structuresNear(world, q, r, range = 32) {
   return result;
 }
 export function structureLoot(world, s) {
+  if (s.kind === 'mine') return s.mine.loot;
   if (s.kind === 'endcity') return endCityLoot(world, s);
   if (s.kind === 'endship')
     return [
@@ -152,23 +163,21 @@ export function structureLoot(world, s) {
     ];
   const roll = hash(s.q, 663, s.r, world.seed);
   const supplies =
-    s.kind === 'mine'
-      ? { torch: 12, coal: 5, ingot: 3, bread: 3, copperIngot: 5, flint: 3 }
-      : s.kind === 'dungeon'
-        ? { goldIngot: 4, arrow: 12, bone: 3, emerald: 2 }
-        : s.kind === 'fortress'
-          ? {
-              goldIngot: 6,
-              ember: 2,
-              obsidian: 3,
-              sword: 1,
-              blazeRod: 2,
-              netherWart: 3,
-              soulSand: 4,
-            }
-          : s.kind === 'shrine'
-            ? { pearl: 3, diamond: 2, goldenApple: 1 }
-            : { bread: 3, torch: 6, ingot: 2, emerald: 1 };
+    s.kind === 'dungeon'
+      ? { goldIngot: 4, arrow: 12, bone: 3, emerald: 2 }
+      : s.kind === 'fortress'
+        ? {
+            goldIngot: 6,
+            ember: 2,
+            obsidian: 3,
+            sword: 1,
+            blazeRod: 2,
+            netherWart: 3,
+            soulSand: 4,
+          }
+        : s.kind === 'shrine'
+          ? { pearl: 3, diamond: 2, goldenApple: 1 }
+          : { bread: 3, torch: 6, ingot: 2, emerald: 1 };
   if (roll > 0.6) supplies.goldenApple = 1;
   if (roll > 0.83) supplies.diamond = (supplies.diamond || 0) + 1;
   return [
@@ -206,8 +215,12 @@ export function stampStructure(world, s, cq, cr) {
     stampEndCity(world, s, put);
     return;
   }
+  if (s.kind === 'mine') {
+    stampMineshaft(world, s, put);
+    return;
+  }
   const block = (dq, dy, dr, type) => put(s.q + dq, s.y + dy, s.r + dr, type);
-  if (!['mine', 'dungeon'].includes(s.kind)) {
+  if (s.kind !== 'dungeon') {
     const radius = s.kind === 'fortress' ? 7 : s.kind === 'shrine' ? 5 : 4;
     for (let q = -radius; q <= radius; q++)
       for (let r = -radius; r <= radius; r++) {
@@ -237,31 +250,9 @@ export function stampStructure(world, s, cq, cr) {
           );
       }
   };
-  if (s.kind === 'mine' || s.kind === 'dungeon') {
+  if (s.kind === 'dungeon') {
     room(5, 5, true);
-    if (s.kind === 'mine') {
-      for (let i = 0; i < 6; i++) {
-        const [dq, dr] = DIRECTIONS[i],
-          [sq, sr] = DIRECTIONS[(i + 2) % 6];
-        for (let d = 3; d <= 11; d++)
-          for (let side = -1; side <= 1; side++) {
-            const q = dq * d + sq * side,
-              r = dr * d + sr * side;
-            block(q, 0, r, 'planks');
-            for (let y = 1; y <= 3; y++)
-              block(
-                q,
-                y,
-                r,
-                d % 4 === 0 && Math.abs(side) === 1 ? 'wood' : null,
-              );
-            if (d % 4 === 0) block(q, 4, r, 'wood');
-          }
-      }
-      block(-2, 1, 1, 'torch');
-      block(0, 1, 3, 'torch');
-      block(0, 1, -8, 'spawner');
-    } else block(0, 1, 0, 'spawner');
+    block(0, 1, 0, 'spawner');
     // A one-block rise per hex column makes a visible, climbable entrance from the surface.
     for (let step = 0; step <= 22; step++) {
       const q = s.q + 5 + step,

@@ -22,10 +22,16 @@ export function createMob(kind, textures) {
       ? 'vl_stalker_default'
       : kind === 'crawler'
         ? null
-        : 'mobs_mc_' + kind;
+        : 'mobs_mc_' + (kind === 'caveSpider' ? 'spider' : kind);
   const skin = rig.material(
     file,
-    kind === 'creeper' ? '#b7e780' : kind === 'crawler' ? '#334852' : '#ffffff',
+    kind === 'creeper'
+      ? '#b7e780'
+      : kind === 'crawler'
+        ? '#334852'
+        : kind === 'caveSpider'
+          ? '#6cb3cb'
+          : '#ffffff',
   );
   const plain = rig.material(null, '#39352e'),
     cream = rig.material(null, '#d8c397');
@@ -132,7 +138,7 @@ export function createMob(kind, textures) {
       );
       bow.add(line);
     }
-  } else if (kind === 'spider') {
+  } else if (kind === 'spider' || kind === 'caveSpider') {
     rig.part(0.82, 0.4, 0.93, skinBox(0, 12, 16, 8, 12), skin, 0, 0.42, 0.3);
     rig.part(0.51, 0.3, 0.45, skinBox(0, 0, 10, 8, 12), skin, 0, 0.42, -0.17);
     headY = 0.45;
@@ -324,7 +330,17 @@ export function createMob(kind, textures) {
     legs.forEach((leg, i) => {
       leg.userData.phase = i === 0 || i === 3 ? 0 : Math.PI;
     });
-  return rig.finish({ kind, head, headY, legs, arms, wings, wool });
+  const mesh = rig.finish({
+    kind,
+    head,
+    headY: headY * (MOBS[kind].scale || 1),
+    legs,
+    arms,
+    wings,
+    wool,
+  });
+  mesh.scale.setScalar(MOBS[kind].scale || 1);
+  return mesh;
 }
 export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
   const data = mob.mesh.userData,
@@ -378,7 +394,7 @@ export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
       (0.08 +
         Math.sin(time * (mob.flee > 0 ? 18 : 5)) * (mob.flee > 0 ? 0.7 : 0.12));
   });
-  if (mob.kind === 'spider')
+  if (mob.kind === 'spider' || mob.kind === 'caveSpider')
     data.legs.forEach((leg, i) => {
       leg.rotation.x *= 0.35;
       leg.rotation.z =

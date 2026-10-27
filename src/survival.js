@@ -109,6 +109,19 @@ export class Survival {
     } else old.time = Math.max(old.time, time);
   }
   tickEffects(dt, vitals) {
+    const poison = this.effects.poison;
+    if (poison) {
+      const interval = 1.25 / 2 ** (poison.rank - 1),
+        after = Math.max(0, poison.time - dt),
+        ticks =
+          Math.ceil((poison.time - 1e-8) / interval) -
+          Math.ceil((after - 1e-8) / interval);
+      if (vitals.health > 1)
+        vitals.health = Math.max(
+          1,
+          vitals.health - this.absorb(Math.max(0, ticks)),
+        );
+    }
     const regen = this.effects.regeneration;
     if (regen) {
       this.effectTimer += Math.min(dt, regen.time);

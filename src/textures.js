@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { paintPackTile } from './texture-pack.js';
 import { BLOCKS, hash } from './core.js';
 import { woodKey } from './wood-data.js';
+import { WEB_STRANDS } from './cobwebs.js';
 
 // Pixel Perfection tiles with procedural fallbacks and original fantasy materials.
 // Wide gutters prevent color bleeding between mipmapped tiles.
@@ -310,6 +311,23 @@ export function createTextures() {
         fill('#eee8ce', 7, 1, 3, 7);
         fill('#edc345', 7, 3, 3, 3);
       }
+    }
+    if (id === 'cobweb') {
+      c.clearRect(0, 0, 16, 16);
+      // Exact one-pixel strands keep diagonals above alpha-test threshold.
+      // Antialiased subpixel strokes lose their spokes after cutout testing.
+      for (const strand of WEB_STRANDS)
+        for (let i = 1; i < strand.length; i++) {
+          const [ax, ay] = strand[i - 1].map((v) => 7.5 + v * 8),
+            [bx, by] = strand[i].map((v) => 7.5 + v * 8),
+            steps = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay)));
+          for (let j = 0; j <= steps; j++)
+            fill(
+              '#dce7de',
+              Math.round(ax + ((bx - ax) * j) / steps),
+              Math.round(ay + ((by - ay) * j) / steps),
+            );
+        }
     }
     if (id === 'redstoneWire' || id === 'redstoneWireOn') {
       fill(id === 'redstoneWireOn' ? '#ef351c' : '#68170f', 0, 0, 16, 16);

@@ -163,7 +163,9 @@ export function buildingItemMesh(type, textures) {
     new THREE.MeshLambertMaterial({
       map: textures.atlas,
       vertexColors: true,
-      alphaTest: ['trapdoor', 'stonecutter'].includes(BLOCKS[type]?.shape)
+      alphaTest: ['trapdoor', 'stonecutter', 'cobweb'].includes(
+        BLOCKS[type]?.shape,
+      )
         ? 0.5
         : 0,
       side: THREE.DoubleSide,

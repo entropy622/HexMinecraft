@@ -505,13 +505,19 @@ export class World {
         )
           for (let y = h; y < h + 7; y++) put(q, y, r, 'obsidian');
       }
-    const caves = stampCaves(this, cq, cr);
+    const caves = stampCaves(this, cq, cr),
+      structures = this.structures(cq * 8 + 4, cr * 8 + 4, 8);
     // Generate trees from a two-cell halo, clipping writes to this chunk.
     // The result is independent of chunk load order, including negative seams.
     for (let tq = cq * 8 - 2; tq < cq * 8 + 10; tq++)
       for (let tr = cr * 8 - 2; tr < cr * 8 + 10; tr++)
         if (
           this.tree(tq, tr) &&
+          !structures.some((s) => {
+            const column =
+              s.kind === 'mine' && s.mine.columns.get(`${tq},${tr}`);
+            return column && column.ceiling >= this.terrainHeight(tq, tr) - 1;
+          }) &&
           !caves.some((c) => {
             const column = caveColumn(c, tq, tr);
             return column && column.ceiling >= this.terrainHeight(tq, tr) - 1;
@@ -540,8 +546,7 @@ export class World {
     stampChorus(this, cq, cr);
     for (const v of this.villages(cq * 8 + 4, cr * 8 + 4, 8))
       stampVillage(this, v, cq, cr);
-    for (const s of this.structures(cq * 8 + 4, cr * 8 + 4, 8))
-      stampStructure(this, s, cq, cr);
+    for (const s of structures) stampStructure(this, s, cq, cr);
     stampEndArena(this, cq, cr);
     for (const [k, t] of this.editChunks.get(ck) || []) {
       if (isChorus(t)) this.chorusPending.add(k);

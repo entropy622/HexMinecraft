@@ -54,6 +54,7 @@ export class Fluids {
     this.active = new Set();
     this.dirty = new Set();
     this.blockChanges = new Set();
+    this.washedWebs = new Set();
     this.clock = 0;
     this.tick = 0;
     for (const [k, f] of edits) {
@@ -73,6 +74,7 @@ export class Fluids {
       this.world.loaded(q, r) &&
       (!this.world.get(q, y, r) ||
         !!CIRCUIT_BLOCKS[this.world.get(q, y, r)]?.shape ||
+        this.world.get(q, y, r) === 'cobweb' ||
         isHangingPlant(this.world.get(q, y, r)))
     );
   }
@@ -92,6 +94,11 @@ export class Fluids {
       cells = this.chunks.get(ck);
     if (!cells) return;
     if (equal(cells.get(k), f)) return;
+    if (f && this.world.get(q, y, r) === 'cobweb') {
+      this.world.set(q, y, r, null);
+      this.blockChanges.add(k);
+      if (f.type === 'water') this.washedWebs.add(k);
+    }
     // Level animation does not change this cell's optical properties.
     if (cells.get(k)?.type !== f?.type) this.world.lightRevision++;
     if (f) cells.set(k, { ...f });
@@ -315,6 +322,7 @@ export class Fluids {
     this.active.clear();
     this.dirty.clear();
     this.blockChanges.clear();
+    this.washedWebs.clear();
   }
   serialize() {
     return [...this.edits];

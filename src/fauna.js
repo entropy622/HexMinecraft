@@ -14,6 +14,7 @@ import {
 import { findFloor } from './grounding.js';
 import { campfireHeat } from './campfires.js';
 import { spawnCaveBats, updateBat } from './bats.js';
+import { touchesWeb } from './cobwebs.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
 export class Fauna {
@@ -121,7 +122,7 @@ export class Fauna {
     return findFloor(this.world, x, z, y, {
       step,
       height: MOBS[kind].height,
-      radius: kind === 'chicken' ? 0.18 : 0.32,
+      radius: MOBS[kind].radius ?? (kind === 'chicken' ? 0.18 : 0.32),
     });
   }
   visible(from, to) {
@@ -390,8 +391,20 @@ export class Fauna {
           ).length >= 4
         )
           continue;
-        const kind =
-          world.dimension === 'overworld'
+        const mineNest =
+          world.dimension === 'overworld' &&
+          world
+            .structures(q, r, 0)
+            .some(
+              (s) =>
+                s.kind === 'mine' &&
+                s.mine.nest.q === q &&
+                s.mine.nest.y === y &&
+                s.mine.nest.r === r,
+            );
+        const kind = mineNest
+          ? 'caveSpider'
+          : world.dimension === 'overworld'
             ? ['zombie', 'skeleton', 'spider'][
                 Math.floor(hash(q, 17, r, world.seed) * 3)
               ]
@@ -485,9 +498,11 @@ export class Fauna {
         }
       }
       if (m.mesh.userData.wool) m.mesh.userData.wool.visible = m.wool <= 0;
-      m.mesh.scale.setScalar((m.baby > 0 ? 0.55 : 1) * (m.hit > 0 ? 1.08 : 1));
+      m.mesh.scale.setScalar(
+        (def.scale || 1) * (m.baby > 0 ? 0.55 : 1) * (m.hit > 0 ? 1.08 : 1),
+      );
       m.sunCheck = (m.sunCheck || 0) - dt;
-      if (def.sunlight && !night && m.sunCheck <= 0) {
+      if ((def.sunlight || def.webImmune) && !night && m.sunCheck <= 0) {
         m.sunlit = this.visible(
           p.clone().add(new THREE.Vector3(0, def.height, 0)),
           new THREE.Vector3(p.x, 64, p.z),
@@ -538,7 +553,7 @@ export class Fauna {
       const aggressive =
         def.hostile &&
         !creative &&
-        (m.kind !== 'spider' || night || m.anger > 0);
+        (!def.webImmune || night || !m.sunlit || m.anger > 0);
       const dist = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
       const attracted =
         !def.hostile &&
@@ -606,6 +621,11 @@ export class Fauna {
           speed = 1.3;
         }
       }
+      if (
+        !def.webImmune &&
+        touchesWeb(world, p.x, p.y, p.z, def.height, def.radius || 0.32)
+      )
+        speed *= 0.25;
       const previousX = p.x,
         previousZ = p.z;
       const x = p.x + Math.sin(m.angle) * speed * dt,
@@ -656,7 +676,7 @@ export class Fauna {
           sight &&
           m.attack <= 0
         ) {
-          this.callbacks.damage(m.kind === 'zombie' ? 3 : 2, p);
+          this.callbacks.damage(m.kind === 'zombie' ? 3 : 2, p, def.poison);
           m.attack = 1.1;
         }
       } else m.fuse = 0;

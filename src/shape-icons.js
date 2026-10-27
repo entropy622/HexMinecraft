@@ -1,3 +1,4 @@
+import { WEB_STRANDS } from './cobwebs.js';
 import { BLOCKS } from './core.js';
 import { cutItemWorld } from './cut-blocks.js';
 import { buildingParts } from './building-shapes.js';
@@ -7,6 +8,9 @@ import { HEX_POLYGON } from './cut-blocks.js';
 // Small isometric projections reuse the same cut polygons and licensed tiles
 // as the world. SVG remains crisp in slots without a second WebGL renderer.
 export function cutBlockIcon(id) {
+  if (id === 'cobweb')
+    return `<span class="block-icon pixel-icon"><svg viewBox="0 0 48 48" aria-label="蛛网" fill="none" stroke="#dce7de" stroke-width="1.4">${WEB_STRANDS.map((s) => `<polyline points="${s.map(([x, y]) => `${24 + x * 18},${24 + y * 18}`).join(' ')}"/>`).join('')}</svg></span>`;
+
   const def = BLOCKS[id],
     parts =
       def.portable || def.pillar || !def.shape

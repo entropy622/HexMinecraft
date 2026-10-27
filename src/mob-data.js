@@ -1,4 +1,20 @@
 export const MOBS = {
+  caveSpider: {
+    name: '洞穴蜘蛛',
+    hp: 12,
+    speed: 2,
+    height: 0.5,
+    radius: 0.22,
+    hitHeight: 0.28,
+    hitRadius: 0.38,
+    hostile: true,
+    webImmune: true,
+    scale: 0.65,
+    poison: 7,
+    color: '#385a69',
+    experience: 5,
+    drops: { string: 2 },
+  },
   bat: {
     name: '蝙蝠',
     hp: 6,
@@ -128,6 +144,7 @@ export const MOBS = {
     drops: { bone: 2, arrow: 3 },
   },
   spider: {
+    webImmune: true,
     name: '蜘蛛',
     hp: 14,
     speed: 2.0,

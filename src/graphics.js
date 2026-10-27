@@ -871,7 +871,7 @@ export class Graphics {
         this.textures,
         isDoor(world.get(q, y, r)) ||
           isTrapdoor(world.get(q, y, r)) ||
-          world.get(q, y, r) === 'stonecutter'
+          ['stonecutter', 'cobweb'].includes(world.get(q, y, r))
           ? this.doorMaterial
           : this.material,
       );
