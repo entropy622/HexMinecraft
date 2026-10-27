@@ -111,10 +111,10 @@ const symbols = {
 const cache = new Map();
 export function itemIcon(id) {
   if (!cache.has(id)) {
-    if (id === 'glowBerries') {
+    if (['glowBerries', 'netherQuartz', 'netherQuartzOre'].includes(id)) {
       cache.set(
         id,
-        `<span class="block-icon pixel-icon item-tile" title="发光浆果"><img src="${itemImage(id).toDataURL()}" alt="" draggable="false"></span>`,
+        `<span class="block-icon pixel-icon ${id === 'netherQuartzOre' ? 'block-tile' : 'item-tile'}" title="${ITEMS[id].name}"><img src="${itemImage(id).toDataURL()}" alt="" draggable="false"></span>`,
       );
       return cache.get(id);
     }

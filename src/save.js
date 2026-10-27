@@ -106,6 +106,12 @@ export function validateSave(s) {
             (e[1].upper !== undefined && typeof e[1].upper !== 'boolean') ||
             (e[1].double !== undefined && typeof e[1].double !== 'boolean') ||
             (e[1].powered !== undefined && typeof e[1].powered !== 'boolean') ||
+            (e[1].subtract !== undefined &&
+              typeof e[1].subtract !== 'boolean') ||
+            (e[1].output !== undefined &&
+              (!Number.isInteger(e[1].output) ||
+                e[1].output < 0 ||
+                e[1].output > 15)) ||
             (e[1].delay !== undefined &&
               (!Number.isInteger(e[1].delay) ||
                 e[1].delay < 1 ||
@@ -124,13 +130,16 @@ export function validateSave(s) {
         [...states].some(
           ([k, state]) =>
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
+            ((state.output !== undefined || state.subtract !== undefined) &&
+              edits.get(k) !== 'comparator') ||
+            (edits.get(k) === 'comparator' && state.powered !== undefined) ||
             (edits.get(k) === 'redstoneTorch' && state.mount === 'ceiling') ||
-            (edits.get(k) === 'repeater' &&
+            (['repeater', 'comparator'].includes(edits.get(k)) &&
               state.mount !== undefined &&
               state.mount !== 'floor'),
         )
       )
-        throw Error('中继器延迟状态无效');
+        throw Error('比较器或中继器状态无效');
       if (
         !Array.isArray(d.redstoneTimers) ||
         d.redstoneTimers.length > 200000 ||
@@ -147,6 +156,7 @@ export function validateSave(s) {
                 stoneButton: 1,
                 redstoneTorch: 0.1,
                 repeater: 0.4,
+                comparator: 0.1,
               }[edits.get(e[0])] || 0) ||
             (['stoneButton', 'stonePressurePlate'].includes(edits.get(e[0])) &&
               states.get(e[0])?.powered !== true),

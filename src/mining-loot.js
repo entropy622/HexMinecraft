@@ -2,6 +2,7 @@ import { BLOCKS } from './core.js';
 import { leafDrops } from './leaves.js';
 
 const ORES = {
+  netherQuartzOre: ['netherQuartz', 1, 1, [2, 5]],
   coalOre: ['coal', 1, 1, [0, 2]],
   diamondOre: ['diamond', 1, 1, [3, 7]],
   ironOre: ['rawIron', 1, 1],

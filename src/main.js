@@ -183,7 +183,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.63 — LIGHT BELOW THE SURFACE</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.64 — MEASURING THE SIGNAL</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -441,7 +441,7 @@ let world = new World(624),
   hunger = 20,
   time = 105;
 let crops = new Map(),
-  chests = new Map(),
+  chests = world.chests,
   creatures = fauna.active,
   hasGame = false,
   playing = false,
@@ -935,6 +935,7 @@ function startGame(mode = false, save = null) {
   };
   world = new World(seed, dimension, {
     edits: data.edits,
+    chests: data.chests,
     blockStates: data.blockStates,
     persistentLeaves: data.persistentLeaves,
     leafDecay: data.leafDecay,
@@ -1014,7 +1015,7 @@ function startGame(mode = false, save = null) {
   if (creative) glider.stop();
   else if (!wornElytra() || wearValue(wornElytra().wear) <= 1) glider.stop();
   crops = new Map(data.crops);
-  chests = new Map(data.chests);
+  chests = world.chests;
   respawnPoint = data.respawn || null;
   const pos = save?.position;
   if (pos) {
@@ -1077,7 +1078,6 @@ function captureDimension() {
     mountedBoat: boats.riding?.id ?? null,
     lastDeath,
     crops: [...crops],
-    chests: [...chests],
     respawn: respawnPoint,
     position: camera.position.toArray(),
   };
@@ -1186,6 +1186,7 @@ function travel(to) {
   crouching = data.crouching === true;
   world = new World(seed, to, {
     edits: data.edits,
+    chests: data.chests,
     blockStates: data.blockStates,
     persistentLeaves: data.persistentLeaves,
     leafDecay: data.leafDecay,
@@ -1205,7 +1206,7 @@ function travel(to) {
     load: false,
   });
   crops = new Map(data.crops);
-  chests = new Map(data.chests);
+  chests = world.chests;
   respawnPoint = data.respawn || null;
   const endArrival = axialToWorld(-5, 0);
   let destination =
@@ -1295,7 +1296,6 @@ function saveData() {
     hunger,
     time,
     crops: [...crops],
-    chests: [...chests],
     respawn: respawnPoint,
   };
 }
@@ -2816,7 +2816,7 @@ function stripLog() {
 function useCircuitControl() {
   if (
     target &&
-    ['lever', 'stoneButton', 'repeater'].includes(target.type) &&
+    ['lever', 'stoneButton', 'repeater', 'comparator'].includes(target.type) &&
     !keys.has('ShiftLeft') &&
     !keys.has('ShiftRight')
   ) {
@@ -3204,6 +3204,7 @@ function placeBuilding(type, p) {
     ...(mount ? { mount } : {}),
     ...(type === 'redstoneTorch' ? { powered: true } : {}),
     ...(type === 'repeater' ? { delay: 1, powered: false } : {}),
+    ...(type === 'comparator' ? { output: 0, subtract: false } : {}),
   });
   if (
     collides(camera.position.x, playerFeet(), camera.position.z) ||
@@ -6312,6 +6313,11 @@ function frame(now) {
     if (target?.type === 'redstoneWire')
       $('#target').textContent +=
         ` · 信号 ${world.redstone.power(target.q, target.y, target.r)} / 15`;
+    if (target?.type === 'comparator') {
+      const state = world.state(target.q, target.y, target.r);
+      $('#target').textContent +=
+        ` · ${state.subtract ? '减法' : '比较'} · 输出 ${state.output || 0} / 15 · 右键切换 · Shift 旁建`;
+    }
     if (target?.type === 'repeater') {
       const { q, y, r } = target,
         state = world.state(q, y, r);
@@ -6613,10 +6619,19 @@ function frame(now) {
     !document.hidden &&
     (playing ||
       (overlay === '#station-overlay' &&
-        ($('#furnace-progress') || $('#brew-progress'))))
+        (document.querySelector('#station-content [data-inv-slot^="box:"]') ||
+          $('#furnace-progress') ||
+          $('#brew-progress'))))
   ) {
     updateFurnaces(dt);
     updateBreweries(dt);
+    if (!playing) {
+      const changes = new Map(),
+        steps = Math.max(1, Math.ceil(dt / (1 / 60)));
+      for (let i = 0; i < steps; i++)
+        for (const p of updateRedstone(dt / steps)) changes.set(key(...p), p);
+      if (changes.size) graphics.updateCells([...changes.values()]);
+    }
     saveTimer += dt;
     if (saveTimer > 15) {
       saveTimer = 0;

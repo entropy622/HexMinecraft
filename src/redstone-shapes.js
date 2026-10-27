@@ -16,10 +16,12 @@ export function redstoneParts(world, q, y, r, collision) {
   });
   if (type === 'stonePressurePlate')
     return [hex(0.72, state.powered ? 0.025 : 0.065, 'stone')];
-  if (type === 'repeater') {
+  if (type === 'repeater' || type === 'comparator') {
     const direction = axialToWorld(...DIRECTIONS[state.facing || 0]),
       angle = Math.atan2(direction.x, direction.z),
-      tile = state.powered ? 'redstoneWireOn' : 'redstoneWire',
+      tile = (type === 'comparator' ? state.output > 0 : state.powered)
+        ? 'redstoneWireOn'
+        : 'redstoneWire',
       rear = -0.12 - ((state.delay || 1) - 1) * 0.12;
     const parts = [
       hex(0.82, 0.125, 'smoothStone'),
@@ -37,43 +39,50 @@ export function redstoneParts(world, q, y, r, collision) {
           [0, 0.18],
         ],
       },
-      {
-        x: 0,
-        y: 0.25,
-        z: 0.38,
-        w: 0.08,
-        h: 0.22,
-        d: 0.08,
-        angle: 0,
-        tile: 'planks',
-      },
-      { x: 0, y: 0.37, z: 0.38, w: 0.16, h: 0.1, d: 0.16, angle: 0, tile },
     ];
-    if (world.redstone?.locked(q, y, r))
-      parts.push({
-        x: 0,
-        y: 0.25,
-        z: rear,
-        w: 0.65,
-        h: 0.12,
-        d: 0.12,
-        angle: 0,
-        tile: 'basalt',
-      });
-    else
+    const post = (x, z, h, on) => {
       parts.push(
         {
-          x: 0,
-          y: 0.23,
-          z: rear,
+          x,
+          y: 0.125 + h / 2,
+          z,
           w: 0.08,
-          h: 0.18,
+          h,
           d: 0.08,
           angle: 0,
           tile: 'planks',
         },
-        { x: 0, y: 0.33, z: rear, w: 0.16, h: 0.1, d: 0.16, angle: 0, tile },
+        {
+          x,
+          y: 0.125 + h,
+          z,
+          w: 0.16,
+          h: 0.1,
+          d: 0.16,
+          angle: 0,
+          tile: on ? 'redstoneWireOn' : 'redstoneWire',
+        },
       );
+    };
+    if (type === 'comparator') {
+      post(-0.28, -0.32, 0.22, state.output > 0);
+      post(0.28, -0.32, 0.22, state.output > 0);
+      post(0, 0.38, state.subtract ? 0.25 : 0.15, !!state.subtract);
+    } else {
+      post(0, 0.38, 0.245, !!state.powered);
+      if (world.redstone?.locked(q, y, r))
+        parts.push({
+          x: 0,
+          y: 0.25,
+          z: rear,
+          w: 0.65,
+          h: 0.12,
+          d: 0.12,
+          angle: 0,
+          tile: 'basalt',
+        });
+      else post(0, rear, 0.205, !!state.powered);
+    }
     return parts.map((part) => ({
       ...part,
       x: part.x * Math.cos(angle) + part.z * Math.sin(angle),
@@ -94,9 +103,10 @@ export function redstoneParts(world, q, y, r, collision) {
       const neighbor = world.get(q + dq, y, r + dr);
       const facing = DIRECTIONS[world.state(q + dq, y, r + dr).facing || 0],
         diode =
-          neighbor === 'repeater' &&
-          ((facing[0] === dq && facing[1] === dr) ||
-            (facing[0] === -dq && facing[1] === -dr));
+          neighbor === 'comparator' ||
+          (neighbor === 'repeater' &&
+            ((facing[0] === dq && facing[1] === dr) ||
+              (facing[0] === -dq && facing[1] === -dr)));
       if (
         !next &&
         !diode &&

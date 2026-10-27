@@ -158,6 +158,7 @@ export class ItemDrops {
         'pressurePlate',
         'redstoneTorch',
         'repeater',
+        'comparator',
         'cobweb',
         'sporeBlossom',
         'pointedDripstone',

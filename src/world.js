@@ -106,6 +106,7 @@ export class World {
     this.persistentLeaves = new Set(options.persistentLeaves || []);
     this.leafDecay = new LeafDecay(this, options.leafDecay);
     this.blockStates = new Map(options.blockStates || []);
+    this.chests = new Map(options.chests || []);
     this.furnaces = new Map(options.furnaces || []);
     this.brewing = new Map(options.brewing || []);
     if (options.load !== false) this.ensureAround(0, 0);
@@ -235,6 +236,8 @@ export class World {
       ...(state.powered !== undefined ? { powered: state.powered } : {}),
       ...(state.mount !== undefined ? { mount: state.mount } : {}),
       ...(state.delay !== undefined ? { delay: state.delay } : {}),
+      ...(state.output !== undefined ? { output: state.output } : {}),
+      ...(state.subtract !== undefined ? { subtract: state.subtract } : {}),
     });
     this.shapeCache.clear();
   }
@@ -485,8 +488,10 @@ export class World {
             noise(q * 0.12, r * 0.12, this.seed + 121) > 0.65
           )
             t = 'soulSand';
-          if (this.dimension === 'nether' && y > 1 && ore > 0.97)
-            t = 'glowstone';
+          if (this.dimension === 'nether' && y > 1) {
+            if (ore > 0.97) t = 'glowstone';
+            else if (t === 'netherrack' && ore > 0.935) t = 'netherQuartzOre';
+          }
           put(q, y, r, t);
         }
         if (this.dimension === 'nether')
@@ -496,7 +501,16 @@ export class World {
             y <= 55;
             y++
           )
-            put(q, y, r, y === 55 ? 'bedrock' : 'netherrack');
+            put(
+              q,
+              y,
+              r,
+              y === 55
+                ? 'bedrock'
+                : hash(q, y, r, this.seed) > 0.96
+                  ? 'netherQuartzOre'
+                  : 'netherrack',
+            );
         if (
           this.dimension === 'end' &&
           hexDistance(q, r) > 22 &&
@@ -627,7 +641,7 @@ export class World {
     this.circuitCells.clear();
     this.hangingPlants.clear();
     this.dripstoneCells.clear();
-    this.redstone.levels.clear();
+    for (const map of Object.values(this.redstone.signals)) map.clear();
     this.portalCells.clear();
     this.gravity.pending.clear();
     this.naturalStates.clear();
@@ -660,6 +674,7 @@ export class World {
       torchBurnouts: [...this.redstone.burnouts],
       persistentLeaves: [...this.persistentLeaves],
       leafDecay: [...this.leafDecay.pending],
+      chests: [...this.chests],
       furnaces: [...this.furnaces],
       brewing: [...this.brewing],
       campfires: [...this.campfires],

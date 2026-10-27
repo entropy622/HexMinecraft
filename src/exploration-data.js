@@ -1,4 +1,12 @@
 export const EXPLORATION_BLOCKS = {
+  netherQuartzOre: {
+    name: '下界石英矿石',
+    color: '#774236',
+    side: '#754236',
+    hardness: 3,
+    tool: 1,
+    drop: 'netherQuartz',
+  },
   deepslate: {
     name: '深板岩',
     color: '#52545a',
@@ -70,6 +78,7 @@ export const EXPLORATION_BLOCKS = {
   },
 };
 export const EXPLORATION_ITEMS = {
+  netherQuartz: { name: '下界石英', color: '#e9e0cb' },
   goldIngot: { name: '金锭', color: '#edc456' },
   copperIngot: { name: '铜锭', color: '#c88c60' },
   goldenApple: { name: '金苹果', color: '#f2ca57', use: true },
@@ -166,6 +175,7 @@ export const EXPLORATION_RECIPES = [
   ),
 ];
 export const SMELTING = {
+  netherQuartz: { input: 'netherQuartzOre', seconds: 10, xp: 0.2 },
   smoothStone: { input: 'stone', seconds: 10, xp: 0.1 },
   poppedChorusFruit: { input: 'chorusFruit', seconds: 10 },
   cookedCod: { input: 'rawCod', seconds: 10 },

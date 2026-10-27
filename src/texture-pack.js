@@ -312,9 +312,53 @@ export const plantImage = (kind, stage) => {
   const names = plantTextures[kind];
   return names && images.get(names[Math.min(stage, names.length - 1)]);
 };
-const potionImages = new Map();
+const generatedItems = new Map();
 let berriesImage;
 export const itemImage = (id) => {
+  if (id === 'netherQuartz' || id === 'netherQuartzOre') {
+    if (!generatedItems.has(id)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 16;
+      const c = canvas.getContext('2d');
+      if (id === 'netherQuartzOre') paintPackTile(c, id, false);
+      else {
+        // Original 16px shard; the same bitmap feeds UI, held and dropped items.
+        const pixels = [
+          '          s     ',
+          '         sls    ',
+          '        slws    ',
+          '       slwws    ',
+          '      slwwws    ',
+          '     slwwwws    ',
+          '    slwwwwws    ',
+          '   slwwwwwws    ',
+          '  slwwwwwwms    ',
+          '  slwwwwwmms    ',
+          '   slwwwmmms    ',
+          '    slwmmmss    ',
+          '     smmmss     ',
+          '      smss      ',
+          '       ss       ',
+        ];
+        const palette = {
+          s: '#8d8273',
+          m: '#c6bca8',
+          l: '#fff9e6',
+          w: '#e9e0cb',
+        };
+        pixels.forEach((row, y) =>
+          [...row].forEach((v, x) => {
+            if (palette[v]) {
+              c.fillStyle = palette[v];
+              c.fillRect(x, y, 1, 1);
+            }
+          }),
+        );
+      }
+      generatedItems.set(id, canvas);
+    }
+    return generatedItems.get(id);
+  }
   if (id === 'glowBerries') {
     if (!berriesImage) {
       berriesImage = document.createElement('canvas');
@@ -336,7 +380,7 @@ export const itemImage = (id) => {
     return berriesImage;
   }
   if (!POTIONS[id]) return images.get(itemTextures[id]);
-  if (!potionImages.has(id)) {
+  if (!generatedItems.has(id)) {
     const overlay = images.get('mcl_potions_potion_overlay'),
       bottle = images.get('mcl_potions_potion_bottle');
     if (!overlay || !bottle) return bottle;
@@ -350,9 +394,9 @@ export const itemImage = (id) => {
     c.fillRect(0, 0, 16, 16);
     c.globalCompositeOperation = 'source-over';
     c.drawImage(bottle, 0, 0, 16, 16);
-    potionImages.set(id, canvas);
+    generatedItems.set(id, canvas);
   }
-  return potionImages.get(id);
+  return generatedItems.get(id);
 };
 export const bowImage = (stage) =>
   images.get(stage < 0 ? 'mcl_bows_bow' : 'mcl_bows_bow_' + stage);
@@ -392,6 +436,26 @@ export async function loadTexturePack() {
   );
 }
 export function paintPackTile(ctx, id, top) {
+  if (id === 'netherQuartzOre') {
+    ctx.fillStyle = '#754236';
+    ctx.fillRect(0, 0, 16, 16);
+    paintPackTile(ctx, 'netherrack', top);
+    // Independently drawn veins over the project's existing netherrack tile.
+    for (const [x, y] of [
+      [2, 2],
+      [5, 7],
+      [10, 3],
+      [12, 11],
+    ]) {
+      ctx.fillStyle = '#a68e7b';
+      ctx.fillRect(x - 1, y, 3, 4);
+      ctx.fillStyle = '#e1d7bd';
+      ctx.fillRect(x, y, 2, 3);
+      ctx.fillStyle = '#fff3d8';
+      ctx.fillRect(x, y, 1, 2);
+    }
+    return;
+  }
   const names = blockTextures[id];
   const image =
     names && images.get(names[top ? 0 : Math.min(1, names.length - 1)]);

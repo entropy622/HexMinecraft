@@ -1,6 +1,13 @@
 import { isOpenable, isDoorTop } from './building-data.js';
 
 export const CIRCUIT_BLOCKS = {
+  comparator: {
+    name: '红石比较器',
+    color: '#c5b8ab',
+    hardness: 0,
+    shape: 'comparator',
+    nonSolid: true,
+  },
   redstoneWire: {
     name: '红石线',
     color: '#8b211c',
@@ -84,6 +91,19 @@ export const CIRCUIT_RECIPES = [
     '装在地面或墙面；支撑块通电后熄灭，提供反相信号。',
   ],
   [
+    'comparator',
+    [
+      'redstoneTorch',
+      'redstoneTorch',
+      'redstoneTorch',
+      'netherQuartz',
+      'stone',
+      'stone',
+      'stone',
+    ],
+    '读取后方信号或容器，比较 / 减去侧面输入；右键切换模式。',
+  ],
+  [
     'repeater',
     ['redstoneTorch', 'redstoneTorch', 'redstone', 'stone', 'stone', 'stone'],
     '只从后方输入、前方输出；右键调整 1–4 红石刻延迟，侧面中继器可锁定。',
@@ -93,35 +113,37 @@ export const CIRCUIT_RECIPES = [
   count: 1,
   title: CIRCUIT_BLOCKS[id].name,
   desc,
-  station: ['redstoneLamp', 'repeater'].includes(id),
+  station: ['redstoneLamp', 'repeater', 'comparator'].includes(id),
   pattern:
-    id === 'repeater'
-      ? [
-          'redstoneTorch',
-          'redstone',
-          'redstoneTorch',
-          'stone',
-          'stone',
-          'stone',
-          null,
-        ]
-      : id === 'redstoneLamp'
+    id === 'comparator'
+      ? ingredients
+      : id === 'repeater'
         ? [
+            'redstoneTorch',
             'redstone',
+            'redstoneTorch',
+            'stone',
+            'stone',
+            'stone',
             null,
-            'redstone',
-            'glowstone',
-            'redstone',
-            null,
-            'redstone',
           ]
-        : [
-            null,
-            null,
-            null,
-            ...ingredients,
-            ...Array(4 - ingredients.length).fill(null),
-          ],
+        : id === 'redstoneLamp'
+          ? [
+              'redstone',
+              null,
+              'redstone',
+              'glowstone',
+              'redstone',
+              null,
+              'redstone',
+            ]
+          : [
+              null,
+              null,
+              null,
+              ...ingredients,
+              ...Array(4 - ingredients.length).fill(null),
+            ],
   cost: ingredients.reduce(
     (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
     {},

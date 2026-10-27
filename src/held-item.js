@@ -34,6 +34,7 @@ export function createHeldItem(id, textures) {
       'pressurePlate',
       'redstoneTorch',
       'repeater',
+      'comparator',
       'cobweb',
       'sporeBlossom',
       'pointedDripstone',

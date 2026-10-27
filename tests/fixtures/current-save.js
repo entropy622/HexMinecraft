@@ -21,7 +21,6 @@ export function currentSave(
         crouching: false,
         crawling: false,
         crops: [],
-        chests: [],
         drops: [],
         experienceOrbs: [],
         lastDeath: null,
