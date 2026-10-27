@@ -91,7 +91,8 @@ export function cutBlockIcon(id) {
   const pattern = (name, tile) => {
     const tiles = blockTextures[tile];
     if (!tiles) {
-      const surface = BLOCKS[tile] || def;
+      const surface =
+        tile === 'pistonRod' ? { color: '#ad9464' } : BLOCKS[tile] || def;
       const mouth =
         tile === 'dropperMouth'
           ? '<rect x="2" y="4" width="12" height="9" fill="#41494d"/><rect x="3" y="5" width="10" height="7" fill="#161e23"/>'

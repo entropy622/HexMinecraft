@@ -27,7 +27,7 @@ import { buildingParts, insidePart } from './building-shapes.js';
 import { partSpan } from './shape-columns.js';
 import { Redstone } from './redstone.js';
 import { Hoppers } from './hoppers.js';
-import { isCircuit } from './redstone-data.js';
+import { isCircuit, pistonPartner } from './redstone-data.js';
 import { isHangingPlant } from './cave-data.js';
 
 export const CHUNK_SIZE = 8;
@@ -307,7 +307,7 @@ export class World {
     }
     return highest;
   }
-  columnSolid(x, z, low, high) {
+  columnSolid(x, z, low, high, ignored = null) {
     const cell = worldToAxial(x, z);
     for (
       let y = Math.max(0, Math.floor(low) - 1);
@@ -317,6 +317,7 @@ export class World {
       const type = this.get(cell.q, y, cell.r);
       if (
         type &&
+        !ignored?.has(key(cell.q, y, cell.r)) &&
         !BLOCKS[type].shape &&
         !BLOCKS[type].nonSolid &&
         y + 1 > low &&
@@ -327,6 +328,7 @@ export class World {
         const q = cell.q + dq,
           r = cell.r + dr,
           shaped = this.get(q, y, r);
+        if (ignored?.has(key(q, y, r))) continue;
         if (!BLOCKS[shaped]?.shape || shaped === 'ladder') continue;
         const k = key(q, y, r),
           p = axialToWorld(q, r);
@@ -344,6 +346,10 @@ export class World {
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);
     const previous = this.get(q, y, r);
+    const partner =
+      record && previous !== type
+        ? pistonPartner(this, q, y, r, DIRECTIONS)
+        : null;
     if (previous !== type) this.lightRevision++;
     if (
       previous !== type &&
@@ -401,6 +407,8 @@ export class World {
       if (!this.editChunks.has(ck)) this.editChunks.set(ck, new Map());
       this.editChunks.get(ck).set(k, type || null);
     }
+    // Current cell is already gone, so deleting its partner cannot recurse back.
+    if (partner) this.set(...partner, null);
   }
   indexTreeCell(k, type) {
     this.treeLeaves.delete(k);

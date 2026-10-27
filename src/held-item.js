@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BLOCKS, ITEMS } from './core.js';
 import { itemImage } from './texture-pack.js';
 import { portableBoxMesh } from './portable-box-graphics.js';
-import { buildingItemMesh } from './building-graphics.js';
+import { buildingItemMesh, usesBuildingItemMesh } from './building-graphics.js';
 
 // Both hands share the same item geometry and source textures. Maps owned by a
 // sprite are disposed with it; texture-pack maps remain shared by the world.
@@ -16,33 +16,7 @@ export function createHeldItem(id, textures) {
     group.add(mesh);
     return group;
   }
-  if (
-    [
-      'slab',
-      'stairs',
-      'egg',
-      'rod',
-      'chorus',
-      'chorusFlower',
-      'fence',
-      'gate',
-      'trapdoor',
-      'campfire',
-      'stonecutter',
-      'lever',
-      'button',
-      'pressurePlate',
-      'redstoneTorch',
-      'repeater',
-      'comparator',
-      'hopper',
-      'dropper',
-      'cauldron',
-      'cobweb',
-      'sporeBlossom',
-      'pointedDripstone',
-    ].includes(BLOCKS[id]?.shape)
-  ) {
+  if (usesBuildingItemMesh(id)) {
     const mesh = buildingItemMesh(id, textures);
     mesh.scale.setScalar(0.28);
     mesh.position.set(0, 0.17, -0.36);

@@ -16,7 +16,8 @@ import { validWorkstationItems } from './workstation-items.js';
 import { validDragonFight } from './end-data.js';
 import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
-import { BLOCKS } from './core.js';
+import { BLOCKS, DIRECTIONS } from './core.js';
+import { isPiston, isPistonHead, pistonPartner } from './redstone-data.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
 export const SAVE_KEY = 'hexwild-save-v16';
 const cell = (k) => {
@@ -130,7 +131,10 @@ export function validateSave(s) {
       if (
         [...states].some(
           ([k, state]) =>
-            (state.facing > 5 && BLOCKS[edits.get(k)]?.shape !== 'dropper') ||
+            (state.facing > 5 &&
+              !['dropper', 'piston', 'pistonHead'].includes(
+                BLOCKS[edits.get(k)]?.shape,
+              )) ||
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
             (state.down !== undefined && edits.get(k) !== 'hopper') ||
             ((state.output !== undefined || state.subtract !== undefined) &&
@@ -143,6 +147,19 @@ export function validateSave(s) {
         )
       )
         throw Error('比较器或中继器状态无效');
+      const view = {
+        get: (...p) => edits.get(p.join(',')),
+        state: (...p) => states.get(p.join(',')) || {},
+      };
+      for (const [k, type] of edits) {
+        if (!isPistonHead(type) && !(isPiston(type) && states.get(k)?.open))
+          continue;
+        if (
+          (isPistonHead(type) && states.get(k)?.open !== false) ||
+          !pistonPartner(view, ...k.split(',').map(Number), DIRECTIONS)
+        )
+          throw Error('活塞头与底座不匹配');
+      }
       if (
         d.hopperCooldowns !== undefined &&
         (!Array.isArray(d.hopperCooldowns) ||
@@ -180,6 +197,8 @@ export function validateSave(s) {
                 comparator: 0.1,
                 dropper: 0.2,
                 dispenser: 0.2,
+                piston: 0.1,
+                stickyPiston: 0.1,
               }[edits.get(e[0])] || 0) ||
             (['stoneButton', 'stonePressurePlate'].includes(edits.get(e[0])) &&
               states.get(e[0])?.powered !== true),

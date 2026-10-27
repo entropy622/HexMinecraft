@@ -16,6 +16,8 @@ export function createTextures() {
     id + ':side',
   ]);
   names.push(
+    'pistonRod:top',
+    'pistonRod:side',
     'dropperMouth:top',
     'dropperMouth:side',
     'dispenserMouth:top',
@@ -332,6 +334,49 @@ export function createTextures() {
               Math.round(ay + ((by - ay) * j) / steps),
             );
         }
+    }
+    if (
+      [
+        'piston',
+        'stickyPiston',
+        'pistonHead',
+        'stickyPistonHead',
+        'pistonRod',
+      ].includes(id)
+    ) {
+      const face = id.endsWith('Head'),
+        sticky = id.startsWith('sticky');
+      for (let y = 0; y < 16; y++)
+        for (let x = 0; x < 16; x++)
+          fill(
+            id === 'pistonRod'
+              ? x % 4 < 2
+                ? '#b49a6a'
+                : '#8c754d'
+              : face
+                ? rand(x, y, 77) > 0.5
+                  ? '#b99760'
+                  : '#c9aa74'
+                : rand(x, y, 78) > 0.5
+                  ? '#94998e'
+                  : '#727a72',
+            x,
+            y,
+          );
+      if (id !== 'pistonRod') {
+        fill('#4b514c', 0, 0, 16, 2);
+        fill('#4b514c', 0, 14, 16, 2);
+        fill('#c5bfa5', 0, 2, 2, 12);
+        fill('#c5bfa5', 14, 2, 2, 12);
+        if (face && sticky)
+          for (let y = 3; y < 13; y++)
+            for (let x = 3; x < 13; x++)
+              fill(rand(x, y, 79) > 0.45 ? '#8aab5c' : '#6e944c', x, y);
+        if (!face) {
+          fill('#b09361', 3, 2, 10, 3);
+          fill('#525a52', 4, 7, 8, 5);
+        }
+      }
     }
     if (
       ['dropper', 'dropperMouth', 'dispenser', 'dispenserMouth'].includes(id)

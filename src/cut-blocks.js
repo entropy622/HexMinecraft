@@ -9,9 +9,9 @@ const forward = (facing) => {
   const length = Math.hypot(p.x, p.z);
   return [p.x / length, p.z / length];
 };
-export function clipHalf(polygon, normal, sign = 1) {
+export function clipHalf(polygon, normal, sign = 1, offset = 0) {
   const clipped = [],
-    value = ([x, z]) => (x * normal[0] + z * normal[1]) * sign;
+    value = ([x, z]) => (x * normal[0] + z * normal[1]) * sign - offset;
   for (let i = 0; i < polygon.length; i++) {
     const a = polygon[i],
       b = polygon[(i + 1) % polygon.length],

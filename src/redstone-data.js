@@ -1,6 +1,34 @@
 import { isOpenable, isDoorTop } from './building-data.js';
 
 export const CIRCUIT_BLOCKS = {
+  piston: {
+    name: '活塞',
+    color: '#9f957e',
+    hardness: 1.5,
+    tool: 1,
+    shape: 'piston',
+  },
+  stickyPiston: {
+    name: '黏性活塞',
+    color: '#91ab63',
+    hardness: 1.5,
+    tool: 1,
+    shape: 'piston',
+  },
+  pistonHead: {
+    name: '活塞头',
+    color: '#bc9d68',
+    hardness: 0.5,
+    shape: 'pistonHead',
+    internal: true,
+  },
+  stickyPistonHead: {
+    name: '黏性活塞头',
+    color: '#91ab63',
+    hardness: 0.5,
+    shape: 'pistonHead',
+    internal: true,
+  },
   dispenser: {
     name: '发射器',
     color: '#929496',
@@ -89,10 +117,50 @@ export const isCircuit = (type) =>
   !!CIRCUIT_BLOCKS[type] || (isOpenable(type) && !isDoorTop(type));
 export const isCircuitInput = (type) =>
   ['lever', 'stoneButton', 'stonePressurePlate'].includes(type);
+export const isPiston = (type) => type === 'piston' || type === 'stickyPiston';
+export const isPistonHead = (type) =>
+  type === 'pistonHead' || type === 'stickyPistonHead';
+export const pistonHead = (type) =>
+  type === 'stickyPiston' ? 'stickyPistonHead' : 'pistonHead';
+export function pistonPartner(world, q, y, r, directions) {
+  const type = world.get(q, y, r);
+  if (!isPiston(type) && !isPistonHead(type)) return null;
+  const state = world.state(q, y, r);
+  if (isPiston(type) && !state.open) return null;
+  const facing = state.facing || 0,
+    [dq, dy, dr] =
+      facing >= 6
+        ? [0, facing === 6 ? -1 : 1, 0]
+        : [directions[facing][0], 0, directions[facing][1]],
+    sign = isPiston(type) ? 1 : -1,
+    p = [q + sign * dq, y + sign * dy, r + sign * dr],
+    other = world.get(...p) || world.edits?.get(p.join(',')),
+    otherState = world.state(...p);
+  return (isPiston(type)
+    ? other === pistonHead(type)
+    : isPiston(other) && otherState.open && type === pistonHead(other)) &&
+    otherState.facing === facing
+    ? p
+    : null;
+}
 export const circuitItem = (type) =>
-  type === 'redstoneWire' ? 'redstone' : type;
+  type === 'redstoneWire'
+    ? 'redstone'
+    : isPistonHead(type)
+      ? type.slice(0, -4)
+      : type;
 // The hex crafting grid uses logs for the wooden handle, like existing ladders.
 export const CIRCUIT_RECIPES = [
+  [
+    'piston',
+    ['planks', 'planks', 'cobble', 'cobble', 'ingot', 'redstone', 'cobble'],
+    '三块木板、四块圆石、一块铁锭和一份红石。朝向玩家，仰俯可朝上下；通电推动最多十二格，断电收回活塞头。',
+  ],
+  [
+    'stickyPiston',
+    ['slimeBall', 'piston'],
+    '黏液球与普通活塞制成；断电时回拉头前一个可移动方块。',
+  ],
   [
     'dispenser',
     ['cobble', 'cobble', 'cobble', 'cobble', 'cobble', 'bow', 'redstone'],
@@ -159,15 +227,20 @@ export const CIRCUIT_RECIPES = [
     'hopper',
     'dropper',
     'dispenser',
+    'piston',
   ].includes(id),
-  ...(['dropper', 'dispenser'].includes(id)
+  ...(['dropper', 'dispenser', 'piston'].includes(id)
     ? {
         patternCounts:
-          id === 'dispenser' ? [2, 2, 1, 1, 1, 1, 1] : [2, 1, 1, 1, 1, 1, 1],
+          id === 'piston'
+            ? [2, 1, 1, 1, 1, 1, 2]
+            : id === 'dispenser'
+              ? [2, 2, 1, 1, 1, 1, 1]
+              : [2, 1, 1, 1, 1, 1, 1],
         cobbleGroup: true,
       }
     : {}),
-  pattern: ['dropper', 'dispenser'].includes(id)
+  pattern: ['dropper', 'dispenser', 'piston'].includes(id)
     ? ingredients
     : id === 'hopper'
       ? ['ingot', null, 'ingot', 'ingot', 'chest', 'ingot', 'ingot']
@@ -201,14 +274,16 @@ export const CIRCUIT_RECIPES = [
                 ...Array(4 - ingredients.length).fill(null),
               ],
   cost:
-    id === 'dispenser'
-      ? { cobble: 7, redstone: 1, bow: 1 }
-      : id === 'dropper'
-        ? { cobble: 7, redstone: 1 }
-        : ingredients.reduce(
-            (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
-            {},
-          ),
+    id === 'piston'
+      ? { planks: 3, cobble: 4, ingot: 1, redstone: 1 }
+      : id === 'dispenser'
+        ? { cobble: 7, redstone: 1, bow: 1 }
+        : id === 'dropper'
+          ? { cobble: 7, redstone: 1 }
+          : ingredients.reduce(
+              (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
+              {},
+            ),
 }));
 
 export function attachmentCell(q, y, r, state, directions) {

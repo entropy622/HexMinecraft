@@ -116,6 +116,8 @@ export function redstoneParts(world, q, y, r, collision) {
           'stonePressurePlate',
           'redstoneLamp',
           'redstoneTorch',
+          'piston',
+          'stickyPiston',
         ].includes(neighbor) &&
         !['door', 'gate', 'trapdoor'].includes(BLOCKS[neighbor]?.shape)
       )

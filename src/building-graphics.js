@@ -3,6 +3,35 @@ import { BLOCKS, axialToWorld } from './core.js';
 import { buildingParts } from './building-shapes.js';
 import { cutItemWorld } from './cut-blocks.js';
 
+// Held blocks and loose items must select the same real partial-block model.
+export const usesBuildingItemMesh = (type) =>
+  [
+    'slab',
+    'stairs',
+    'egg',
+    'rod',
+    'chorus',
+    'chorusFlower',
+    'fence',
+    'gate',
+    'trapdoor',
+    'campfire',
+    'stonecutter',
+    'lever',
+    'button',
+    'pressurePlate',
+    'redstoneTorch',
+    'repeater',
+    'comparator',
+    'hopper',
+    'dropper',
+    'cauldron',
+    'cobweb',
+    'sporeBlossom',
+    'pointedDripstone',
+    'piston',
+  ].includes(BLOCKS[type]?.shape);
+
 function polygonPrism(part) {
   const positions = [],
     uv = [],

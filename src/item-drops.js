@@ -4,7 +4,7 @@ import { itemImage } from './texture-pack.js';
 import { validWear } from './equipment.js';
 import { fluidHeight } from './fluids.js';
 import { enchantmentsOf } from './enchanting-data.js';
-import { buildingItemMesh } from './building-graphics.js';
+import { buildingItemMesh, usesBuildingItemMesh } from './building-graphics.js';
 import { validStack } from './inventory.js';
 import { portableBoxMesh } from './portable-box-graphics.js';
 import { isDoor } from './building-data.js';
@@ -195,34 +195,7 @@ export class ItemDrops {
       mesh.position.y = -0.11;
       this.templates.set(id, mesh);
     }
-    if (
-      !this.templates.has(id) &&
-      [
-        'slab',
-        'stairs',
-        'egg',
-        'rod',
-        'chorus',
-        'chorusFlower',
-        'fence',
-        'gate',
-        'trapdoor',
-        'campfire',
-        'stonecutter',
-        'lever',
-        'button',
-        'pressurePlate',
-        'redstoneTorch',
-        'repeater',
-        'comparator',
-        'hopper',
-        'dropper',
-        'cauldron',
-        'cobweb',
-        'sporeBlossom',
-        'pointedDripstone',
-      ].includes(BLOCKS[id]?.shape)
-    ) {
+    if (!this.templates.has(id) && usesBuildingItemMesh(id)) {
       const mesh = buildingItemMesh(id, this.textures);
       mesh.scale.setScalar(0.22);
       this.templates.set(id, mesh);

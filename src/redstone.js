@@ -1,6 +1,8 @@
 import { BLOCKS, DIRECTIONS, axialToWorld, key } from './core.js';
 import { isOpenable, doorUpper } from './building-data.js';
-import { isCircuitInput, attachmentCell } from './redstone-data.js';
+import { isCircuitInput, attachmentCell, isPiston } from './redstone-data.js';
+import { actuatePiston } from './pistons.js';
+import { dropperOffset } from './droppers.js';
 import { stackSize } from './inventory.js';
 import { blockSlots } from './block-inventory.js';
 import { storageLidClear } from './chests.js';
@@ -40,6 +42,7 @@ export class Redstone {
       type !== 'glass' &&
       (!block.shape ||
         block.shape === 'dropper' ||
+        (block.shape === 'piston' && !this.world.state(q, y, r).open) ||
         (block.shape === 'slab' && this.world.state(q, y, r).double))
     );
   }
@@ -163,6 +166,13 @@ export class Redstone {
     });
     return state.subtract ? Math.max(0, back - side) : back >= side ? back : 0;
   }
+  pistonPowered(q, y, r, signals) {
+    const d = dropperOffset(this.world.state(q, y, r).facing),
+      front = key(q + d[0], y + d[1], r + d[2]);
+    return neighbors(q, y, r).some(
+      (p) => key(...p) !== front && this.levelAt(p, [q, y, r], signals) > 0,
+    );
+  }
   solve() {
     const w = this.world,
       strong = new Map(),
@@ -231,7 +241,10 @@ export class Redstone {
       changed = new Map(),
       occupied = new Set(),
       due = [],
-      comparators = [];
+      comparators = [],
+      broken = [],
+      motions = [];
+    const result = () => ({ changed: [...changed.values()], broken, motions });
     let cooled = false;
     const change = (q, y, r, powered) => {
       const state = w.state(q, y, r),
@@ -284,7 +297,10 @@ export class Redstone {
       else {
         this.timers.delete(k);
         if (BLOCKS[type]?.shape === 'dropper') dispense(q, y, r);
-        else if (['repeater', 'redstoneTorch', 'comparator'].includes(type))
+        else if (
+          isPiston(type) ||
+          ['repeater', 'redstoneTorch', 'comparator'].includes(type)
+        )
           due.push(k);
         else change(q, y, r, false);
       }
@@ -308,7 +324,7 @@ export class Redstone {
       // Inventory slots can change without topology/light revisions. Reuse the
       // current network and sample actual containers; no UI invalidation API.
       scheduleComparators(this.signals);
-      return [...changed.values()];
+      return result();
     }
     let signals = this.solve();
     // All due transitions observe the same pre-transition network. In
@@ -317,6 +333,7 @@ export class Redstone {
       const p = coords(k),
         type = w.get(...p),
         state = w.state(...p);
+      if (isPiston(type)) return null;
       if (type === 'comparator')
         return [p, this.comparatorLevel(...p, signals)];
       if (type === 'repeater') {
@@ -354,6 +371,12 @@ export class Redstone {
     if (transitions.some(Boolean)) signals = this.solve();
     const { direct, strong, weak, levels } = signals;
     scheduleComparators(signals);
+    const pistonDue = due
+      .filter((k) => isPiston(w.get(...coords(k))))
+      .map((k) => {
+        const p = coords(k);
+        return [p, this.pistonPowered(...p, signals)];
+      });
     for (const k of w.circuitCells) {
       const p = coords(k),
         type = w.get(...p),
@@ -401,11 +424,20 @@ export class Redstone {
         type !== 'hopper' &&
         type !== 'dropper' &&
         type !== 'dispenser' &&
+        !isPiston(type) &&
         !isOpenable(type)
       )
         continue;
-      const on =
-        powered(p) || (!!doorUpper(type) && powered([p[0], p[1] + 1, p[2]]));
+      const on = isPiston(type)
+        ? this.pistonPowered(...p, signals)
+        : powered(p) || (!!doorUpper(type) && powered([p[0], p[1] + 1, p[2]]));
+      if (
+        isPiston(type) &&
+        !!w.state(...p).open !== on &&
+        !this.timers.has(k) &&
+        !due.includes(k)
+      )
+        this.timers.set(k, 0.1);
       if (!!w.state(...p).powered === on) continue;
       if (isOpenable(type)) {
         // Opening a trapdoor may remove supported wires. Revisit the network
@@ -417,7 +449,16 @@ export class Redstone {
       if (BLOCKS[type]?.shape === 'dropper' && on && !this.timers.has(k))
         this.timers.set(k, 0.2);
     }
+    for (const [p, on] of pistonDue) {
+      const movement = actuatePiston(w, ...p, on);
+      if (!movement) continue;
+      for (const cell of movement.changed) changed.set(key(...cell), cell);
+      broken.push(...movement.broken);
+      motions.push(movement.motion);
+      // Moving a conductor or support changes the next physics step's network.
+      this.retry = true;
+    }
     this.revision = w.lightRevision;
-    return [...changed.values()];
+    return result();
   }
 }

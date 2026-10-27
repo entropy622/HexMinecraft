@@ -11,6 +11,7 @@ import { cobwebParts } from './cobwebs.js';
 import { dropperOffset } from './droppers.js';
 import { hopperParts } from './hopper-shape.js';
 import { cauldronParts } from './cauldron-shape.js';
+import { pistonParts } from './piston-shape.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -36,6 +37,8 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (shape === 'piston' || shape === 'pistonHead')
+    return pistonParts(type, state, collision);
   if (type === 'pointedDripstone') return dripstoneParts(world, q, y, r);
   if (type === 'cobweb') return cobwebParts(collision);
   if (type === 'hopper') return hopperParts(state, angle);

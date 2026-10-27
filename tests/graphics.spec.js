@@ -71,6 +71,20 @@ test('the app entry and preset controls render through the real UI', async ({
   await page.goto('/');
   await page.locator('#creative').click();
   await expect(page.locator('#hotbar .slot')).toHaveCount(9);
+  await page.keyboard.press('KeyE');
+  await page.locator('#creative-search').fill('活塞');
+  await expect(
+    page.locator(
+      '[data-creative-item="pistonHead"], [data-creative-item="stickyPistonHead"]',
+    ),
+  ).toHaveCount(0);
+  await page.locator('[data-creative-item="piston"]').click();
+  await page.locator('[data-inv-slot="pack:0"]').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#hotbar .slot.active')).toHaveAttribute(
+    'aria-label',
+    /活塞/,
+  );
   for (const quality of ['1.7', '1', '1.7']) {
     await page.keyboard.press('Escape');
     await page.locator('#quality').selectOption(quality);
@@ -92,6 +106,10 @@ test('the app entry and preset controls render through the real UI', async ({
   const runtime = await page.evaluate(() => ({
     developmentFixture: typeof window.__hexwild !== 'undefined',
     origin: location.origin,
+    pistonSelected: document
+      .querySelector('#hotbar .slot.active')
+      ?.getAttribute('aria-label')
+      ?.includes('活塞'),
   }));
   await page.keyboard.press('F1');
   await page.screenshot({ path: info.outputPath('compiled-world.png') });

@@ -39,7 +39,11 @@ import {
   isCircuitInput,
   circuitItem,
   attachmentCell,
+  isPiston,
+  isPistonHead,
+  pistonPartner,
 } from './redstone-data.js';
+import { pushPistonActors } from './pistons.js';
 import { canStonecut, stonecuttingResult } from './stonecutting.js';
 import { stonecutterPanel } from './stonecutter-ui.js';
 import { newChest, isStorage, storageLidClear } from './chests.js';
@@ -194,7 +198,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.78 — LIGHT THROUGH THE LEAVES</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.79 — PUSH THE WORLD</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -3066,7 +3070,9 @@ function fullSupport(q, y, r, top = false) {
   return (
     !!type &&
     !BLOCKS[type].nonSolid &&
-    (!BLOCKS[type].shape || BLOCKS[type]?.shape === 'dropper')
+    (!BLOCKS[type].shape ||
+      BLOCKS[type]?.shape === 'dropper' ||
+      (isPiston(type) && !world.state(q, y, r).open))
   );
 }
 function mergeSlab(q, y, r, type) {
@@ -3147,7 +3153,7 @@ function placeBuilding(type, p) {
     return;
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
-  if (BLOCKS[type]?.shape === 'dropper') {
+  if (BLOCKS[type]?.shape === 'dropper' || isPiston(type)) {
     const direction = camera.getWorldDirection(new THREE.Vector3());
     facing = facingFromDirection(-direction.x, -direction.z);
     const p = axialToWorld(...DIRECTIONS[facing]),
@@ -3157,7 +3163,8 @@ function placeBuilding(type, p) {
   let mount;
   if (
     CIRCUIT_BLOCKS[type]?.shape &&
-    !['hopper', 'dropper', 'dispenser'].includes(type)
+    !['hopper', 'dropper', 'dispenser'].includes(type) &&
+    !isPiston(type)
   ) {
     const control = ['lever', 'stoneButton', 'redstoneTorch'].includes(type);
     if (type === 'redstoneTorch' && target.normal?.y < -0.5) {
@@ -3275,6 +3282,15 @@ function placeBuilding(type, p) {
   updateHUD();
 }
 function removeBuilding(q, y, r, drop = true) {
+  if (isPistonHead(world.get(q, y, r))) {
+    const base = pistonPartner(world, q, y, r, DIRECTIONS);
+    if (base) [q, y, r] = base;
+    else {
+      world.set(q, y, r, null);
+      graphics.updateBlock(q, y, r);
+      return;
+    }
+  }
   const original = world.get(q, y, r);
   if (isHangingPlant(original)) {
     graphics.blockBreak({ q, y, r, type: original });
@@ -3359,7 +3375,9 @@ function maintainBuildings() {
       if (!fullSupport(q + dq, y, r + dr)) removeBuilding(q, y, r);
     } else if (
       CIRCUIT_BLOCKS[type]?.shape &&
-      !['hopper', 'dropper', 'dispenser'].includes(type)
+      !['hopper', 'dropper', 'dispenser'].includes(type) &&
+      !isPiston(type) &&
+      !isPistonHead(type)
     ) {
       const state = world.state(q, y, r),
         support = attachmentCell(q, y, r, state, DIRECTIONS);
@@ -3586,15 +3604,18 @@ function updateRedstone(dt) {
       y: playerFeet(),
       z: camera.position.z,
       radius: 0.24,
+      height: playerHeight(),
     },
     ...[...creatures, ...villagers.residents.values()].map((mob) => ({
       x: mob.mesh.position.x,
       y: mob.mesh.position.y,
       z: mob.mesh.position.z,
       radius: mob.baby ? 0.16 : 0.3,
+      height: (MOBS[mob.kind]?.height || 1.9) * (mob.baby ? 0.55 : 1),
+      mob,
     })),
   ];
-  const changed = world.redstone.tick(dt, actors, toggleBuilding, (q, y, r) => {
+  const result = world.redstone.tick(dt, actors, toggleBuilding, (q, y, r) => {
     const fired =
         world.get(q, y, r) === 'dispenser'
           ? fireDispenser(q, y, r)
@@ -3609,8 +3630,55 @@ function updateRedstone(dt) {
     )
       beep(fired ? 180 : 100, 0.035, 'square');
   });
+  // Broken drops join this same push so the new head cannot trap them.
+  for (const b of result.broken) {
+    const p = axialToWorld(b.position[0], b.position[2]);
+    drops.spawnStack(b.stack, [p.x, b.position[1] + 0.5, p.z]);
+  }
+  if (result.motions.length) {
+    const loose = drops.records.map((drop) => ({
+        x: drop.position[0],
+        y: drop.position[1] - 0.15,
+        z: drop.position[2],
+        radius: 0.15,
+        height: 0.3,
+        drop,
+      })),
+      hulls = boats.records.map((boat) => ({
+        x: boat.position[0],
+        y: boat.position[1] - 0.13,
+        z: boat.position[2],
+        radius: 0.88,
+        height: 0.46,
+        boat,
+      })),
+      bodies = [...actors, ...loose, ...hulls];
+    for (const motion of result.motions)
+      pushPistonActors(world, motion, bodies);
+    camera.position.set(
+      actors[0].x,
+      actors[0].y + playerEyeHeight(),
+      actors[0].z,
+    );
+    if (actors[0].crushed) hurt(2, 'piston');
+    for (const a of actors.slice(1)) {
+      a.mob.mesh.position.set(a.x, a.y, a.z);
+      if (a.crushed && MOBS[a.mob.kind])
+        hitMob(a.mob, 2, null, 'piston', 'body', 0, false);
+    }
+    for (const a of loose) {
+      a.drop.position = [a.x, a.y + 0.15, a.z];
+      if (a.crushed) a.drop.velocity = [0, 0, 0];
+    }
+    for (const a of hulls) {
+      a.boat.position = [a.x, a.y + 0.13, a.z];
+      a.boat.mesh.position.fromArray(a.boat.position);
+    }
+    beep(110, 0.05, 'triangle');
+    maintainBuildings();
+  }
   world.hoppers.tick(dt, drops);
-  return changed;
+  return result.changed;
 }
 function endermanBlockChange(q, y, r, type) {
   const k = key(q, y, r),
