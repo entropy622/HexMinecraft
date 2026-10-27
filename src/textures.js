@@ -273,7 +273,7 @@ export function createTextures() {
       }
     if (id === 'glass') {
       c.clearRect(0, 0, 16, 16);
-      fill('#bce4ef', 0, 0, 16, 16);
+      fill(BLOCKS.glass.color, 0, 0, 16, 16);
       c.strokeStyle = '#e4f7ff';
       c.strokeRect(0.5, 0.5, 15, 15);
       for (let i = 3; i < 10; i++) fill('#ffffff', i, 13 - i);

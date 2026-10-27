@@ -137,7 +137,13 @@ export const BLOCKS = {
     drop: 'rawIron',
   },
   brick: { name: '石砖', color: '#bcc4b7', side: '#8e9d94', hardness: 0.8 },
-  glass: { name: '琥珀玻璃', color: '#edcc88', side: '#b89762', hardness: 0.3 },
+  glass: {
+    name: '琥珀玻璃',
+    color: '#edcc88',
+    side: '#b89762',
+    hardness: 0.3,
+    opacity: 0.38,
+  },
   lantern: {
     name: '萤灯',
     color: '#ffdf92',

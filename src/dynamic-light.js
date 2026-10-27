@@ -6,7 +6,7 @@ import { voxelLightingChunk, visionUniforms } from './skylight.js';
 
 // Packed RGBA8: RGB contain 0..15 block-light levels; alpha packs sky in
 // its high nibble; low nibble: 0 solid, 1 full water, 2..9 water levels 0..7,
-// 10 lava, 11 glow, 12 foliage, 13 partial solid, 15 air.
+// 10 lava, 11 glow, 12 foliage, 13 partial solid, 14 amber glass, 15 air.
 // Internal stacked water cells are full height.
 // This shares one small
 // volume across every animated mesh, including those sharing a material.
@@ -71,6 +71,9 @@ export class DynamicLight {
       entityOutsideSky: { value: 1 },
       waterTime: { value: 0 },
       waterSunlight: { value: 0 },
+      glassSunlight: { value: 0 },
+      glassBoundsMin: { value: new Vector3(0, 1, 0) },
+      glassBoundsMax: { value: new Vector3() },
     };
   }
 
@@ -89,12 +92,42 @@ export class DynamicLight {
       next.unpackAlignment = 1;
       this.uniforms.entityLightVolume.value = next;
     }
+    const glassMin = this.uniforms.glassBoundsMin.value.set(
+        Infinity,
+        Infinity,
+        Infinity,
+      ),
+      glassMax = this.uniforms.glassBoundsMax.value.set(
+        -Infinity,
+        -Infinity,
+        -Infinity,
+      );
     for (let i = 0; i < size; i++) {
       this.data[i * 4] = field.rgb[0][i];
       this.data[i * 4 + 1] = field.rgb[1][i];
       this.data[i * 4 + 2] = field.rgb[2][i];
       this.data[i * 4 + 3] =
         field.sky[i] * 16 + (field.cost[i] < 16 ? field.medium[i] || 15 : 0);
+      if (field.medium[i] === 14) {
+        const y = i % 64,
+          r = field.minR + (Math.floor(i / 64) % field.depth),
+          q = field.minQ + Math.floor(i / (64 * field.depth)),
+          p = axialToWorld(q, r);
+        glassMin.set(
+          Math.min(glassMin.x, p.x - 1),
+          Math.min(glassMin.y, y),
+          Math.min(glassMin.z, p.z - 1),
+        );
+        glassMax.set(
+          Math.max(glassMax.x, p.x + 1),
+          Math.max(glassMax.y, y + 1),
+          Math.max(glassMax.z, p.z + 1),
+        );
+      }
+    }
+    if (!Number.isFinite(glassMin.x)) {
+      glassMin.set(0, 1, 0);
+      glassMax.set(0, 0, 0);
     }
     const origin = axialToWorld(field.minQ, field.minR);
     this.uniforms.entityLightOrigin.value.set(origin.x, 0, origin.z);

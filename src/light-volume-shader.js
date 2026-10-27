@@ -1,5 +1,7 @@
 // Raw packed-volume addressing is shared by moving models, atmosphere and water light.
 export const lightVolumeGLSL = /* glsl */ `
+#ifndef HEX_LIGHT_VOLUME
+#define HEX_LIGHT_VOLUME
 uniform highp sampler3D entityLightVolume;
 uniform vec3 entityLightOrigin;
 uniform vec3 entityLightSize;
@@ -27,4 +29,16 @@ vec4 readLightCell(ivec3 cell) {
 float lightWaterHeight(float medium) {
   return medium < 0.5 || medium > 9.5 ? 0.0 : medium < 1.5 ? 1.0 : 0.92 - (medium - 2.0) * 0.085;
 }
+// Exact distance to the next face of this axial hex prism, in world units.
+float lightCellExit(vec3 p, ivec3 cell, vec3 ray) {
+  vec3 local = p - entityLightOrigin;
+  vec2 center = vec2(1.732050808 * float(cell.z) + 0.866025404 * float(cell.y), 1.5 * float(cell.y));
+  vec2 d = local.xz - center;
+  vec3 plane = vec3(d.x, dot(d, vec2(0.5, 0.866025404)), dot(d, vec2(-0.5, 0.866025404)));
+  vec3 speed = vec3(ray.x, dot(ray.xz, vec2(0.5, 0.866025404)), dot(ray.xz, vec2(-0.5, 0.866025404)));
+  vec3 side = (vec3(0.866025404) - sign(speed) * plane) / max(abs(speed), vec3(0.000001));
+  float top = abs(ray.y) > 0.000001 ? ((ray.y > 0.0 ? float(cell.x + 1) : float(cell.x)) - local.y) / ray.y : 1000000.0;
+  return max(0.0001, min(min(side.x, side.y), min(side.z, top)));
+}
+#endif
 `;

@@ -20,17 +20,7 @@ export const foliageUniforms = () => ({
 // volume then distinguishes leaf thickness from walls along that path; otherwise
 // a nearby opaque roof would look like a thin, transmitting leaf.
 const transmissionGLSL = /* glsl */ `
-float leafCloudVisibility = 1.0;
-float leafCellExit(vec3 p, ivec3 cell, vec3 ray) {
-  vec3 local = p - entityLightOrigin;
-  vec2 center = vec2(1.732050808 * float(cell.z) + 0.866025404 * float(cell.y), 1.5 * float(cell.y));
-  vec2 d = local.xz - center;
-  vec3 plane = vec3(d.x, dot(d, vec2(0.5, 0.866025404)), dot(d, vec2(-0.5, 0.866025404)));
-  vec3 speed = vec3(ray.x, dot(ray.xz, vec2(0.5, 0.866025404)), dot(ray.xz, vec2(-0.5, 0.866025404)));
-  vec3 side = (vec3(0.866025404) - sign(speed) * plane) / max(abs(speed), vec3(0.000001));
-  float top = abs(ray.y) > 0.000001 ? ((ray.y > 0.0 ? float(cell.x + 1) : float(cell.x)) - local.y) / ray.y : 1000000.0;
-  return max(0.0001, min(min(side.x, side.y), min(side.z, top)));
-}
+vec3 leafLightTransmission = vec3(1.0);
 vec3 leafTransmittance(vec3 albedo) {
   #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0 && defined(SHADOWMAP_TYPE_BASIC)
     // Thickness uses the unoffset receiver. Ordinary shadow normal bias moves
@@ -60,7 +50,7 @@ vec3 leafTransmittance(vec3 albedo) {
       if (!insideLightVolume(cell)) return vec3(0.0);
       float medium = mod(readLightCell(cell).a, 16.0);
       if (medium < 11.5 || medium == 13.0) return vec3(0.0);
-      float segment = min(reach - distance, leafCellExit(point, cell, leafSunDirection));
+      float segment = min(reach - distance, lightCellExit(point, cell, leafSunDirection));
       if (medium == 12.0) thickness += segment;
       distance += segment + 0.002;
     }
@@ -132,7 +122,7 @@ export function leafMaterials(atlas, weather, uniforms) {
         .replace(
           'getDirectionalLightInfo( directionalLight, directLight );',
           `getDirectionalLightInfo( directionalLight, directLight );
-        leafCloudVisibility = dot(directLight.color, vec3(0.2126, 0.7152, 0.0722)) / max(0.00001, dot(directionalLight.color, vec3(0.2126, 0.7152, 0.0722)));`,
+        leafLightTransmission = directLight.color / max(vec3(0.00001), directionalLight.color);`,
         )
         .replace(
           '#include <opaque_fragment>',
@@ -140,7 +130,7 @@ export function leafMaterials(atlas, weather, uniforms) {
         if (max(max(leafSunColor.r, leafSunColor.g), leafSunColor.b) > 0.00001 && vSkylight > 0.1) {
           float leafMu = dot(normalize(vLightPosition - cameraPosition), leafSunDirection);
           float leafPhase = 0.65 + 0.35 * 0.64 / pow(max(0.04, 1.36 - 1.2 * leafMu), 1.5);
-          outgoingLight += diffuseColor.rgb * leafSunColor * leafPhase * clamp(leafCloudVisibility, 0.0, 1.0) * leafTransmittance(diffuseColor.rgb);
+          outgoingLight += diffuseColor.rgb * leafSunColor * leafPhase * clamp(leafLightTransmission, vec3(0.0), vec3(1.0)) * leafTransmittance(diffuseColor.rgb);
         }
         #include <opaque_fragment>
       `,

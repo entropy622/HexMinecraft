@@ -176,7 +176,8 @@ export class VoxelLight {
                     : 16;
       // Spare optical codes distinguish porous canopy from partial blockers
       // without changing RGB light transport or the sky nibble.
-      if (block?.foliage) this.medium[i] = 12;
+      if (type === 'glass') this.medium[i] = 14;
+      else if (block?.foliage) this.medium[i] = 12;
       else if (cost[i] > 1 && cost[i] < 16 && !block?.nonSolid)
         this.medium[i] = 13;
       const emission =

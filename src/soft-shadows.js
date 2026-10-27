@@ -1,4 +1,42 @@
-import { ShaderChunk, Vector3 } from 'three';
+import { Color, ShaderChunk, Vector3 } from 'three';
+import { BLOCKS } from './core.js';
+import { lightVolumeGLSL } from './light-volume-shader.js';
+
+const glassTransmission = /* glsl */ `
+${lightVolumeGLSL}
+uniform vec3 glassExtinction;
+uniform vec3 glassBoundsMin;
+uniform vec3 glassBoundsMax;
+uniform float glassSunlight;
+vec3 glassSunResponse(vec3 position, vec3 normal, vec3 ray) {
+  #if defined(USE_SHADOWMAP) && defined(SHADOWMAP_TYPE_BASIC)
+    if (glassSunlight < 0.5 || glassBoundsMin.y > glassBoundsMax.y) return vec3(1.0);
+    vec3 start = position + normal * 0.045;
+    vec3 safeRay = mix(vec3(-1.0), vec3(1.0), step(vec3(0.0), ray)) * max(abs(ray), vec3(0.000001));
+    vec3 a = (glassBoundsMin - start) / safeRay, b = (glassBoundsMax - start) / safeRay;
+    vec3 nearPoint = min(a, b), farPoint = max(a, b);
+    float distance = max(0.0, max(max(nearPoint.x, nearPoint.y), nearPoint.z));
+    float end = min(min(farPoint.x, farPoint.y), farPoint.z);
+    if (end <= distance) return vec3(1.0);
+    distance += 0.002;
+    float thickness = 0.0;
+    // A loaded 9x9 chunk footprint plus 64 vertical cells needs fewer than
+    // 256 face crossings. The glass bounds usually reduce this to a few cells.
+    for (int i = 0; i < 256; i++) {
+      if (distance >= end) break;
+      vec3 point = start + ray * distance;
+      ivec3 cell = lightCell(point);
+      if (!insideLightVolume(cell)) break;
+      float segment = min(end - distance, lightCellExit(point, cell, ray));
+      if (mod(readLightCell(cell).a, 16.0) == 14.0) thickness += segment;
+      distance += segment + 0.002;
+    }
+    return exp(-glassExtinction * thickness);
+  #else
+    return vec3(1.0);
+  #endif
+}
+`;
 
 // Directional, orthographic PCSS. Depth is already linear in this projection;
 // convert separations to world units before applying the visible disk's angle.
@@ -82,10 +120,21 @@ if (shadowChunk === ShaderChunk.shadowmap_pars_fragment)
 export class SoftShadows {
   constructor(light) {
     this.light = light;
+    const transmission = new Color(1, 1, 1).lerp(
+      new Color(BLOCKS.glass.color),
+      BLOCKS.glass.opacity,
+    );
     this.uniforms = {
       softShadowFrustum: { value: new Vector3() },
       softShadowMatrix: { value: light.shadow.matrix },
       softShadowAngle: { value: 0 },
+      glassExtinction: {
+        value: new Vector3(
+          -Math.log(transmission.r),
+          -Math.log(transmission.g),
+          -Math.log(transmission.b),
+        ),
+      },
     };
   }
   attach(scene, disk) {
@@ -111,13 +160,19 @@ export class SoftShadows {
         material.onBeforeCompile = (shader, renderer) => {
           previous.call(material, shader, renderer);
           Object.assign(shader.uniforms, this.uniforms);
-          shader.fragmentShader = shader.fragmentShader.replace(
-            '#include <shadowmap_pars_fragment>',
-            shadowChunk,
-          );
+          shader.fragmentShader = shader.fragmentShader
+            .replace(
+              '#include <shadowmap_pars_fragment>',
+              shadowChunk + glassTransmission,
+            )
+            .replace(
+              'getDirectionalLightInfo( directionalLight, directLight );',
+              `getDirectionalLightInfo( directionalLight, directLight );
+            directLight.color *= glassSunResponse(vLightPosition, inverseTransformDirection(normal, viewMatrix), inverseTransformDirection(directLight.direction, viewMatrix));`,
+            );
         };
         material.customProgramCacheKey = () =>
-          key.call(material) + '-contact-shadows-v2';
+          key.call(material) + '-contact-shadows-glass-v3';
         material.needsUpdate = true;
       }
     });

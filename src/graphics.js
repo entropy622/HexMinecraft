@@ -179,7 +179,7 @@ export class Graphics {
       vertexColors: true,
       map: this.textures.atlas,
       transparent: true,
-      opacity: 0.38,
+      opacity: BLOCKS.glass.opacity,
       shininess: 95,
       depthWrite: false,
       side: THREE.DoubleSide,
@@ -1376,6 +1376,8 @@ export class Graphics {
     const elevation = Math.sin(phase * Math.PI * 2);
     this.dynamicLight.uniforms.waterSunlight.value =
       this.usePost && overworld && elevation > 0 ? 1 : 0;
+    this.dynamicLight.uniforms.glassSunlight.value =
+      this.usePost && overworld ? 1 : 0;
     const dusk = overworld ? Math.max(0, 1 - Math.abs(elevation) * 3.5) : 0;
     if (overworld) horizon.lerp(new THREE.Color('#e49a69'), dusk * 0.22);
     if (overworld) {

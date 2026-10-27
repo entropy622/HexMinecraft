@@ -234,11 +234,21 @@ test('real leaves transmit thin-canopy sunlight while thick foliage attenuates i
   await occluder(page, null);
   const restored = await sample(page);
   await page.screenshot({ path: info.outputPath('thin-leaf-backlight.png') });
+  await occluder(page, 'glass');
+  const glass = await sample(page);
   const result = {
     thin: energy(thin, mask),
     thick: energy(thick, mask),
     blocked: energy(blocked, mask),
     restored: energy(restored, mask),
+    glassTint: [0, 1, 2].map(
+      (c) =>
+        mask.reduce((sum, i) => sum + glass.added[i * 3 + c], 0) /
+        Math.max(
+          0.00000001,
+          mask.reduce((sum, i) => sum + thin.added[i * 3 + c], 0),
+        ),
+    ),
     pixels: mask.length,
     coverage,
     errors,
@@ -252,7 +262,10 @@ test('real leaves transmit thin-canopy sunlight while thick foliage attenuates i
   expect(result.blocked / result.thin).toBeLessThan(0.03);
   expect(result.thick / result.thin).toBeLessThan(0.65);
   expect(Math.abs(result.restored / result.thin - 1)).toBeLessThan(0.03);
-  for (const s of [thin, thick, blocked, restored]) expect(s.gl).toBe(0);
+  expect(result.glassTint[0]).toBeGreaterThan(result.glassTint[1] + 0.01);
+  expect(result.glassTint[1]).toBeGreaterThan(result.glassTint[2] + 0.01);
+  expect(result.glassTint[2]).toBeLessThan(0.9);
+  for (const s of [thin, thick, blocked, restored, glass]) expect(s.gl).toBe(0);
   expect(errors).toEqual([]);
 });
 
