@@ -427,6 +427,11 @@ export class World {
         const h = this.terrainHeight(q, r);
         this.heights.set(`${q},${r}`, h);
         const biome = this.biome(q, r);
+        const powder =
+          this.dimension === 'overworld' &&
+          biome === '雪原' &&
+          h > 10 &&
+          noise(q * 0.16, r * 0.16, this.seed + 804) > 0.62;
         for (let y = 0; y < h; y++) {
           if (this.dimension === 'end') {
             if (
@@ -459,6 +464,7 @@ export class World {
                     : y < 6
                       ? 'deepslate'
                       : 'stone';
+          if (powder && y >= h - 2) t = 'powderSnow';
           const ore = hash(q, y, r, this.seed);
           if (
             y > 1 &&

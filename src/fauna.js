@@ -11,7 +11,9 @@ import {
   orientShulker,
   shulkerHitboxes,
 } from './shulkers.js';
-import { findFloor } from './grounding.js';
+import { findFloor, bodyClear } from './grounding.js';
+import { Freezing } from './survival.js';
+import { powderContact } from './powder-snow.js';
 import { campfireHeat } from './campfires.js';
 import { spawnCaveBats, updateBat } from './bats.js';
 import { touchesWeb } from './cobwebs.js';
@@ -82,6 +84,8 @@ export class Fauna {
       attack: 1,
       fuse: 0,
       anger: 0,
+      frost: new Freezing(),
+      snowFall: false,
     };
     this.active.push(m);
     if (m.kind === 'shulker') {
@@ -124,6 +128,13 @@ export class Fauna {
       height: MOBS[kind].height,
       radius: MOBS[kind].radius ?? (kind === 'chicken' ? 0.18 : 0.32),
     });
+  }
+  canSpawnAt(kind, x, y, z) {
+    const def = MOBS[kind];
+    return (
+      powderContact(this.world, x, y, z, def.height, def.radius || 0.32)
+        .length === 0
+    );
   }
   visible(from, to) {
     const length = from.distanceTo(to),
@@ -169,7 +180,8 @@ export class Fauna {
             const kind = ANIMALS[(i + Math.abs(x + z)) % ANIMALS.length],
               p = axialToWorld(q, r);
             const y = this.floor(p.x, p.z, world.terrainHeight(q, r), kind);
-            if (y !== null && y >= 6) this.spawn(kind, [p.x, y, p.z]);
+            if (y !== null && y >= 6 && this.canSpawnAt(kind, p.x, y, p.z))
+              this.spawn(kind, [p.x, y, p.z]);
           }
         }
     }
@@ -417,7 +429,7 @@ export class Fauna {
             r + Math.round(Math.random() * 4 - 2),
           );
           const floor = this.floor(cell.x, cell.z, y, kind, 1);
-          if (floor !== null) {
+          if (floor !== null && this.canSpawnAt(kind, cell.x, floor, cell.z)) {
             this.spawn(kind, [cell.x, floor, cell.z]);
             break;
           }
@@ -466,7 +478,7 @@ export class Fauna {
           !flyingClear(world, new THREE.Vector3(p.x, y, p.z), kind)
         )
           continue;
-        if (y !== null && y > 5) {
+        if (y !== null && y > 5 && this.canSpawnAt(kind, p.x, y, p.z)) {
           this.spawn(kind, [p.x, y, p.z]);
           break;
         }
@@ -508,6 +520,21 @@ export class Fauna {
           new THREE.Vector3(p.x, 64, p.z),
         );
         m.sunCheck = 1;
+      }
+      const snow =
+        powderContact(world, p.x, p.y, p.z, def.height, def.radius || 0.32)
+          .length > 0;
+      const frozen = m.frost.tick(dt, snow);
+      if (frozen) {
+        this.hit(
+          m,
+          frozen * (m.kind === 'blaze' ? 5 : 1),
+          null,
+          true,
+          false,
+          0,
+        );
+        if (!this.active.includes(m)) continue;
       }
       const fluid = world.fluids.get(cell.q, Math.floor(p.y), cell.r);
       if (fluid?.type === 'lava' && !def.fireImmune) {
@@ -555,6 +582,8 @@ export class Fauna {
         !creative &&
         (!def.webImmune || night || !m.sunlit || m.anger > 0);
       const dist = Math.hypot(p.x - camera.position.x, p.z - camera.position.z);
+      const withinMeleeReach =
+        dist < 1.5 && Math.abs(p.y - (camera.position.y - 1.65)) < 1.5;
       const attracted =
         !def.hostile &&
         hands.some((item) => (def.foods || [def.food]).includes(item)) &&
@@ -621,17 +650,52 @@ export class Fauna {
           speed = 1.3;
         }
       }
+      if (aggressive && m.kind !== 'skeleton' && withinMeleeReach) speed = 0;
       if (
         !def.webImmune &&
         touchesWeb(world, p.x, p.y, p.z, def.height, def.radius || 0.32)
       )
         speed *= 0.25;
+      if (snow) speed *= 0.2;
       const previousX = p.x,
         previousZ = p.z;
       const x = p.x + Math.sin(m.angle) * speed * dt,
         z = p.z + Math.cos(m.angle) * speed * dt;
       const y = this.floor(x, z, p.y, m.kind, def.hostile ? 1 : 0.7);
-      if (y !== null) p.set(x, y, z);
+      const nearSnow =
+        powderContact(
+          world,
+          x,
+          p.y - 0.06,
+          z,
+          def.height + 0.06,
+          def.radius || 0.32,
+        ).length > 0;
+      m.snowFall ||= nearSnow;
+      if (m.snowFall) {
+        const descent = dt * (nearSnow ? 0.8 : 6);
+        const clear = bodyClear(
+          world,
+          x,
+          z,
+          p.y + 0.025,
+          p.y + def.height - 0.025,
+          def.radius || 0.32,
+        );
+        const floor = clear ? y : this.floor(p.x, p.z, p.y, m.kind, 0);
+        if (clear) {
+          p.x = x;
+          p.z = z;
+        }
+        if (floor !== null && floor >= p.y - descent) {
+          p.y = floor;
+          m.snowFall = false;
+        } else p.y -= descent;
+        if (p.y < -8) {
+          this.remove(m);
+          continue;
+        }
+      } else if (y !== null) p.set(x, y, z);
       else {
         m.angle += 1.4;
         m.think = 0.5;
@@ -670,12 +734,7 @@ export class Fauna {
             this.callbacks.explode(center);
             continue;
           }
-        } else if (
-          dist < 1.5 &&
-          Math.abs(p.y - (camera.position.y - 1.65)) < 1.5 &&
-          sight &&
-          m.attack <= 0
-        ) {
+        } else if (withinMeleeReach && sight && m.attack <= 0) {
           this.callbacks.damage(m.kind === 'zombie' ? 3 : 2, p, def.poison);
           m.attack = 1.1;
         }

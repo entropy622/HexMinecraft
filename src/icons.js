@@ -111,7 +111,14 @@ const symbols = {
 const cache = new Map();
 export function itemIcon(id) {
   if (!cache.has(id)) {
-    if (['glowBerries', 'netherQuartz', 'netherQuartzOre'].includes(id)) {
+    if (
+      [
+        'glowBerries',
+        'netherQuartz',
+        'netherQuartzOre',
+        'powderSnowBucket',
+      ].includes(id)
+    ) {
       cache.set(
         id,
         `<span class="block-icon pixel-icon ${id === 'netherQuartzOre' ? 'block-tile' : 'item-tile'}" title="${ITEMS[id].name}"><img src="${itemImage(id).toDataURL()}" alt="" draggable="false"></span>`,

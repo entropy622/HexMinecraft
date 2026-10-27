@@ -89,10 +89,34 @@ export function validSurvival(state) {
   );
 }
 
+export class Freezing {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.time = this.pulse = 0;
+  }
+  tick(dt, exposed) {
+    if (dt <= 0) return 0;
+    if (!exposed) {
+      this.time = Math.max(0, this.time - dt * 2);
+      this.pulse = 0;
+      return 0;
+    }
+    const untilFrozen = Math.max(0, 7 - this.time);
+    this.time = Math.min(7, this.time + dt);
+    this.pulse += Math.max(0, dt - untilFrozen);
+    const damage = Math.floor((this.pulse + 1e-8) / 2);
+    this.pulse = Math.max(0, this.pulse - damage * 2);
+    return damage;
+  }
+}
+
 // Independent survival rules informed by Minecraft/VoxeLibre's food exhaustion
 // and saturation model. Environmental hazards tick once per simulation frame.
 export class Survival {
   constructor(state = {}) {
+    this.frost = new Freezing();
     for (const key of Object.keys(defaults))
       this[key] = state[key] ?? defaults[key];
     this.effects = structuredClone(state.effects || {});
@@ -173,6 +197,11 @@ export class Survival {
 
   tick(dt, vitals, environment) {
     const damage = [];
+    const cold = this.frost.tick(
+      dt,
+      environment.powder && !environment.insulated,
+    );
+    if (cold) damage.push([cold, 'freeze']);
     while (this.exhaustion >= 4) {
       this.exhaustion -= 4;
       if (this.saturation > 0)

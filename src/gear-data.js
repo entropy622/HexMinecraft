@@ -185,7 +185,7 @@ for (const [material, label, color, multiplier, points] of [
       pattern,
       1,
       true,
-      `在背包点击穿戴。护甲 +${points[i]}，抵御战斗与灼烧伤害，受击消耗耐久。`,
+      `在背包点击穿戴。护甲 +${points[i]}，抵御战斗与灼烧伤害，受击消耗耐久。${material === 'leather' ? '皮革防止冻结；皮靴可站在细雪上，蹲伏下沉，内部按空格攀出。' : ''}`,
     );
   }
 }

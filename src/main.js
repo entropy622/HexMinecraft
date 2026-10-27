@@ -1,3 +1,4 @@
+import { powderContact, powderSupport } from './powder-snow.js';
 import { touchesWeb } from './cobwebs.js';
 import {
   STRUCTURE_NAMES,
@@ -132,7 +133,7 @@ import { HELD_LIGHTS } from './voxel-light.js';
 import { Survival, FOODS } from './survival.js';
 import { Combat } from './combat.js';
 import { bowPull } from './archery.js';
-import { findFloor } from './grounding.js';
+import { findFloor, bodyClear } from './grounding.js';
 import { Experience, xpForLevel } from './experience.js';
 import {
   enchantLabel,
@@ -191,13 +192,13 @@ $('#app').innerHTML = `
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
   <div id="crosshair"></div><div id="mine-progress"><i></i></div><div id="target" class="hidden"></div>
-  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><div id="attack-meter" role="progressbar" aria-label="挥击恢复" aria-valuemin="0" aria-valuemax="1"></div><div id="shield-status" class="hidden"><span id="shield-label"></span><progress id="shield-ready" max="0.25" value="0" aria-label="举盾准备"></progress></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div id="survival-status"><div id="air-bar" class="hidden" role="progressbar" aria-label="氧气" aria-valuemin="0" aria-valuemax="15"></div><div id="effect-list"></div></div><div id="use-food" class="hidden"><span id="use-food-name"></span><progress id="use-progress" max="1" value="0" aria-label="食用进度"></progress></div><div class="vitals"><span class="health" id="health"></span><span id="absorption-hud" aria-label="额外吸收生命"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="experience-hud"><b id="experience-level">0</b><progress id="experience-progress" max="1" value="0" aria-label="当前等级经验"></progress></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>背包</span><span><kbd>Shift</kbd>蹲伏</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
+  <div class="bottom-hud"><div id="boat-status" class="hidden"></div><div id="combat-status"></div><div id="attack-meter" role="progressbar" aria-label="挥击恢复" aria-valuemin="0" aria-valuemax="1"></div><div id="shield-status" class="hidden"><span id="shield-label"></span><progress id="shield-ready" max="0.25" value="0" aria-label="举盾准备"></progress></div><progress id="fishing-window" class="hidden" max="1" value="0" aria-label="咬钩收杆剩余时间"></progress><div id="selected-name"></div><div id="survival-status"><div id="air-bar" class="hidden" role="progressbar" aria-label="氧气" aria-valuemin="0" aria-valuemax="15"></div><div id="freeze-bar" class="hidden" role="progressbar" aria-label="冻结程度" aria-valuemin="0" aria-valuemax="7"><i></i><span>冻结</span></div><div id="effect-list"></div></div><div id="use-food" class="hidden"><span id="use-food-name"></span><progress id="use-progress" max="1" value="0" aria-label="食用进度"></progress></div><div class="vitals"><span class="health" id="health"></span><span id="absorption-hud" aria-label="额外吸收生命"></span><span class="tool" id="tool"></span><span class="hunger" id="hunger"></span><span id="armor-hud"></span></div><div id="experience-hud"><b id="experience-level">0</b><progress id="experience-progress" max="1" value="0" aria-label="当前等级经验"></progress></div><div id="hotbar"></div><div class="controls-hint"><span><kbd>WASD</kbd>移动</span><span><kbd>空格</kbd>跳跃</span><span><kbd>左 / 右键</kbd>采集 / 放置</span><span><kbd>E</kbd>背包</span><span><kbd>Shift</kbd>蹲伏</span><span><kbd>M</kbd>地图</span><span><kbd>ESC</kbd>菜单</span></div></div>
   <div class="hud-left" id="location"></div><canvas id="minimap" width="200" height="220"></canvas>
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">E</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="swap" aria-label="交换主副手">F</button><button data-action="eat" aria-label="按住食用或饮用">吃</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="使用物品或放置方块">用</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">交</button><button data-key="ShiftLeft" aria-label="下降或蹲伏">⇣</button><button data-key="ControlLeft" aria-label="冲刺">跑</button></div></div>
  </div>
- <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="fire-overlay" aria-hidden="true"></div><div id="portal-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
+ <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="powder-overlay" aria-hidden="true"></div><div id="frost-overlay" aria-hidden="true"></div><div id="fire-overlay" aria-hidden="true"></div><div id="portal-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
  ${workshopPanel()}
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><label for="fov">基础视野</label><input id="fov" type="range" min="60" max="110" step="1" value="72"><output id="fov-value" for="fov">72°</output></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 体积云与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="exposure-toggle">明暗适应</label><input id="exposure-toggle" type="checkbox" checked title="进入洞穴后缓慢适应，走入日光时更快收敛；关闭使用固定曝光"></div><div class="settings-row"><label for="antialias-toggle">时域抗锯齿</label><input id="antialias-toggle" type="checkbox" checked title="积累多帧细节，减轻远处轮廓闪烁；移动物体和手持物优先使用当前画面"></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加体积云、近景柔影、体积光束、明暗适应与抗锯齿，显卡开销较高；细节可单独调整。光影云层可透光并遮蔽日月；均衡保留几何云与移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或右键穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Ctrl 或双击 W 冲刺 / Shift 蹲伏防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>右键</kbd>交互 / 耕种 / 收获</span><span><kbd>E / B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 停住</span><span><kbd>门 / 栅栏门</kbd>右键开关 · Shift 旁建</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>创造模式</kbd>双击空格切换飞行 · 空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><label for="fov">基础视野</label><input id="fov" type="range" min="60" max="110" step="1" value="72"><output id="fov-value" for="fov">72°</output></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 体积云与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="exposure-toggle">明暗适应</label><input id="exposure-toggle" type="checkbox" checked title="进入洞穴后缓慢适应，走入日光时更快收敛；关闭使用固定曝光"></div><div class="settings-row"><label for="antialias-toggle">时域抗锯齿</label><input id="antialias-toggle" type="checkbox" checked title="积累多帧细节，减轻远处轮廓闪烁；移动物体和手持物优先使用当前画面"></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset><p class="panel-note">光影档增加体积云、近景柔影、体积光束、明暗适应与抗锯齿，显卡开销较高；细节可单独调整。光影云层可透光并遮蔽日月；均衡保留几何云与移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或右键穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Ctrl 或双击 W 冲刺 / Shift 蹲伏防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>右键</kbd>交互 / 耕种 / 收获</span><span><kbd>E / B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 停住</span><span><kbd>门 / 栅栏门</kbd>右键开关 · Shift 旁建</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>细雪</kbd>皮靴站立 / Shift 下沉 / 空格攀出 · 皮甲保温</span><span><kbd>创造模式</kbd>双击空格切换飞行 · 空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◌ 洞穴入口　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -823,18 +824,14 @@ function playerHeight() {
 }
 function collides(x, feet, z, height = playerHeight()) {
   if (boats.bodyBlocked(x, feet, z)) return true;
-  for (const [dx, dz] of [
-    [0, 0],
-    [0.24, 0],
-    [-0.24, 0],
-    [0, 0.24],
-    [0, -0.24],
-    [0.17, 0.17],
-    [-0.17, -0.17],
-  ])
-    if (world.columnSolid(x + dx, z + dz, feet + 0.005, feet + height - 0.03))
-      return true;
-  return false;
+  return (
+    !bodyClear(world, x, z, feet + 0.005, feet + height - 0.03) ||
+    (!creativeFlying &&
+      equipment.armor.feet === 'leatherFeet' &&
+      !keys.has('ShiftLeft') &&
+      !keys.has('ShiftRight') &&
+      powderSupport(world, x, feet, z, playerFeet()))
+  );
 }
 function safeSpawn() {
   crouching = creativeFlying = false;
@@ -2132,7 +2129,7 @@ function useBucket() {
     kind = ITEMS[id]?.bucket;
   if (!kind) return false;
   if (!target) {
-    toast('对准液体源装桶，或对准方块倒出液体。');
+    toast('对准液体源或细雪装桶，或对准方块倒出内容。');
     return true;
   }
   if (!creative && useCount(id) < 1) {
@@ -2140,9 +2137,30 @@ function useBucket() {
     return true;
   }
   let next;
-  if (kind === 'empty') {
+  let changedSnow = null;
+  if (kind === 'empty' && target.type === 'powderSnow') {
+    const { q, y, r } = target;
+    world.set(q, y, r, null);
+    changedSnow = [q, y, r];
+    next = 'powderSnowBucket';
+  } else if (kind === 'powderSnow') {
+    const p = target.place;
+    if (
+      !p ||
+      p.y < 1 ||
+      p.y >= world.maxY ||
+      world.get(p.q, p.y, p.r) ||
+      world.fluids.get(p.q, p.y, p.r)
+    ) {
+      toast('这里无法放置细雪。');
+      return true;
+    }
+    world.set(p.q, p.y, p.r, 'powderSnow');
+    changedSnow = [p.q, p.y, p.r];
+    next = 'bucket';
+  } else if (kind === 'empty') {
     if (!target.fluid) {
-      toast('空桶需要对准液体源。');
+      toast('空桶需要对准液体源或细雪。');
       return true;
     }
     const type = world.fluids.scoop(target.q, target.y, target.r);
@@ -2162,6 +2180,7 @@ function useBucket() {
   if (!creative) exchangeUseItem(next);
   else if (kind === 'empty')
     resolveInventorySlot(handRef()).set({ item: next, count: 1 });
+  if (changedSnow) graphics.updateCells([changedSnow]);
   flushFluidChanges();
   updateCampfires(0);
   refreshNetherPortals();
@@ -2437,9 +2456,11 @@ function pickBlock() {
   if (!playing || !target || !BLOCKS[target.type]) return;
   const original = isCaveVine(target.type)
       ? 'glowBerries'
-      : isCauldron(target.type)
-        ? 'cauldron'
-        : circuitItem(doorLower(target.type)),
+      : target.type === 'powderSnow'
+        ? 'powderSnowBucket'
+        : isCauldron(target.type)
+          ? 'cauldron'
+          : circuitItem(doorLower(target.type)),
     id = ITEMS[original]?.internal ? null : original;
   if (!id) return;
   const from = pack.slots.findIndex((s) => s?.item === id);
@@ -4605,6 +4626,7 @@ function playerFluidAt(height) {
 function updateSurvival(dt) {
   if (creative) {
     survivalSubmerged = false;
+    survival.frost.reset();
     const vitals = { health, hunger };
     survival.tickEffects(dt, vitals);
     health = Math.max(health, vitals.health);
@@ -4632,6 +4654,20 @@ function updateSurvival(dt) {
     );
     graphics.updateCells([[cauldron.q, cauldron.y, cauldron.r]]);
   }
+  let snow = powderContact(
+    world,
+    camera.position.x,
+    playerFeet(),
+    camera.position.z,
+    playerHeight(),
+  );
+  if (snow.length && survival.burning > 0) {
+    const p = snow[0];
+    world.set(...p, null);
+    graphics.updateCells([p]);
+    survival.burning = 0;
+    snow = snow.slice(1);
+  }
   const column = weatherColumns.get(world, a.q, a.r);
   survivalSubmerged = !!head && head.type !== 'lava';
   const wet =
@@ -4644,6 +4680,10 @@ function updateSurvival(dt) {
   const vitals = { health, hunger };
   const owner = survival;
   const damage = owner.tick(dt, vitals, {
+    powder: snow.length > 0,
+    insulated: Object.values(equipment.armor).some((id) =>
+      id.startsWith('leather'),
+    ),
     submerged: survivalSubmerged,
     respiration: equipment.armor.head
       ? equipment.rank(equipment.armor.head, 'respiration')
@@ -4668,6 +4708,20 @@ function updateSurvival(dt) {
   }
 }
 function survivalHUD() {
+  const cold = creative ? 0 : survival.frost.time;
+  const freezeBar = $('#freeze-bar');
+  freezeBar.classList.toggle('hidden', !hasGame || cold <= 0);
+  freezeBar.setAttribute('aria-valuenow', cold.toFixed(2));
+  freezeBar.querySelector('i').style.transform = `scaleX(${cold / 7})`;
+  $('#frost-overlay').style.opacity = hasGame ? cold / 7 : 0;
+  $('#health').classList.toggle('frozen', cold >= 7);
+  const headCell = worldToAxial(camera.position.x, camera.position.z);
+  $('#powder-overlay').style.opacity =
+    hasGame &&
+    world.get(headCell.q, Math.floor(camera.position.y), headCell.r) ===
+      'powderSnow'
+      ? 0.85
+      : 0;
   const air = Math.ceil(survival.air / 1.5);
   const airBar = $('#air-bar');
   airBar.classList.toggle(
@@ -4883,9 +4937,11 @@ function hurt(amount, cause = 'combat', source = null) {
     toast(
       (cause === 'drown'
         ? '你溺水了。'
-        : cause === 'burn'
-          ? '你被烧伤倒下了。'
-          : '') + '已在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。',
+        : cause === 'freeze'
+          ? '你在细雪中冻伤倒下了。'
+          : cause === 'burn'
+            ? '你被烧伤倒下了。'
+            : '') + '已在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。',
     );
     saveGame();
     return 'dead';
@@ -5370,6 +5426,16 @@ function movePlayer(dt) {
         playerHeight(),
         0.24,
       );
+  const powder =
+    !fly &&
+    powderContact(
+      world,
+      camera.position.x,
+      playerFeet(),
+      camera.position.z,
+      playerHeight(),
+    ).length > 0;
+  const snowBoots = equipment.armor.feet === 'leatherFeet';
   if (glider.active) {
     const stack = wornElytra();
     if (
@@ -5378,6 +5444,7 @@ function movePlayer(dt) {
       climbing ||
       levitating ||
       webbed ||
+      powder ||
       !stack ||
       wearValue(stack.wear) <= 1
     )
@@ -5403,6 +5470,7 @@ function movePlayer(dt) {
       (creative || hunger > 6) &&
       !glider.lowProfile &&
       !sneaking &&
+      !powder &&
       !combat.raised &&
       !foodUse &&
       !bowUse,
@@ -5444,6 +5512,11 @@ function movePlayer(dt) {
   if (webbed) {
     dx *= 0.25;
     dz *= 0.25;
+    motion.sprintRequested = false;
+  }
+  if (powder) {
+    dx *= 0.2;
+    dz *= 0.2;
     motion.sprintRequested = false;
   }
   if (
@@ -5539,6 +5612,7 @@ function movePlayer(dt) {
       !swimming &&
       !climbing &&
       !levitating &&
+      !powder &&
       motion.takeJump(keys.has('Space'), grounded)
     ) {
       vy = 8.5;
@@ -5554,6 +5628,11 @@ function movePlayer(dt) {
       vy = Math.max(-2, vy - dt * 4);
       if (keys.has('Space')) vy = 4;
     } else vy -= dt * DIMENSIONS[dimension].gravity;
+    if (powder && !levitating)
+      vy =
+        snowBoots && keys.has('Space') && !sneaking
+          ? 3.2
+          : Math.max(-0.8, Math.min(0.1, vy));
     if (webbed) vy = Math.max(-0.5, Math.min(0.1, vy));
     const dy = vy * dt,
       steps = Math.max(1, Math.ceil(Math.abs(dy) / 0.12));
@@ -5578,6 +5657,19 @@ function movePlayer(dt) {
         break;
       }
       camera.position.y += dy / steps;
+      if (
+        vy < -0.8 &&
+        powderContact(
+          world,
+          camera.position.x,
+          next,
+          camera.position.z,
+          playerHeight(),
+        ).length
+      ) {
+        vy = -0.8;
+        break;
+      }
     }
     if (!creative && survival === survivalBeforeMove)
       survival.exhaust(
@@ -5864,6 +5956,9 @@ $('#home').onclick = () => {
   document.exitPointerLock?.();
   playing = false;
   hasGame = false;
+  survival.frost.reset();
+  for (const id of ['frost-overlay', 'powder-overlay'])
+    $('#' + id).style.opacity = 0;
   overlay = null;
   portalExposure = 0;
   $('#portal-overlay').style.opacity = 0;

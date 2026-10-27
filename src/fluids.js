@@ -82,6 +82,7 @@ export class Fluids {
       (!this.world.get(q, y, r) ||
         !!CIRCUIT_BLOCKS[this.world.get(q, y, r)]?.shape ||
         this.world.get(q, y, r) === 'cobweb' ||
+        this.world.get(q, y, r) === 'powderSnow' ||
         isHangingPlant(this.world.get(q, y, r)))
     );
   }
@@ -101,10 +102,11 @@ export class Fluids {
       cells = this.chunks.get(ck);
     if (!cells) return;
     if (equal(cells.get(k), f)) return;
-    if (f && this.world.get(q, y, r) === 'cobweb') {
+    const removed = this.world.get(q, y, r);
+    if (f && (removed === 'cobweb' || removed === 'powderSnow')) {
       this.world.set(q, y, r, null);
       this.blockChanges.add(k);
-      if (f.type === 'water') this.washedWebs.add(k);
+      if (removed === 'cobweb' && f.type === 'water') this.washedWebs.add(k);
     }
     // The packed optical medium includes the liquid's physical height.
     this.world.lightRevision++;

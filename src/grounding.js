@@ -1,5 +1,22 @@
 import { worldToAxial } from './core.js';
 
+export function bodyOffsets(radius) {
+  return [
+    [0, 0],
+    [radius, 0],
+    [-radius, 0],
+    [0, radius],
+    [0, -radius],
+    [radius * 0.7, radius * 0.7],
+    [-radius * 0.7, -radius * 0.7],
+  ];
+}
+export function bodyClear(world, x, z, low, high, radius = 0.24) {
+  return bodyOffsets(radius).every(
+    ([dx, dz]) => !world.columnSolid(x + dx, z + dz, low, high),
+  );
+}
+
 // Body clearance and floor support use the same partial-block shapes as the
 // renderer. The highest support under any foot sample permits edge stepping.
 export function findFloor(
@@ -9,15 +26,7 @@ export function findFloor(
   reference,
   { step = 0.6, drop = 3, height = 1.8, radius = 0.24, wet = false } = {},
 ) {
-  const offsets = [
-    [0, 0],
-    [radius, 0],
-    [-radius, 0],
-    [0, radius],
-    [0, -radius],
-    [radius * 0.7, radius * 0.7],
-    [-radius * 0.7, -radius * 0.7],
-  ];
+  const offsets = bodyOffsets(radius);
   let floor = null;
   for (const [dx, dz] of offsets) {
     const a = worldToAxial(x + dx, z + dz);
@@ -34,10 +43,8 @@ export function findFloor(
   for (const [dx, dz] of offsets) {
     const a = worldToAxial(x + dx, z + dz);
     if (!wet && world.fluids.get(a.q, Math.floor(floor), a.r)) return null;
-    if (
-      world.columnSolid(x + dx, z + dz, floor + 0.025, floor + height - 0.025)
-    )
-      return null;
   }
-  return floor;
+  return bodyClear(world, x, z, floor + 0.025, floor + height - 0.025, radius)
+    ? floor
+    : null;
 }

@@ -7,7 +7,6 @@ import {
   CAULDRON_FLOOR,
   CAULDRON_INNER,
   cauldronHeight,
-  waterCauldron,
 } from './cauldron-data.js';
 
 function dripAbove(world, q, y, r) {
@@ -43,9 +42,9 @@ export function tickCauldrons(world, dt, weather, columns) {
       mean = liquid === 'lava' ? 1200 : 400;
     if (!incoming && world.dimension === 'overworld' && weather.rain > 0.25) {
       const column = columns.get(world, q, r);
-      if (!['沙漠', '雪原'].includes(column.biome) && column.surface <= y + 1) {
-        incoming = 'water';
-        mean = 1200 / weather.rain;
+      if (column.biome !== '沙漠' && column.surface <= y + 1) {
+        incoming = column.biome === '雪原' ? 'powderSnow' : 'water';
+        mean = (incoming === 'powderSnow' ? 600 : 1200) / weather.rain;
       }
     }
     if (
@@ -60,7 +59,7 @@ export function tickCauldrons(world, dt, weather, columns) {
       r,
       incoming === 'lava'
         ? 'lavaCauldron'
-        : waterCauldron(def.cauldronLevel + 1),
+        : `${incoming}Cauldron${def.cauldronLevel + 1}`,
     );
     changed.push([q, y, r]);
   }

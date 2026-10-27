@@ -167,6 +167,14 @@ export const BLOCKS = {
     drop: 'dirt',
   },
   snow: { name: '雪块', color: '#e0eeee', side: '#b5ced5', hardness: 0.3 },
+  powderSnow: {
+    name: '细雪',
+    color: '#eaf6fa',
+    side: '#d1e2ed',
+    hardness: 0.25,
+    nonSolid: true,
+    internal: true,
+  },
   netherrack: {
     name: '下界岩',
     color: '#965e61',
@@ -259,6 +267,7 @@ export const ITEMS = {
   emerald: { name: '绿宝石', color: '#59d982' },
   bucket: { name: '铁桶', color: '#c8d1d5', bucket: 'empty' },
   waterBucket: { name: '水桶', color: '#62a6ee', bucket: 'water' },
+  powderSnowBucket: { name: '细雪桶', color: '#e5f4fa', bucket: 'powderSnow' },
   lavaBucket: { name: '岩浆桶', color: '#ff792b', bucket: 'lava' },
   glowBucket: { name: '萤晶液桶', color: '#7ef8cb', bucket: 'glow' },
   wool: { name: '羊毛', color: '#ede1c7' },

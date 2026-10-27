@@ -578,7 +578,7 @@ export class Graphics {
         t !== 'enchantingTable' &&
         !isSmithingStation(t) &&
         t !== 'brewingStand' &&
-        !BLOCKS[t]?.nonSolid &&
+        (!BLOCKS[t]?.nonSolid || t === 'powderSnow') &&
         !BLOCKS[t]?.foliage &&
         !BLOCKS[t]?.shape
       );
@@ -665,7 +665,7 @@ export class Graphics {
             }
             continue;
           }
-          if (BLOCKS[type].nonSolid) continue;
+          if (BLOCKS[type].nonSolid && type !== 'powderSnow') continue;
           out = BLOCKS[type].foliage
             ? leaves
             : type === 'glass'

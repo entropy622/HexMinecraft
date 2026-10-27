@@ -183,7 +183,7 @@ test('source identity, support, orientation, disconnected chains, obstacles, dis
     assert.equal(w.get(1, 40, 1), before, failure);
   }
 });
-test('rain requires exposed rainy overworld columns; roofs, liquid caps, desert, snow and dimensions reject it', (t) => {
+test('rain and snow collect different contents only in exposed overworld columns', (t) => {
   t.mock.method(Math, 'random', () => 0);
   const w = room();
   w.set(1, 40, 1, 'cauldron');
@@ -212,7 +212,11 @@ test('rain requires exposed rainy overworld columns; roofs, liquid caps, desert,
     for (let y = 41; y < 64; y++) w.set(q, y, 0, null);
     w.set(q, 40, 0, 'cauldron');
     tick(w, 1, 1);
-    assert.equal(w.get(q, 40, 0), 'cauldron', biome);
+    assert.equal(
+      w.get(q, 40, 0),
+      biome === '雪原' ? 'powderSnowCauldron1' : 'cauldron',
+      biome,
+    );
   }
 });
 test('comparators read each content level directly and through a solid block without becoming full-strength sources', () => {
@@ -226,6 +230,9 @@ test('comparators read each content level directly and through a solid block wit
       ['waterCauldron2', 2],
       ['waterCauldron3', 3],
       ['lavaCauldron', 3],
+      ['powderSnowCauldron1', 1],
+      ['powderSnowCauldron2', 2],
+      ['powderSnowCauldron3', 3],
     ]) {
       w.set(gap ? 0 : 1, 40, 1, type);
       if (gap) w.set(1, 40, 1, 'stone');

@@ -55,6 +55,16 @@ const SHOVEL = new Set([
 ]);
 
 export function miningStats(block, held, enchant = {}) {
+  if (block === 'powderSnow')
+    return {
+      tier: 0,
+      kind: null,
+      requiredTier: 0,
+      requiredTool: null,
+      harvest: true,
+      effective: false,
+      speed: 1,
+    };
   if (block === 'cobweb') {
     const effective =
       ITEMS[held]?.kind === 'sword' || ITEMS[held]?.kind === 'shears';

@@ -384,6 +384,18 @@ test('a natural cave spider bite respects a raised shield, poisons after lowerin
     g.selectItem('shield');
     return n;
   });
+  // Sample the real render feedback every frame; a block lasts less than the
+  // default polling interval and can otherwise be missed on software WebGL.
+  await page.evaluate(() => {
+    window.shieldSeen = false;
+    window.shieldWatch = true;
+    const observe = () => {
+      if (!window.shieldWatch) return;
+      if (window.__hexwild.graphics.shieldImpact > 0) window.shieldSeen = true;
+      requestAnimationFrame(observe);
+    };
+    requestAnimationFrame(observe);
+  });
   await page.keyboard.down('KeyR');
   await expect
     .poll(
@@ -442,11 +454,20 @@ test('a natural cave spider bite respects a raised shield, poisons after lowerin
             const p = m.position;
             g.lookAt(p.x / Math.sqrt(3) - p.z / 3, p.y + 0.3, p.z / 1.5);
           }
-          return g.graphics.shieldImpact > 0;
+          return window.shieldSeen;
         }),
       { timeout: 25000 },
     )
     .toBe(true);
+  const blockedAt = await page.evaluate(() => window.__hexwild.state.time);
+  await expect
+    .poll(() => page.evaluate(() => window.__hexwild.state.time), {
+      timeout: 15000,
+    })
+    .toBeGreaterThan(blockedAt + 3);
+  await page.evaluate(() => {
+    window.shieldWatch = false;
+  });
   expect(await page.evaluate(() => window.__hexwild.state.health)).toBe(20);
   expect(await page.locator('#effect-list').innerText()).not.toContain('中毒');
   await page.keyboard.up('KeyR');

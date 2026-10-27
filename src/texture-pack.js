@@ -315,6 +315,25 @@ export const plantImage = (kind, stage) => {
 const generatedItems = new Map();
 let berriesImage;
 export const itemImage = (id) => {
+  if (id === 'powderSnowBucket') {
+    if (!generatedItems.has(id)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 16;
+      const c = canvas.getContext('2d');
+      c.imageSmoothingEnabled = false;
+      c.drawImage(images.get(itemTextures.bucket), 0, 0, 16, 16);
+      c.fillStyle = '#d3e7f1';
+      c.fillRect(4, 5, 8, 3);
+      c.fillStyle = '#f7fcff';
+      c.fillRect(5, 4, 6, 2);
+      c.fillStyle = '#a8c8dd';
+      c.fillRect(5, 7, 2, 1);
+      c.fillRect(10, 6, 1, 1);
+      generatedItems.set(id, canvas);
+    }
+    return generatedItems.get(id);
+  }
+
   if (id === 'netherQuartz' || id === 'netherQuartzOre') {
     if (!generatedItems.has(id)) {
       const canvas = document.createElement('canvas');
@@ -436,6 +455,20 @@ export async function loadTexturePack() {
   );
 }
 export function paintPackTile(ctx, id, top) {
+  if (id === 'powderSnow') {
+    paintPackTile(ctx, 'snow', top);
+    for (let i = 0; i < 14; i++) {
+      ctx.fillStyle = i % 3 ? '#c8dce9' : '#f6fcff';
+      ctx.fillRect(
+        (i * 7 + 3) % 16,
+        (i * 11 + (top ? 2 : 5)) % 16,
+        (i % 2) + 1,
+        1,
+      );
+    }
+    return;
+  }
+
   if (id === 'netherQuartzOre') {
     ctx.fillStyle = '#754236';
     ctx.fillRect(0, 0, 16, 16);
