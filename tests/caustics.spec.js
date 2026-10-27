@@ -72,6 +72,15 @@ async function floor(page, region = [0.23, 0.17, 0.77, 0.43]) {
         target = g.fluidRenderer.waterUniforms.waterSceneReady.value
           ? frame.opaque
           : frame.target;
+      const capture = g.fluidRenderer.waterUniforms.waterSceneReady.value,
+        sx = capture
+          ? g.fluidRenderer.waterUniforms.waterProjection.value.elements[0] /
+            g.camera.projectionMatrix.elements[0]
+          : 1,
+        sy = capture
+          ? g.fluidRenderer.waterUniforms.waterProjection.value.elements[5] /
+            g.camera.projectionMatrix.elements[5]
+          : 1;
       const data = new Uint16Array(target.width * target.height * 4);
       g.renderer.readRenderTargetPixels(
         target,
@@ -92,8 +101,15 @@ async function floor(page, region = [0.23, 0.17, 0.77, 0.43]) {
           let x = Math.floor(target.width * region[0]);
           x < Math.floor(target.width * region[2]);
           x++
-        )
-          pixels.push(data[(y * target.width + x) * 4 + 1]);
+        ) {
+          const cx = Math.floor(
+              target.width * 0.5 + (x + 0.5 - target.width * 0.5) * sx,
+            ),
+            cy = Math.floor(
+              target.height * 0.5 + (y + 0.5 - target.height * 0.5) * sy,
+            );
+          pixels.push(data[(cy * target.width + cx) * 4 + 1]);
+        }
       return pixels;
     }, region)
     .then((values) => values.map(DataUtils.fromHalfFloat));
@@ -340,7 +356,12 @@ test('shallow and flowing water, streamed camera motion, real quality controls a
         t = g.fluidRenderer.waterUniforms.waterSceneReady.value
           ? f.opaque
           : f.target;
-      const p = g.camera.position.clone().set(0.17, 45, 3.11).project(g.camera);
+      const p = g.camera.position.clone().set(0.17, 45, 3.11);
+      if (g.fluidRenderer.waterUniforms.waterSceneReady.value)
+        p.applyMatrix4(g.camera.matrixWorldInverse).applyMatrix4(
+          g.fluidRenderer.waterUniforms.waterProjection.value,
+        );
+      else p.project(g.camera);
       const x = Math.round((p.x * 0.5 + 0.5) * t.width),
         y = Math.round((p.y * 0.5 + 0.5) * t.height),
         pixels = new Uint16Array(3 * 3 * 4);

@@ -213,7 +213,7 @@ test('water reflects current scene geometry and releases optical targets across 
             .value,
       ),
     )
-    .toBe(0);
+    .toBe(1);
   await page.screenshot({ path: info.outputPath('underwater.png') });
   await page.evaluate(() => {
     const g = window.__hexwild;
@@ -248,7 +248,7 @@ test('water reflects current scene geometry and releases optical targets across 
       {
         disposedOnLowPreset: true,
         resized,
-        underwaterCaptureDisabled: true,
+        underwaterCaptureEnabled: true,
         offscreenCaptureDisabled: true,
         errors,
       },

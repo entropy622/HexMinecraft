@@ -1,5 +1,9 @@
 import { lightVolumeGLSL } from './light-volume-shader.js';
-import { waterWavesGLSL, waterExtinctionGLSL } from './water-shader.js';
+import {
+  waterWavesGLSL,
+  waterExtinctionGLSL,
+  waterInterfaceGLSL,
+} from './water-shader.js';
 
 // Receiver-side refraction footprint, independently implemented for the hex field.
 // Only directional light changes; ambient, emitters and the camera fog remain separate.
@@ -7,10 +11,11 @@ export const waterLightingGLSL = /* glsl */ `
 ${lightVolumeGLSL}
 ${waterWavesGLSL}
 ${waterExtinctionGLSL}
+${waterInterfaceGLSL}
 uniform float waterSunlight;
 uniform float waterTime;
 vec2 waterOffset(vec2 entry, vec3 sun, float depth) {
-  vec3 ray = refract(-sun, waterNormal(entry, waterTime), 0.75);
+  vec3 ray = refract(-sun, waterNormal(entry, waterTime), 1.0 / waterIOR);
   return ray.xz * (depth / max(0.2, -ray.y));
 }
 vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float skylight) {
@@ -62,7 +67,7 @@ vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float skylight
   focus = mix(focus, 1.0, smoothstep(0.12, 0.35, footprint));
   // Deep or sub-pixel focusing tends to uniform transmitted sunlight.
   focus = mix(focus, 1.0, smoothstep(9.0, 13.0, depth));
-  sun = -refract(-sun, waterNormal(entry, waterTime), 0.75);
+  sun = -refract(-sun, waterNormal(entry, waterTime), 1.0 / waterIOR);
   return exp(-waterExtinction * (depth / max(0.2, sun.y))) * focus;
 }
 `;

@@ -23,6 +23,7 @@ export class SceneFramePass extends Pass {
     this.fluids = fluids;
     this.frustum = new Frustum();
     this.viewProjection = new Matrix4();
+    this.projectionBackup = new Matrix4();
     this.target = new WebGLRenderTarget(1, 1, {
       type: HalfFloatType,
       depthTexture: new DepthTexture(1, 1, UnsignedIntType),
@@ -67,7 +68,7 @@ export class SceneFramePass extends Pass {
       if (object.userData.liquid === 'water') waters.push(object);
     });
     if (
-      !fluids.medium &&
+      (!fluids.medium || fluids.medium === 'water') &&
       waters.some((object) => this.frustum.intersectsObject(object))
     ) {
       const hidden = [
@@ -76,17 +77,34 @@ export class SceneFramePass extends Pass {
           (object) => object.visible && object.userData.skipOcclusion,
         ),
       ];
+      const autoClear = renderer.autoClear;
+      this.projectionBackup.copy(this.camera.projectionMatrix);
       try {
+        // A guard band exposes nearby reflection/refraction destinations just
+        // outside the main view, using the same target and camera orientation.
+        if (fluids.medium === 'water') {
+          this.camera.projectionMatrix.elements[0] *= 0.4;
+          this.camera.projectionMatrix.elements[5] *= 0.4;
+          this.camera.projectionMatrixInverse
+            .copy(this.camera.projectionMatrix)
+            .invert();
+        }
         for (const object of hidden) object.visible = false;
         this.beauty.render(renderer, writeBuffer, this.opaque);
+        uniforms.waterProjection.value.copy(this.camera.projectionMatrix);
+        uniforms.waterInverseProjection.value.copy(
+          this.camera.projectionMatrixInverse,
+        );
       } finally {
+        renderer.autoClear = autoClear;
+        this.camera.projectionMatrix.copy(this.projectionBackup);
+        this.camera.projectionMatrixInverse
+          .copy(this.projectionBackup)
+          .invert();
         for (const object of hidden) object.visible = true;
       }
       uniforms.waterSceneColor.value = this.opaque.texture;
       uniforms.waterSceneDepth.value = this.opaque.depthTexture;
-      uniforms.waterProjection.value = this.camera.projectionMatrix;
-      uniforms.waterInverseProjection.value =
-        this.camera.projectionMatrixInverse;
       uniforms.waterResolution.value.set(this.opaque.width, this.opaque.height);
       uniforms.waterSceneReady.value = 1;
       fluids.materials.water.depthWrite = true;

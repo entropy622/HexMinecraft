@@ -134,6 +134,9 @@ export class Graphics {
     this.fluidRenderer = new FluidRenderer(this.scene, this.textures);
     this.dynamicLight.uniforms.waterTime =
       this.fluidRenderer.waterUniforms.waterTime;
+    Object.assign(this.fluidRenderer.waterUniforms, this.dynamicLight.uniforms);
+    this.fluidRenderer.waterUniforms.waterAmbientScale =
+      this.atmosphere.uniforms.airAmbient;
     this.terrain = new THREE.Group();
     this.scene.add(this.terrain);
     this.chunks = new Map();
@@ -1617,20 +1620,20 @@ export class Graphics {
       this.camera.position.x,
       this.camera.position.z,
     );
+    // Pose/step smoothing is applied to the view below. Optical immersion must
+    // use that rendered eye, while movement and collision keep the physical eye.
+    const renderedEye = this.camera.position.y - (this.stepOffset || 0),
+      renderedCell = Math.floor(renderedEye);
     const cameraFluid = this.world.fluids.get(
       cameraHex.q,
-      Math.floor(this.camera.position.y),
+      renderedCell,
       cameraHex.r,
     );
     const submerged =
       !!cameraFluid &&
-      this.camera.position.y <
-        Math.floor(this.camera.position.y) +
-          this.world.fluids.height(
-            cameraHex.q,
-            Math.floor(this.camera.position.y),
-            cameraHex.r,
-          );
+      renderedEye <
+        renderedCell +
+          this.world.fluids.height(cameraHex.q, renderedCell, cameraHex.r);
     this.fluidRenderer.medium = submerged ? cameraFluid.type : null;
     this.atmosphere.update({
       time,

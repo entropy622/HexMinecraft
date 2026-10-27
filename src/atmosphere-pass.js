@@ -9,7 +9,7 @@ import {
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { cloudFieldGLSL } from './cloud-field.js';
 import { lightVolumeGLSL } from './light-volume-shader.js';
-import { waterExtinctionGLSL } from './water-shader.js';
+import { waterExtinctionGLSL, waterScatteringGLSL } from './water-shader.js';
 
 const vertexShader = /* glsl */ `
 varying vec2 vUv;
@@ -18,6 +18,7 @@ void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(
 const volumeShader = /* glsl */ `
 ${cloudFieldGLSL}
 ${waterExtinctionGLSL}
+${waterScatteringGLSL}
 uniform float waterCamera;
 varying vec2 vUv;
 uniform sampler2D sceneDepth;
@@ -103,8 +104,8 @@ void main() {
       float sun = airSunVisibility(position, sky) * cloudSun;
       vec2 beam = position.xz - position.y * airSunDirection.xz / max(0.15, airSunDirection.y);
       float shafts = 0.35 + 1.3 * smoothstep(0.4, 0.72, airNoise(beam * 0.45 + vec2(airTime * 0.06, -airTime * 0.04)));
-      vec3 source = (airHorizon * airAmbient * sky * 0.35 + block * 0.9 +
-        airSunColor * airSunPower * sun * (0.06 + phase * 0.12) * shafts) * vec3(0.1, 0.6, 0.8);
+      vec3 source = waterAmbientSource(airHorizon, airAmbient, sky, block) +
+        airSunColor * airSunPower * sun * (0.06 + phase * 0.12) * shafts * waterScatterColor;
       vec3 stepTransmission = exp(-waterExtinction * waterStep);
       scattering += transmission * (1.0 - stepTransmission) * source;
       transmission *= stepTransmission;
