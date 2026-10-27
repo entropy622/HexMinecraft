@@ -2,6 +2,10 @@ import { test, expect } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { writeFile } from 'node:fs/promises';
 
+// These real GPU scenarios include several water rebuilds, quality switches and
+// a native Continue cycle; keep each readiness poll bounded at 30 seconds.
+test.setTimeout(240000);
+
 async function pool(page, base = 28) {
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');

@@ -4,6 +4,7 @@ import { ShaderChunk, Vector3 } from 'three';
 // convert separations to world units before applying the visible disk's angle.
 const pcss = /* glsl */ `
 uniform vec3 softShadowFrustum;
+uniform mat4 softShadowMatrix;
 uniform float softShadowAngle;
 vec2 softShadowDisk(int i, int count, float angle) {
   float a = float(i) * 2.39996323 + angle;
@@ -83,6 +84,7 @@ export class SoftShadows {
     this.light = light;
     this.uniforms = {
       softShadowFrustum: { value: new Vector3() },
+      softShadowMatrix: { value: light.shadow.matrix },
       softShadowAngle: { value: 0 },
     };
   }
@@ -115,7 +117,7 @@ export class SoftShadows {
           );
         };
         material.customProgramCacheKey = () =>
-          key.call(material) + '-contact-shadows-v1';
+          key.call(material) + '-contact-shadows-v2';
         material.needsUpdate = true;
       }
     });

@@ -264,6 +264,43 @@ export class Graphics {
     this.mainShield.userData.skipOcclusion = true;
     this.camera.add(this.mainShield);
     this.scene.add(this.camera);
+    canvas.addEventListener('webglcontextlost', () => {
+      // Release the old context's disposal callbacks while it is still lost.
+      // CPU geometry/images remain available for Three's next upload; otherwise
+      // later world streaming tries to delete handles owned by the lost context.
+      if (this.composer) {
+        disposePostprocessing(this.composer);
+        this.composer = null;
+      }
+      const resources = new Set();
+      this.scene.traverse((object) => {
+        if (object.isInstancedMesh) resources.add(object);
+        if (object.geometry) resources.add(object.geometry);
+        const materials = [
+          ...(Array.isArray(object.material)
+            ? object.material
+            : [object.material]),
+          object.customDepthMaterial,
+          object.customDistanceMaterial,
+        ];
+        for (const material of materials) {
+          if (!material) continue;
+          resources.add(material);
+          for (const value of Object.values(material))
+            if (value?.isTexture) resources.add(value);
+          for (const uniform of Object.values(material.uniforms || {}))
+            if (uniform.value?.isTexture) resources.add(uniform.value);
+        }
+      });
+      const volume = this.dynamicLight.uniforms.entityLightVolume.value;
+      if (volume) resources.add(volume);
+      for (const resource of resources) resource.dispose();
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.setQuality(this.quality);
+    });
     addEventListener('resize', () => {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
@@ -1294,6 +1331,7 @@ export class Graphics {
     heldLight = playing ? this.heldKey : null,
     offhandLight = playing ? this.offhandKey : null,
   ) {
+    if (this.renderer.getContext().isContextLost()) return;
     sawClock.value = time;
     this.voxelLight.setHeld([heldLight, offhandLight], this.camera.position);
     if (this.voxelLight.update(renderDt)) {
@@ -1431,9 +1469,7 @@ export class Graphics {
       .normalize();
     this.leafUniforms.leafSunColor.value
       .copy(this.sun.color)
-      .multiplyScalar(
-        overworld && elevation > 0 ? this.sun.intensity * 0.2 : 0,
-      );
+      .multiplyScalar(overworld && this.usePost ? this.sun.intensity * 0.2 : 0);
     this.leafParticles.frame(dt, time, this.leafUniforms.leafWind.value);
     this.caveAmbience.frame(dt, time, this.world, this.camera);
     this.dripstoneEffects.frame(dt, time, this.world, this.camera);

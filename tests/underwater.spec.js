@@ -2,6 +2,10 @@ import { test, expect } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { writeFile } from 'node:fs/promises';
 
+// These real GPU scenarios accumulate temporal frames across water rebuilds.
+// Keep individual readiness polls at 30 seconds under software rendering.
+test.setTimeout(240000);
+
 async function aquarium(page) {
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');

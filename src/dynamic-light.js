@@ -6,7 +6,8 @@ import { voxelLightingChunk, visionUniforms } from './skylight.js';
 
 // Packed RGBA8: RGB contain 0..15 block-light levels; alpha packs sky in
 // its high nibble; low nibble: 0 solid, 1 full water, 2..9 water levels 0..7,
-// 10 lava, 11 glow and 15 air. Internal stacked water cells are full height.
+// 10 lava, 11 glow, 12 foliage, 13 partial solid, 15 air.
+// Internal stacked water cells are full height.
 // This shares one small
 // volume across every animated mesh, including those sharing a material.
 const sampleShader = /* glsl */ `

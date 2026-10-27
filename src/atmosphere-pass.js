@@ -138,8 +138,9 @@ void main() {
     vec3 position = airCameraPosition + direction * t;
     vec4 packedLight = airVoxel(position);
     float medium = mod(packedLight.a, 16.0);
-    // Only code 15 is air; water height codes and other liquids do not scatter air.
-    if (medium < 14.5) continue;
+    // Porous foliage and partially occupied cells retain their existing air fog.
+    // Water height codes and other liquids do not scatter air.
+    if (medium < 11.5) continue;
     float sky = pow(floor(packedLight.a / 16.0) / 15.0, 2.0);
     vec3 block = pow(packedLight.rgb / 15.0, vec3(2.0));
     float density = airDensity * exp(clamp(-(position.y - airBaseHeight) * airFalloff, -8.0, 1.4));
