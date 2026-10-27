@@ -4334,3 +4334,8 @@ input:focus-visible {
     font-size: 10px;
   }
 }
+
+.mc-grid.hopper-storage {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-width: 296px;
+}

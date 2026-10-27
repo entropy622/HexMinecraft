@@ -154,7 +154,7 @@ export const BLOCKS = {
     color: '#dbaf69',
     side: '#9b724c',
     hardness: 0.6,
-    storage: true,
+    storage: 27,
   },
   bed: { name: '野营床', color: '#d99175', side: '#aa795c', hardness: 0.45 },
   farmland: {

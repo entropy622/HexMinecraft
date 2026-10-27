@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ITEMS, BLOCKS, worldToAxial } from './core.js';
+import { ITEMS, BLOCKS, worldToAxial, axialToWorld } from './core.js';
 import { itemImage } from './texture-pack.js';
 import { validWear } from './equipment.js';
 import { fluidHeight } from './fluids.js';
@@ -8,6 +8,7 @@ import { buildingItemMesh } from './building-graphics.js';
 import { validStack } from './inventory.js';
 import { portableBoxMesh } from './portable-box-graphics.js';
 import { isDoor } from './building-data.js';
+import { insertSlot } from './container-actions.js';
 
 const vec = (p) =>
   Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
@@ -59,6 +60,61 @@ export class ItemDrops {
   }
   serialize() {
     return this.records.map(({ mesh, ...data }) => structuredClone(data));
+  }
+  consume(d, count) {
+    d.count -= count;
+    if (ITEMS[d.item].durability)
+      d.wear[d.item] = (d.wear[d.item] || []).slice(count);
+    if (!d.count) {
+      d.life = 0;
+      this.scene.remove(d.mesh);
+    }
+  }
+  collectHopper(world, q, y, r, slots) {
+    const p = axialToWorld(q, r),
+      mouth = [p.x, y + 0.7, p.z];
+    let collected = 0;
+    for (const d of this.records) {
+      if (d.life <= 0 || d.position[1] < y + 0.3 || d.position[1] > y + 1.5)
+        continue;
+      const cell = worldToAxial(d.position[0], d.position[2]);
+      if (
+        cell.q !== q ||
+        cell.r !== r ||
+        this.blocked(world, d.position) ||
+        !this.clearPath(world, d.position, mouth)
+      )
+        continue;
+      let moved = 0;
+      // Equipment entities can contain several distinct wear entries.
+      while (moved < d.count) {
+        const stack = {
+          item: d.item,
+          count: ITEMS[d.item].durability ? 1 : d.count - moved,
+        };
+        if (ITEMS[d.item].durability)
+          stack.wear = structuredClone(
+            d.wear[d.item]?.[moved] ?? ITEMS[d.item].durability,
+          );
+        if (d.contents !== undefined) stack.contents = d.contents;
+        let accepted = 0;
+        for (const occupied of [true, false])
+          for (const slot of slots) {
+            if (!!slot.get() !== occupied) continue;
+            const n = insertSlot(slot, stack, stack.count - accepted);
+            accepted += n;
+            if (accepted === stack.count) break;
+          }
+        moved += accepted;
+        if (!accepted) break;
+      }
+      if (moved) {
+        this.consume(d, moved);
+        collected += moved;
+      }
+    }
+    this.records = this.records.filter((d) => d.life > 0);
+    return collected;
   }
   spawnStack(stack, position, velocity = null, life = 300) {
     const wear = ITEMS[stack.item]?.durability
@@ -159,6 +215,7 @@ export class ItemDrops {
         'redstoneTorch',
         'repeater',
         'comparator',
+        'hopper',
         'cobweb',
         'sporeBlossom',
         'pointedDripstone',
@@ -252,12 +309,8 @@ export class ItemDrops {
       if (distance < 2.2 && d.delay === 0 && this.clearPath(world, p, player)) {
         if (distance < 0.85) {
           const taken = collect(d);
-          d.count -= taken;
-          if (d.wear[d.item]) d.wear[d.item] = d.wear[d.item].slice(taken);
-          if (!d.count) {
-            d.life = 0;
-            continue;
-          }
+          this.consume(d, taken);
+          if (!d.count) continue;
           d.delay = 0.3;
         } else {
           // Do not pull items into the player's body when their pack is full.

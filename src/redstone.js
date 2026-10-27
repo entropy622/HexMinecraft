@@ -2,7 +2,8 @@ import { BLOCKS, DIRECTIONS, axialToWorld, key } from './core.js';
 import { isOpenable, doorUpper } from './building-data.js';
 import { isCircuitInput, attachmentCell } from './redstone-data.js';
 import { stackSize } from './inventory.js';
-import { isFurnace } from './processing-data.js';
+import { blockSlots } from './block-inventory.js';
+import { storageLidClear } from './chests.js';
 
 const coords = (k) => k.split(',').map(Number);
 const neighbors = (q, y, r) => [
@@ -124,26 +125,11 @@ export class Redstone {
   }
   containerLevel(q, y, r) {
     const w = this.world,
-      type = w.get(q, y, r),
-      k = key(q, y, r);
-    let slots;
-    if (BLOCKS[type]?.storage) {
-      if (!BLOCKS[type].portable && w.solid(q, y + 1, r)) return 0;
-      slots = w.chests.get(k);
-      if (!slots) return 0;
-    } else if (isFurnace(type)) {
-      const f = w.furnaces.get(k);
-      if (!f || f.kind !== type) return 0;
-      slots = [f.input, f.fuel, f.output];
-    } else if (type === 'brewingStand') {
-      const b = w.brewing.get(k);
-      if (!b) return 0;
-      slots = [
-        ...b.bottles.map((item) => (item ? { item, count: 1 } : null)),
-        b.ingredient,
-        b.fuelStock ? { item: 'ember', count: b.fuelStock } : null,
-      ];
-    } else return null;
+      type = w.get(q, y, r);
+    if (type === 'chest' && !storageLidClear(w, q, y, r)) return 0;
+    const endpoints = blockSlots(w, q, y, r);
+    if (!endpoints) return BLOCKS[type]?.storage ? 0 : null;
+    const slots = Object.values(endpoints).map((s) => s.get());
     const fullness = slots.reduce(
       (n, slot) => n + (slot ? slot.count / stackSize(slot.item) : 0),
       0,
@@ -406,7 +392,8 @@ export class Redstone {
     for (const k of w.circuitCells) {
       const p = coords(k),
         type = w.get(...p);
-      if (type !== 'redstoneLamp' && !isOpenable(type)) continue;
+      if (type !== 'redstoneLamp' && type !== 'hopper' && !isOpenable(type))
+        continue;
       const on =
         powered(p) || (!!doorUpper(type) && powered([p[0], p[1] + 1, p[2]]));
       if (!!w.state(...p).powered === on) continue;

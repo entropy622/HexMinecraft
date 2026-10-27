@@ -26,6 +26,7 @@ import {
 import { buildingParts, insidePart } from './building-shapes.js';
 import { partSpan } from './shape-columns.js';
 import { Redstone } from './redstone.js';
+import { Hoppers } from './hoppers.js';
 import { isCircuit } from './redstone-data.js';
 import { isHangingPlant } from './cave-data.js';
 
@@ -100,8 +101,10 @@ export class World {
     this.campfires = new Map(options.campfires || []);
     this.gravity = new Gravity(this, options.falling);
     this.redstone = new Redstone(this);
+    this.hoppers = new Hoppers(this);
     if (options.edits) this.applyEdits(options.edits);
     this.redstone.timers = new Map(options.redstoneTimers || []);
+    this.hoppers.cooldowns = new Map(options.hopperCooldowns || []);
     this.redstone.burnouts = new Map(options.torchBurnouts || []);
     this.persistentLeaves = new Set(options.persistentLeaves || []);
     this.leafDecay = new LeafDecay(this, options.leafDecay);
@@ -238,6 +241,7 @@ export class World {
       ...(state.delay !== undefined ? { delay: state.delay } : {}),
       ...(state.output !== undefined ? { output: state.output } : {}),
       ...(state.subtract !== undefined ? { subtract: state.subtract } : {}),
+      ...(state.down !== undefined ? { down: state.down } : {}),
     });
     this.shapeCache.clear();
   }
@@ -357,6 +361,7 @@ export class World {
       this.blockStates.delete(k);
       this.redstone.timers.delete(k);
       this.redstone.burnouts.delete(k);
+      this.hoppers.cooldowns.delete(k);
     }
     if (this.loaded(q, r)) {
       this.indexTreeCell(k, type);
@@ -672,6 +677,7 @@ export class World {
       blockStates: [...this.blockStates],
       redstoneTimers: [...this.redstone.timers],
       torchBurnouts: [...this.redstone.burnouts],
+      hopperCooldowns: [...this.hoppers.cooldowns],
       persistentLeaves: [...this.persistentLeaves],
       leafDecay: [...this.leafDecay.pending],
       chests: [...this.chests],

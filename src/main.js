@@ -11,7 +11,7 @@ import {
   BREW_INGREDIENTS,
   potionDescription,
 } from './brewing-data.js';
-import { newBrewing, tickBrewing, resetBrewing } from './brewing.js';
+import { newBrewing, tickBrewing } from './brewing.js';
 import {
   findNetherFrame,
   lightNetherFrame,
@@ -42,7 +42,8 @@ import {
 import { canStonecut, stonecuttingResult } from './stonecutting.js';
 import { stonecutterPanel } from './stonecutter-ui.js';
 import { newChest, isStorage, storageLidClear } from './chests.js';
-import { chestPanel } from './chest-ui.js';
+import { chestPanel, updateChestPanel } from './chest-ui.js';
+import { blockSlots } from './block-inventory.js';
 import { features as villageFeatures, ROLES, trade } from './villages.js';
 import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
@@ -631,15 +632,9 @@ function resolveInventorySlot(ref) {
         soundFX.play('craft');
       },
     };
-  if (['pack', 'gear', 'box', 'craft'].includes(kind)) {
+  if (['pack', 'gear', 'craft'].includes(kind)) {
     const list =
-      kind === 'pack'
-        ? pack.slots
-        : kind === 'gear'
-          ? pack.gear
-          : kind === 'craft'
-            ? craftingGrid
-            : currentChest();
+      kind === 'pack' ? pack.slots : kind === 'gear' ? pack.gear : craftingGrid;
     if (!list || !Number.isInteger(index) || index < 0 || index >= list.length)
       return null;
     return {
@@ -652,69 +647,27 @@ function resolveInventorySlot(ref) {
             accepts: (s) => acceptsGear(GEAR_SLOTS[index], s),
             ...(GEAR_SLOTS[index] !== 'offhand' ? { limit: 1 } : {}),
           }
-        : kind === 'box' &&
-            ITEMS[world.get(...stationKey.split(',').map(Number))]?.portable
-          ? { accepts: (s) => !ITEMS[s.item]?.portable }
-          : {}),
+        : {}),
     };
   }
-  if (kind === 'furnace') {
-    const f = currentFurnace();
-    if (!f || !['input', 'fuel', 'output'].includes(name)) return null;
-    return {
-      get: () => f[name],
-      set: (s) => {
-        if (name === 'input' && f.input?.item !== s?.item) f.progress = 0;
-        f[name] = s;
-      },
-      accepts: (s) =>
-        name === 'input'
-          ? !!smeltingRecipe(s.item, f.kind)
-          : name === 'fuel' && !!FUELS[s.item],
-      output: name === 'output',
-      taken: (s, n) => {
-        if (name !== 'output') return;
-        const share = (f.xp * n) / s.count;
+  if (kind === 'furnace' || kind === 'brew' || kind === 'box') {
+    if (!stationKey) return null;
+    const slot = blockSlots(world, ...stationKey.split(',').map(Number))?.[
+      name
+    ];
+    if (!slot) return null;
+    if (kind === 'furnace' && name === 'output')
+      slot.taken = (s, n) => {
+        const f = currentFurnace(),
+          share = (f.xp * n) / s.count;
         f.xp = Math.max(0, f.xp - share);
         awardXP(share, [
           camera.position.x,
           playerFeet() + 0.5,
           camera.position.z,
         ]);
-      },
-    };
-  }
-  if (kind === 'brew') {
-    const b = currentBrewing();
-    if (!b) return null;
-    if (['0', '1', '2'].includes(name))
-      return {
-        get: () =>
-          b.bottles[index] ? { item: b.bottles[index], count: 1 } : null,
-        set: (s) => {
-          if (b.bottles[index] !== (s?.item || null)) resetBrewing(b);
-          b.bottles[index] = s?.item || null;
-        },
-        accepts: (s) => Object.hasOwn(POTIONS, s.item),
-        limit: 1,
       };
-    if (name === 'ingredient')
-      return {
-        get: () => b.ingredient,
-        set: (s) => {
-          if (b.ingredient?.item !== s?.item) resetBrewing(b);
-          b.ingredient = s;
-        },
-        accepts: (s) => BREW_INGREDIENTS.includes(s.item),
-      };
-    if (name === 'fuel')
-      return {
-        get: () => (b.fuelStock ? { item: 'ember', count: b.fuelStock } : null),
-        set: (s) => {
-          b.fuelStock = s?.count || 0;
-        },
-        accepts: (s) => s.item === 'ember',
-      };
+    return slot;
   }
   return null;
 }
@@ -944,6 +897,7 @@ function startGame(mode = false, save = null) {
     campfires: data.campfires,
     redstoneTimers: data.redstoneTimers,
     torchBurnouts: data.torchBurnouts,
+    hopperCooldowns: data.hopperCooldowns,
     falling: data.falling,
     chorus: data.chorus,
     fluids: data.fluids,
@@ -1195,6 +1149,7 @@ function travel(to) {
     campfires: data.campfires,
     redstoneTimers: data.redstoneTimers,
     torchBurnouts: data.torchBurnouts,
+    hopperCooldowns: data.hopperCooldowns,
     falling: data.falling,
     chorus: data.chorus,
     fluids: data.fluids,
@@ -2904,6 +2859,7 @@ function place() {
           'grindstone',
           'chest',
           'shulkerBox',
+          'hopper',
           'bed',
           'portal',
           'endportal',
@@ -3118,7 +3074,7 @@ function placeBuilding(type, p) {
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
   let mount;
-  if (CIRCUIT_BLOCKS[type]?.shape) {
+  if (CIRCUIT_BLOCKS[type]?.shape && type !== 'hopper') {
     const control = ['lever', 'stoneButton', 'redstoneTorch'].includes(type);
     if (type === 'redstoneTorch' && target.normal?.y < -0.5) {
       toast('红石火把需要地面或墙面支撑。');
@@ -3138,6 +3094,8 @@ function placeBuilding(type, p) {
       return;
     }
   }
+  if (type === 'hopper' && Math.abs(target.normal?.y ?? 1) < 0.5)
+    facing = facingFromDirection(-target.normal.x, -target.normal.z);
   if (isTrapdoor(type) && Math.abs(target.normal?.y ?? 1) < 0.5)
     facing = facingFromDirection(-target.normal.x, -target.normal.z);
   if (type === 'chorusFlower') {
@@ -3205,6 +3163,9 @@ function placeBuilding(type, p) {
     ...(type === 'redstoneTorch' ? { powered: true } : {}),
     ...(type === 'repeater' ? { delay: 1, powered: false } : {}),
     ...(type === 'comparator' ? { output: 0, subtract: false } : {}),
+    ...(type === 'hopper'
+      ? { down: Math.abs(target.normal?.y ?? 1) > 0.5, powered: false }
+      : {}),
   });
   if (
     collides(camera.position.x, playerFeet(), camera.position.z) ||
@@ -3216,6 +3177,7 @@ function placeBuilding(type, p) {
     return;
   }
   for (const [a, b, c, t] of cells) world.set(a, b, c, t);
+  if (type === 'hopper') blockSlots(world, q, y, r);
   if (type === 'chorusFlower')
     world.chorus.set(key(q, y, r), { stage: 0, time: 0 });
   if (crops.has(key(q, y - 1, r))) harvestPlant(key(q, y - 1, r), true, 3);
@@ -3252,6 +3214,7 @@ function removeBuilding(q, y, r, drop = true) {
     for (const slot of world.campfires.get(key(q, y, r))?.slots || [])
       if (slot) dropAt(slot.item, 1, q, y, r);
   }
+  if (type === 'hopper') spillChest(key(q, y, r));
   world.set(q, y, r, null);
   if (doorUpper(type) && world.get(q, y + 1, r) === doorUpper(type))
     world.set(q, y + 1, r, null);
@@ -3307,7 +3270,7 @@ function maintainBuildings() {
       const [dq, dr] = DIRECTIONS[world.state(q, y, r).facing];
       if (!world.loaded(q + dq, r + dr)) continue;
       if (!fullSupport(q + dq, y, r + dr)) removeBuilding(q, y, r);
-    } else if (CIRCUIT_BLOCKS[type]?.shape) {
+    } else if (CIRCUIT_BLOCKS[type]?.shape && type !== 'hopper') {
       const state = world.state(q, y, r),
         support = attachmentCell(q, y, r, state, DIRECTIONS);
       if (!world.loaded(support[0], support[2])) continue;
@@ -3335,7 +3298,9 @@ function updateRedstone(dt) {
       radius: mob.baby ? 0.16 : 0.3,
     })),
   ];
-  return world.redstone.tick(dt, actors, toggleBuilding);
+  const changed = world.redstone.tick(dt, actors, toggleBuilding);
+  world.hoppers.tick(dt, drops);
+  return changed;
 }
 function endermanBlockChange(q, y, r, type) {
   const k = key(q, y, r),
@@ -3650,6 +3615,7 @@ function interact(preferContext = false) {
           'grindstone',
           'chest',
           'shulkerBox',
+          'hopper',
           'farmland',
         ].includes(target.type) ||
         (plantForItem(useItem()) && ['grass', 'dirt'].includes(target.type))));
@@ -3784,8 +3750,10 @@ function interact(preferContext = false) {
     syncDecor();
     stationKey = k;
     openOverlay('#station-overlay');
-    graphics.chestModels.openKey = k;
-    soundFX.play(ITEMS[type]?.portable ? 'shulkerOpen' : 'chestOpen');
+    if (type !== 'hopper') {
+      graphics.chestModels.openKey = k;
+      soundFX.play(ITEMS[type]?.portable ? 'shulkerOpen' : 'chestOpen');
+    }
     renderChest();
     return;
   }
@@ -4409,7 +4377,13 @@ function currentChest() {
     !isStorage(world.get(...stationKey.split(',').map(Number)))
   )
     return null;
-  if (!chests.has(stationKey)) chests.set(stationKey, newChest());
+  if (!chests.has(stationKey))
+    chests.set(
+      stationKey,
+      Array(
+        ITEMS[world.get(...stationKey.split(',').map(Number))].storage,
+      ).fill(null),
+    );
   return chests.get(stationKey);
 }
 function renderChest() {
@@ -6284,6 +6258,7 @@ function frame(now) {
           'grindstone',
           'chest',
           'shulkerBox',
+          'hopper',
           'farmland',
           'bed',
           'portal',
@@ -6631,6 +6606,7 @@ function frame(now) {
       for (let i = 0; i < steps; i++)
         for (const p of updateRedstone(dt / steps)) changes.set(key(...p), p);
       if (changes.size) graphics.updateCells([...changes.values()]);
+      if (currentChest()) updateChestPanel(currentChest());
     }
     saveTimer += dt;
     if (saveTimer > 15) {

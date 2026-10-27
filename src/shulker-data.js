@@ -8,7 +8,7 @@ export const SHULKER_BLOCKS = {
     color: '#a878b5',
     side: '#825a93',
     hardness: 1.2,
-    storage: true,
+    storage: PORTABLE_SLOTS,
     portable: true,
   },
 };

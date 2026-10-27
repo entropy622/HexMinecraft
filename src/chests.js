@@ -1,10 +1,12 @@
 import { ITEMS, axialToWorld } from './core.js';
 import { stackSize, validStack, copyStack } from './inventory.js';
 
-export const CHEST_SLOTS = 27;
+export const CHEST_SLOTS = ITEMS.chest.storage;
 export const isStorage = (id) => !!ITEMS[id]?.storage;
 export function storageLidClear(world, q, y, r, camera, feet) {
-  if (!ITEMS[world.get(q, y, r)]?.portable) return !world.solid(q, y + 1, r);
+  if (world.get(q, y, r) === 'hopper') return true;
+  if (!ITEMS[world.get(q, y, r)]?.portable)
+    return world.get(q, y + 1, r) === 'hopper' || !world.solid(q, y + 1, r);
   const p = axialToWorld(q, r);
   if (
     Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 1.1 &&
@@ -23,12 +25,13 @@ export function storageLidClear(world, q, y, r, camera, feet) {
       if (world.pointSolid(p.x + dx, y + h, p.z + dz)) return false;
   return true;
 }
-export const validChest = (chest, portable = false) =>
+export const validChest = (chest, type = 'chest') =>
   Array.isArray(chest) &&
-  chest.length === CHEST_SLOTS &&
+  chest.length === ITEMS[type]?.storage &&
   chest.every(
     (stack) =>
-      validStack(stack) && (!portable || !ITEMS[stack?.item]?.portable),
+      validStack(stack) &&
+      (!ITEMS[type].portable || !ITEMS[stack?.item]?.portable),
   );
 
 export function newChest(loot = {}, stacks = []) {

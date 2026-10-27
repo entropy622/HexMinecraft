@@ -329,6 +329,28 @@ export function createTextures() {
             );
         }
     }
+    if (id === 'hopper') {
+      // Original iron panels: cool gray grain, bright rolled lip and dark seams.
+      for (let y = 0; y < 16; y++)
+        for (let x = 0; x < 16; x++)
+          fill(
+            rand(Math.floor(x / 2), Math.floor(y / 2), 31) > 0.5
+              ? '#565f66'
+              : '#4b5359',
+            x,
+            y,
+          );
+      fill('#758087', 0, 0, 16, 1);
+      fill('#343b40', 0, 15, 16, 1);
+      if (!top) {
+        fill('#353d43', 0, 1, 1, 14);
+        fill('#67727a', 15, 1, 1, 14);
+        for (const x of [2, 13]) {
+          fill('#7c8589', x, 2);
+          fill('#30373c', x, 3);
+        }
+      }
+    }
     if (id === 'redstoneWire' || id === 'redstoneWireOn') {
       fill(id === 'redstoneWireOn' ? '#ef351c' : '#68170f', 0, 0, 16, 16);
       for (let i = 0; i < 26; i++)

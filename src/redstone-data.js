@@ -1,6 +1,14 @@
 import { isOpenable, isDoorTop } from './building-data.js';
 
 export const CIRCUIT_BLOCKS = {
+  hopper: {
+    name: '漏斗',
+    color: '#5a6166',
+    hardness: 3,
+    tool: 1,
+    shape: 'hopper',
+    storage: 5,
+  },
   comparator: {
     name: '红石比较器',
     color: '#c5b8ab',
@@ -70,6 +78,11 @@ export const circuitItem = (type) =>
 // The hex crafting grid uses logs for the wooden handle, like existing ladders.
 export const CIRCUIT_RECIPES = [
   [
+    'hopper',
+    ['ingot', 'ingot', 'ingot', 'chest', 'ingot', 'ingot'],
+    '从上方吸入物品，沿出口自动运出；通电停止。Shift 右键容器放置，侧面点击决定出口。',
+  ],
+  [
     'lever',
     ['wood', 'cobble'],
     '右键保持或关闭信号，可装在地面、墙面和天花板。',
@@ -113,37 +126,39 @@ export const CIRCUIT_RECIPES = [
   count: 1,
   title: CIRCUIT_BLOCKS[id].name,
   desc,
-  station: ['redstoneLamp', 'repeater', 'comparator'].includes(id),
+  station: ['redstoneLamp', 'repeater', 'comparator', 'hopper'].includes(id),
   pattern:
-    id === 'comparator'
-      ? ingredients
-      : id === 'repeater'
-        ? [
-            'redstoneTorch',
-            'redstone',
-            'redstoneTorch',
-            'stone',
-            'stone',
-            'stone',
-            null,
-          ]
-        : id === 'redstoneLamp'
+    id === 'hopper'
+      ? ['ingot', null, 'ingot', 'ingot', 'chest', 'ingot', 'ingot']
+      : id === 'comparator'
+        ? ingredients
+        : id === 'repeater'
           ? [
+              'redstoneTorch',
               'redstone',
+              'redstoneTorch',
+              'stone',
+              'stone',
+              'stone',
               null,
-              'redstone',
-              'glowstone',
-              'redstone',
-              null,
-              'redstone',
             ]
-          : [
-              null,
-              null,
-              null,
-              ...ingredients,
-              ...Array(4 - ingredients.length).fill(null),
-            ],
+          : id === 'redstoneLamp'
+            ? [
+                'redstone',
+                null,
+                'redstone',
+                'glowstone',
+                'redstone',
+                null,
+                'redstone',
+              ]
+            : [
+                null,
+                null,
+                null,
+                ...ingredients,
+                ...Array(4 - ingredients.length).fill(null),
+              ],
   cost: ingredients.reduce(
     (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
     {},

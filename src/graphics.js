@@ -585,7 +585,7 @@ export class Graphics {
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
           if (!type) continue;
-          if (isStorage(type)) {
+          if (isStorage(type) && !BLOCKS[type].shape) {
             chestCells.push([q, y, r]);
             continue;
           }

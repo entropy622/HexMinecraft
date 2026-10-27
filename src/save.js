@@ -106,6 +106,7 @@ export function validateSave(s) {
             (e[1].upper !== undefined && typeof e[1].upper !== 'boolean') ||
             (e[1].double !== undefined && typeof e[1].double !== 'boolean') ||
             (e[1].powered !== undefined && typeof e[1].powered !== 'boolean') ||
+            (e[1].down !== undefined && typeof e[1].down !== 'boolean') ||
             (e[1].subtract !== undefined &&
               typeof e[1].subtract !== 'boolean') ||
             (e[1].output !== undefined &&
@@ -130,6 +131,7 @@ export function validateSave(s) {
         [...states].some(
           ([k, state]) =>
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
+            (state.down !== undefined && edits.get(k) !== 'hopper') ||
             ((state.output !== undefined || state.subtract !== undefined) &&
               edits.get(k) !== 'comparator') ||
             (edits.get(k) === 'comparator' && state.powered !== undefined) ||
@@ -140,6 +142,24 @@ export function validateSave(s) {
         )
       )
         throw Error('比较器或中继器状态无效');
+      if (
+        d.hopperCooldowns !== undefined &&
+        (!Array.isArray(d.hopperCooldowns) ||
+          d.hopperCooldowns.length > 200000 ||
+          d.hopperCooldowns.some(
+            (e) =>
+              !Array.isArray(e) ||
+              e.length !== 2 ||
+              !cell(e[0]) ||
+              edits.get(e[0]) !== 'hopper' ||
+              !Number.isFinite(e[1]) ||
+              e[1] <= 0 ||
+              e[1] > 0.4,
+          ) ||
+          new Set(d.hopperCooldowns.map((e) => e[0])).size !==
+            d.hopperCooldowns.length)
+      )
+        throw Error('漏斗冷却记录无效');
       if (
         !Array.isArray(d.redstoneTimers) ||
         d.redstoneTimers.length > 200000 ||
@@ -383,7 +403,7 @@ export function validateSave(s) {
           !Array.isArray(e) ||
           e.length !== 2 ||
           !cell(e[0]) ||
-          !validChest(e[1], !!BLOCKS[editedTypes.get(e[0])]?.portable),
+          !validChest(e[1], editedTypes.get(e[0]) || 'chest'),
       ) ||
       new Set(d.chests.map((e) => e[0])).size !== d.chests.length
     )

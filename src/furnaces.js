@@ -106,7 +106,7 @@ export function validFurnace(f) {
     !isFurnace(f.kind) ||
     !Number.isFinite(f.xp) ||
     f.xp < 0 ||
-    f.xp > 1000 ||
+    f.xp > Number.MAX_SAFE_INTEGER ||
     !['progress', 'burn', 'burnTotal'].every(
       (k) => Number.isFinite(f[k]) && f[k] >= 0,
     )
