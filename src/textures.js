@@ -329,7 +329,7 @@ export function createTextures() {
             );
         }
     }
-    if (id === 'hopper') {
+    if (id === 'hopper' || id === 'cauldron') {
       // Original iron panels: cool gray grain, bright rolled lip and dark seams.
       for (let y = 0; y < 16; y++)
         for (let x = 0; x < 16; x++)

@@ -9,6 +9,7 @@ import { cavePlantParts } from './cave-plant-shapes.js';
 import { dripstoneParts } from './dripstone.js';
 import { cobwebParts } from './cobwebs.js';
 import { hopperParts } from './hopper-shape.js';
+import { cauldronParts } from './cauldron-shape.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -37,6 +38,7 @@ export function buildingParts(world, q, y, r, collision = false) {
   if (type === 'pointedDripstone') return dripstoneParts(world, q, y, r);
   if (type === 'cobweb') return cobwebParts(collision);
   if (type === 'hopper') return hopperParts(state, angle);
+  if (shape === 'cauldron') return cauldronParts(type, collision);
   if (isHangingPlant(type)) return cavePlantParts(world, q, y, r, collision);
   if (CIRCUIT_BLOCKS[type]?.shape)
     return redstoneParts(world, q, y, r, collision);

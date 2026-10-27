@@ -6,6 +6,7 @@ import {
 import { GEAR, GEAR_RECIPES } from './gear-data.js';
 import { FARM_BLOCKS, FARM_ITEMS, FARM_RECIPES } from './farming-data.js';
 import { BUILDING_BLOCKS, BUILDING_RECIPES } from './building-data.js';
+import { CAULDRON_BLOCKS, CAULDRON_RECIPES } from './cauldron-data.js';
 import { FISH_ITEMS } from './fishing-data.js';
 import { FOODS } from './survival.js';
 import { BREW_BLOCKS, BREW_ITEMS, BREW_RECIPES } from './brewing-data.js';
@@ -52,6 +53,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...CAULDRON_BLOCKS,
   ...CIRCUIT_BLOCKS,
   ...CAVE_BLOCKS,
   ...PROCESSING_BLOCKS,
@@ -439,6 +441,7 @@ export const RECIPES = [
   },
 ];
 RECIPES.push(
+  ...CAULDRON_RECIPES,
   ...CIRCUIT_RECIPES,
   ...WOOD_RECIPES,
   {

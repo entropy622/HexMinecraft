@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { axialToWorld } from './core.js';
 import { pointedTip, dripstoneRoot } from './dripstone.js';
+import { isCauldron, cauldronHeight } from './cauldron-data.js';
 
 // Cosmetic drips share one fixed buffer; no liquid blocks or light are spawned.
 export class DripstoneEffects {
@@ -66,7 +67,11 @@ export class DripstoneEffects {
           x: p.x,
           y: y - 0.06,
           z: p.z,
-          floor: floor + 1,
+          floor:
+            floor +
+            (isCauldron(world.get(q, floor, r))
+              ? cauldronHeight(world.get(q, floor, r))
+              : 1),
           color:
             source?.type === 'lava' ? [0.95, 0.32, 0.06] : [0.32, 0.64, 0.88],
         });

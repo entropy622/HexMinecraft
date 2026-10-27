@@ -4,6 +4,7 @@ import { isCircuitInput, attachmentCell } from './redstone-data.js';
 import { stackSize } from './inventory.js';
 import { blockSlots } from './block-inventory.js';
 import { storageLidClear } from './chests.js';
+import { CAULDRON_BLOCKS } from './cauldron-data.js';
 
 const coords = (k) => k.split(',').map(Number);
 const neighbors = (q, y, r) => [
@@ -126,6 +127,7 @@ export class Redstone {
   containerLevel(q, y, r) {
     const w = this.world,
       type = w.get(q, y, r);
+    if (CAULDRON_BLOCKS[type]) return CAULDRON_BLOCKS[type].cauldronLevel;
     if (type === 'chest' && !storageLidClear(w, q, y, r)) return 0;
     const endpoints = blockSlots(w, q, y, r);
     if (!endpoints) return BLOCKS[type]?.storage ? 0 : null;

@@ -44,6 +44,8 @@ import { stonecutterPanel } from './stonecutter-ui.js';
 import { newChest, isStorage, storageLidClear } from './chests.js';
 import { chestPanel, updateChestPanel } from './chest-ui.js';
 import { blockSlots } from './block-inventory.js';
+import { isCauldron, cauldronAction, waterCauldron } from './cauldron-data.js';
+import { tickCauldrons, cauldronContact } from './cauldrons.js';
 import { features as villageFeatures, ROLES, trade } from './villages.js';
 import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
@@ -1729,6 +1731,7 @@ function handCanUse(hand) {
   const id = handStack(hand)?.item,
     item = ITEMS[id];
   if (!item) return false;
+  if (cauldronAction(target?.type, id)) return true;
   if (
     (id === 'boneMeal' && isCaveVine(target?.type)) ||
     (id === 'glowBerries' &&
@@ -2096,6 +2099,34 @@ function useGlassBottle() {
   toast('已装满水瓶 · 加入下界疣可以开始酿造');
   return true;
 }
+function useCauldron() {
+  if (!isCauldron(target?.type)) return false;
+  const id = useItem();
+  if (!ITEMS[id]?.bucket && !['glassBottle', 'waterBottle'].includes(id))
+    return false;
+  const action = cauldronAction(target.type, id);
+  if (!action) {
+    toast(
+      id === 'bucket'
+        ? '装满三档后才能用桶取出。'
+        : '这个物品不能继续改变锅中液体。',
+    );
+    return true;
+  }
+  if (!creative && useCount(id) < 1) return true;
+  const { q, y, r } = target;
+  world.set(q, y, r, action.type);
+  if (!creative) exchangeUseItem(action.item);
+  else if (id === 'bucket')
+    resolveInventorySlot(handRef()).set({ item: action.item, count: 1 });
+  else if (id === 'glassBottle') addItem(action.item);
+  graphics.updateCells([[q, y, r]]);
+  useSwing();
+  soundFX.play('splash');
+  updateHUD();
+  saveGame();
+  return true;
+}
 function useBucket() {
   const id = useItem(),
     kind = ITEMS[id]?.bucket;
@@ -2406,7 +2437,9 @@ function pickBlock() {
   if (!playing || !target || !BLOCKS[target.type]) return;
   const original = isCaveVine(target.type)
       ? 'glowBerries'
-      : circuitItem(doorLower(target.type)),
+      : isCauldron(target.type)
+        ? 'cauldron'
+        : circuitItem(doorLower(target.type)),
     id = ITEMS[original]?.internal ? null : original;
   if (!id) return;
   const from = pack.slots.findIndex((s) => s?.item === id);
@@ -2831,7 +2864,8 @@ function place() {
   if (foodUse) stopEating();
   if (boatTarget && !creatureTarget && !villagerTarget && interactBoat())
     return;
-  if (useEndCrystal() || useCircuitControl() || useCavePlant()) return;
+  if (useEndCrystal() || useCircuitControl() || useCavePlant() || useCauldron())
+    return;
   if (
     target &&
     isOpenable(target.type) &&
@@ -3204,7 +3238,7 @@ function removeBuilding(q, y, r, drop = true) {
   if (isDoorTop(original) && world.get(q, y - 1, r) === doorLower(original))
     y--;
   const type = world.get(q, y, r),
-    item = circuitItem(doorLower(type));
+    item = BLOCKS[type].drop || circuitItem(doorLower(type));
   const count =
     BLOCKS[type]?.shape === 'slab' && world.state(q, y, r).double ? 2 : 1;
   graphics.blockBreak({ q, y, r, type });
@@ -3587,7 +3621,8 @@ function interact(preferContext = false) {
   if (!actionHand) return beginUse(() => interact(preferContext));
   combat.reset();
   if (foodUse) stopEating();
-  if (useEndCrystal() || useCircuitControl() || useCavePlant()) return;
+  if (useEndCrystal() || useCircuitControl() || useCavePlant() || useCauldron())
+    return;
   if (!preferContext && boats.riding && useItem() === 'fishingRod') {
     useFishingRod();
     return;
@@ -4578,9 +4613,29 @@ function updateSurvival(dt) {
   const head = playerFluidAt(camera.position.y),
     feet = playerFluidAt(playerFeet() + 0.12);
   const a = worldToAxial(camera.position.x, camera.position.z);
+  const cauldron = cauldronContact(
+    world,
+    camera.position.x,
+    playerFeet(),
+    camera.position.z,
+  );
+  if (
+    cauldron?.liquid === 'water' &&
+    survival.burning > 0 &&
+    !survival.rank('fireResistance')
+  ) {
+    world.set(
+      cauldron.q,
+      cauldron.y,
+      cauldron.r,
+      waterCauldron(cauldron.level - 1),
+    );
+    graphics.updateCells([[cauldron.q, cauldron.y, cauldron.r]]);
+  }
   const column = weatherColumns.get(world, a.q, a.r);
   survivalSubmerged = !!head && head.type !== 'lava';
   const wet =
+    cauldron?.liquid === 'water' ||
     [feet, head].some((fluid) => fluid && LIQUIDS[fluid.type].coolant) ||
     (dimension === 'overworld' &&
       weather.rain > 0.25 &&
@@ -4601,6 +4656,7 @@ function updateSurvival(dt) {
     ),
     wet,
     lava:
+      cauldron?.liquid === 'lava' ||
       [feet, head].some((fluid) => fluid && LIQUIDS[fluid.type].damage) ||
       !!boats.riding?.burning,
   });
@@ -4853,6 +4909,13 @@ function updateWeather(dt) {
   weatherGrowthTimer += dt;
   if (weatherGrowthTimer < 1) return;
   updatePlants(weatherGrowthTimer);
+  const collected = tickCauldrons(
+    world,
+    weatherGrowthTimer,
+    weather,
+    weatherColumns,
+  );
+  if (collected.length) graphics.updateCells(collected);
   updateCampfires(weatherGrowthTimer);
   refreshNetherPortals();
   weatherGrowthTimer = 0;
@@ -6285,6 +6348,9 @@ function frame(now) {
         .upper
         ? ' · 钟乳石 · 断根会坠落 · 右键续接'
         : ' · 石笋 · 避免跳落尖端 · 右键续接';
+    if (isCauldron(target?.type))
+      $('#target').textContent +=
+        ' · 右键用桶或水瓶装取 · 钟乳石下集液 / 露天接雨';
     if (target?.type === 'redstoneWire')
       $('#target').textContent +=
         ` · 信号 ${world.redstone.power(target.q, target.y, target.r)} / 15`;
