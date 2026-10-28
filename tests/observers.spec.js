@@ -2,7 +2,35 @@ import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 
 test.setTimeout(240000);
+const browserLogs = new WeakMap();
+test.beforeEach(async ({ page }) => {
+  const logs = { pageErrors: [], consoleErrors: [], warnings: [] };
+  browserLogs.set(page, logs);
+  page.on('pageerror', (e) => logs.pageErrors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') logs.consoleErrors.push(e.text());
+    if (e.type() === 'warning') logs.warnings.push(e.text());
+  });
+});
 test.afterEach(async ({ page }, info) => {
+  const graphics = page.isClosed()
+    ? { closed: true }
+    : await page.evaluate(() => {
+        const gl = document.querySelector('#world')?.getContext('webgl2'),
+          debug = gl?.getExtension('WEBGL_debug_renderer_info');
+        return {
+          renderer: debug
+            ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL)
+            : null,
+          vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null,
+          glError: gl?.getError() ?? null,
+        };
+      });
+  await writeFile(
+    info.outputPath('graphics-diagnostics.json'),
+    JSON.stringify({ ...graphics, ...browserLogs.get(page) }, null, 2),
+  );
+  expect(graphics.glError).toBe(0);
   if (info.status === info.expectedStatus || page.isClosed()) return;
   const manifest = await page.evaluate(() => {
     const g = window.__hexwild;
@@ -87,7 +115,9 @@ test('player crafts, places and saves an observer delivery machine that pulses o
 }, info) => {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.route('https://fonts.googleapis.com/**', (r) => r.abort());
+  await page.route('https://fonts.googleapis.com/**', (r) =>
+    r.fulfill({ body: '', contentType: 'text/css' }),
+  );
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
@@ -247,7 +277,9 @@ test('player crafts, places and saves an observer delivery machine that pulses o
 test('player collision rejects ordinary and shaped trial placements without false observer output or saved state', async ({
   page,
 }, info) => {
-  await page.route('https://fonts.googleapis.com/**', (r) => r.abort());
+  await page.route('https://fonts.googleapis.com/**', (r) =>
+    r.fulfill({ body: '', contentType: 'text/css' }),
+  );
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
@@ -323,7 +355,9 @@ test('player collision rejects ordinary and shaped trial placements without fals
 test('player places a floating observer and removes both side and floor supports without losing either machine', async ({
   page,
 }, info) => {
-  await page.route('https://fonts.googleapis.com/**', (r) => r.abort());
+  await page.route('https://fonts.googleapis.com/**', (r) =>
+    r.fulfill({ body: '', contentType: 'text/css' }),
+  );
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
