@@ -274,6 +274,17 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
     .toBe('cactus');
+  const flowerEntity = page.waitForFunction(
+    () => {
+      window.__hexwild.save();
+      const drop = JSON.parse(
+        localStorage.getItem('hexwild-save-v16'),
+      ).dimensions.overworld.drops.find((d) => d.item === 'cactusFlower');
+      return drop && { item: drop.item, count: drop.count };
+    },
+    null,
+    { polling: 'raf', timeout: 10000 },
+  );
   await page.locator('#world').dispatchEvent('mousedown', { button: 0 });
   try {
     await expect.poll(() => cell(8, 5, 0)).toBe(null);
@@ -281,11 +292,21 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
     await page.locator('#world').dispatchEvent('mouseup', { button: 0 });
   }
   await expect.poll(() => cell(8, 6, 0)).toBe(null);
-  await expect
-    .poll(() =>
-      page.evaluate(() => window.__hexwild.state.inventory.cactusFlower || 0),
-    )
-    .toBe(1);
+  expect(await (await flowerEntity).jsonValue()).toEqual({
+    item: 'cactusFlower',
+    count: 1,
+  });
+  await page.evaluate(() => window.__hexwild.lookAt(8, 5.15, 0));
+  await page.keyboard.down('KeyW');
+  try {
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.__hexwild.state.inventory.cactusFlower || 0),
+      )
+      .toBe(1);
+  } finally {
+    await page.keyboard.up('KeyW');
+  }
   await page.keyboard.press('KeyE');
   await page.locator('#recipe-search').fill('粉红色染料');
   const flowerRecipe = RECIPES.findIndex(
