@@ -317,7 +317,27 @@ test('v16 validates cocoa stage strictly, saves natural growth, and restores fac
     )[0]
     .split(',')
     .map(Number);
+  const initial = w.state(...p),
+    [dq, dr] = DIRECTIONS[initial.facing],
+    observer = [p[0] - dq, p[1], p[2] - dr];
+  w.set(...observer, 'observer');
+  w.setState(...observer, {
+    facing: initial.facing,
+    open: false,
+    powered: false,
+  });
+  tick(w);
+  w.redstone.timers.clear();
   assert.equal(growCocoa(w, ...p), true);
+  assert.equal(w.state(...p).age, initial.age + 1);
+  assert.equal(
+    w.redstone.timers.has(key(...observer)),
+    true,
+    'the first natural stage change is observed',
+  );
+  tick(w, 0.1);
+  assert.equal(w.state(...observer).powered, true);
+  tick(w, 0.1);
   assert.equal(w.edits.get(key(...p)), 'cocoa');
   assert.doesNotThrow(() => validateSave(currentSave(w)));
   const grown = w.state(...p).age,
