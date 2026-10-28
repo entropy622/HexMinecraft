@@ -1,14 +1,14 @@
 import { WetSurfacePass } from './wet-surfaces.js';
-import { HalfFloatType, Vector2, WebGLRenderTarget } from 'three';
+import { HalfFloatType, WebGLRenderTarget } from 'three';
 import { AtmospherePass } from './atmosphere-pass.js';
 import { SceneFramePass } from './scene-frame.js';
 import { ContactOcclusionPass } from './contact-occlusion.js';
 import { ExposurePass } from './exposure-pass.js';
 import { SurfaceProtectionPass } from './surface-protection.js';
 import { TemporalResolvePass } from './temporal-pass.js';
+import { BloomPass } from './bloom-pass.js';
 import { postSettings } from './render-settings.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
@@ -35,12 +35,7 @@ export function createPostprocessing(
   const protection = new SurfaceProtectionPass(scene, camera, frame, wet);
   const contact = new ContactOcclusionPass(camera, frame, protection);
   const temporal = new TemporalResolvePass(renderer, camera, frame, protection);
-  const bloom = new UnrealBloomPass(
-    new Vector2(innerWidth, innerHeight),
-    0.24,
-    0.6,
-    1.05,
-  );
+  const bloom = new BloomPass();
   const antialias = new SMAAPass();
   const exposure = new ExposurePass();
   composer.addPass(frame);
