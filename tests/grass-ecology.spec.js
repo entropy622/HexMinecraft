@@ -2,12 +2,59 @@ import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 
 test.setTimeout(180000);
+const diagnostics = new WeakMap();
+test.afterEach(async ({ page }, info) => {
+  if (page.isClosed()) return;
+  const state = await page
+    .evaluate(() => {
+      const g = window.__hexwild;
+      if (!g) return { game: false };
+      g.save();
+      const gl = g.graphics.renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return {
+        time: g.state.time,
+        playing: g.state.playing,
+        position: g.state.position,
+        target: g.state.target && {
+          q: g.state.target.q,
+          y: g.state.target.y,
+          r: g.state.target.r,
+          type: g.state.target.type,
+          place: g.state.target.place,
+        },
+        source: g.state.world.get(4, 39, 4),
+        pasture: g.state.world.get(3, 39, 4),
+        cover: g.state.world.get(4, 40, 4),
+        lightRevision: g.graphics.voxelLight.revision,
+        worldRevision: g.state.world.lightRevision,
+        renderer: ext
+          ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+          : gl.getParameter(gl.RENDERER),
+        gl: gl.getError(),
+        fauna: JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+          .overworld.fauna,
+      };
+    })
+    .catch((error) => ({ error: error.message }));
+  await writeFile(
+    info.outputPath('diagnostics.json'),
+    JSON.stringify({ state, ...diagnostics.get(page) }, null, 2),
+  );
+});
 
 test('a grazed pasture recovers, opaque cover kills grass, and streaming/continue keep terrain', async ({
   page,
 }, info) => {
   const errors = [];
+  const warnings = [];
+  const consoleErrors = [];
+  diagnostics.set(page, { errors, warnings, consoleErrors });
   page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') consoleErrors.push(e.text());
+    if (e.type() === 'warning') warnings.push(e.text());
+  });
   await page.route('https://fonts.googleapis.com/**', (route) =>
     route.fulfill({ body: '', contentType: 'text/css' }),
   );
@@ -51,31 +98,34 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
     fauna: { ...fauna, mobs: [sheep] },
   };
   saved.time = 100;
+  const playerPoint = axialToWorld(1, 4);
+  saved.position = [playerPoint.x, 41.68, playerPoint.z];
+  await page.evaluate(() => {
+    Math.random = () => 0.61;
+  });
+  // Observe every real rendered frame before importing, so the short lived
+  // grazed state cannot disappear between an out-of-process poll and pause.
+  const pauseReceipt = page.waitForFunction(
+    () => {
+      const g = window.__hexwild;
+      if (g.state.world.get(3, 39, 4) !== 'dirt') return false;
+      g.open('#pause-overlay');
+      return g.state.time;
+    },
+    null,
+    { polling: 'raf', timeout: 30000 },
+  );
   await page.locator('#save-file').setInputFiles({
     name: 'grass-pasture.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(saved)),
   });
-  await expect
-    .poll(() => page.evaluate(() => window.__hexwild.state.time))
-    .toBeGreaterThanOrEqual(100);
-  await page.evaluate(() => {
-    // Randomness is the external boundary. This also makes all four spread
-    // attempts compete for the same cell through the real maintenance loop.
-    Math.random = () => 0.61;
-    window.__hexwild.teleport(1, 40, 4);
-  });
+  const paused = await (await pauseReceipt).jsonValue();
   const cell = (q, y, r) =>
     page.evaluate(
       ([q, y, r]) => window.__hexwild.state.world.get(q, y, r) || null,
       [q, y, r],
     );
-  await expect.poll(() => cell(3, 39, 4)).toBe('dirt');
-  const paused = await page.evaluate(() => {
-    const g = window.__hexwild;
-    g.open('#pause-overlay');
-    return g.state.time;
-  });
   await page.waitForTimeout(1500);
   expect(await page.evaluate(() => window.__hexwild.state.time)).toBe(paused);
   expect(await cell(3, 39, 4)).toBe('dirt');
@@ -85,12 +135,41 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
     const g = window.__hexwild;
     g.give('stone', 1);
     g.selectItem('stone');
-    g.teleport(3, 40, 3);
+    g.teleport(4, 40, 5);
     g.lookAt(4, 39.99, 4);
   });
   await expect
-    .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
-    .toBe('grass');
+    .poll(() =>
+      page.evaluate(() => {
+        const t = window.__hexwild.state.target;
+        return t && [t.q, t.y, t.r, t.type, t.place.q, t.place.y, t.place.r];
+      }),
+    )
+    .toEqual([4, 39, 4, 'grass', 4, 40, 4]);
+  await expect(page.locator('#target')).toHaveText('草地');
+  await writeFile(
+    info.outputPath('placement-before.json'),
+    JSON.stringify(
+      await page.evaluate(() => {
+        const g = window.__hexwild;
+        return {
+          position: g.state.position,
+          playing: g.state.playing,
+          stone: g.state.inventory.stone,
+          selected: g.state.hotbar,
+          targetText: document.querySelector('#target').textContent,
+          target: g.state.target && {
+            q: g.state.target.q,
+            y: g.state.target.y,
+            r: g.state.target.r,
+            place: g.state.target.place,
+          },
+        };
+      }),
+      null,
+      2,
+    ),
+  );
   for (const type of ['mousedown', 'mouseup'])
     await page.locator('#world').dispatchEvent(type, { button: 2 });
   await expect.poll(() => cell(4, 40, 4)).toBe('stone');
@@ -135,6 +214,7 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
     saveVersion: 16,
   });
   expect(errors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
   await writeFile(
     info.outputPath('grass-ecology.json'),
     JSON.stringify(
