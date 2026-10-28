@@ -15,7 +15,7 @@ export class LeafParticles {
     scene.add(this.group);
     this.geometry = new PlaneGeometry(0.12, 0.16);
     this.materials = new Map(
-      ['leaves', 'birchLeaves', 'spruceLeaves'].map((type) => [
+      ['leaves', 'birchLeaves', 'spruceLeaves', 'jungleLeaves'].map((type) => [
         type,
         new MeshLambertMaterial({
           map: textures.single(type + ':side'),

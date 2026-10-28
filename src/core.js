@@ -28,6 +28,7 @@ import { WOOL_BLOCKS, WOOL_RECIPES } from './wool-data.js';
 import { CARPET_BLOCKS, CARPET_RECIPES } from './carpet-data.js';
 import { recipeMaterials } from './wood-ingredients.js';
 import { applyMiningHardness } from './mining-data.js';
+import { COCOA_BLOCKS } from './cocoa-data.js';
 import {
   MINERAL_BLOCKS,
   MINERAL_ITEMS,
@@ -62,6 +63,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...COCOA_BLOCKS,
   ...WOOL_BLOCKS,
   ...CARPET_BLOCKS,
   ...GLASS_BLOCKS,

@@ -9,6 +9,7 @@ import { FIRST_END_CITY } from './end-city-data.js';
 import { stampChorus } from './chorus.js';
 import { isChorus } from './chorus-data.js';
 import { treeCells } from './tree-layout.js';
+import { naturalCocoa } from './cocoa.js';
 import { LeafDecay } from './leaves.js';
 import { Gravity } from './gravity.js';
 import { caveColumn, cavesNear, stampCaves } from './caves.js';
@@ -125,6 +126,7 @@ export class World {
     if (hexDistance(q, r) < 8) return '青翠平原';
     const heat = noise(q * 0.017, r * 0.017, this.seed + 140),
       wet = noise(q * 0.019, r * 0.019, this.seed + 76);
+    if (heat > 0.59 && wet > 0.57) return '丛林';
     if (heat > 0.67) return '沙漠';
     if (heat < 0.3) return '雪原';
     return wet > 0.53
@@ -194,17 +196,41 @@ export class World {
       return q === 3 && r === 0 && this.dimension === 'overworld';
     const b = this.biome(q, r),
       h = this.terrainHeight(q, r);
-    return (
+    const present =
       h > 6 &&
       !['沙漠', '玄武岩荒地'].includes(b) &&
       hash(q, 17, r, this.seed) >
-        (['森林', '白桦林'].includes(b) ? 0.948 : b === '雪原' ? 0.97 : 0.981)
+        (b === '丛林'
+          ? 0.91
+          : ['森林', '白桦林'].includes(b)
+            ? 0.948
+            : b === '雪原'
+              ? 0.97
+              : 0.981);
+    // Evaluate exclusions at the source, so a canopy crossing a chunk seam
+    // cannot see a different set of caves or structures in its destination.
+    return (
+      present &&
+      !this.structures(q, r, 0).some((s) => {
+        const column = s.kind === 'mine' && s.mine.columns.get(`${q},${r}`);
+        return column && column.ceiling >= h - 1;
+      }) &&
+      !this.caves(q, r).some((c) => {
+        const column = caveColumn(c, q, r);
+        return column && column.ceiling >= h - 1;
+      })
     );
   }
   treeKind(q, r) {
     if (this.dimension === 'nether') return 'crimson';
     const biome = this.biome(q, r);
-    return biome === '雪原' ? 'spruce' : biome === '白桦林' ? 'birch' : 'oak';
+    return biome === '丛林'
+      ? 'jungle'
+      : biome === '雪原'
+        ? 'spruce'
+        : biome === '白桦林'
+          ? 'birch'
+          : 'oak';
   }
   get(q, y, r) {
     return this.blocks.get(key(q, y, r));
@@ -244,6 +270,9 @@ export class World {
         ...(state.output !== undefined ? { output: state.output } : {}),
         ...(state.subtract !== undefined ? { subtract: state.subtract } : {}),
         ...(state.down !== undefined ? { down: state.down } : {}),
+        ...(this.get(q, y, r) === 'cocoa' && state.age !== undefined
+          ? { age: state.age }
+          : {}),
       };
     this.blockStates.set(key(q, y, r), next);
     this.shapeCache.clear();
@@ -259,6 +288,7 @@ export class World {
       down: false,
       mount: 'floor',
       delay: 1,
+      age: 0,
     };
     if (
       record &&
@@ -567,24 +597,18 @@ export class World {
         )
           for (let y = h; y < h + 7; y++) put(q, y, r, 'obsidian');
       }
-    const caves = stampCaves(this, cq, cr),
-      structures = this.structures(cq * 8 + 4, cr * 8 + 4, 8);
-    // Generate trees from a two-cell halo, clipping writes to this chunk.
+    stampCaves(this, cq, cr);
+    const structures = this.structures(cq * 8 + 4, cr * 8 + 4, 8),
+      pods = [];
+    // Generate trees from a three-cell halo, clipping writes to this chunk.
     // The result is independent of chunk load order, including negative seams.
-    for (let tq = cq * 8 - 2; tq < cq * 8 + 10; tq++)
-      for (let tr = cr * 8 - 2; tr < cr * 8 + 10; tr++)
-        if (
-          this.tree(tq, tr) &&
-          !structures.some((s) => {
-            const column =
-              s.kind === 'mine' && s.mine.columns.get(`${tq},${tr}`);
-            return column && column.ceiling >= this.terrainHeight(tq, tr) - 1;
-          }) &&
-          !caves.some((c) => {
-            const column = caveColumn(c, tq, tr);
-            return column && column.ceiling >= this.terrainHeight(tq, tr) - 1;
-          })
-        ) {
+    for (let tq = cq * 8 - 3; tq < cq * 8 + 11; tq++)
+      for (let tr = cr * 8 - 3; tr < cr * 8 + 11; tr++)
+        if (this.tree(tq, tr)) {
+          if (this.treeKind(tq, tr) === 'jungle')
+            pods.push(
+              ...naturalCocoa(tq, this.terrainHeight(tq, tr), tr, this.seed),
+            );
           for (const [q, y, r, type] of treeCells(
             this.treeKind(tq, tr),
             tq,
@@ -605,6 +629,12 @@ export class World {
             put(q, y, r, type);
           }
         }
+    for (const [q, y, r, state] of pods) {
+      if (chunkKey(q, r) !== ck || this.get(q, y, r)) continue;
+      put(q, y, r, 'cocoa');
+      this.naturalStates.set(key(q, y, r), state);
+      this.buildings.add(key(q, y, r));
+    }
     stampChorus(this, cq, cr);
     for (const v of this.villages(cq * 8 + 4, cr * 8 + 4, 8))
       stampVillage(this, v, cq, cr);

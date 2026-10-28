@@ -14,6 +14,7 @@ import { harvestCavePlant } from './cave-plants.js';
 import { isChorus } from './chorus-data.js';
 import { harvestChorus } from './chorus.js';
 import { isPigmentPlant } from './dye-data.js';
+import { harvestCocoa } from './cocoa.js';
 
 function reaction(world, p) {
   const type = world.get(...p),
@@ -140,10 +141,13 @@ export function actuatePiston(world, q, y, r, extend) {
     set(front, null);
   }
   for (const b of fragile) {
-    if (isHangingPlant(b.type) || isChorus(b.type)) {
-      const harvested = isChorus(b.type)
-        ? harvestChorus(world, ...b.position)
-        : harvestCavePlant(world, ...b.position);
+    if (isHangingPlant(b.type) || isChorus(b.type) || b.type === 'cocoa') {
+      const harvested =
+        b.type === 'cocoa'
+          ? harvestCocoa(world, ...b.position)
+          : isChorus(b.type)
+            ? harvestChorus(world, ...b.position)
+            : harvestCavePlant(world, ...b.position);
       for (const p of harvested.changed)
         changed.set(key(p.q, p.y, p.r), [p.q, p.y, p.r]);
       for (const p of harvested.drops)

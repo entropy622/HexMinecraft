@@ -94,7 +94,7 @@ export function miningStats(block, held, enchant = {}) {
       ? 'hoe'
       : material === 'leaves' || isWool(material)
         ? 'shears'
-        : AXE.has(material)
+        : AXE.has(material) || original.shape === 'cocoa'
           ? 'axe'
           : SHOVEL.has(material)
             ? 'shovel'

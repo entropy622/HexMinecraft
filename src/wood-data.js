@@ -26,6 +26,15 @@ export const TREES = {
     sapling: 'spruceSapling',
     height: 7,
   },
+  jungle: {
+    name: '丛林树',
+    log: 'jungleWood',
+    stripped: 'strippedJungleWood',
+    leaves: 'jungleLeaves',
+    planks: 'junglePlanks',
+    sapling: 'jungleSapling',
+    height: 9,
+  },
   crimson: { name: '绯红树', log: 'crimsonwood', leaves: 'shroom', height: 4 },
 };
 export const LOG_VARIANTS = Object.fromEntries(
@@ -35,7 +44,7 @@ export const LOG_VARIANTS = Object.fromEntries(
 );
 export const WOOD_GROUPS = {
   wood: Object.values(LOG_VARIANTS).flat(),
-  planks: ['planks', 'birchPlanks', 'sprucePlanks'],
+  planks: ['planks', 'birchPlanks', 'sprucePlanks', 'junglePlanks'],
 };
 export const woodKey = (id) =>
   Object.entries(WOOD_GROUPS).find(([, ids]) => ids.includes(id))?.[0] || id;
@@ -46,6 +55,7 @@ export const WOOD_BLOCKS = {},
 for (const [species, label, logColor, leafColor, plankColor] of [
   ['birch', '白桦', '#d3d2bd', '#8eb64f', '#d7c492'],
   ['spruce', '云杉', '#66503b', '#5d8067', '#8c6c48'],
+  ['jungle', '丛林', '#746544', '#4d9035', '#bc8864'],
 ]) {
   const t = TREES[species];
   WOOD_BLOCKS[t.log] = {
@@ -101,6 +111,7 @@ for (const [species, label, color, side] of [
   ['oak', '橡木', '#c7a56c', '#b59056'],
   ['birch', '白桦', '#e0cda0', '#d2bb83'],
   ['spruce', '云杉', '#98754d', '#87623b'],
+  ['jungle', '丛林木', '#d49c75', '#b5825b'],
 ]) {
   WOOD_BLOCKS[TREES[species].stripped] = {
     name: '去皮' + label + '原木',

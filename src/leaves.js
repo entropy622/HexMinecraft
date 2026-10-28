@@ -18,7 +18,12 @@ export function leafDrops(
   if (shears) return [{ item: type, count: 1 }];
   const drops = [];
   const level = Math.min(3, Math.max(0, fortune));
-  if (random() < [0.05, 0.0625, 1 / 12, 0.1][level])
+  if (
+    random() <
+    (type === 'jungleLeaves'
+      ? [0.025, 1 / 36, 1 / 32, 1 / 24]
+      : [0.05, 0.0625, 1 / 12, 0.1])[level]
+  )
     drops.push({ item: block.sapling, count: 1 });
   if (type === 'leaves' && random() < [0.02, 0.025, 1 / 30, 0.04][level])
     drops.push({ item: 'apple', count: 1 });

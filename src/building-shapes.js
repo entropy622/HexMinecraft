@@ -38,6 +38,37 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (shape === 'cocoa') {
+    if (collision) return [];
+    const age = state.age || 0,
+      width = [0.25, 0.375, 0.5][age],
+      height = [0.3125, 0.4375, 0.5625][age],
+      offset = 0.866 - width / 2,
+      x = Math.sin(angle) * offset,
+      z = Math.cos(angle) * offset;
+    return [
+      {
+        x,
+        y: 0.72 - height / 2,
+        z,
+        w: width,
+        h: height,
+        d: width,
+        angle,
+        tile: 'cocoa' + age,
+      },
+      {
+        x: Math.sin(angle) * 0.79,
+        y: 0.76,
+        z: Math.cos(angle) * 0.79,
+        w: 0.065,
+        h: 0.12,
+        d: 0.2,
+        angle,
+        tile: 'jungleWood',
+      },
+    ];
+  }
   if (shape === 'carpet')
     return [
       {

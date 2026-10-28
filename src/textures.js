@@ -18,6 +18,12 @@ export function createTextures() {
     id + ':side',
   ]);
   names.push(
+    'cocoa0:top',
+    'cocoa0:side',
+    'cocoa1:top',
+    'cocoa1:side',
+    'cocoa2:top',
+    'cocoa2:side',
     'pistonRod:top',
     'pistonRod:side',
     'observerFace:top',

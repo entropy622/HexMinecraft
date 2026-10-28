@@ -205,15 +205,21 @@ test('rain and snow collect different contents only in exposed overworld columns
     assert.equal(other.get(1, 40, 1), 'cauldron');
   }
   for (const biome of ['沙漠', '雪原']) {
-    let q = 8;
-    while (q < 1000 && w.biome(q, 0) !== biome) q++;
-    assert.ok(q < 1000);
-    w.generateChunk(Math.floor(q / 8), 0);
-    for (let y = 41; y < 64; y++) w.set(q, y, 0, null);
-    w.set(q, 40, 0, 'cauldron');
+    let point;
+    for (let q = -200; q <= 200 && !point; q += 4)
+      for (let r = -200; r <= 200 && !point; r += 4)
+        if (w.biome(q, r) === biome) point = [q, r];
+    assert.ok(
+      point,
+      'find the weather biome without assuming one geographic ray',
+    );
+    const [q, r] = point;
+    w.generateChunk(Math.floor(q / 8), Math.floor(r / 8));
+    for (let y = 41; y < 64; y++) w.set(q, y, r, null);
+    w.set(q, 40, r, 'cauldron');
     tick(w, 1, 1);
     assert.equal(
-      w.get(q, 40, 0),
+      w.get(q, 40, r),
       biome === '雪原' ? 'powderSnowCauldron1' : 'cauldron',
       biome,
     );
