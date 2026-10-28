@@ -2674,7 +2674,10 @@ function dragonVictory(first) {
       if (collides(camera.position.x, playerFeet(), camera.position.z)) {
         world.set(0, END_FLOOR, 0, null, false);
         drops.spawn('dragonEgg', 1, [0, END_FLOOR + 1, 0]);
-      } else world.set(0, END_FLOOR, 0, 'dragonEgg');
+      } else {
+        world.set(0, END_FLOOR, 0, null, false);
+        world.set(0, END_FLOOR, 0, 'dragonEgg');
+      }
       graphics.updateBlock(0, END_FLOOR, 0);
     } else drops.spawn('dragonEgg', 1, [0, END_FLOOR + 1, 0]);
   }
@@ -3029,6 +3032,7 @@ function place() {
     toast('这里会挡住你，换个位置试试。');
     return;
   }
+  world.set(q, y, r, null, false);
   world.set(q, y, r, id);
   if (BLOCKS[id].foliage) world.keepLeaf(q, y, r);
   if (BLOCKS[id].pillar)
@@ -3083,21 +3087,27 @@ function fullSupport(q, y, r, top = false) {
     !BLOCKS[type].nonSolid &&
     (!BLOCKS[type].shape ||
       BLOCKS[type]?.shape === 'dropper' ||
+      type === 'observer' ||
       (isPiston(type) && !world.state(q, y, r).open))
   );
 }
 function mergeSlab(q, y, r, type) {
-  const old = world.state(q, y, r);
+  const old = world.state(q, y, r),
+    stored = world.blockStates.get(key(q, y, r));
   if (old.double || (!creative && !(useCount(type) > 0))) return;
-  world.setState(q, y, r, { ...old, double: true });
+  world.setState(q, y, r, { ...old, double: true }, false);
   if (
     collides(camera.position.x, playerFeet(), camera.position.z) ||
     buildingOccupied(q, y, r)
   ) {
-    world.setState(q, y, r, old);
+    world.setState(q, y, r, old, false);
+    if (stored) world.blockStates.set(key(q, y, r), stored);
+    else world.blockStates.delete(key(q, y, r));
     toast('补全半砖会挡住你，先退开一点。');
     return;
   }
+  world.setState(q, y, r, old, false);
+  world.setState(q, y, r, { ...old, double: true });
   consumeUseItem(type);
   rememberBlockUse(type);
   graphics.updateBlock(q, y, r);
@@ -3176,17 +3186,23 @@ function placeBuilding(type, p) {
     return;
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
-  if (BLOCKS[type]?.shape === 'dropper' || isPiston(type)) {
+  if (
+    BLOCKS[type]?.shape === 'dropper' ||
+    isPiston(type) ||
+    type === 'observer'
+  ) {
     const direction = camera.getWorldDirection(new THREE.Vector3());
     facing = facingFromDirection(-direction.x, -direction.z);
     const p = axialToWorld(...DIRECTIONS[facing]),
       horizontal = -(p.x * direction.x + p.z * direction.z) / Math.sqrt(3);
     if (Math.abs(direction.y) > horizontal) facing = direction.y > 0 ? 6 : 7;
+    if (type === 'observer')
+      facing = facing >= 6 ? 13 - facing : (facing + 3) % 6;
   }
   let mount;
   if (
     CIRCUIT_BLOCKS[type]?.shape &&
-    !['hopper', 'dropper', 'dispenser'].includes(type) &&
+    !['hopper', 'dropper', 'dispenser', 'observer'].includes(type) &&
     !isPiston(type)
   ) {
     const control = ['lever', 'stoneButton', 'redstoneTorch'].includes(type);
@@ -3268,7 +3284,7 @@ function placeBuilding(type, p) {
     return;
   }
   for (const [a, b, c, t] of cells) world.set(a, b, c, t, false);
-  world.setState(q, y, r, {
+  const placementState = {
     facing,
     open: false,
     upper,
@@ -3278,10 +3294,12 @@ function placeBuilding(type, p) {
     ...(type === 'repeater' ? { delay: 1, powered: false } : {}),
     ...(type === 'comparator' ? { output: 0, subtract: false } : {}),
     ...(BLOCKS[type]?.shape === 'dropper' ? { powered: false } : {}),
+    ...(type === 'observer' ? { powered: false } : {}),
     ...(type === 'hopper'
       ? { down: Math.abs(target.normal?.y ?? 1) > 0.5, powered: false }
       : {}),
-  });
+  };
+  world.setState(q, y, r, placementState, false);
   if (
     collides(camera.position.x, playerFeet(), camera.position.z) ||
     buildingOccupied(q, y, r)
@@ -3291,7 +3309,10 @@ function placeBuilding(type, p) {
     toast('这里会挡住你，退开一点再放置。');
     return;
   }
+  for (const [a, b, c] of cells) world.set(a, b, c, null, false);
+  world.blockStates.delete(key(q, y, r));
   for (const [a, b, c, t] of cells) world.set(a, b, c, t);
+  world.setState(q, y, r, placementState);
   if (['hopper', 'dropper', 'dispenser'].includes(type))
     blockSlots(world, q, y, r);
   if (type === 'chorusFlower')
@@ -3360,9 +3381,10 @@ function toggleBuilding(q, y, r, open = null) {
   if (isDoorTop(world.get(q, y, r))) y--;
   if (!isOpenable(world.get(q, y, r))) return false;
   const old = world.state(q, y, r),
+    stored = world.blockStates.get(key(q, y, r)),
     next = { ...old, open: open ?? !old.open };
   if (next.open === old.open) return true;
-  world.setState(q, y, r, next);
+  world.setState(q, y, r, next, false);
   const center = axialToWorld(q, r);
   const blocked =
     collides(camera.position.x, playerFeet(), camera.position.z) ||
@@ -3370,10 +3392,14 @@ function toggleBuilding(q, y, r, open = null) {
     (isTrapdoor(world.get(q, y, r)) &&
       boats.intersectsCell(center.x, y, center.z));
   if (blocked) {
-    world.setState(q, y, r, old);
+    world.setState(q, y, r, old, false);
+    if (stored) world.blockStates.set(key(q, y, r), stored);
+    else world.blockStates.delete(key(q, y, r));
     if (open === null) toast('开合空间内有玩家、动物或船，先让出空间。');
     return false;
   }
+  world.setState(q, y, r, old, false);
+  world.setState(q, y, r, next);
   graphics.updateBlock(q, y, r);
   if (open === null) graphics.swing();
   soundFX.play(next.open ? 'doorOpen' : 'doorClose', 'wood');
@@ -3747,6 +3773,7 @@ function endermanBlockChange(q, y, r, type) {
     world.set(q, y, r, previous, false);
     return false;
   }
+  world.set(q, y, r, previous, false);
   world.set(q, y, r, type);
   graphics.updateBlock(q, y, r);
   maintainBuildings();
@@ -6828,6 +6855,14 @@ function frame(now) {
         ];
       $('#target').textContent +=
         ` · 出口 ${direction}${state.powered ? ' · 通电' : ''}`;
+    }
+    if (target?.type === 'observer') {
+      const state = world.state(target.q, target.y, target.r),
+        facing = state.facing || 0,
+        opposite = facing >= 6 ? 13 - facing : (facing + 3) % 6,
+        directions = ['东', '东南', '西南', '西', '西北', '东北', '下', '上'];
+      $('#target').textContent +=
+        ` · 检测 ${directions[facing]} · 输出 ${directions[opposite]} ${state.powered ? 15 : 0} / 15 · 变化后短脉冲`;
     }
     if (target?.type === 'comparator') {
       const state = world.state(target.q, target.y, target.r);

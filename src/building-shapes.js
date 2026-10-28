@@ -83,7 +83,7 @@ export function buildingParts(world, q, y, r, collision = false) {
   if (type === 'pointedDripstone') return dripstoneParts(world, q, y, r);
   if (type === 'cobweb') return cobwebParts(collision);
   if (type === 'hopper') return hopperParts(state, angle);
-  if (shape === 'dropper') {
+  if (shape === 'dropper' || shape === 'observer') {
     const parts = [
       {
         x: 0,
@@ -99,16 +99,23 @@ export function buildingParts(world, q, y, r, collision = false) {
     const [dq, dy, dr] = dropperOffset(state.facing),
       p = axialToWorld(dq, dr),
       length = Math.hypot(p.x, p.z) || 1;
-    parts.push({
-      x: dy ? 0 : (p.x / length) * 0.875,
-      y: 0.5 + dy * 0.508,
-      z: dy ? 0 : (p.z / length) * 0.875,
+    const panel = (side, tile) => ({
+      x: dy ? 0 : (p.x / length) * 0.875 * side,
+      y: 0.5 + dy * 0.508 * side,
+      z: dy ? 0 : (p.z / length) * 0.875 * side,
       w: 0.65,
       h: dy ? 0.016 : 0.65,
       d: dy ? 0.65 : 0.016,
       angle: dy ? 0 : angle,
-      tile: type + 'Mouth',
+      tile,
     });
+    parts.push(
+      panel(1, shape === 'observer' ? 'observerFace' : type + 'Mouth'),
+    );
+    if (shape === 'observer')
+      parts.push(
+        panel(-1, state.powered ? 'observerOutputOn' : 'observerOutput'),
+      );
     return parts;
   }
   if (shape === 'cauldron') return cauldronParts(type, collision);

@@ -102,7 +102,11 @@ export function cutBlockIcon(id) {
           ? '<rect x="2" y="4" width="12" height="9" fill="#41494d"/><rect x="3" y="5" width="10" height="7" fill="#161e23"/>'
           : tile === 'dispenserMouth'
             ? '<path d="M2 3h3v2H2zM11 3h3v2h-3z" fill="#3d4548"/><circle cx="8" cy="10" r="4.6" fill="#bec4c2"/><circle cx="8" cy="10" r="3.5" fill="#151d21"/>'
-            : '';
+            : tile === 'observerFace'
+              ? '<path d="M3 5h3v4H3zM10 5h3v4h-3zM5 11h6v1H5z" fill="#25333b"/>'
+              : tile.startsWith('observerOutput')
+                ? '<rect x="4" y="4" width="8" height="8" fill="#404a50"/><rect x="5" y="5" width="6" height="6" fill="#ad3429"/>'
+                : '';
       return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="${surface.color}"/><path d="M1 2h4v2H1zM8 5h5v2H8zM3 10h3v3H3zM11 12h4v2h-4z" fill="${surface.side || '#000'}" opacity="${surface.side ? 1 : 0.13}"/>${mouth}</pattern>`;
     }
     const url = isWool(tile)

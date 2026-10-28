@@ -1,6 +1,13 @@
 import { isOpenable, isDoorTop } from './building-data.js';
 
 export const CIRCUIT_BLOCKS = {
+  observer: {
+    name: '侦测器',
+    color: '#8c9294',
+    hardness: 3,
+    tool: 1,
+    shape: 'observer',
+  },
   piston: {
     name: '活塞',
     color: '#9f957e',
@@ -152,6 +159,19 @@ export const circuitItem = (type) =>
 // The hex crafting grid uses logs for the wooden handle, like existing ladders.
 export const CIRCUIT_RECIPES = [
   [
+    'observer',
+    [
+      'cobble',
+      'cobble',
+      'cobble',
+      'redstone',
+      'cobble',
+      'netherQuartz',
+      'redstone',
+    ],
+    '六圆石、二红石、一石英。双眼背向玩家检测一格，红点向相反面输出；变化后延迟 0.1 秒输出 15，持续 0.1 秒。仰俯可朝上下。',
+  ],
+  [
     'piston',
     ['planks', 'planks', 'cobble', 'cobble', 'ingot', 'redstone', 'cobble'],
     '三块木板、四块圆石、一块铁锭和一份红石。朝向玩家，仰俯可朝上下；通电推动最多十二格，断电收回活塞头。',
@@ -228,19 +248,22 @@ export const CIRCUIT_RECIPES = [
     'dropper',
     'dispenser',
     'piston',
+    'observer',
   ].includes(id),
-  ...(['dropper', 'dispenser', 'piston'].includes(id)
+  ...(['dropper', 'dispenser', 'piston', 'observer'].includes(id)
     ? {
         patternCounts:
-          id === 'piston'
-            ? [2, 1, 1, 1, 1, 1, 2]
-            : id === 'dispenser'
-              ? [2, 2, 1, 1, 1, 1, 1]
-              : [2, 1, 1, 1, 1, 1, 1],
+          id === 'observer'
+            ? [2, 1, 2, 1, 1, 1, 1]
+            : id === 'piston'
+              ? [2, 1, 1, 1, 1, 1, 2]
+              : id === 'dispenser'
+                ? [2, 2, 1, 1, 1, 1, 1]
+                : [2, 1, 1, 1, 1, 1, 1],
         cobbleGroup: true,
       }
     : {}),
-  pattern: ['dropper', 'dispenser', 'piston'].includes(id)
+  pattern: ['dropper', 'dispenser', 'piston', 'observer'].includes(id)
     ? ingredients
     : id === 'hopper'
       ? ['ingot', null, 'ingot', 'ingot', 'chest', 'ingot', 'ingot']
@@ -274,16 +297,18 @@ export const CIRCUIT_RECIPES = [
                 ...Array(4 - ingredients.length).fill(null),
               ],
   cost:
-    id === 'piston'
-      ? { planks: 3, cobble: 4, ingot: 1, redstone: 1 }
-      : id === 'dispenser'
-        ? { cobble: 7, redstone: 1, bow: 1 }
-        : id === 'dropper'
-          ? { cobble: 7, redstone: 1 }
-          : ingredients.reduce(
-              (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
-              {},
-            ),
+    id === 'observer'
+      ? { cobble: 6, redstone: 2, netherQuartz: 1 }
+      : id === 'piston'
+        ? { planks: 3, cobble: 4, ingot: 1, redstone: 1 }
+        : id === 'dispenser'
+          ? { cobble: 7, redstone: 1, bow: 1 }
+          : id === 'dropper'
+            ? { cobble: 7, redstone: 1 }
+            : ingredients.reduce(
+                (cost, item) => ({ ...cost, [item]: (cost[item] || 0) + 1 }),
+                {},
+              ),
 }));
 
 export function attachmentCell(q, y, r, state, directions) {

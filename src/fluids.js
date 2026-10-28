@@ -82,7 +82,9 @@ export class Fluids {
       this.world.loaded(q, r) &&
       (!this.world.get(q, y, r) ||
         (!!CIRCUIT_BLOCKS[this.world.get(q, y, r)]?.shape &&
-          CIRCUIT_BLOCKS[this.world.get(q, y, r)].shape !== 'dropper') ||
+          !['dropper', 'observer'].includes(
+            CIRCUIT_BLOCKS[this.world.get(q, y, r)].shape,
+          )) ||
         this.world.get(q, y, r) === 'cobweb' ||
         this.world.get(q, y, r) === 'powderSnow' ||
         isCarpet(this.world.get(q, y, r)) ||
@@ -115,6 +117,7 @@ export class Fluids {
     this.world.lightRevision++;
     if (f) cells.set(k, { ...f });
     else cells.delete(k);
+    if (record) this.world.redstone.blockChanged(q, y, r);
     if (record) {
       this.edits.set(k, f ? { ...f } : null);
       if (!this.editChunks.has(ck)) this.editChunks.set(ck, new Map());

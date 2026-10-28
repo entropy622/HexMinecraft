@@ -165,7 +165,13 @@ export function actuatePiston(world, q, y, r, extend) {
   for (const block of snapshots.toReversed()) {
     set(block.from, null);
     set(block.to, block.type);
-    if (block.state) world.setState(...block.to, block.state);
+    if (block.state)
+      world.setState(...block.to, {
+        ...block.state,
+        ...(block.type === 'observer' ? { powered: false } : {}),
+      });
+    if (block.type === 'observer')
+      world.redstone.timers.set(key(...block.to), 0.1);
     moves.push({ from: block.from, to: block.to, parts: block.parts });
   }
   if (extend) {

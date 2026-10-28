@@ -132,7 +132,7 @@ export function validateSave(s) {
         [...states].some(
           ([k, state]) =>
             (state.facing > 5 &&
-              !['dropper', 'piston', 'pistonHead'].includes(
+              !['dropper', 'piston', 'pistonHead', 'observer'].includes(
                 BLOCKS[edits.get(k)]?.shape,
               )) ||
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
@@ -195,6 +195,7 @@ export function validateSave(s) {
                 redstoneTorch: 0.1,
                 repeater: 0.4,
                 comparator: 0.1,
+                observer: 0.1,
                 dropper: 0.2,
                 dispenser: 0.2,
                 piston: 0.1,
@@ -235,7 +236,9 @@ export function validateSave(s) {
         [...states].some(
           ([k, state]) =>
             state.powered &&
-            ['stoneButton', 'stonePressurePlate'].includes(edits.get(k)) &&
+            ['stoneButton', 'stonePressurePlate', 'observer'].includes(
+              edits.get(k),
+            ) &&
             !timed.has(k),
         )
       )

@@ -30,6 +30,7 @@ export const usesBuildingItemMesh = (type) =>
     'comparator',
     'hopper',
     'dropper',
+    'observer',
     'cauldron',
     'cobweb',
     'sporeBlossom',

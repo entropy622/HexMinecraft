@@ -20,6 +20,12 @@ export function createTextures() {
   names.push(
     'pistonRod:top',
     'pistonRod:side',
+    'observerFace:top',
+    'observerFace:side',
+    'observerOutput:top',
+    'observerOutput:side',
+    'observerOutputOn:top',
+    'observerOutputOn:side',
     'dropperMouth:top',
     'dropperMouth:side',
     'dispenserMouth:top',
@@ -379,6 +385,25 @@ export function createTextures() {
           fill('#b09361', 3, 2, 10, 3);
           fill('#525a52', 4, 7, 8, 5);
         }
+      }
+    }
+    if (id.startsWith('observer')) {
+      for (let y = 0; y < 16; y++)
+        for (let x = 0; x < 16; x++)
+          fill(rand(x, y, 82) > 0.5 ? '#92999b' : '#727c80', x, y);
+      fill('#c0c7c5', 0, 0, 16, 1);
+      fill('#434e54', 0, 15, 16, 1);
+      if (id === 'observerFace') {
+        fill('#d6d8cf', 1, 2, 14, 12);
+        for (const x of [3, 10]) {
+          fill('#3b4548', x, 5, 3, 4);
+          fill('#151f24', x + 1, 6, 2, 2);
+        }
+        fill('#596267', 5, 11, 6, 1);
+      } else if (id.startsWith('observerOutput')) {
+        fill('#404a50', 4, 4, 8, 8);
+        fill(id.endsWith('On') ? '#ff6946' : '#862b27', 5, 5, 6, 6);
+        if (id.endsWith('On')) fill('#ffd898', 7, 7, 2, 2);
       }
     }
     if (

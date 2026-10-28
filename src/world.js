@@ -228,23 +228,49 @@ export class World {
       this.naturalStates.get(k) || { facing: 0, open: false }
     );
   }
-  setState(q, y, r, state) {
+  setState(q, y, r, state, record = true) {
     this.lightRevision++;
     if (isDoorTop(this.get(q, y, r))) y--;
-    this.blockStates.set(key(q, y, r), {
-      facing: state.facing,
-      open: state.open,
-      upper: state.upper === true,
-      double: state.double === true,
-      axis: state.axis ?? 0,
-      ...(state.powered !== undefined ? { powered: state.powered } : {}),
-      ...(state.mount !== undefined ? { mount: state.mount } : {}),
-      ...(state.delay !== undefined ? { delay: state.delay } : {}),
-      ...(state.output !== undefined ? { output: state.output } : {}),
-      ...(state.subtract !== undefined ? { subtract: state.subtract } : {}),
-      ...(state.down !== undefined ? { down: state.down } : {}),
-    });
+    const previous = this.state(q, y, r),
+      next = {
+        facing: state.facing,
+        open: state.open,
+        upper: state.upper === true,
+        double: state.double === true,
+        axis: state.axis ?? 0,
+        ...(state.powered !== undefined ? { powered: state.powered } : {}),
+        ...(state.mount !== undefined ? { mount: state.mount } : {}),
+        ...(state.delay !== undefined ? { delay: state.delay } : {}),
+        ...(state.output !== undefined ? { output: state.output } : {}),
+        ...(state.subtract !== undefined ? { subtract: state.subtract } : {}),
+        ...(state.down !== undefined ? { down: state.down } : {}),
+      };
+    this.blockStates.set(key(q, y, r), next);
     this.shapeCache.clear();
+    const defaults = {
+      facing: 0,
+      open: false,
+      upper: false,
+      double: false,
+      axis: 0,
+      powered: this.get(q, y, r) === 'redstoneTorch',
+      output: 0,
+      subtract: false,
+      down: false,
+      mount: 'floor',
+      delay: 1,
+    };
+    if (
+      record &&
+      Object.keys({ ...previous, ...next }).some(
+        (name) =>
+          (previous[name] ?? defaults[name]) !== (next[name] ?? defaults[name]),
+      )
+    ) {
+      this.redstone.blockChanged(q, y, r);
+      if (isOpenable(this.get(q, y, r)) && isDoorTop(this.get(q, y + 1, r)))
+        this.redstone.blockChanged(q, y + 1, r);
+    }
   }
   pointSolid(x, y, z) {
     const cell = worldToAxial(x, z),
@@ -389,7 +415,7 @@ export class World {
     }
     if (record && this.loaded(q, r)) this.fluids.changedBlock(q, y, r);
     if (record && this.loaded(q, r)) this.gravity.wake(q, y, r);
-    if (type !== 'chorusFlower') this.chorus.delete(k);
+    if (record && type !== 'chorusFlower') this.chorus.delete(k);
     if (this.loaded(q, r) && previous !== type) {
       for (const [a, b, c] of [
         [q, y, r],
@@ -410,6 +436,8 @@ export class World {
     }
     // Current cell is already gone, so deleting its partner cannot recurse back.
     if (partner) this.set(...partner, null);
+    if (record && (previous || null) !== (type || null))
+      this.redstone.blockChanged(q, y, r);
   }
   indexTreeCell(k, type) {
     this.treeLeaves.delete(k);
