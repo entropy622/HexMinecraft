@@ -28,7 +28,7 @@ import { Atmosphere } from './atmosphere.js';
 import { SoftShadows } from './soft-shadows.js';
 import { isGlass } from './dye-data.js';
 import { HexClouds } from './clouds.js';
-import { SkyEnvironment, moonPhase } from './sky-environment.js';
+import { SkyEnvironment } from './sky-environment.js';
 import { EnchantingModels, applyEnchantGlow } from './enchanting-graphics.js';
 import { SmithingModels } from './smithing-graphics.js';
 import { isSmithingStation } from './smithing-data.js';
@@ -216,6 +216,7 @@ export class Graphics {
     this.moonDisk = this.skyEnvironment.moonDisk;
     this.stars = this.skyEnvironment.stars;
     this.cloudSystem = new HexClouds(this.scene);
+    Object.assign(this.cloudSystem.uniforms, this.skyEnvironment.uniforms);
     this.clouds = this.cloudSystem.mesh;
     this.decor = new THREE.Group();
     this.scene.add(this.decor);
@@ -266,6 +267,7 @@ export class Graphics {
     this.camera.add(this.mainShield);
     this.scene.add(this.camera);
     canvas.addEventListener('webglcontextlost', () => {
+      this.skyEnvironment.atmosphere.dispose();
       // Release the old context's disposal callbacks while it is still lost.
       // CPU geometry/images remain available for Three's next upload; otherwise
       // later world streaming tries to delete handles owned by the lost context.
@@ -1367,31 +1369,31 @@ export class Graphics {
     this.fluidRenderer.sync(this.world, new Set(this.chunks.keys()));
     const phase = (time % 600) / 600,
       day = Math.max(0.08, Math.sin(phase * Math.PI * 2)),
-      sky =
-        this.world?.dimension === 'overworld'
-          ? new THREE.Color('#122c47').lerp(new THREE.Color('#79b6ee'), day)
-          : new THREE.Color(
-              DIMENSIONS[this.world?.dimension || 'overworld'].fog,
-            );
-    const horizon =
-      this.world?.dimension === 'overworld'
-        ? new THREE.Color('#132239').lerp(new THREE.Color('#c2dbee'), day)
-        : sky;
+      sky = new THREE.Color(DIMENSIONS[this.world.dimension].fog),
+      horizon = sky.clone();
     const overworld = this.world?.dimension === 'overworld';
     const elevation = Math.sin(phase * Math.PI * 2);
+    // All consumers below share the atmospheric sky and direct-light source.
+    this.skyEnvironment.frame(this.renderer, {
+      time,
+      dt,
+      rain,
+      flash,
+      camera: this.camera,
+      sun: this.sun,
+      quality: this.quality,
+      dimension: this.world.dimension,
+    });
+    if (overworld) {
+      sky.copy(this.skyEnvironment.atmosphere.zenith);
+      horizon.copy(this.skyEnvironment.atmosphere.horizon);
+    }
     this.dynamicLight.uniforms.waterSunlight.value =
-      this.usePost && overworld && elevation > 0 ? 1 : 0;
+      this.usePost && overworld && this.sunDisk.position.y > 0 ? 1 : 0;
     this.dynamicLight.uniforms.glassSunlight.value =
       this.usePost && overworld ? 1 : 0;
     const dusk = overworld ? Math.max(0, 1 - Math.abs(elevation) * 3.5) : 0;
-    if (overworld) horizon.lerp(new THREE.Color('#e49a69'), dusk * 0.22);
     if (overworld) {
-      const grey = new THREE.Color('#263444').lerp(
-        new THREE.Color('#7e919b'),
-        day,
-      );
-      sky.lerp(grey, rain * 0.85);
-      horizon.lerp(grey, rain * 0.8);
       sky.lerp(new THREE.Color('#c7d8eb'), flash * 0.5);
       horizon.lerp(new THREE.Color('#c7d8eb'), flash * 0.35);
       this.scene.fog.near = 22 - rain * 6;
@@ -1402,8 +1404,7 @@ export class Graphics {
       : 0;
     this.weatherUniforms.wetSky.value.copy(horizon);
     this.weatherUniforms.terrainRain.value = rain;
-    this.sun.color.set(overworld ? '#fff3d2' : '#dac4ff');
-    if (overworld) this.sun.color.lerp(new THREE.Color('#ff9857'), dusk * 0.8);
+    if (!overworld) this.sun.color.set('#dac4ff');
     this.hemi.groundColor.set(overworld ? '#77715b' : '#514353');
     this.fluidRenderer.frame(time, sky, horizon);
     this.scene.background.copy(horizon);
@@ -1428,10 +1429,7 @@ export class Graphics {
     );
     this.scene.fog.color.multiplyScalar(0.035 + perceivedSky * 0.965);
     this.sky.position.copy(this.camera.position);
-    this.sky.material.uniforms.zenith.value.copy(sky);
-    this.sky.material.uniforms.horizon.value.copy(horizon);
-    this.hemi.intensity =
-      this.world?.dimension === 'overworld' ? 0.5 + day * 1.1 : 1.15;
+    this.hemi.intensity = overworld ? 0 : 1.15;
     this.hemi.color.set(
       this.world?.dimension === 'nether'
         ? '#fbb099'
@@ -1439,32 +1437,15 @@ export class Graphics {
           ? '#c9b5ec'
           : '#daeaff',
     );
-    this.sun.intensity =
-      this.world?.dimension === 'overworld'
-        ? 2.25 * THREE.MathUtils.smoothstep(elevation, 0, 0.16)
-        : 0.5;
-    this.sun.position.set(
-      this.camera.position.x + Math.cos(phase * Math.PI * 2) * 50,
-      this.camera.position.y + Math.max(15, Math.sin(phase * Math.PI * 2) * 60),
-      this.camera.position.z + 25,
-    );
-    // Align shadows with the visible sun; after sunset use cool moonlight.
-    if (overworld) {
-      const side = elevation >= 0 ? 1 : -1;
+    if (!overworld) {
+      this.sun.intensity = 0.5;
       this.sun.position.set(
-        this.camera.position.x + Math.cos(phase * Math.PI * 2) * 78 * side,
-        this.camera.position.y + Math.max(8, Math.abs(elevation) * 78),
-        this.camera.position.z - 45 * side,
+        this.camera.position.x + Math.cos(phase * Math.PI * 2) * 50,
+        this.camera.position.y + Math.max(15, elevation * 60),
+        this.camera.position.z + 25,
       );
-      if (elevation < 0) {
-        this.sun.color.set('#a6bfff');
-        this.sun.intensity =
-          (0.08 + moonPhase(time).illumination * 0.22) *
-          THREE.MathUtils.smoothstep(-elevation, 0, 0.18);
-      }
     }
     this.sun.target.position.copy(this.camera.position);
-    this.sun.intensity *= 1 - rain * 0.78;
     this.leafUniforms.leafTime.value = time;
     this.leafUniforms.leafViewer.value.copy(this.camera.position);
     this.leafUniforms.leafWind.value = overworld
@@ -1480,27 +1461,13 @@ export class Graphics {
     this.leafParticles.frame(dt, time, this.leafUniforms.leafWind.value);
     this.caveAmbience.frame(dt, time, this.world, this.camera);
     this.dripstoneEffects.frame(dt, time, this.world, this.camera);
-    this.hemi.intensity = this.hemi.intensity * (1 - rain * 0.2) + flash * 0.85;
+    this.hemi.intensity += flash * 0.85;
     this.shadowTimer = (this.shadowTimer || 0) - dt;
     if (this.shadowTimer <= 0) {
       this.renderer.shadowMap.needsUpdate = true;
       this.shadowTimer = 0.25;
     }
     this.skyObjects.position.copy(this.camera.position);
-    this.sunDisk.position.set(
-      Math.cos(phase * Math.PI * 2) * 78,
-      Math.sin(phase * Math.PI * 2) * 78,
-      -45,
-    );
-    this.moonDisk.position.copy(this.sunDisk.position).multiplyScalar(-1);
-    this.sky.material.uniforms.sunDirection.value
-      .copy(this.sunDisk.position)
-      .normalize();
-    this.sky.material.uniforms.sunColor.value.set('#ffd29b');
-    this.sky.material.uniforms.sunStrength.value = overworld
-      ? Math.max(0, Math.min(1, elevation * 4 + 0.3)) * (1 - rain)
-      : 0;
-    this.skyEnvironment.frame(time, rain);
     this.cloudSystem.frame({
       world: this.world,
       camera: this.camera,
@@ -1515,9 +1482,6 @@ export class Graphics {
       quality: this.quality,
       enabled: this.postOptions.clouds,
     });
-    this.sunDisk.material.color.set('#fff0bd').multiplyScalar(2.5);
-    this.sunDisk.material.transparent = true;
-    this.sunDisk.material.opacity = 1 - rain * 0.97;
     this.moonDisk.material.transparent = true;
     this.moonDisk.material.opacity = 1 - rain * 0.93;
     this.sunDisk.quaternion.copy(this.camera.quaternion);
@@ -1525,7 +1489,13 @@ export class Graphics {
     this.stars.material.opacity =
       this.world?.dimension === 'end'
         ? 0.9
-        : Math.max(0, 1 - day * 2.5) * (1 - rain);
+        : (1 -
+            THREE.MathUtils.smoothstep(
+              this.skyEnvironment.uniforms.skySunDirection.value.y,
+              -0.12,
+              0,
+            )) *
+          (1 - rain);
     for (const g of this.portalMeshes?.values() || [])
       for (const child of g.children) {
         if (child.userData.spin) child.rotation.z = time * child.userData.spin;
@@ -1714,7 +1684,7 @@ export class Graphics {
     this.atmosphere.attach(this.scene);
     this.softShadows.attach(
       this.scene,
-      elevation >= 0 ? this.sunDisk : this.moonDisk,
+      this.sunDisk.position.y >= 0 ? this.sunDisk : this.moonDisk,
     );
     this.enchantingModels.frame(time);
     if (this.smithingModels.frame(renderDt))
