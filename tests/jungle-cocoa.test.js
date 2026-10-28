@@ -323,6 +323,32 @@ test('water/lava cleanup, missing support and piston destruction drop actual coc
     assert.equal(w.get(0, 40, 0), undefined);
     assert.equal(tickCocoa(w, 1).drops.length, 0);
   }
+  const random = Math.random;
+  try {
+    Math.random = () => 0;
+    for (const age of [0, 1, 2])
+      for (const liquid of ['water', 'lava']) {
+        const edge = farm();
+        pod(edge, 7, 40, 0, 0, age);
+        edge.unloadChunk(1, 0);
+        assert.equal(cocoaSupport(edge, 7, 40, 0), null);
+        assert.deepEqual(tickCocoa(edge, 1), { changed: [], drops: [] });
+        assert.equal(
+          edge.state(7, 40, 0).age,
+          age,
+          'dry unknown support freezes growth',
+        );
+        assert.equal(edge.fluids.source(7, 40, 0, liquid), true);
+        const washed = tickCocoa(edge, 0);
+        assert.deepEqual(washed.drops, [
+          { q: 7, y: 40, r: 0, item: 'cocoaBeans', count: age === 2 ? 3 : 1 },
+        ]);
+        assert.equal(edge.get(7, 40, 0), undefined);
+        assert.deepEqual(tickCocoa(edge, 0), { changed: [], drops: [] });
+      }
+  } finally {
+    Math.random = random;
+  }
   const w = farm();
   pod(w, 0, 40, 0, 1, 2);
   w.set(-1, 40, 0, 'piston');

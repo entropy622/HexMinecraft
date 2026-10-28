@@ -43,9 +43,10 @@ export function tickCocoa(world, dt) {
   for (const k of [...world.buildings]) {
     const [q, y, r] = k.split(',').map(Number);
     if (world.get(q, y, r) !== 'cocoa') continue;
-    const support = cocoaSupport(world, q, y, r);
-    if (support === null) continue;
-    if (!support || world.fluids.get(q, y, r)) {
+    const support = cocoaSupport(world, q, y, r),
+      fluid = world.fluids.get(q, y, r);
+    if (support === null && !fluid) continue;
+    if (support === false || fluid) {
       const removed = harvestCocoa(world, q, y, r);
       output.changed.push(...removed.changed);
       output.drops.push(...removed.drops);
