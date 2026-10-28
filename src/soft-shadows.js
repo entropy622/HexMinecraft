@@ -13,7 +13,7 @@ vec2 softShadowDisk(int i, int count, float angle) {
 }
 float softShadowDepth(sampler2D map, vec2 uv) {
   if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return 1.0;
-  float z = texture2D(map, uv).r;
+  float z = textureLod(map, uv, 0.0).r;
   #ifdef USE_REVERSED_DEPTH_BUFFER
     z = 1.0 - z;
   #endif
@@ -124,7 +124,7 @@ export class SoftShadows {
             );
         };
         material.customProgramCacheKey = () =>
-          key.call(material) + '-contact-shadows-glass-v5';
+          key.call(material) + '-contact-shadows-glass-v6';
         material.needsUpdate = true;
       }
     });

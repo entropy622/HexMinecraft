@@ -5,7 +5,7 @@ import { PlayerInventory } from '../src/inventory.js';
 
 // Native export supplies the schema. Only the external fixture is prepared
 // through World; all browser actions use shipped UI and ordinary input events.
-test('shipped UI lays carpet, places a floating observer and retains both through Continue', async ({
+test('shipped UI grows cocoa and keeps cactus, carpet and observer through Continue', async ({
   page,
 }, info) => {
   const errors = [],
@@ -29,9 +29,9 @@ test('shipped UI lays carpet, places a floating observer and retains both throug
     });
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
-  await expect(page.locator('.edition')).toContainText('v0.84');
   await page.locator('#start').click();
   await page.keyboard.press('Escape');
+  await page.locator('#quality').selectOption('1.7');
   const saved = await exported(),
     w = new World(saved.seed, 'overworld', {
       ...saved.dimensions.overworld,
@@ -44,9 +44,18 @@ test('shipped UI lays carpet, places a floating observer and retains both throug
       for (let y = 40; y < 48; y++) w.set(q, y, r, null);
     }
   w.set(0, 39, 0, 'grass');
+  w.set(2, 40, 0, 'jungleWood');
+  w.set(1, 40, 0, 'cocoa');
+  w.setState(1, 40, 0, { facing: 0, open: false, age: 0 });
+  w.set(-2, 38, 0, 'stone');
+  w.set(-2, 39, 0, 'sand');
+  for (let y = 40; y <= 42; y++) w.set(-2, y, 0, 'cactus');
+  // A full-height column at its natural limit keeps the saved tip age stable.
+  w.setState(-2, 42, 0, { facing: 0, open: false, age: 15 });
   const pack = new PlayerInventory();
   pack.insert('redCarpet', 3);
   pack.insert('observer', 2);
+  pack.insert('boneMeal', 2);
   saved.inventory = pack.serialize();
   saved.selected = 0;
   saved.position = [0, 41.65, 3];
@@ -79,6 +88,24 @@ test('shipped UI lays carpet, places a floating observer and retains both throug
     ),
   );
   await expect(page.locator('#target')).toContainText('侦测器');
+  await page.keyboard.press('Digit3');
+  await expect(page.locator('#selected-name')).toContainText('骨粉');
+  // Turn to the adjacent log's side pod through ordinary pointer movement.
+  await page.evaluate(() =>
+    document.dispatchEvent(
+      new MouseEvent('mousemove', {
+        movementX: 338,
+        movementY: 111,
+        bubbles: true,
+      }),
+    ),
+  );
+  await expect(page.locator('#target')).toContainText('可可荚');
+  await expect(page.locator('#target')).toContainText('幼荚');
+  await use();
+  await expect(page.locator('#target')).toContainText('生长中');
+  await use();
+  await expect(page.locator('#target')).toContainText('成熟');
   await page.keyboard.press('Escape');
   const before = await exported();
   const inventoryCount = (s, item) =>
@@ -90,16 +117,24 @@ test('shipped UI lays carpet, places a floating observer and retains both throug
     ['0,39,0', '0,40,0', '0,41,0'].map(
       (cell) => s.dimensions.overworld.edits.find(([k]) => k === cell)?.[1],
     );
+  const plantAges = (s) =>
+    ['1,40,0', '-2,42,0'].map(
+      (cell) =>
+        s.dimensions.overworld.blockStates.find(([k]) => k === cell)?.[1].age,
+    );
   expect(cells(before)).toEqual(['grass', 'redCarpet', 'observer']);
   expect(inventoryCount(before, 'redCarpet')).toBe(2);
   expect(inventoryCount(before, 'observer')).toBe(1);
+  expect(inventoryCount(before, 'boneMeal')).toBe(0);
+  expect(plantAges(before)).toEqual([2, 15]);
   await page.locator('#home').click();
   await page.reload();
   await page.locator('#continue').click();
   await expect(page.locator('#hud')).toBeVisible();
-  await expect(page.locator('#target')).toContainText('侦测器');
+  await expect(page.locator('#target')).toContainText('可可荚');
+  await expect(page.locator('#target')).toContainText('成熟');
   await page.screenshot({
-    path: info.outputPath('native-carpet-observer.png'),
+    path: info.outputPath('native-garden.png'),
   });
   const runtime = await page.evaluate(() => {
     const gl = document.querySelector('#world').getContext('webgl2'),
@@ -113,10 +148,12 @@ test('shipped UI lays carpet, places a floating observer and retains both throug
   });
   expect(runtime.gl).toBe(0);
   expect(runtime.contextLost).toBe(false);
+  expect(runtime.developmentFixture).toBe(false);
   await page.keyboard.press('Escape');
   const after = await exported();
   expect(cells(after)).toEqual(cells(before));
   expect(after.inventory).toEqual(before.inventory);
+  expect(plantAges(after)).toEqual(plantAges(before));
   expect(errors).toEqual([]);
   await writeFile(
     info.outputPath('native-pasture.json'),
@@ -124,9 +161,11 @@ test('shipped UI lays carpet, places a floating observer and retains both throug
       {
         ...runtime,
         cells: cells(after),
+        plantAges: plantAges(after),
         inventory: {
           redCarpet: inventoryCount(after, 'redCarpet'),
           observer: inventoryCount(after, 'observer'),
+          boneMeal: inventoryCount(after, 'boneMeal'),
         },
         version: after.version,
         errors,

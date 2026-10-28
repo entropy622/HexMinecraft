@@ -23,6 +23,8 @@ import { validateSave } from '../src/save.js';
 import { currentSave } from './fixtures/current-save.js';
 import { actuatePiston } from '../src/pistons.js';
 import { bodyClear } from '../src/grounding.js';
+import { ItemDrops } from '../src/item-drops.js';
+import { PerspectiveCamera, Scene } from 'three';
 
 // Each group traces to the preimplementation failure list in the verification doc.
 function farm(dimension = 'overworld') {
@@ -37,6 +39,51 @@ function pod(w, q = 0, y = 40, r = 0, facing = 0, age = 0) {
   w.setState(q, y, r, { facing, open: false, age });
 }
 const tick = (w, dt = 0) => w.redstone.tick(dt, [], () => true);
+
+test('cactus and cocoa ages coexist in one real save with their separate bounds', () => {
+  const w = farm();
+  pod(w, 0, 40, 0, 0, 2);
+  w.set(4, 39, 4, 'sand');
+  w.set(4, 40, 4, 'cactus');
+  w.setState(4, 40, 4, { facing: 0, open: false, age: 15 });
+  const saved = validateSave(currentSave(w)),
+    restored = new World(w.seed, w.dimension, {
+      ...saved.dimensions.overworld,
+      load: false,
+    });
+  restored.ensureAround(0, 0, 1);
+  assert.equal(restored.state(0, 40, 0).age, 2);
+  assert.equal(restored.state(4, 40, 4).age, 15);
+  for (const [position, age] of [
+    ['0,40,0', 3],
+    ['4,40,4', 16],
+    ['4,40,4', -1],
+  ]) {
+    const bad = structuredClone(saved);
+    bad.dimensions.overworld.blockStates.find(([k]) => k === position)[1].age =
+      age;
+    assert.throws(() => validateSave(bad));
+  }
+});
+
+test('real dropped items land on every cocoa pod footprint and fall after its removal', () => {
+  const w = farm(),
+    camera = new PerspectiveCamera();
+  camera.position.set(50, 43, 0);
+  w.set(0, 39, 0, 'stone');
+  for (let facing = 0; facing < 6; facing++)
+    for (let age = 0; age < 3; age++) {
+      pod(w, 0, 40, 0, facing, age);
+      const body = buildingParts(w, 0, 40, 0, true)[0],
+        drops = new ItemDrops(new Scene(), null);
+      drops.spawn('diamond', 1, [body.x, 41.4, body.z], {}, [0, -10, 0]);
+      drops.update(0.1, w, camera, () => 0);
+      assert.ok(Math.abs(drops.serialize()[0].position[1] - 40.9) < 1e-6);
+      harvestCocoa(w, 0, 40, 0);
+      for (let i = 0; i < 10; i++) drops.update(0.1, w, camera, () => 0);
+      assert.ok(Math.abs(drops.serialize()[0].position[1] - 40.15) < 1e-6);
+    }
+});
 
 test('hot wet jungle is discoverable, distinct from dry desert and cold snow', () => {
   const w = new World(624, 'overworld', { load: false }),

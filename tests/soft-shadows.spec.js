@@ -174,6 +174,62 @@ function penumbra(lit, shadowed) {
   };
 }
 
+test('raw shadow and contact buffers compile without implicit-gradient loop diagnostics on real scenes', async ({
+  page,
+}, info) => {
+  const warnings = [],
+    errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'warning') warnings.push(e.text());
+    if (e.type() === 'error') errors.push(e.text());
+  });
+  await setup(page);
+  await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    g.setPostOptions({ ...g.postOptions, occlusion: 0.6 });
+  });
+  await clock(page, 120);
+  await caster(page, 49);
+  await fresh(page);
+  const hdr = await line(page, 49);
+  const runtime = await page.evaluate(() => {
+    const g = window.__hexwild.graphics,
+      gl = g.renderer.getContext(),
+      ext = gl.getExtension('WEBGL_debug_renderer_info');
+    return {
+      renderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null,
+      rawShadow: g.sun.shadow.map.depthTexture.compareFunction === null,
+      shadowMipmaps: g.sun.shadow.map.depthTexture.generateMipmaps,
+      aoMipmaps: g.composer.effects.contact.denoised.texture.generateMipmaps,
+      contactEnabled: g.composer.effects.contact.enabled,
+      gl: gl.getError(),
+    };
+  });
+  await writeFile(
+    info.outputPath('buffer-sampling.json'),
+    JSON.stringify(
+      {
+        ...runtime,
+        hdr,
+        warnings,
+        errors,
+      },
+      null,
+      2,
+    ),
+  );
+  expect(hdr.every(Number.isFinite)).toBe(true);
+  expect(hdr.some((v) => v > 0)).toBe(true);
+  expect(runtime.rawShadow).toBe(true);
+  expect(runtime.shadowMipmaps).toBe(false);
+  expect(runtime.aoMipmaps).toBe(false);
+  expect(runtime.contactEnabled).toBe(true);
+  expect(runtime.gl).toBe(0);
+  expect(errors).toEqual([]);
+  expect(warnings.filter((v) => v.includes('X3595'))).toEqual([]);
+});
+
 test('real suspended blocks produce wider daylight and moonlight penumbras than contact shadows', async ({
   page,
 }, info) => {

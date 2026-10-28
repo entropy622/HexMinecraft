@@ -32,8 +32,8 @@ float depthDistance(float depth) {
   return cameraNear * cameraFar / (cameraFar + (cameraNear - cameraFar) * depth);
 }
 void main() {
-  vec4 color = texture2D(sceneColor, vUv);
-  float depth = texture2D(sceneDepth, vUv).r;
+  vec4 color = textureLod(sceneColor, vUv, 0.0);
+  float depth = textureLod(sceneDepth, vUv, 0.0).r;
   float distance = depthDistance(depth);
   if (depth >= 0.999999 || distance < 0.8) {
     gl_FragColor = color;
@@ -45,7 +45,7 @@ void main() {
   for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++) {
     vec2 offset = vec2(float(x), float(y));
     vec2 uv = (base + offset + 0.5) / aoResolution;
-    vec4 sampleAO = texture2D(occlusion, uv);
+    vec4 sampleAO = textureLod(occlusion, uv, 0.0);
     vec2 spatial = mix(1.0 - f, f, offset);
     float weight = spatial.x * spatial.y * exp(-abs(sampleAO.a - distance) / max(0.12, distance * 0.008));
     total += sampleAO.r * weight;
@@ -56,7 +56,7 @@ void main() {
   float amount = (1.0 - ao) * strength * 0.6;
   amount *= smoothstep(0.8, 1.5, distance) * (1.0 - smoothstep(30.0, 44.0, distance));
   amount *= smoothstep(0.0, 0.025, edge);
-  amount *= 1.0 - texture2D(protection, vUv).r;
+  amount *= 1.0 - textureLod(protection, vUv, 0.0).r;
   // Bright emission retains its energy before bloom and tone mapping.
   amount *= 1.0 - smoothstep(0.9, 2.4, max(color.r, max(color.g, color.b)));
   gl_FragColor = vec4(color.rgb * (1.0 - amount), color.a);
