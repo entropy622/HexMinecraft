@@ -44,7 +44,8 @@ function reaction(world, p) {
     isChorus(type) ||
     isPigmentPlant(type) ||
     isDoor(type) ||
-    type === 'pointedDripstone'
+    type === 'pointedDripstone' ||
+    type === 'cocoa'
   )
     return 'break';
   return 'move';
