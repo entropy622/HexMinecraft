@@ -98,7 +98,9 @@ export function miningStats(block, held, enchant = {}) {
           ? 'axe'
           : SHOVEL.has(material)
             ? 'shovel'
-            : isGlass(material) || material === 'shroom'
+            : isGlass(material) ||
+                material === 'shroom' ||
+                original.shape === 'carpet'
               ? null
               : 'pick';
   const requiredTier = def.tool || (PICK_REQUIRED.has(material) ? 1 : 0);

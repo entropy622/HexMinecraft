@@ -13,6 +13,7 @@ export class BlockParticles {
   material(type, top) {
     const def = BLOCKS[type] || {},
       tile =
+        def.tile ||
         def.base ||
         def.planks ||
         (type === 'torch'

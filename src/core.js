@@ -25,6 +25,7 @@ import { CITY_BLOCKS, CITY_RECIPES } from './end-city-data.js';
 import { CHORUS_BLOCKS, CHORUS_ITEMS, CHORUS_RECIPES } from './chorus-data.js';
 import { WOOD_BLOCKS, WOOD_ITEMS, WOOD_RECIPES } from './wood-data.js';
 import { WOOL_BLOCKS, WOOL_RECIPES } from './wool-data.js';
+import { CARPET_BLOCKS, CARPET_RECIPES } from './carpet-data.js';
 import { recipeMaterials } from './wood-ingredients.js';
 import { applyMiningHardness } from './mining-data.js';
 import {
@@ -62,6 +63,7 @@ export const DIRECTIONS = [
 ];
 export const BLOCKS = {
   ...WOOL_BLOCKS,
+  ...CARPET_BLOCKS,
   ...GLASS_BLOCKS,
   ...PIGMENT_PLANTS,
   ...CAULDRON_BLOCKS,
@@ -705,6 +707,7 @@ RECIPES.push(
   ...CAVE_RECIPES,
   ...DYE_RECIPES,
   ...WOOL_RECIPES,
+  ...CARPET_RECIPES,
 );
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (

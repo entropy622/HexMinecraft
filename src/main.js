@@ -1,6 +1,7 @@
 import { powderContact, powderSupport } from './powder-snow.js';
 import { DYES, dyeColor, isPigmentPlant } from './dye-data.js';
 import { pigmentSupport } from './pigment-plants.js';
+import { isCarpet, carpetSupport } from './carpet-data.js';
 import { touchesWeb } from './cobwebs.js';
 import {
   STRUCTURE_NAMES,
@@ -2216,6 +2217,7 @@ function useBucket() {
   return true;
 }
 function flushFluidChanges() {
+  if (world.fluids.dirty.size) maintainBuildings();
   for (const k of world.fluids.washedWebs)
     dropAt('string', 1, ...k.split(',').map(Number));
   world.fluids.washedWebs.clear();
@@ -3129,6 +3131,10 @@ function buildingOccupied(q, y, r) {
 }
 function placeBuilding(type, p) {
   const { q, y, r } = p;
+  if (isCarpet(type) && !carpetSupport(world, q, y, r)) {
+    toast('地毯下方需要方块或液体支撑。');
+    return;
+  }
   if (isPigmentPlant(type) && !pigmentSupport(world, type, q, y, r)) {
     toast(
       type === 'cactus'
@@ -3379,6 +3385,13 @@ function maintainBuildings() {
   for (const k of [...world.buildings]) {
     const [q, y, r] = k.split(',').map(Number),
       type = world.get(q, y, r);
+    if (isCarpet(type)) {
+      if (!carpetSupport(world, q, y, r) || world.fluids.get(q, y, r)) {
+        for (let h = y; isCarpet(world.get(q, h, r)); h++)
+          removeBuilding(q, h, r);
+      }
+      continue;
+    }
     if (isPigmentPlant(type)) {
       if (
         type === 'cactus' &&

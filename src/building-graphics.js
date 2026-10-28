@@ -11,6 +11,7 @@ export const usesBuildingItemMesh = (type) =>
     'flower',
     'cactus',
     'slab',
+    'carpet',
     'stairs',
     'egg',
     'rod',

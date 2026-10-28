@@ -2,6 +2,7 @@ import { DIRECTIONS, key } from './core.js';
 import { CIRCUIT_BLOCKS } from './redstone-data.js';
 import { isHangingPlant } from './cave-data.js';
 import { caveFluidSources } from './caves.js';
+import { isCarpet } from './carpet-data.js';
 
 export const WATER_EXTINCTION = [0.24, 0.075, 0.035];
 
@@ -84,6 +85,7 @@ export class Fluids {
           CIRCUIT_BLOCKS[this.world.get(q, y, r)].shape !== 'dropper') ||
         this.world.get(q, y, r) === 'cobweb' ||
         this.world.get(q, y, r) === 'powderSnow' ||
+        isCarpet(this.world.get(q, y, r)) ||
         isHangingPlant(this.world.get(q, y, r)))
     );
   }

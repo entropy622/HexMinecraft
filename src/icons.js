@@ -140,6 +140,7 @@ export function itemIcon(id) {
       (ITEMS[id]?.pillar && blockTextures[id]) ||
       [
         'slab',
+        'carpet',
         'stairs',
         'egg',
         'rod',
