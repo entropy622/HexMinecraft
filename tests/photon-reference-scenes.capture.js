@@ -1,0 +1,289 @@
+import { test, expect } from './browser-fixture.js';
+import { readFile, writeFile } from 'node:fs/promises';
+import { HalfFloatType, RGBAFormat } from 'three';
+import { World } from '../src/world.js';
+import {
+  referenceScenes,
+  referenceSave,
+  referenceSettings,
+  referenceSizes,
+  referenceLandmarks,
+} from './fixtures/photon-reference-scenes.js';
+import { installFrameProbe } from './fixtures/photon-frame-probe.js';
+import {
+  distribution,
+  resourceLayout,
+  readReferenceFrame,
+  readReferenceHDR,
+  encodeEXR,
+} from './fixtures/photon-reference-artifacts.js';
+
+const preview = process.env.PHOTON_REFERENCE_PRODUCTION === '1';
+const writeJSON = (path, value) =>
+  writeFile(path, JSON.stringify(value, null, 2) + '\n');
+async function importScene(page, scene) {
+  await page.locator('#save-file').setInputFiles({
+    name: `${scene.id}.json`,
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(referenceSave(scene))),
+  });
+  await expect(page.locator('#hud')).toBeVisible();
+}
+async function preparePreferences(page) {
+  await page.addInitScript(
+    (settings) =>
+      localStorage.setItem('hexwild-settings', JSON.stringify(settings)),
+    referenceSettings,
+  );
+}
+function captureMessages(page) {
+  const errors = [],
+    warnings = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') errors.push(e.text());
+    if (e.type() === 'warning') warnings.push(e.text());
+  });
+  return { errors, warnings };
+}
+
+test('production UI imports and re-exports the reusable native forest save', async ({
+  page,
+}, info) => {
+  test.skip(
+    !preview,
+    'Run sequentially with PHOTON_REFERENCE_PRODUCTION=1 after build',
+  );
+  const messages = captureMessages(page),
+    scene = referenceScenes[0],
+    input = referenceSave(scene);
+  try {
+    await preparePreferences(page);
+    await page.goto('/');
+    expect(await page.evaluate(() => typeof window.__hexwild)).toBe(
+      'undefined',
+    );
+    // Queue ordinary Escape input at the DOM's import-ready boundary. A later
+    // Playwright round trip allows real gravel gravity/time to advance first.
+    await page.evaluate(() => {
+      const hud = document.querySelector('#hud');
+      const ready = new MutationObserver(() => {
+        if (hud.classList.contains('hidden')) return;
+        ready.disconnect();
+        for (const type of ['keydown', 'keyup'])
+          document.body.dispatchEvent(
+            new KeyboardEvent(type, {
+              key: 'Escape',
+              code: 'Escape',
+              bubbles: true,
+            }),
+          );
+      });
+      ready.observe(hud, { attributes: true, attributeFilter: ['class'] });
+    });
+    await importScene(page, scene);
+    await expect(page.locator('#pause-overlay')).toBeVisible();
+    await expect(page.locator('#quality')).toHaveValue('1.7');
+    await expect(page.locator('#exposure-toggle')).not.toBeChecked();
+    const download = page.waitForEvent('download');
+    await page.locator('#export').click();
+    const result = JSON.parse(
+      await readFile(await (await download).path(), 'utf8'),
+    );
+    await writeJSON(info.outputPath('production-native-export.json'), result);
+    expect(result.seed).toBe(input.seed);
+    expect(result.position).toEqual(input.position);
+    expect(result.yaw).toBe(input.yaw);
+    expect(result.pitch).toBe(input.pitch);
+    expect(result.dimensions.overworld.edits).toEqual([]);
+    expect(result.time).toBeGreaterThanOrEqual(input.time);
+    expect(result.time).toBeLessThan(input.time + 1);
+    expect(messages.errors).toEqual([]);
+  } finally {
+    await writeJSON(info.outputPath('browser-messages.json'), messages);
+  }
+});
+
+for (const size of referenceSizes)
+  test.describe(`${size.width}x${size.height}`, () => {
+    test.use({ viewport: size });
+    for (const scene of referenceScenes)
+      test(`${scene.id} actual production frame baseline`, async ({
+        page,
+      }, info) => {
+        test.skip(
+          preview,
+          'Capture uses existing development freeze seam; production import has its own UI check',
+        );
+        const messages = captureMessages(page),
+          input = referenceSave(scene);
+        try {
+          await preparePreferences(page);
+          await page.addInitScript(installFrameProbe);
+          await page.goto('/');
+          await expect
+            .poll(() =>
+              page.evaluate(() => !!window.__hexwild && !!window.__photonProbe),
+            )
+            .toBe(true);
+          await page.evaluate(() => {
+            window.__photonFreeze = true;
+          });
+          await importScene(page, scene);
+          await page.keyboard.press('F1');
+          await expect
+            .poll(() => page.evaluate(() => window.__hexwild.state.playing))
+            .toBe(false);
+          const start = await page.evaluate(
+            () => window.__photonProbe.rendered,
+          );
+          await expect
+            .poll(() => page.evaluate(() => window.__photonProbe.rendered), {
+              timeout: 90000,
+            })
+            .toBeGreaterThanOrEqual(start + 120);
+          await page.evaluate(() => window.__photonProbe.start(180));
+          await expect
+            .poll(() => page.evaluate(() => window.__photonProbe.done), {
+              timeout: 90000,
+            })
+            .toBe(true);
+          const timing = await page.evaluate(() =>
+            window.__photonProbe.result(),
+          );
+          await writeJSON(info.outputPath('timing-samples.json'), timing);
+          const frame = await page.evaluate(readReferenceFrame, resourceLayout);
+          await writeJSON(info.outputPath('frame-before-readback.json'), frame);
+          const pngFrame = await page.evaluate(
+            () => window.__photonProbe.rendered,
+          );
+          await page
+            .locator('#world')
+            .screenshot({ path: info.outputPath('baseline.png') });
+          const hdr = await page.evaluate(readReferenceHDR);
+          const raw = Buffer.from(hdr.base64, 'base64');
+          delete hdr.base64;
+          await writeFile(info.outputPath('baseline.rgba16f'), raw);
+          expect(hdr.type).toBe(HalfFloatType);
+          expect(hdr.format).toBe(RGBAFormat);
+          const exr = await encodeEXR(raw, hdr.width, hdr.height);
+          await writeFile(info.outputPath('baseline.exr'), exr.buffer);
+          const world = new World(input.seed, input.dimension, { load: false });
+          world.ensureAround(scene.eye[0], scene.eye[2]);
+          const landmarks = await page.evaluate(
+            (points) =>
+              points.map((point) => {
+                const p = window.__hexwild.graphics.camera.position
+                  .clone()
+                  .fromArray(point.position)
+                  .project(window.__hexwild.graphics.camera);
+                return {
+                  ...point,
+                  ndc: p.toArray(),
+                  inFrustum:
+                    Math.abs(p.x) <= 1 &&
+                    Math.abs(p.y) <= 1 &&
+                    p.z >= -1 &&
+                    p.z <= 1,
+                };
+              }),
+            referenceLandmarks(scene, world),
+          );
+          const after = await page.evaluate(readReferenceFrame, resourceLayout);
+          await writeJSON(info.outputPath('manifest.json'), {
+            scene: scene.id,
+            purpose: scene.purpose,
+            input: {
+              file: `${scene.id}.json`,
+              seed: input.seed,
+              time: input.time,
+              position: input.position,
+              yaw: input.yaw,
+              pitch: input.pitch,
+              weather: input.weather,
+              preferences: referenceSettings,
+              terrainEdits: input.dimensions.overworld.edits,
+            },
+            frame,
+            landmarks,
+            performance: {
+              warmupRenderedFrames: 120,
+              measuredRenderedFrames: timing.samples.length,
+              gpuTimer: {
+                extension: timing.extension,
+                counterBits: timing.counterBits,
+                disjointEvents: timing.disjointEvents,
+                busy: timing.busy,
+                pendingQueries: timing.pendingQueries,
+              },
+              gpuMilliseconds: distribution(
+                timing.gpu.map((s) => s.milliseconds),
+              ),
+              browserFrameIntervalMilliseconds: distribution(
+                timing.samples.map((s) => s.frameIntervalMs),
+              ),
+              cpuSubmitMilliseconds: distribution(
+                timing.samples.map((s) => s.cpuSubmitMs),
+              ),
+              scope:
+                'All actual world-WebGL work submitted by the production rAF callback. Browser interval and CPU submit are separate. No screenshot/readback in measurement window.',
+            },
+            artifacts: {
+              png: 'baseline.png',
+              exr: 'baseline.exr',
+              rawHalf: 'baseline.rgba16f',
+              timing: 'timing-samples.json',
+            },
+            hdr: {
+              ...hdr,
+              channels: 4,
+              rawByteOrder: 'little-endian',
+              rawRows: 'bottom-to-top',
+              exrRows: 'top-to-bottom',
+              color:
+                'Linear-sRGB, pre-OutputPass, before tone mapping and display transfer',
+              negativeChannelsPreserved: exr.negativeChannels,
+              maxLinear: exr.maxLinear,
+              pngFrame,
+            },
+            glAfterReadback: after.glErrors,
+            messages,
+          });
+          expect(frame.canvas).toEqual({ ...size, pixelRatio: 1 });
+          expect([hdr.width, hdr.height]).toEqual([size.width, size.height]);
+          expect(frame.seed).toBe(input.seed);
+          expect(frame.position).toEqual(input.position);
+          expect(frame.time).toBe(input.time);
+          expect(frame.camera.rotation[0]).toBe(input.pitch);
+          expect(frame.camera.rotation[1]).toBe(input.yaw);
+          expect(frame.camera.fov).toBe(referenceSettings.fieldOfView);
+          expect(frame.settings.quality).toBe(referenceSettings.quality);
+          expect(frame.settings.exposure).toBe(1);
+          expect(frame.settings.post).toEqual(referenceSettings.post);
+          if (scene.id === 'distance-ruler')
+            expect(landmarks.every((point) => point.inFrustum)).toBe(true);
+          expect(frame.clouds.historyCount).toBeGreaterThan(0);
+          expect(frame.device.unmaskedRenderer).toMatch(/RTX 4060/);
+          expect(frame.device.unmaskedRenderer).toMatch(/Direct3D11|D3D11/);
+          expect(frame.device.contextLost).toBe(false);
+          expect(frame.glErrors).toEqual([]);
+          expect(after.glErrors).toEqual([]);
+          expect(timing.samples).toHaveLength(180);
+          expect(timing.disjointEvents).toBe(0);
+          expect(timing.busy).toBe(0);
+          expect(timing.pendingQueries).toBe(0);
+          if (timing.extension && timing.counterBits > 0) {
+            expect(timing.gpu.length).toBeGreaterThanOrEqual(160);
+            expect(
+              timing.gpu.every(
+                (s) => s.milliseconds > 0 && Number.isFinite(s.milliseconds),
+              ),
+            ).toBe(true);
+          } else expect(timing.gpu).toEqual([]);
+          expect(messages.errors).toEqual([]);
+        } finally {
+          await page.evaluate(() => window.__photonProbe?.stop());
+          await writeJSON(info.outputPath('browser-messages.json'), messages);
+        }
+      });
+  });
