@@ -86,6 +86,7 @@ import { plantingIssue, growthConditions, treePlan } from './farming.js';
 import { TREES } from './wood-data.js';
 import { pillarAxis, pillarAxisLabel } from './pillar-faces.js';
 import { leafDrops } from './leaves.js';
+import { tickGrass } from './grass.js';
 import { isCaveVine, isHangingPlant } from './cave-data.js';
 import { canHang, harvestCavePlant, tickCavePlants } from './cave-plants.js';
 import {
@@ -3839,6 +3840,8 @@ function growTree(k) {
   return true;
 }
 function updatePlants(dt) {
+  const grass = tickGrass(world, dt, graphics.voxelLight, time, weather);
+  if (grass.length) graphics.updateCells(grass);
   const stoneGrowth = tickDripstone(world, dt, growthOccupied);
   if (stoneGrowth.length) graphics.updateCells(stoneGrowth);
   applyPlantChanges(tickCavePlants(world, dt), !creative);
