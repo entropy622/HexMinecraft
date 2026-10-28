@@ -4,13 +4,60 @@ import { World } from '../src/world.js';
 import { axialToWorld, RECIPES } from '../src/core.js';
 
 test.setTimeout(240000);
+const diagnostics = new WeakMap();
+test.afterEach(async ({ page }, info) => {
+  if (page.isClosed()) return;
+  const state = await page
+    .evaluate(() => {
+      const g = window.__hexwild;
+      if (!g) return { game: false };
+      g.save();
+      const saved = JSON.parse(localStorage.getItem('hexwild-save-v16')),
+        gl = g.graphics.renderer.getContext(),
+        ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return {
+        time: g.state.time,
+        position: g.state.position,
+        health: g.state.health,
+        playing: g.state.playing,
+        target: g.state.target && {
+          q: g.state.target.q,
+          y: g.state.target.y,
+          r: g.state.target.r,
+          type: g.state.target.type,
+          place: g.state.target.place,
+        },
+        stem: [39, 40, 41].map((y) => g.state.world.get(4, y, 4) || null),
+        flower: g.state.world.get(8, 6, 0) || null,
+        flowerAge: g.state.world.state(8, 5, 0).age,
+        drops: saved.dimensions.overworld.drops,
+        fauna: saved.dimensions.overworld.fauna,
+        gl: gl.getError(),
+        renderer: ext
+          ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+          : gl.getParameter(gl.RENDERER),
+      };
+    })
+    .catch((error) => ({ error: error.message }));
+  await writeFile(
+    info.outputPath('diagnostics.json'),
+    JSON.stringify(
+      { status: info.status, ...diagnostics.get(page), state },
+      null,
+      2,
+    ),
+  );
+});
 test('a survival cactus garden grows, stings real bodies, destroys thrown items, and yields flower dye', async ({
   page,
 }, info) => {
   const errors = [];
+  const warnings = [];
+  diagnostics.set(page, { errors, warnings });
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (e) => {
     if (e.type() === 'error') errors.push(e.text());
+    if (e.type() === 'warning') warnings.push(e.text());
   });
   await page.route('https://fonts.googleapis.com/**', (r) =>
     r.fulfill({ body: '', contentType: 'text/css' }),
@@ -32,6 +79,7 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
       w.set(q, 38, r, 'stone');
       for (let y = 39; y <= 45; y++) w.set(q, y, r, null);
     }
+  w.set(4, 37, 4, 'stone');
   w.set(4, 38, 4, 'sand');
   w.set(4, 39, 4, 'cactus');
   // Randomness is the host boundary. A constant .61 chooses local (4,39,4)
@@ -42,6 +90,7 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
       w.set(q, 4, r, 'stone');
       for (let y = 5; y <= 39; y++) w.set(q, y, r, null);
     }
+  w.set(8, 3, 0, 'stone');
   w.set(8, 4, 0, 'sand');
   w.set(8, 5, 0, 'cactus');
   w.setState(8, 5, 0, { facing: 0, open: false, age: 8 });
@@ -111,6 +160,7 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
     .toBeLessThan(topHealth);
   const contactCause = await page.locator('#damage').getAttribute('data-cause');
   expect(contactCause).toBe('cactus');
+  await page.evaluate(() => window.__hexwild.lookAt(4, 40.95, 4));
   await page.screenshot({ path: info.outputPath('cactus-top-contact.png') });
 
   const sideHealth = await page.evaluate(() => {
@@ -132,14 +182,24 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
   expect(await page.locator('#damage').getAttribute('data-cause')).toBe(
     'cactus',
   );
+  await page.screenshot({ path: info.outputPath('cactus-side-contact.png') });
 
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.teleport(3, 39, 4);
     g.give('diamond', 1);
-    g.selectItem('diamond');
     g.lookAt(4, 40.4, 4);
   });
+  await page.keyboard.press('KeyE');
+  await page
+    .locator('#craft-overlay [data-inv-slot][aria-label^="钻石"]')
+    .hover();
+  await page.keyboard.press('Digit1');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#hotbar .slot.active')).toHaveAttribute(
+    'aria-label',
+    /钻石/,
+  );
   await page.keyboard.press('KeyQ');
   const thrownStock = await page.evaluate(
     () => window.__hexwild.state.inventory.diamond || 0,
@@ -233,6 +293,7 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
   );
   await page.locator(`[data-recipe="${flowerRecipe}"]`).click();
   await page.locator('#craft-button').click({ modifiers: ['Shift'] });
+  await page.screenshot({ path: info.outputPath('cactus-flower-dye.png') });
   const manifest = await page.evaluate((contactCause) => {
     const g = window.__hexwild;
     const gl = g.graphics.renderer.getContext(),
@@ -261,7 +322,7 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
   await writeFile(
     info.outputPath('cactus-ecology.json'),
     JSON.stringify(
-      { ...manifest, paused: true, continued: true, errors },
+      { ...manifest, paused: true, continued: true, errors, warnings },
       null,
       2,
     ),
