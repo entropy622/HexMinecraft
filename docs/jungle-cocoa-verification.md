@@ -1,0 +1,61 @@
+# Jungle and cocoa verification
+
+## Design gate before implementation
+
+1. Structural: a climate-selected jungle supplies its own tree family and cocoa through the same world generation, inventory, crafting, mining, and save paths as existing materials.
+2. Burden: players choose an item and a log face; support, facing, growth stage, drops, and chunk ownership are derived by production code.
+3. Determinable: seed and coordinates determine climate, tree cells, natural pod placement, and age without consulting previously loaded chunks.
+4. Gratuitous: reuse wood registries, shaped blocks, blockStates, observers, and plant maintenance; do not introduce a generic crop framework or a save version.
+5. Overfitted: no demonstration location or seed changes product generation; tests discover jungle coordinates from a normal seeded world.
+
+The smallest coherent change is a jungle wood family, a radius-three single-trunk canopy, and one attached three-stage cocoa block. Relabeling oak would omit renewable jungle materials. A generic attachment/growth subsystem is unnecessary for this one plant. Giant 2×2 trees and climbing vines require multi-sapling transactions and new support/climbing rules and remain outside this iteration.
+
+## Rule evidence
+
+- [Mojang: Taking Inventory — Cocoa Beans](https://www.minecraft.net/en-us/article/taking-inventory--cocoa-beans) establishes naturally discovered jungle pods, side planting, bone meal, and harvesting.
+- [Mojang: Around the Block — Jungle](https://www.minecraft.net/en-us/article/around-block--jungle) establishes tall trees, dense vegetation, and natural cocoa as jungle characteristics.
+- Exact Java 1.21.5 behavior was checked statically against Mojang's [server JAR](https://piston-data.mojang.com/v1/objects/e6ec2f64e6080b9b5d9b471b291c33cc7f509733/server.jar), SHA-1 `e6ec2f64e6080b9b5d9b471b291c33cc7f509733`, and [official mappings](https://piston-data.mojang.com/v1/objects/f4812c1d66d0098a94616b19c21829e591d0af3a/server.txt). `CocoaBlock` maps to `dow`; source lines 50–66 establish `age < 2`, a `nextInt(5) == 0` random-tick gate, and a support check using only `JUNGLE_LOGS`. The growth path has no daylight, light-level, biome, water, or soil check. Lines 105–116 permit bone meal only below age 2 and advance exactly one stage.
+- The official `data/minecraft/tags/block/jungle_logs.json` includes normal and stripped jungle logs/wood. This game's existing log representation supplies normal and stripped jungle logs; there is no separate all-bark wood item. The official cocoa loot table yields one bean below age 2 and three at age 2, with no Fortune or Silk Touch override. The jungle-leaf loot table gives sapling chances 1/40, 1/36, 1/32, and 1/24 for the game's supported Fortune levels 0–3.
+- REA's JEB provider was unavailable (`capability_unavailable`, endpoint fetch failed). Following the skill's supported fallback, the focused bytecode observations above came from the installed JDK's `javap -p -c dow`, not REA Evidence or runtime execution. The shared, SHA-verified JAR was read without mutation; local output is `test-results/jungle-official-source/CocoaBlock.javap.txt`. No original JAR, mappings, textures, or decompiled code are committed.
+
+## Hex adaptation and state contract
+
+- Warm wet noise (`heat > 0.59`, `wet > 0.57`) selects jungle before the hot dry desert branch. The clearing around spawn and dimension behavior remain in the existing generation path. Jungle tree candidates are denser (9% versus 5.2% in forests), with 9–13-log trunks and a three-cell, four-layer crown. The shared layout also grows planted jungle saplings, without creating cocoa from saplings.
+- Tree eligibility now evaluates cave/mineshaft exclusions at each tree source. The three-cell generation halo clips all writes to the owning chunk. Natural cocoa candidates derive from source coordinates, seed, and trunk height, and inspect only their own destination chunk; they never need an already loaded supporting neighbor. Player edits are applied afterward.
+- Cocoa faces all six horizontal hex directions. Green, tan, and orange pods increase in width and height; only the pod/stalk shapes are targetable, with no player collision. A bean attaches only to a horizontal face of normal or stripped jungle logs. Failed placement and mature bone meal do not consume stock; success consumes one bean or meal through the normal hand inventory path.
+- Default Java random ticks imply an approximately 341-second mean per growth stage. Existing one-second plant maintenance samples an equivalent exponential loaded-time probability; this is a hex game's cadence adaptation, not a Java tick scheduler. Daylight and nearby water are intentionally irrelevant. Unloaded chunks freeze, unknown neighboring support is retained without growth, and no offline catch-up clock is stored.
+- The only save addition is optional `blockStates.age`, an integer 0–2 accepted only for a cocoa type edit. Existing v16 saves remain valid. Natural growth captures old state, records the current cocoa type as an edit without changing it, then calls `setState`; this retains real observer notifications and makes the new stage independently saveable. Omitted age and explicit zero compare equal. Harvest, lost support, water/lava, and piston destruction use the same stage-aware bean drop path. Liquid has no hydration role.
+- The existing wood registries provide jungle planks, doors, fences, gates, trapdoors, stairs, slabs, matching wood recipes, mixed general recipes, fuel, and charcoal. Independent local 16px art supplies bark, end grain, stripped logs, pink-brown planks, leaves, saplings, and each cocoa stage, with no remote runtime requests or borrowed vanilla assets. Decaying jungle leaves use the matching material in the existing particle pool.
+
+## Failure classes written before product code
+
+- Climate: warm wet terrain remains jungle, dry hot terrain remains desert, cold terrain remains snow; dimensions and spawn clearing stay valid.
+- Tree layout: jungle height/crown differs from oak, log/leaf IDs are genuine jungle IDs, planted trees do not conjure cocoa, tree plans require loaded clear space.
+- Generation: positive and negative seams, every chunk load order, overlapping crowns/trunks/pods, missing neighbor chunks, structure/cave exclusions, edits overriding regenerated cells.
+- Wood loop: correct logs, stripped logs, planks, saplings, all existing wood buildings and cuts; matching species recipes, mixed generic recipes, fuel and charcoal, natural leaf renewal.
+- Attachment: all six horizontal hex faces, top/bottom rejected, oak/birch/spruce rejected, stripped jungle accepted, occupied/liquid/out-of-height cells rejected, exactly one bean consumed on success only.
+- Growth: ages 0/1/2, one stage per bone meal, no cost at maturity, no sunlight/daytime/water requirement, no growth while paused/unloaded, real state changes notify observers once and default age zero does not notify.
+- Harvest: immature gives one bean and mature gives three, creative produces none, support loss and liquid clean up with real drops, no cocoa block inventory item or duplicate harvest.
+- Persistence: saved natural growth becomes an edit, planted/aged pods keep facing/age, unload/reload freezes stage, continue/import validates age integer/range and rejects age on unrelated blocks without changing v16.
+- Presentation: green/tan/orange pod sizes, side attachment and target hitbox, independent jungle bark/end grain/planks/leaves/saplings, real hardware renderer and no page/console/GL errors.
+
+## Player E2E preparation
+
+`tests/jungle-cocoa.spec.js` enters through the normal new game UI, discovers a naturally generated jungle, mines a natural pod and genuine jungle log, crafts four planks in the visible workshop, plants from actual harvested inventory, uses bone meal, observes a lamp pulse, pauses, mines immature/mature cocoa, tests support and water removal, streams and continues a save. Farm setup uses the existing real `World` mutation entry; player actions use the existing DOM Pointer Lock boundary and canvas inputs. Each run writes a normalized manifest, diagnostics, save, and screenshots under its own test result directory.
+
+GPU execution is deferred until the parent grants the serial hardware window on port 5197. Use headless Chrome, `--use-cmd-decoder=passthrough --use-gl=angle --use-angle=d3d11`, and remove the default `--enable-unsafe-swiftshader`. Record actual renderer, errors, GL status, and screenshots; a passing Node check is not visual acceptance.
+
+## Delivery verification
+
+- `node --test tests/jungle-cocoa.test.js`: **7/7 passed**, covering the failure classes through actual World, tree layout/planning, crafting inventory, furnace recipes, redstone scheduler, fluid sources, piston actuation, and current save serializers/validator. These module checks broaden the player scenario and are not claimed as E2E acceptance.
+- `npm test`: **158/158 passed**. The first full run was 157/158: the old cauldron weather fixture assumed a desert on seed 624's `r=0`, `q=8..999` ray. Every previously hot location on that ray is wet enough to become jungle (minimum wet 0.627). The fixture now searches bounded 2D climate coordinates, retaining the same desert/no-rain and snow/powder assertions. Old and green logs remain in `test-results/jungle-mainline-node.log` and `jungle-mainline-green.log`.
+- Production build, changed JavaScript syntax, changed-file formatting, and `git diff --check` pass. The existing large bundle warning remains; there are no new dependencies, test scripts, package version, README, or development-status changes.
+- Serial hardware E2E remains pending. No Vite server or browser has been started for this branch. The prepared scenario is expected to expose UI/raycast/timing issues that the Node checks cannot establish.
+
+## Design gate after implementation
+
+The only additional persisted property is cocoa's necessary growth stage; callers already provide facing/open through existing building state. The cocoa module has production callers for natural generation, manual and dispenser bone meal, plant maintenance, support/fluid cleanup, and piston harvest. It adds no generic attachment framework, compatibility reader, test-only setting, dependency, or second save format. Immediate building cleanup calls the same zero-time cocoa maintenance used for natural growth, so the support/liquid/drop rules are not separately reimplemented.
+
+World-generation source scanning grows from 12×12 to 14×14 positions per chunk to cover the wider crown. Cave checks run only on actual tree candidates. Cocoa maintenance scans the existing loaded shaped-block index, not the entire voxel volume, and batches real changes through the existing plant renderer path. This is the cost of the wider natural forest and attached live crop; an extra persistent crop index or queue is unnecessary.
+
+All 22 changed files were read line by line: the wood/building/core registries, world/tree generation, cocoa data/logic, original art and texture plumbing, leaf drops/particles, building shapes, player actions, mining, fluids, pistons, save validator, both new tests, the repaired cauldron fixture, and this document. No changed portion remains unreviewed. Net change before hardware acceptance is product **+384**, tests **+716**, documentation **+61**, configuration **0**; the test total includes the actual player workflow plus seven distinct failure-class scenarios, and the product total includes the required independent pixel art. Hardware screenshots remain a separate acceptance gate.

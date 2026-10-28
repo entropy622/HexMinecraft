@@ -88,6 +88,8 @@ import { TREES } from './wood-data.js';
 import { pillarAxis, pillarAxisLabel } from './pillar-faces.js';
 import { leafDrops } from './leaves.js';
 import { tickGrass } from './grass.js';
+import { isJungleLog } from './cocoa-data.js';
+import { growCocoa, harvestCocoa, tickCocoa } from './cocoa.js';
 import { isCaveVine, isHangingPlant } from './cave-data.js';
 import { canHang, harvestCavePlant, tickCavePlants } from './cave-plants.js';
 import {
@@ -1752,6 +1754,13 @@ function handCanUse(hand) {
   if (!item) return false;
   if (cauldronAction(target?.type, id)) return true;
   if (
+    (id === 'boneMeal' && target?.type === 'cocoa') ||
+    (id === 'cocoaBeans' &&
+      isJungleLog(target?.type) &&
+      Math.abs(target.normal?.y || 0) < 0.5)
+  )
+    return true;
+  if (
     (id === 'boneMeal' && isCaveVine(target?.type)) ||
     (id === 'glowBerries' &&
       target?.normal?.y < -0.5 &&
@@ -2908,6 +2917,44 @@ function useCavePlant() {
   }
   return true;
 }
+function useCocoa() {
+  if (!target || creatureTarget || villagerTarget) return false;
+  const { q, y, r, type } = target;
+  if (useItem() === 'boneMeal' && type === 'cocoa') {
+    if ((creative || useCount('boneMeal') > 0) && growCocoa(world, q, y, r)) {
+      consumeUseItem('boneMeal');
+      graphics.updateBlock(q, y, r);
+      graphics.burst(q, y, r, '#a8cf75');
+      useSwing();
+      updateHUD();
+    }
+    return true;
+  }
+  if (useItem() !== 'cocoaBeans' || !isJungleLog(type)) return false;
+  const p = target.place;
+  if (
+    !p ||
+    p.y !== y ||
+    p.y < 1 ||
+    p.y >= WORLD_HEIGHT ||
+    !world.loaded(p.q, p.r) ||
+    world.get(p.q, p.y, p.r) ||
+    world.fluids.get(p.q, p.y, p.r)
+  )
+    return true;
+  const facing = DIRECTIONS.findIndex(
+    ([dq, dr]) => p.q + dq === q && p.r + dr === r,
+  );
+  if (facing < 0 || (!creative && useCount('cocoaBeans') <= 0)) return true;
+  world.set(p.q, p.y, p.r, 'cocoa');
+  world.setState(p.q, p.y, p.r, { facing, open: false, age: 0 });
+  consumeUseItem('cocoaBeans');
+  graphics.updateBlock(p.q, p.y, p.r);
+  soundFX.play('plant');
+  useSwing();
+  updateHUD();
+  return true;
+}
 function place() {
   if (!playing) return;
   if (!actionHand) return beginUse(place);
@@ -2915,7 +2962,13 @@ function place() {
   if (foodUse) stopEating();
   if (boatTarget && !creatureTarget && !villagerTarget && interactBoat())
     return;
-  if (useEndCrystal() || useCircuitControl() || useCavePlant() || useCauldron())
+  if (
+    useEndCrystal() ||
+    useCircuitControl() ||
+    useCocoa() ||
+    useCavePlant() ||
+    useCauldron()
+  )
     return;
   if (
     target &&
@@ -3333,6 +3386,12 @@ function removeBuilding(q, y, r, drop = true) {
     }
   }
   const original = world.get(q, y, r);
+  if (original === 'cocoa') {
+    graphics.blockBreak({ q, y, r, type: original });
+    applyPlantChanges(harvestCocoa(world, q, y, r), drop);
+    soundFX.play('break', 'leaves');
+    return;
+  }
   if (isHangingPlant(original)) {
     graphics.blockBreak({ q, y, r, type: original });
     applyPlantChanges(harvestCavePlant(world, q, y, r), drop);
@@ -3404,6 +3463,7 @@ function toggleBuilding(q, y, r, open = null) {
   return true;
 }
 function maintainBuildings() {
+  applyPlantChanges(tickCocoa(world, 0), !creative);
   for (const k of [...world.buildings]) {
     const [q, y, r] = k.split(',').map(Number),
       type = world.get(q, y, r);
@@ -3551,7 +3611,10 @@ function fireDispenser(q, y, r) {
     }
   }
   if (id === 'boneMeal') {
-    if (type === 'caveVines') {
+    if (type === 'cocoa') {
+      if (!growCocoa(world, a, b, c)) return false;
+      graphics.updateCells([[a, b, c]]);
+    } else if (type === 'caveVines') {
       world.set(a, b, c, 'caveVinesBerries');
       graphics.updateCells([[a, b, c]]);
     } else if (!fertilizePlant(key(a, b - 1, c))) return false;
@@ -3881,6 +3944,7 @@ function updatePlants(dt) {
   const stoneGrowth = tickDripstone(world, dt, growthOccupied);
   if (stoneGrowth.length) graphics.updateCells(stoneGrowth);
   applyPlantChanges(tickCavePlants(world, dt), !creative);
+  applyPlantChanges(tickCocoa(world, dt), !creative);
   const leaves = world.leafDecay.update(dt);
   if (leaves.length) {
     const chunks = new Set();
@@ -4027,7 +4091,13 @@ function interact(preferContext = false) {
   if (!actionHand) return beginUse(() => interact(preferContext));
   combat.reset();
   if (foodUse) stopEating();
-  if (useEndCrystal() || useCircuitControl() || useCavePlant() || useCauldron())
+  if (
+    useEndCrystal() ||
+    useCircuitControl() ||
+    useCocoa() ||
+    useCavePlant() ||
+    useCauldron()
+  )
     return;
   if (!preferContext && boats.riding && useItem() === 'fishingRod') {
     useFishingRod();
@@ -6826,6 +6896,13 @@ function frame(now) {
     if (BLOCKS[target?.type]?.foliage)
       $('#target').textContent +=
         ' · ' + world.leafDecay.label(key(target.q, target.y, target.r));
+    if (target?.type === 'cocoa')
+      $('#target').textContent +=
+        ' · ' +
+        ['幼荚', '生长中', '成熟'][
+          world.state(target.q, target.y, target.r).age || 0
+        ] +
+        ' · 骨粉生长 · 采集可可豆';
     if (isCaveVine(target?.type))
       $('#target').textContent +=
         target.type === 'caveVinesBerries'

@@ -108,6 +108,8 @@ export function validateSave(s) {
             (e[1].double !== undefined && typeof e[1].double !== 'boolean') ||
             (e[1].powered !== undefined && typeof e[1].powered !== 'boolean') ||
             (e[1].down !== undefined && typeof e[1].down !== 'boolean') ||
+            (e[1].age !== undefined &&
+              (!Number.isInteger(e[1].age) || e[1].age < 0 || e[1].age > 2)) ||
             (e[1].subtract !== undefined &&
               typeof e[1].subtract !== 'boolean') ||
             (e[1].output !== undefined &&
@@ -137,6 +139,7 @@ export function validateSave(s) {
               )) ||
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
             (state.down !== undefined && edits.get(k) !== 'hopper') ||
+            (state.age !== undefined && edits.get(k) !== 'cocoa') ||
             ((state.output !== undefined || state.subtract !== undefined) &&
               edits.get(k) !== 'comparator') ||
             (edits.get(k) === 'comparator' && state.powered !== undefined) ||

@@ -1,4 +1,4 @@
-import { TREES } from './wood-data.js';
+import { TREES, WOOD_GROUPS } from './wood-data.js';
 
 export const WOOD_BUILDINGS = {};
 export const BUILDING_BLOCKS = {
@@ -15,6 +15,7 @@ for (const [species, label, color] of [
   ['oak', '橡木', '#bc945d'],
   ['birch', '白桦木', '#d7c492'],
   ['spruce', '云杉木', '#8c6c48'],
+  ['jungle', '丛林木', '#bc8864'],
 ]) {
   const prefix = species === 'oak' ? '' : species;
   const ids = (WOOD_BUILDINGS[species] = {
@@ -72,10 +73,7 @@ const make = (id, count, pattern, desc) => {
     exactWood:
       ['door', 'fence', 'gate', 'trapdoor'].includes(
         BUILDING_BLOCKS[id].shape,
-      ) ||
-      ['planks', 'birchPlanks', 'sprucePlanks'].includes(
-        BUILDING_BLOCKS[id].base,
-      ),
+      ) || WOOD_GROUPS.planks.includes(BUILDING_BLOCKS[id].base),
   };
 };
 export const BUILDING_RECIPES = [
@@ -120,6 +118,7 @@ export const CUT_MATERIALS = [
   ['planks', '橡木', '#c6a16c', 0.45],
   ['birchPlanks', '白桦木', '#d7c492', 0.45],
   ['sprucePlanks', '云杉木', '#8c6c48', 0.45],
+  ['junglePlanks', '丛林木', '#bc8864', 0.45],
   ['stone', '岩石', '#a0aaa5', 1.25],
   ['cobble', '圆石', '#93958e', 2],
   ['cobbledDeepslate', '深板岩圆石', '#56595b', 3.5],
@@ -143,7 +142,7 @@ for (const [base, name, color, hardness] of CUT_MATERIALS) {
       color,
       hardness,
       shape,
-      wooden: ['planks', 'birchPlanks', 'sprucePlanks'].includes(base),
+      wooden: WOOD_GROUPS.planks.includes(base),
       fuel: shape === 'slab' ? 7.5 : 15,
     };
     BUILDING_RECIPES.push(
