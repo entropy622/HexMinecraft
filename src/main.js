@@ -2946,8 +2946,22 @@ function useCocoa() {
     ([dq, dr]) => p.q + dq === q && p.r + dr === r,
   );
   if (facing < 0 || (!creative && useCount('cocoaBeans') <= 0)) return true;
+  const state = { facing, open: false, age: 0 },
+    point = axialToWorld(p.q, p.r);
+  world.set(p.q, p.y, p.r, 'cocoa', false);
+  world.setState(p.q, p.y, p.r, state, false);
+  const occupied =
+    collides(camera.position.x, playerFeet(), camera.position.z) ||
+    buildingOccupied(p.q, p.y, p.r) ||
+    boats.intersectsCell(point.x, p.y, point.z);
+  world.set(p.q, p.y, p.r, null, false);
+  world.blockStates.delete(key(p.q, p.y, p.r));
+  if (occupied) {
+    toast('可可荚会挡住这里的玩家、动物或船，先让出空间。');
+    return true;
+  }
   world.set(p.q, p.y, p.r, 'cocoa');
-  world.setState(p.q, p.y, p.r, { facing, open: false, age: 0 });
+  world.setState(p.q, p.y, p.r, state);
   consumeUseItem('cocoaBeans');
   graphics.updateBlock(p.q, p.y, p.r);
   soundFX.play('plant');

@@ -198,6 +198,32 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
   const stock = await page.evaluate(
     () => window.__hexwild.state.inventory.cocoaBeans,
   );
+  await page.evaluate(() => {
+    const g = window.__hexwild;
+    g.teleport(4.7, 40, 4);
+    g.lookAt(4, 39, 4);
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const p = window.__hexwild.state.target?.place;
+        return p && [p.q, p.y, p.r];
+      }),
+    )
+    .toEqual([5, 40, 4]);
+  await click(page);
+  expect(await cell(page, 5, 40, 4)).toBe(null);
+  expect(
+    await page.evaluate(() => window.__hexwild.state.inventory.cocoaBeans),
+  ).toBe(stock);
+  await page.evaluate(() => {
+    const g = window.__hexwild;
+    g.teleport(6, 40, 4);
+    g.lookAt(4, 40.5, 4);
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
+    .toBe('jungleWood');
   await click(page);
   await expect.poll(() => cell(page, 5, 40, 4)).toBe('cocoa');
   expect(
@@ -386,6 +412,7 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
         naturalJungleLog: true,
         craftedPlanks: 4,
         observerPoweredLamp: true,
+        occupiedPlacementPreservedBean: true,
         immatureBeanRefund: true,
         supportRemoval: true,
         waterHarvest: true,

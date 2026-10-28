@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BLOCKS, DIRECTIONS, RECIPES, key } from '../src/core.js';
+import { BLOCKS, DIRECTIONS, RECIPES, key, axialToWorld } from '../src/core.js';
 import { World } from '../src/world.js';
 import { treeCells } from '../src/tree-layout.js';
 import { treePlan } from '../src/farming.js';
@@ -22,6 +22,7 @@ import { smeltingRecipe, FUELS } from '../src/furnaces.js';
 import { validateSave } from '../src/save.js';
 import { currentSave } from './fixtures/current-save.js';
 import { actuatePiston } from '../src/pistons.js';
+import { bodyClear } from '../src/grounding.js';
 
 // Each group traces to the preimplementation failure list in the verification doc.
 function farm(dimension = 'overworld') {
@@ -183,7 +184,14 @@ test('six faces and stripped jungle support stages, exact harvests, bone meal an
     const sizes = [];
     for (let age = 0; age < 3; age++) {
       sizes.push(buildingParts(w, 0, 40, 0)[0].w);
-      assert.deepEqual(buildingParts(w, 0, 40, 0, true), []);
+      const body = buildingParts(w, 0, 40, 0, true)[0];
+      assert.equal(w.pointSolid(body.x, 40 + body.y, body.z), true);
+      assert.equal(
+        w.pointSolid(0, 40.5, 0),
+        false,
+        'the empty part of the hex cell stays clear',
+      );
+      assert.equal(w.groundAt(body.x, body.z, 40, 41), 40.75);
       if (age < 2) {
         assert.equal(growCocoa(w, 0, 40, 0), true);
         assert.equal(w.redstone.timers.has(key(...observer)), true);
@@ -209,6 +217,31 @@ test('six faces and stripped jungle support stages, exact harvests, bone meal an
     }
     assert.equal(tickCocoa(w, 1).drops[0].count, 1);
   }
+});
+
+test('cocoa collision follows each official stage footprint instead of filling or emptying its hex cell', () => {
+  const w = farm(),
+    point = axialToWorld(0, 0);
+  for (let facing = 0; facing < 6; facing++)
+    for (let stage = 0; stage <= 2; stage++) {
+      pod(w, 0, 40, 0, facing, stage);
+      const body = buildingParts(w, 0, 40, 0, true)[0];
+      assert.equal(
+        bodyClear(
+          w,
+          point.x + body.x,
+          point.z + body.z,
+          40 + body.y - 0.05,
+          40 + body.y + 0.05,
+          0.02,
+        ),
+        false,
+      );
+      assert.equal(bodyClear(w, point.x, point.z, 40, 40.8, 0.02), true);
+      assert.equal(w.columnSolid(body.x, body.z, 40.76, 40.9), false);
+      const [dq, dr] = DIRECTIONS[facing];
+      w.set(dq, 40, dr, null);
+    }
 });
 
 test('natural random growth needs neither daylight nor water and only loaded time advances', () => {
