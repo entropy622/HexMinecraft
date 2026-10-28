@@ -38,6 +38,18 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (shape === 'carpet')
+    return [
+      {
+        x: 0,
+        y: 1 / 32,
+        z: 0,
+        h: 1 / 16,
+        angle: 0,
+        tile: BLOCKS[type].tile,
+        polygon: HEX_POLYGON,
+      },
+    ];
   if (isGlass(type) || shape === 'cactus')
     return [
       {

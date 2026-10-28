@@ -158,7 +158,7 @@ export class VoxelLight {
       const block = BLOCKS[type];
       cost[i] = block?.foliage
         ? 3
-        : isGlass(type)
+        : isGlass(type) || block?.shape === 'carpet'
           ? 1
           : isDoor(type)
             ? this.world.state(q, y, r).open
