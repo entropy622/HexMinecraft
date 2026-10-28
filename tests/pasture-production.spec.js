@@ -154,7 +154,6 @@ test('shipped UI grows cocoa and keeps cactus, carpet and observer through Conti
   expect(cells(after)).toEqual(cells(before));
   expect(after.inventory).toEqual(before.inventory);
   expect(plantAges(after)).toEqual(plantAges(before));
-  expect(errors).toEqual([]);
   await writeFile(
     info.outputPath('native-pasture.json'),
     JSON.stringify(
@@ -175,4 +174,6 @@ test('shipped UI grows cocoa and keeps cactus, carpet and observer through Conti
       2,
     ),
   );
+  expect(errors).toEqual([]);
+  expect(warnings).toEqual([]);
 });

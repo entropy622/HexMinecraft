@@ -13,6 +13,8 @@
 
 沿用 v16；两种植物各自保存年龄，卸载不结算离线生长。地形生成加入丛林，玩家编辑仍在生成后覆盖。当前丛林为单干高树，巨型多树苗树与攀附藤蔓继续推进；泛光保留极弱彩色尾部的半浮点精度限制。[组合验证](docs/wild-gardens-verification.md) · [丛林与可可](docs/jungle-cocoa-verification.md) · [仙人掌](docs/cactus-ecology-verification.md) · [泛光参考与实测](docs/bloom-verification.md)。
 
+光影将继续按 Photon 源码和森林参考图推进大气天空、多层云与天气、方向天光、材质反射及镜头效果。完整的已有能力、实际差距和逐项验收范围见 [Photon 迁移清单](docs/photon-migration.md)。
+
 ## 0.84：会恢复的牧场与变化机关
 
 - **十六色地毯**：两块同色羊毛合成三张，可铺设、踩踏、采回与保存。薄层、手持、掉落及图标共用羊毛纹理；失去支撑或被液体冲入时掉落。
