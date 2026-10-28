@@ -215,7 +215,10 @@ export class Graphics {
     this.sunDisk = this.skyEnvironment.sunDisk;
     this.moonDisk = this.skyEnvironment.moonDisk;
     this.stars = this.skyEnvironment.stars;
-    this.cloudSystem = new HexClouds(this.scene);
+    this.cloudSystem = new HexClouds(
+      this.scene,
+      this.skyEnvironment.atmosphere.probe,
+    );
     Object.assign(this.cloudSystem.uniforms, this.skyEnvironment.uniforms);
     this.clouds = this.cloudSystem.mesh;
     this.decor = new THREE.Group();
@@ -1368,7 +1371,6 @@ export class Graphics {
     const flash = this.weatherEffects.flashes ? this.weatherEffects.flash : 0;
     this.fluidRenderer.sync(this.world, new Set(this.chunks.keys()));
     const phase = (time % 600) / 600,
-      day = Math.max(0.08, Math.sin(phase * Math.PI * 2)),
       sky = new THREE.Color(DIMENSIONS[this.world.dimension].fog),
       horizon = sky.clone();
     const overworld = this.world?.dimension === 'overworld';
@@ -1474,10 +1476,7 @@ export class Graphics {
       time,
       rain,
       storm,
-      sky,
-      horizon,
       sun: this.sun,
-      day,
       flash,
       quality: this.quality,
       enabled: this.postOptions.clouds,

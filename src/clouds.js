@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { axialToWorld, worldToAxial, noise } from './core.js';
+import { skyRadianceGLSL } from './sky-atmosphere.js';
 import {
   CLOUD_RADIUS,
   CLOUD_BASE,
@@ -13,9 +14,12 @@ import {
 
 const CHUNK = 8,
   CAPACITY = 49 * CHUNK * CHUNK;
+const UP = new THREE.Vector3(0, 1, 0);
 export class HexClouds {
-  constructor(scene) {
+  constructor(scene, skyProbe) {
     this.scene = scene;
+    this.skyProbe = skyProbe;
+    this.skyIrradiance = new THREE.Vector3();
     this.noiseSeed = 0;
     this.noise = new THREE.DataTexture(
       cloudNoiseData(0),
@@ -49,8 +53,6 @@ export class HexClouds {
       cloudVolumetric: { value: 0 },
       cloudAmbient: { value: new THREE.Color() },
       cloudDirect: { value: new THREE.Color() },
-      cloudZenith: { value: new THREE.Color() },
-      cloudHorizon: { value: new THREE.Color() },
       cloudFar: { value: 130 },
       cloudLayers: {
         value: [
@@ -99,8 +101,8 @@ export class HexClouds {
       `,
       fragmentShader: /* glsl */ `
         ${cloudFieldGLSL}
+        ${skyRadianceGLSL}
         uniform vec3 cloudAmbient; uniform vec3 cloudDirect;
-        uniform vec3 cloudZenith; uniform vec3 cloudHorizon;
         varying vec3 vCloudWorld; varying vec3 vCloudNormal;
         varying float vCloudDensity; varying float vCloudLevel;
         void main() {
@@ -112,9 +114,8 @@ export class HexClouds {
           float forward = pow(max(0.0, dot(ray, cloudLightDirection)), 8.0);
           vec3 color = cloudAmbient * underside + cloudDirect * direct * mix(0.52, 1.05, vCloudLevel);
           color += cloudDirect * edge * forward * 0.85;
-          vec3 distantSky = mix(cloudHorizon, cloudZenith, pow(max(ray.y, 0.0), 0.65));
-          float fade = smoothstep(cloudFar * 0.62, cloudFar, length(vCloudWorld.xz - cameraPosition.xz));
-          gl_FragColor = vec4(mix(color, distantSky, fade), 1.0);
+          vec3 airT = hexAirTransmittance(length(vCloudWorld - cameraPosition), ray);
+          gl_FragColor = vec4(color * airT + hexSkyRadiance(ray) * (1.0 - airT), 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }
@@ -125,7 +126,6 @@ export class HexClouds {
     this.mesh.count = 0;
     this.mesh.raycast = () => {};
     scene.add(this.mesh);
-    this.white = new THREE.Color('#ffffff');
     this.matrix = new THREE.Matrix4();
   }
   clear() {
@@ -152,20 +152,7 @@ export class HexClouds {
     this.mesh.boundingSphere.center.y += 8;
     this.mesh.boundingSphere.radius += 20;
   }
-  frame({
-    world,
-    camera,
-    time,
-    rain,
-    storm,
-    sky,
-    horizon,
-    sun,
-    day,
-    flash,
-    quality,
-    enabled,
-  }) {
+  frame({ world, camera, time, rain, storm, sun, flash, quality, enabled }) {
     const u = this.uniforms,
       active = world.dimension === 'overworld' && enabled;
     this.mesh.visible = active && quality < 1.7;
@@ -240,15 +227,18 @@ export class HexClouds {
       .subVectors(sun.position, sun.target.position)
       .normalize();
     u.cloudShade.value = (0.62 + rain * 0.12) * Math.min(1, sun.intensity * 2);
+    // Hemispherical irradiance / pi is the diffuse incident radiance used by
+    // the cloud integral. Share terrain's published SH snapshot and weather;
+    // an independent white floor otherwise overwhelms actual moonlight.
+    this.skyProbe.sh.getIrradianceAt(UP, this.skyIrradiance);
     u.cloudAmbient.value
-      .copy(horizon)
-      .lerp(this.white, 0.52)
-      .multiplyScalar(
-        (0.14 + day * 0.85) * (1 - rain * 0.45 - storm * 0.15) + flash * 0.8,
-      );
+      .setRGB(
+        Math.max(0, this.skyIrradiance.x) / Math.PI,
+        Math.max(0, this.skyIrradiance.y) / Math.PI,
+        Math.max(0, this.skyIrradiance.z) / Math.PI,
+      )
+      .addScalar(flash * 0.8);
     u.cloudDirect.value.copy(sun.color).multiplyScalar(sun.intensity * 0.8);
-    u.cloudZenith.value.copy(sky);
-    u.cloudHorizon.value.copy(horizon);
     if (quality >= 1.7) return;
     this.mesh.position.set(
       u.cloudWind.value.x,

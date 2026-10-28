@@ -5,7 +5,7 @@ import {
   cloudNoiseData,
   cloudWorleyData,
 } from '../src/cloud-field.js';
-import { Scene, PerspectiveCamera, DirectionalLight, Color } from 'three';
+import { Scene, PerspectiveCamera, DirectionalLight, LightProbe } from 'three';
 import { HexClouds } from '../src/clouds.js';
 import { World } from '../src/world.js';
 
@@ -76,7 +76,7 @@ test('seeded tileable cloud fields have useful distribution without the old 127-
 });
 
 test('production cloud frame derives all three layers and preserves low quality, dimension and toggle semantics', () => {
-  const clouds = new HexClouds(new Scene()),
+  const clouds = new HexClouds(new Scene(), new LightProbe()),
     camera = new PerspectiveCamera(72, 1, 0.08, 220),
     sun = new DirectionalLight();
   sun.position.set(1, 2, 0);
@@ -87,10 +87,7 @@ test('production cloud frame derives all three layers and preserves low quality,
     time: 120,
     rain: 0,
     storm: 0,
-    sky: new Color('#8cc9ee'),
-    horizon: new Color('#d9e4df'),
     sun,
-    day: 1,
     flash: 0,
     quality: 1.7,
     enabled: true,

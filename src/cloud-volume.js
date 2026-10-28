@@ -15,10 +15,12 @@ import {
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { CLOUD_PLANET_RADIUS, cloudFieldGLSL } from './cloud-field.js';
+import { skyRadianceGLSL } from './sky-atmosphere.js';
 
 const vertexShader = /* glsl */ `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
 const volumeShader = /* glsl */ `
 ${cloudFieldGLSL}
+${skyRadianceGLSL}
 varying vec2 vUv;
 uniform sampler2D sceneDepth;
 uniform mat4 cloudInverseProjection, cloudCameraWorld;
@@ -95,6 +97,11 @@ void main() {
     float apparent;
     vec4 integral = integrateLayer(origin, direction, spans[layer], layer, jitter, apparent);
     if (apparent <= 0.0) continue;
+    // Transport each layer's premultiplied radiance through the same molecular
+    // atmosphere as the visible sky. Air adds light only over cloud opacity;
+    // cloud transmission still composites the already atmospheric background.
+    vec3 airT = hexAirTransmittance(apparent, direction);
+    integral.rgb = integral.rgb * airT + hexSkyRadiance(direction) * (1.0 - airT) * (1.0 - integral.a);
     if (cloudData.x <= 0.0) { cloudData.x = apparent; cloudData.w = float(layer); }
     cloudColor.rgb += cloudColor.a * integral.rgb;
     cloudColor.a *= integral.a;
