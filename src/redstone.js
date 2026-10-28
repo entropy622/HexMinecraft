@@ -33,6 +33,19 @@ export class Redstone {
   power(q, y, r) {
     return this.signals.levels.get(key(q, y, r)) || 0;
   }
+  blockChanged(q, y, r) {
+    const w = this.world;
+    if (!w.loaded(q, r)) return;
+    for (const p of neighbors(q, y, r)) {
+      const k = key(...p);
+      if (!w.circuitCells.has(k) || w.get(...p) !== 'observer') continue;
+      const state = w.state(...p),
+        d = dropperOffset(state.facing);
+      if (p[0] + d[0] !== q || p[1] + d[1] !== y || p[2] + d[2] !== r) continue;
+      // Coalesce while waiting or pulsing; a later change cannot stretch a pulse.
+      if (!state.powered && !this.timers.has(k)) this.timers.set(k, 0.1);
+    }
+  }
   conductive(q, y, r) {
     const type = this.world.get(q, y, r),
       block = BLOCKS[type];
@@ -100,6 +113,12 @@ export class Redstone {
         ? 15
         : 0;
     if (isCircuitInput(type)) return state.powered ? 15 : 0;
+    if (type === 'observer') {
+      const d = dropperOffset(state.facing);
+      return state.powered && to.every((v, i) => v === [q, y, r][i] - d[i])
+        ? 15
+        : 0;
+    }
     if (type !== 'repeater' && type !== 'comparator') return 0;
     const [dq, dr] = DIRECTIONS[state.facing || 0];
     if (to[0] !== q + dq || to[1] !== y || to[2] !== r + dr) return 0;
@@ -200,6 +219,7 @@ export class Redstone {
         isCircuitInput(type) ||
         type === 'redstoneTorch' ||
         type === 'repeater' ||
+        type === 'observer' ||
         type === 'comparator'
       ))
         continue;
@@ -213,13 +233,15 @@ export class Redstone {
       const support =
         type === 'redstoneTorch'
           ? [p[0], p[1] + 1, p[2]]
-          : type === 'repeater' || type === 'comparator'
-            ? [
-                p[0] + DIRECTIONS[state.facing || 0][0],
-                p[1],
-                p[2] + DIRECTIONS[state.facing || 0][1],
-              ]
-            : attachmentCell(...p, state, DIRECTIONS);
+          : type === 'observer'
+            ? p.map((v, i) => v - dropperOffset(state.facing)[i])
+            : type === 'repeater' || type === 'comparator'
+              ? [
+                  p[0] + DIRECTIONS[state.facing || 0][0],
+                  p[1],
+                  p[2] + DIRECTIONS[state.facing || 0][1],
+                ]
+              : attachmentCell(...p, state, DIRECTIONS);
       if (this.conductive(...support))
         supply(strong, support, this.outputTo(...p, support));
     }
@@ -289,7 +311,7 @@ export class Redstone {
         change(q, y, r, true);
       }
     }
-    for (const [k, remaining] of this.timers) {
+    for (const [k, remaining] of [...this.timers]) {
       const [q, y, r] = coords(k);
       if (!w.loaded(q, r) || occupied.has(k)) continue;
       const type = w.get(q, y, r),
@@ -300,7 +322,7 @@ export class Redstone {
         if (BLOCKS[type]?.shape === 'dropper') dispense(q, y, r);
         else if (
           isPiston(type) ||
-          ['repeater', 'redstoneTorch', 'comparator'].includes(type)
+          ['repeater', 'redstoneTorch', 'comparator', 'observer'].includes(type)
         )
           due.push(k);
         else change(q, y, r, false);
@@ -328,6 +350,12 @@ export class Redstone {
       return result();
     }
     let signals = this.solve();
+    const pistonDue = due
+      .filter((k) => isPiston(w.get(...coords(k))))
+      .map((k) => {
+        const p = coords(k);
+        return [p, this.pistonPowered(...p, signals)];
+      });
     // All due transitions observe the same pre-transition network. In
     // particular, a chain cannot consume several component delays at once.
     const transitions = due.map((k) => {
@@ -335,6 +363,7 @@ export class Redstone {
         type = w.get(...p),
         state = w.state(...p);
       if (isPiston(type)) return null;
+      if (type === 'observer') return [p, !state.powered];
       if (type === 'comparator')
         return [p, this.comparatorLevel(...p, signals)];
       if (type === 'repeater') {
@@ -367,17 +396,12 @@ export class Redstone {
           if (heat.recent.length >= 8) heat.cooldown = 8;
           this.burnouts.set(k, heat);
         }
+        if (w.get(...p) === 'observer' && on) this.timers.set(k, 0.1);
         change(...p, on);
       }
     if (transitions.some(Boolean)) signals = this.solve();
     const { direct, strong, weak, levels } = signals;
     scheduleComparators(signals);
-    const pistonDue = due
-      .filter((k) => isPiston(w.get(...coords(k))))
-      .map((k) => {
-        const p = coords(k);
-        return [p, this.pistonPowered(...p, signals)];
-      });
     for (const k of w.circuitCells) {
       const p = coords(k),
         type = w.get(...p),
@@ -413,8 +437,11 @@ export class Redstone {
           strong.has(key(...n)) || weak.has(key(...n)) || levels.has(key(...n)),
       );
     for (const k of new Set([...levels.keys(), ...this.signals.levels.keys()]))
-      if ((levels.get(k) || 0) !== (this.signals.levels.get(k) || 0))
+      if ((levels.get(k) || 0) !== (this.signals.levels.get(k) || 0)) {
         changed.set(k, coords(k));
+        if (w.get(...coords(k)) === 'redstoneWire')
+          this.blockChanged(...coords(k));
+      }
     this.signals = signals;
     this.retry = false;
     for (const k of w.circuitCells) {
