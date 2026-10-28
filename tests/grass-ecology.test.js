@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { World } from '../src/world.js';
 import { VoxelLight } from '../src/voxel-light.js';
-import { DIRECTIONS } from '../src/core.js';
+import { DIRECTIONS, key } from '../src/core.js';
+import { CARPET_BLOCKS } from '../src/carpet-data.js';
 import { Weather } from '../src/weather.js';
 import { tickGrass } from '../src/grass.js';
 import { validateSave } from '../src/save.js';
@@ -35,6 +36,58 @@ const source = [4.5 / 8, 4.5 / 8, 39.5 / 64];
 function destination(direction, height) {
   return [(direction + 0.5) / 7, (height + 3.5) / 5];
 }
+
+test('all sixteen carpets preserve source grass and admit spreading beneath the destination carpet', () => {
+  for (const type of Object.keys(CARPET_BLOCKS)) {
+    const p = pasture();
+    p.world.set(4, 40, 4, type);
+    p.world.set(3, 40, 4, type);
+    assert.deepEqual(step(p), [[3, 39, 4]], type);
+    assert.equal(p.world.get(4, 39, 4), 'grass', type);
+    assert.equal(p.world.get(3, 39, 4), 'grass', type);
+    assert.deepEqual(step(p, [3.5 / 8, 4.5 / 8, 39.5 / 64]), [], type);
+    assert.equal(p.world.get(3, 39, 4), 'grass', type);
+  }
+});
+
+test('real grass conversions notify only the facing observer and never replay unloaded or identical edits', () => {
+  const p = pasture(),
+    w = p.world;
+  for (const [q, facing] of [
+    [2, 0],
+    [5, 3],
+  ]) {
+    w.set(q, 39, 4, 'observer');
+    w.setState(q, 39, 4, { facing, open: false, powered: false });
+  }
+  w.set(4, 40, 4, 'blueCarpet');
+  w.set(3, 40, 4, 'redCarpet');
+  assert.deepEqual(step(p), [[3, 39, 4]]);
+  assert.equal(w.redstone.timers.get(key(2, 39, 4)), 0.1);
+  assert.equal(w.redstone.timers.has(key(5, 39, 4)), false);
+  w.redstone.tick(0.1, []);
+  assert.equal(w.state(2, 39, 4).powered, true);
+  assert.equal(w.state(5, 39, 4).powered, false);
+  w.redstone.tick(0.1, []);
+  assert.equal(w.state(2, 39, 4).powered, false);
+  w.set(4, 40, 4, 'observer');
+  assert.deepEqual(step(p), [[4, 39, 4]]);
+  assert.equal(w.redstone.timers.get(key(5, 39, 4)), 0.1);
+  w.redstone.tick(0.1, []);
+  assert.equal(w.state(5, 39, 4).powered, true);
+  w.redstone.tick(0.1, []);
+  w.set(4, 39, 4, 'dirt');
+  assert.equal(w.redstone.timers.size, 0);
+  w.ensureAround(80, 80, 0);
+  assert.equal(w.loaded(4, 4), false);
+  w.set(4, 39, 4, 'grass');
+  w.redstone.tick(1, []);
+  w.ensureAround(4, 4, 1);
+  w.redstone.tick(1, []);
+  assert.equal(w.get(4, 39, 4), 'grass');
+  assert.equal(w.redstone.timers.size, 0);
+  assert.equal(w.state(5, 39, 4).powered, false);
+});
 
 test('all six hex faces and the same column admit y -3 through +1, with no wider jumps', () => {
   for (const [direction, [dq, dr]] of [
@@ -89,6 +142,7 @@ test('cover state controls survival; darkness alone and transparent/partial cove
     ['leaves', {}, true],
     ['torch', {}, true],
     ['fence', {}, true],
+    ['observer', { powered: false }, false],
     ['door', {}, true],
     ['planksSlab', { upper: false }, false],
     ['planksSlab', { upper: true }, true],

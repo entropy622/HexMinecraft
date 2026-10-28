@@ -79,6 +79,15 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
     }
   w.set(4, 39, 4, 'grass');
   w.set(3, 39, 4, 'grass');
+  // A continuously changing real circuit must not starve one-second grass
+  // maintenance by keeping the renderer's throttled light field out of date.
+  for (const [q, facing] of [
+    [2, 0],
+    [3, 3],
+  ]) {
+    w.set(q, 43, 1, 'observer');
+    w.setState(q, 43, 1, { facing, open: false, powered: false });
+  }
   const { axialToWorld } = await import('../src/core.js');
   const sheepPoint = axialToWorld(3, 4);
   const fauna = saved.dimensions.overworld.fauna;
@@ -141,9 +150,72 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   await expect.poll(() => cell(3, 39, 4), { timeout: 30000 }).toBe('grass');
   await page.evaluate(() => {
     const g = window.__hexwild;
-    g.give('stone', 1);
-    g.selectItem('stone');
+    const w = g.state.world;
+    w.set(5, 39, 4, 'observer');
+    w.setState(5, 39, 4, { facing: 3, open: false, powered: false });
+    w.set(6, 39, 4, 'redstoneLamp');
+    w.setState(6, 39, 4, { facing: 0, open: false, powered: false });
+    g.graphics.updateCells([
+      [5, 39, 4],
+      [6, 39, 4],
+    ]);
+    g.give('blueCarpet', 1);
+    g.selectItem('blueCarpet');
     g.teleport(4, 40, 5);
+    g.lookAt(4, 39.99, 4);
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const t = window.__hexwild.state.target;
+        return t && [t.q, t.y, t.r, t.type, t.place.q, t.place.y, t.place.r];
+      }),
+    )
+    .toEqual([4, 39, 4, 'grass', 4, 40, 4]);
+  await expect(page.locator('#target')).toHaveText('草地');
+  for (const type of ['mousedown', 'mouseup'])
+    await page.locator('#world').dispatchEvent(type, { button: 2 });
+  await expect.poll(() => cell(4, 40, 4)).toBe('blueCarpet');
+  const carpetTime = await page.evaluate(() => window.__hexwild.state.time);
+  await expect
+    .poll(() => page.evaluate(() => window.__hexwild.state.time), {
+      timeout: 15000,
+    })
+    .toBeGreaterThan(carpetTime + 2.1);
+  expect(await cell(4, 39, 4)).toBe('grass');
+  expect(
+    await page.evaluate(() => {
+      const w = window.__hexwild.state.world;
+      return !!w.state(5, 39, 4).powered || w.redstone.timers.has('5,39,4');
+    }),
+  ).toBe(false);
+  await page.screenshot({ path: info.outputPath('carpet-pasture.png') });
+  await page.evaluate(() => window.__hexwild.lookAt(4, 40.03, 4));
+  await expect
+    .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
+    .toBe('blueCarpet');
+  await page.locator('#world').dispatchEvent('mousedown', { button: 0 });
+  try {
+    await expect.poll(() => cell(4, 40, 4), { timeout: 15000 }).toBe(null);
+  } finally {
+    await page.locator('#world').dispatchEvent('mouseup', { button: 0 });
+  }
+  const grassPulse = page.waitForFunction(
+    () => {
+      const g = window.__hexwild;
+      return (
+        g.state.world.state(5, 39, 4).powered &&
+        g.state.world.state(6, 39, 4).powered &&
+        g.state.time
+      );
+    },
+    null,
+    { polling: 'raf', timeout: 30000 },
+  );
+  await page.evaluate(() => {
+    const g = window.__hexwild;
+    g.give('observer', 1);
+    g.selectItem('observer');
     g.lookAt(4, 39.99, 4);
   });
   await expect
@@ -163,7 +235,7 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
         return {
           position: g.state.position,
           playing: g.state.playing,
-          stone: g.state.inventory.stone,
+          observer: g.state.inventory.observer,
           selected: g.state.hotbar,
           targetText: document.querySelector('#target').textContent,
           target: g.state.target && {
@@ -180,8 +252,9 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   );
   for (const type of ['mousedown', 'mouseup'])
     await page.locator('#world').dispatchEvent(type, { button: 2 });
-  await expect.poll(() => cell(4, 40, 4)).toBe('stone');
+  await expect.poll(() => cell(4, 40, 4)).toBe('observer');
   await expect.poll(() => cell(4, 39, 4), { timeout: 30000 }).toBe('dirt');
+  expect(await (await grassPulse).jsonValue()).toBeGreaterThan(carpetTime);
   await page.screenshot({ path: info.outputPath('covered-pasture.png') });
   const unloaded = await page.evaluate(() => {
     const g = window.__hexwild;
@@ -202,6 +275,27 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   await page.locator('#continue').click();
   expect(await cell(4, 39, 4)).toBe('dirt');
   expect(await cell(3, 39, 4)).toBe('grass');
+  const publication = await page.evaluate(async () => {
+    const { readVolumeCells } =
+      await import('/tests/fixtures/light-volume-probe.js');
+    const g = window.__hexwild,
+      graphics = g.graphics,
+      w = g.state.world;
+    // Exercise the same refresh/publication entry used by plant maintenance.
+    // A field refresh must reach the actual GPU even without a grass edit.
+    w.set(0, 48, 0, 'glowstone');
+    graphics.updateVoxelLight(0, true);
+    const field = graphics.voxelLight,
+      i = field.index(0, 48, 0),
+      expected = [...field.rgb.map((c) => c[i]), field.sky[i]],
+      actual = readVolumeCells(graphics, [[48, -field.minR, -field.minQ]])[0];
+    w.set(0, 48, 0, null);
+    graphics.updateVoxelLight(0, true);
+    return { expected, actual, coveredGrass: w.get(4, 39, 4) };
+  });
+  expect(publication.expected.slice(0, 3)).toEqual([15, 13, 9]);
+  expect(publication.actual).toEqual(publication.expected);
+  expect(publication.coveredGrass).toBe('dirt');
   const manifest = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
@@ -217,16 +311,20 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
       collision: g.state.world.solid(3, 39, 4),
       gl: g.graphics.renderer.getContext().getError(),
       saveVersion: s.version,
+      clockStillScheduled: ['2,43,1', '3,43,1'].some((k) =>
+        g.state.world.redstone.timers.has(k),
+      ),
     };
   });
   expect(manifest).toEqual({
     coveredSource: 'dirt',
     recoveredPasture: 'grass',
-    cover: 'stone',
+    cover: 'observer',
     recoveredWool: true,
     collision: true,
     gl: 0,
     saveVersion: 16,
+    clockStillScheduled: true,
   });
   expect(errors).toEqual([]);
   expect(consoleErrors).toEqual([]);
@@ -236,8 +334,11 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
       {
         ...manifest,
         paused: true,
+        carpetPreservedGrass: true,
+        convertedGrassPoweredLamp: true,
         streamed: !unloaded && returnedLoaded,
         continued: true,
+        publication,
         errors,
       },
       null,

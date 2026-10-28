@@ -38,7 +38,7 @@
 
 地毯本身需要下方非空气单元，允许本项目已有半砖、楼梯、活板门、围栏和地毯支撑。它有真实碰撞底面，但不因此充当红石、木门等要求的完整支撑面。世界几何与碰撞为 1/16 高；VoxelLight 使用与空气相同的传输成本 1，不额外遮蔽天空或脚下光源；Redstone 依据既有部分形状分类判为不导电。
 
-地毯不应使脚下草方块退化为泥土。官方 1.21.5 中，`SpreadingSnowyDirtBlock.canBeGrass` 通过 `LightEngine.getLightBlockInto` 判断存活；后者的 `isEmptyShape` 将 `canOcclude=false` 或 `useShapeForLightOcclusion=false` 的光学形状视为空。`CarpetBlock` 与 `WoolCarpetBlock` 没有覆盖默认返回 false 的 `BlockBehaviour.useShapeForLightOcclusion`，因此地毯的碰撞下表面不能直接用作草的完全遮光面。`BlockBehaviour.getLightBlock` 对非 solidRender 返回 0/1，低于草存活判定阈值 15。草生态代理据同一份官方 JAR/mappings 核对该结论，组合验收应保留地毯下的草。当前分支已重放到验证后的 0.83 主线 `d6c8938`，该基线尚无草退化系统，此行为等待与草生态 feature 合并验收。
+地毯不应使脚下草方块退化为泥土。官方 1.21.5 中，`SpreadingSnowyDirtBlock.canBeGrass` 通过 `LightEngine.getLightBlockInto` 判断存活；后者的 `isEmptyShape` 将 `canOcclude=false` 或 `useShapeForLightOcclusion=false` 的光学形状视为空。`CarpetBlock` 与 `WoolCarpetBlock` 没有覆盖默认返回 false 的 `BlockBehaviour.useShapeForLightOcclusion`，因此地毯的碰撞下表面不能直接用作草的完全遮光面。`BlockBehaviour.getLightBlock` 对非 solidRender 返回 0/1，低于草存活判定阈值 15。草生态代理据同一份官方 JAR/mappings 核对该结论，组合验收应保留地毯下的草。当前分支已重放到验证后的 0.83 主线 `d6c8938`，该基线尚无草退化系统，此行为已在 0.84 的全部十六色组合 Node 检查与实际铺毯/挖毯 E2E 中确认。
 
 ## 执行证据
 
@@ -58,3 +58,5 @@
 逐行复查了全部改动和四个新增文件，以及 GPU 验收新增的诊断采集、坐标归一化、眼高和围栏顶面断言。新增内容没有公开参数、配置、依赖、存档状态或兼容格式；`tile` 是现有材质字段，颜色来自 `DYES`，形状只有一份，支撑规则由放置和维护共用。液体只加入既有可流入分类，维护复用既有建筑移除与掉落实体路径。测试没有读取源码、替换仓库模块或添加产品测试分支。真实流程脚本与隔离失败类别均已通过，初轮失败证据保留。
 
 分组净行数为产品代码 +64、测试 +800、验证文档 +60，共 +924。产品增长来自 16 色注册/配方与六边形薄层、已有链路的分类和支撑维护；测试增长用于三条真实 UI 生命周期、实际 renderer/GL 及失败诊断和八组独立失败类别，不能用读取源码或替换模块的短断言代替。
+
+0.84 整合后，三项地毯 E2E 再次首轮通过，组合检查和原生生产界面的铺毯/放机器/Continue 也通过。最终证据与限制见 `pasture-integration-verification.md`；以上净行数为独立分支统计。

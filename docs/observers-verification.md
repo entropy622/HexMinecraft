@@ -64,3 +64,5 @@
 - 实际 renderer 为 `ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 (0x00002882) Direct3D11 vs_5_0 ps_5_0, D3D11)`；headless Chrome 使用 `--use-cmd-decoder=passthrough --use-gl=angle --use-angle=d3d11` 和原生 Pointer Lock DOM 边界替代。旧版和三条修复版场景的 page/console errors、浏览器 warnings、GL 错误均为 0。CLI 仅出现 NO_COLOR 被 FORCE_COLOR 覆盖的环境提示。
 - 已查看配方、机关与悬空机器的实际截图。修复版规范清单、截图和逐场景 `graphics-diagnostics.json` 位于 `test-results/observers-e2e-fixed-first/`，报告为 `test-results/observers-e2e-fixed-first-report.json`。首轮失败和首轮通过目录均保留。
 - 已核对本轮捕获的 CLI/Vite/Chrome PID 树全部退出，5191 无监听，记录在 `test-results/observer-cleanup.json` 后释放 GPU。地毯的非电路薄层分类、透光分支和真实 World.set 移除路径在源码审查中与侦测器相容，跨 feature 的组合运行留给主代理集成验收。
+
+0.84 整合后，三项侦测器 E2E 再次首轮通过，草地变化触发灯、持续时钟下草维护、地毯分类和原生生产界面的悬空放置/Continue 均已通过。草维护通过共享光场刷新/发布入口避免被持续变化饿死，详见 `pasture-integration-verification.md`；以上净行数为独立分支统计。

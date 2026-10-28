@@ -1321,6 +1321,12 @@ export class Graphics {
       this.cropMeshes.delete(k);
     }
   }
+  updateVoxelLight(dt, force = false) {
+    if (this.voxelLight.update(dt, force)) {
+      this.dynamicLight.upload(this.voxelLight);
+      for (const k of this.chunks.keys()) this.relightQueue.add(k);
+    }
+  }
   frame(
     dt,
     time,
@@ -1336,10 +1342,7 @@ export class Graphics {
     if (this.renderer.getContext().isContextLost()) return;
     sawClock.value = time;
     this.voxelLight.setHeld([heldLight, offhandLight], this.camera.position);
-    if (this.voxelLight.update(renderDt)) {
-      this.dynamicLight.upload(this.voxelLight);
-      for (const k of this.chunks.keys()) this.relightQueue.add(k);
-    }
+    this.updateVoxelLight(renderDt);
     let relit = 0;
     for (const k of this.relightQueue) {
       this.relightQueue.delete(k);
