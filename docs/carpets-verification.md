@@ -22,7 +22,7 @@
 
 `tests/carpets.spec.js` 使用现有 `tests/browser-fixture.js` 在浏览器 Pointer Lock 边界替代原生锁定。通过实际背包配方搜索、填充与取出合成产物，右键瞄准真实世界几何铺设，再通过移动、长按采集、拾取、保存与刷新继续验证。场景生成截图和稳定 JSON 清单，不替换仓库内部模块。测试平台/初始原料通过已有开发 fixture 或真实存档导入准备，功能操作走现有 UI 与输入事件。
 
-`tests/carpets.test.js` 隔离检查直接使用真实 World、PlayerInventory、crafting、buildingParts、mining、VoxelLight、Redstone 和完整 v16 校验；它们不代替尚未运行的 E2E。
+`tests/carpets.test.js` 隔离检查直接使用真实 World、PlayerInventory、crafting、buildingParts、mining、VoxelLight、Redstone 和完整 v16 校验；它们与玩家 E2E 分别验收。
 
 ## 一手来源与实现范围
 
@@ -31,7 +31,7 @@
 - [Mojang，A Step in the Wrong Direction](https://www.minecraft.net/en-us/article/a-step-wrong-direction)：明确地毯使站立高度增加 0.0625 米，对应 1/16 格。
 - 官方 Java 1.21.5 的 [server JAR](https://piston-data.mojang.com/v1/objects/e6ec2f64e6080b9b5d9b471b291c33cc7f509733/server.jar) 与 [Mojang mappings](https://piston-data.mojang.com/v1/objects/f4812c1d66d0098a94616b19c21829e591d0af3a/server.txt) 静态核对：`CarpetBlock` 的形状为 0..1 像素高，`canSurvive` 要求下方非空气。此处为字节码与官方名称映射核对，未运行原版客户端。
 - 本项目六边形网格按相邻两格表达原版横向两格，使用现有旋转、镜像、平移规则，保留成本和产量。
-- 1/16 格厚度和现有围栏的 1.5 格碰撞在本项目真实形状体系中表达；本次不含直接给地毯再染色、地毯燃料、骆马装饰、村民售卖、刷怪规则或原版生物寻路。围栏地毯不增加另一套玩家/生物碰撞模型。
+- 1/16 格厚度和现有围栏的 1.5 格碰撞在本项目真实形状体系中表达；本次不含直接给地毯再染色、地毯燃料、骆马装饰、村民售卖、刷怪规则或原版生物寻路。围栏地毯不增加另一套玩家/生物碰撞模型。当前围栏视觉柱也为 1.5 格，因此毯面周边平台上仍有中央柱外露，保留该项目既有围栏模型，不能宣称视觉与原版完整对等。
 - 不增加新资产或依赖。材质使用当前已随项目分发的羊毛纹理和 `DYES` 调色。
 
 ## 草方块、光学面与红石的独立规则
@@ -46,10 +46,15 @@
 - `node --test tests/carpets.test.js`：新增 8 项通过，覆盖所有颜色的配方/旋转、拒绝与背包满原子性、真实薄层碰撞、已有部分支撑与围栏、空气与液体、透光/红石、采集、活塞实际调度和 v16 序列化。
 - `npm run build`：生产构建通过；仍有项目已有的大 bundle 提示。
 - 本次改动文件的 Prettier 检查、`node --check tests/carpets.spec.js`、`git diff --check` 通过。
-- E2E 静态列出三条场景成功。浏览器 E2E 尚未运行，须等待主代理分配串行图形窗口。独立配置位于忽略目录 `test-results/carpets-playwright.config.mjs`，仅 headless Chrome / D3D11，端口 `5189`，Vite 缓存在本工作区的 `test-results/carpets-vite-cache`，不使用共享 `node_modules/.vite` 或用户 `5173` 页面。
+- 主代理授权第二串行 GPU 窗口后，`node node_modules/@playwright/test/cli.js test --config=test-results/carpets-playwright.config.mjs` 最终 `verified` 批次三项全过，约 1.1 分钟。独立配置仅 headless Chrome，使用 `--use-cmd-decoder=passthrough --use-gl=angle --use-angle=d3d11` 并排除默认 `--enable-unsafe-swiftshader`，端口 `5189`，Vite 缓存在本工作区 `test-results/carpets-vite-cache`。没有使用共享 `node_modules/.vite`、用户 `5173` 页面或前台鼠标。
+- 三项实际 renderer 均为 `ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 (0x00002882) Direct3D11 vs_5_0 ps_5_0, D3D11)`；每项 `gl=0`、`contextLost=false`、pageerror/console error/warning 均为空。记录来自浏览器上下文实际查询，非仅检查启动参数。
+- 首轮 `initial` 三项失败记录保留，原因是测试把坐标 `-0` 与 `0` 作不同值；第二轮 `geometry` 中两项通过、围栏项失败，诊断证明测试只等同名 target 而误用上一帧围栏侧面，把地毯实际铺在邻格。测试现统一零坐标、使用本项目 1.65 眼高，并等待玩家真实落稳与围栏顶面目标后点击；没有以帧数宣称物理稳定。此次 GPU 验收未修改产品代码。
+- 最终 16 色铺设、手持、掉落、围栏与冲水四张截图均已逐张人工查看。羊毛纹理调色、薄层边缘、蓝色手持/掉落实体一致，保存继续后的各色数量及世界位置、支撑掉落、水桶与活塞影响后的物品守恒通过。
+- 最终报告为 `test-results/carpets-e2e-verified-report.json`；三个场景目录中的 `browser-diagnostics.json` 保留 renderer/GL、浏览器日志、真实库存/世界存档和失败定位信息，`carpet-lifecycle.json`、`carpet-support.json`、`carpet-world-updates.json` 为稳定行为清单。前两轮报告与失败截图分别保留在 `carpets-e2e-initial*`、`carpets-e2e-geometry*`，未覆盖。
+- 已核对所属 CLI、Vite、Chrome 进程退出，5189 无监听；`test-results/carpets-process-cleanup.json` 记录所属剩余进程、端口监听和 headless Chrome 三项均为空。GPU 窗口已释放，不再启动浏览器。
 
 ## 交付设计复查
 
-逐行复查了全部改动和四个新增文件。新增内容没有公开参数、配置、依赖、存档状态或兼容格式；`tile` 是现有材质字段，颜色来自 `DYES`，形状只有一份，支撑规则由放置和维护共用。液体只加入既有可流入分类，维护复用既有建筑移除与掉落实体路径。测试没有读取源码、替换仓库模块或添加产品测试分支。真实流程脚本与隔离失败类别保留，未运行的浏览器场景不计作通过。
+逐行复查了全部改动和四个新增文件，以及 GPU 验收新增的诊断采集、坐标归一化、眼高和围栏顶面断言。新增内容没有公开参数、配置、依赖、存档状态或兼容格式；`tile` 是现有材质字段，颜色来自 `DYES`，形状只有一份，支撑规则由放置和维护共用。液体只加入既有可流入分类，维护复用既有建筑移除与掉落实体路径。测试没有读取源码、替换仓库模块或添加产品测试分支。真实流程脚本与隔离失败类别均已通过，初轮失败证据保留。
 
-分组净行数为产品代码 +64、测试 +731、验证文档 +55，共 +850。产品增长来自 16 色注册/配方与六边形薄层、已有链路的分类和支撑维护；测试增长用于三条真实 UI 生命周期及八组独立失败类别，不能用读取源码或替换模块的短断言代替。
+分组净行数为产品代码 +64、测试 +800、验证文档 +60，共 +924。产品增长来自 16 色注册/配方与六边形薄层、已有链路的分类和支撑维护；测试增长用于三条真实 UI 生命周期、实际 renderer/GL 及失败诊断和八组独立失败类别，不能用读取源码或替换模块的短断言代替。

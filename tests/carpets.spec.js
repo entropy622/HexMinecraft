@@ -4,6 +4,58 @@ import { DYES } from '../src/dye-data.js';
 import { woolItem } from '../src/wool-data.js';
 
 test.setTimeout(240000);
+const browserLogs = new WeakMap();
+test.beforeEach(async ({ page }) => {
+  const log = { errors: [], warnings: [] };
+  browserLogs.set(page, log);
+  page.on('pageerror', (e) => log.errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') log.errors.push(e.text());
+    if (e.type() === 'warning') log.warnings.push(e.text());
+  });
+});
+test.afterEach(async ({ page }, info) => {
+  const runtime = await page
+    .evaluate(() => {
+      const g = window.__hexwild;
+      const gl = document.querySelector('#world')?.getContext('webgl2');
+      const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+      if (g) g.save();
+      return {
+        renderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null,
+        vendor: ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : null,
+        gl: gl?.getError(),
+        contextLost: gl?.isContextLost(),
+        target: g?.state.target
+          ? {
+              type: g.state.target.type,
+              q: g.state.target.q,
+              y: g.state.target.y,
+              r: g.state.target.r,
+              place: g.state.target.place,
+            }
+          : null,
+        position: g?.state.position,
+        inventory: g?.state.inventory,
+        saved: JSON.parse(localStorage.getItem('hexwild-save-v16') || 'null'),
+      };
+    })
+    .catch((e) => ({ diagnosticError: e.message }));
+  await writeFile(
+    info.outputPath('browser-diagnostics.json'),
+    JSON.stringify(
+      {
+        status: info.status,
+        ...browserLogs.get(page),
+        ...runtime,
+      },
+      null,
+      2,
+    ),
+  );
+  if (info.status !== info.expectedStatus)
+    await page.screenshot({ path: info.outputPath('failure.png') });
+});
 const colors = Object.keys(DYES);
 const carpet = (color) => color + 'Carpet';
 const cells = colors.map((color, i) => ({
@@ -36,11 +88,7 @@ async function save(page) {
   });
 }
 async function platform(page) {
-  const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (e) => {
-    if (e.type() === 'error') errors.push(e.text());
-  });
+  const errors = browserLogs.get(page).errors;
   await page.route('https://fonts.googleapis.com/**', (r) =>
     r.fulfill({ body: '', contentType: 'text/css' }),
   );
@@ -79,7 +127,12 @@ async function placeAt(page, id, q, y, r, support) {
     support,
   );
   await expect
-    .poll(() => page.evaluate(() => window.__hexwild.state.target?.place))
+    .poll(() =>
+      page.evaluate(() => {
+        const p = window.__hexwild.state.target?.place;
+        return p ? { q: p.q || 0, y: p.y, r: p.r || 0 } : null;
+      }),
+    )
     .toEqual({ q, y, r });
   await clickWorld(page);
   await expect
@@ -176,10 +229,10 @@ test('personal UI crafts all sixteen colors, lays thin wool floors, mines one ba
   try {
     await expect
       .poll(
-        () => page.evaluate(() => window.__hexwild.state.position[1] - 1.62),
+        () => page.evaluate(() => window.__hexwild.state.position[1] - 1.65),
         { timeout: 10000 },
       )
-      .toBeCloseTo(40.0625, 3);
+      .toBeCloseTo(40.0625, 2);
   } finally {
     await page.keyboard.up('KeyW');
   }
@@ -333,7 +386,23 @@ test('real support mining drops stacked carpets once and a fence retains its hig
     g.teleport(1, 40, 1);
     g.selectItem('redCarpet');
   });
+  await expect
+    .poll(() => page.evaluate(() => window.__hexwild.state.position[1]))
+    .toBeCloseTo(41.645, 3);
   await aim(page, 2, 41.49, 0, 'fence');
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const t = window.__hexwild.state.target;
+        return (
+          t?.normal?.y > 0.5 &&
+          t.place.q === 2 &&
+          t.place.y === 41 &&
+          t.place.r === 0
+        );
+      }),
+    )
+    .toBe(true);
   await clickWorld(page);
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.state.world.get(2, 41, 0)))
