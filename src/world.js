@@ -423,6 +423,7 @@ export class World {
     this.shapeCache.clear();
     if (record && previous !== type) {
       this.blockStates.delete(k);
+      this.naturalStates.delete(k);
       this.redstone.timers.delete(k);
       this.redstone.burnouts.delete(k);
       this.hoppers.cooldowns.delete(k);
@@ -643,6 +644,7 @@ export class World {
     stampEndArena(this, cq, cr);
     stampPigments(this, cq, cr);
     for (const [k, t] of this.editChunks.get(ck) || []) {
+      if (this.blocks.get(k) !== t) this.naturalStates.delete(k);
       if (isChorus(t)) this.chorusPending.add(k);
       if (BLOCKS[t]?.shape) this.buildings.add(k);
       else this.buildings.delete(k);

@@ -491,4 +491,55 @@ test('v16 validates cocoa stage strictly, saves natural growth, and restores fac
     grown === 2 ? 3 : 1,
   );
   assert.doesNotThrow(() => validateSave(currentSave(continued)));
+  const mature = [...continued.blocks]
+      .find(([k, type]) => {
+        const state = continued.state(...k.split(',').map(Number));
+        return (
+          type === 'cocoa' &&
+          !continued.edits.has(k) &&
+          state.age === 2 &&
+          state.facing !== 0
+        );
+      })[0]
+      .split(',')
+      .map(Number),
+    natural = structuredClone(continued.state(...mature));
+  continued.set(...mature, 'sand', false);
+  continued.set(...mature, 'cocoa', false);
+  assert.deepEqual(
+    continued.state(...mature),
+    natural,
+    'temporary placement probes retain natural state',
+  );
+  assert.equal(continued.edits.has(key(...mature)), false);
+  const same = new World(624, 'overworld', { load: false });
+  same.ensureAround(mature[0], mature[2], 1);
+  same.set(...mature, 'cocoa');
+  assert.deepEqual(
+    same.state(...mature),
+    natural,
+    'same-type first recording retains age and facing',
+  );
+  assert.equal(harvestCocoa(continued, ...mature).drops[0].count, 3);
+  assert.deepEqual(continued.state(...mature), { facing: 0, open: false });
+  for (const replacement of ['sand', null]) {
+    continued.set(...mature, replacement);
+    assert.deepEqual(continued.state(...mature), { facing: 0, open: false });
+    continued.ensureAround(400, 400, 1);
+    continued.ensureAround(mature[0], mature[2], 1);
+    assert.equal(continued.get(...mature), replacement || undefined);
+    assert.deepEqual(
+      continued.state(...mature),
+      { facing: 0, open: false },
+      'regenerated edits cannot inherit the original pod state',
+    );
+    const data = validateSave(currentSave(continued)),
+      restored = new World(624, 'overworld', {
+        ...data.dimensions.overworld,
+        load: false,
+      });
+    restored.ensureAround(mature[0], mature[2], 1);
+    assert.equal(restored.get(...mature), replacement || undefined);
+    assert.deepEqual(restored.state(...mature), { facing: 0, open: false });
+  }
 });
