@@ -168,7 +168,7 @@ export class VoxelLight {
               ? this.world.state(q, y, r).open
                 ? 1
                 : 3
-              : block?.shape === 'dropper'
+              : ['dropper', 'observer'].includes(block?.shape)
                 ? 16
                 : block?.shape
                   ? 2

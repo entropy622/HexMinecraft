@@ -3200,11 +3200,7 @@ function placeBuilding(type, p) {
       facing = facing >= 6 ? 13 - facing : (facing + 3) % 6;
   }
   let mount;
-  if (
-    CIRCUIT_BLOCKS[type]?.shape &&
-    !['hopper', 'dropper', 'dispenser', 'observer'].includes(type) &&
-    !isPiston(type)
-  ) {
+  if (CIRCUIT_BLOCKS[type]?.nonSolid) {
     const control = ['lever', 'stoneButton', 'redstoneTorch'].includes(type);
     if (type === 'redstoneTorch' && target.normal?.y < -0.5) {
       toast('红石火把需要地面或墙面支撑。');
@@ -3444,12 +3440,7 @@ function maintainBuildings() {
       const [dq, dr] = DIRECTIONS[world.state(q, y, r).facing];
       if (!world.loaded(q + dq, r + dr)) continue;
       if (!fullSupport(q + dq, y, r + dr)) removeBuilding(q, y, r);
-    } else if (
-      CIRCUIT_BLOCKS[type]?.shape &&
-      !['hopper', 'dropper', 'dispenser'].includes(type) &&
-      !isPiston(type) &&
-      !isPistonHead(type)
-    ) {
+    } else if (CIRCUIT_BLOCKS[type]?.nonSolid) {
       const state = world.state(q, y, r),
         support = attachmentCell(q, y, r, state, DIRECTIONS);
       if (!world.loaded(support[0], support[2])) continue;

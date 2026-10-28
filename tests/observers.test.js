@@ -12,6 +12,7 @@ import {
 import { currentSave } from './fixtures/current-save.js';
 import { validateSave } from '../src/save.js';
 import { buildingParts } from '../src/building-shapes.js';
+import { VoxelLight } from '../src/voxel-light.js';
 
 // Failure classes are recorded in docs/observers-verification.md. These use
 // the real World, redstone scheduler, fluid state, crafting and containers.
@@ -412,4 +413,82 @@ test('invalid observer timers, direction and active states are rejected by the p
     ([k]) => k === key(...origin),
   )[1].powered = true;
   assert.throws(() => validateSave(stuck));
+});
+
+test('full observer casings block real sky and RGB light while hopper geometry keeps partial transmission', () => {
+  const w = fixture(),
+    light = new VoxelLight(w),
+    p = [0, 40, 0];
+  for (const type of ['observer', 'dropper', 'dispenser', 'hopper']) {
+    put(w, p, type);
+    light.update(0, true);
+    const i = light.index(...p);
+    assert.equal(light.cost[i], type === 'hopper' ? 2 : 16, type);
+    assert.equal(light.medium[i], type === 'hopper' ? 13 : 0, type);
+    if (type !== 'hopper') {
+      assert.equal(light.sky[i], 0, type);
+      assert.deepEqual(
+        light.rgb.map((channel) => channel[i]),
+        [0, 0, 0],
+        type,
+      );
+    }
+  }
+});
+
+test('an expired piston request retains a simultaneous new observer edge without retrying a steady obstruction', () => {
+  const w = fixture(),
+    p = [0, 40, 0],
+    lever = [0, 40, 1],
+    observer = [-1, 40, 0],
+    target = [-2, 40, 0];
+  w.set(...target, 'stone');
+  put(w, observer, 'observer', { facing: 3, powered: false });
+  put(w, p, 'piston', { facing: 0, powered: false });
+  w.set(1, 40, 0, 'stone');
+  put(w, lever, 'lever', { powered: false, mount: 'floor' });
+  tick(w);
+  w.redstone.activate(...lever);
+  tick(w);
+  w.redstone.activate(...lever);
+  w.set(...target, 'cobble');
+  tick(w);
+  tick(w, 0.1);
+  assert.equal(w.state(...p).open, false);
+  assert.equal(w.state(...p).powered, true);
+  assert.equal(
+    w.redstone.timers.get(key(...p)),
+    0.1,
+    'the new input needs its own delay after the old request expires',
+  );
+  tick(w, 0.099);
+  assert.equal(w.state(...p).open, false);
+  tick(w, 0.001);
+  assert.equal(
+    w.state(...p).open,
+    true,
+    'the trailing edge cannot erase its full-width input pulse',
+  );
+  assert.equal(w.get(1, 40, 0), 'pistonHead');
+  assert.equal(w.get(2, 40, 0), 'stone');
+  advance(w, 0.2);
+  assert.equal(w.state(...p).open, false);
+  w.set(1, 40, 0, 'obsidian');
+  w.redstone.activate(...lever);
+  tick(w);
+  tick(w, 0.1);
+  for (let n = 0; n < 40; n++) {
+    tick(w, 0.1);
+    assert.equal(w.state(...p).open, false);
+    assert.equal(
+      w.redstone.timers.has(key(...p)),
+      false,
+      'an unchanged obstruction must not schedule repeated work',
+    );
+  }
+  w.set(1, 40, 0, null);
+  tick(w);
+  tick(w, 0.1);
+  assert.equal(w.state(...p).open, true);
+  validateSave(currentSave(w));
 });
