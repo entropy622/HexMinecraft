@@ -244,7 +244,7 @@ float hexCloudLayerDensity(vec3 position, int layer) {
   if (fraction >= 1.0 || fill <= 0.0) return 0.0;
   vec3 detailPosition = vec3(drifting * (layer == 0 ? 0.022 : 0.06), y * 0.11);
   detailPosition.xy += fraction * vec2(0.055, -0.024) * cloudShear;
-  float bubbles = texture(cloudWorley, detailPosition).r * 0.72 + texture(cloudWorley, detailPosition * 2.7 + 0.31).r * 0.28;
+  float bubbles = textureLod(cloudWorley, detailPosition, 0.0).r * 0.72 + textureLod(cloudWorley, detailPosition * 2.7 + 0.31, 0.0).r * 0.28;
   float profile = smoothstep(0.0, 0.13, fraction) * (1.0 - smoothstep(0.48, 1.0, fraction));
   float erosion = mix(0.66, 0.27, band.w);
   return max(0.0, fill - (1.0 - bubbles) * erosion) * profile * (layer == 0 ? 1.0 : 0.48);
