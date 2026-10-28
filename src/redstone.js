@@ -479,6 +479,17 @@ export class Redstone {
     }
     for (const [p, on] of pistonDue) {
       const movement = actuatePiston(w, ...p, on);
+      const current = this.pistonPowered(...p, signals),
+        k = key(...p);
+      // A diode may produce a new edge while this older request expires.
+      // Preserve that edge's delay without polling an unchanged blocked piston.
+      if (
+        isPiston(w.get(...p)) &&
+        current !== on &&
+        !!w.state(...p).open !== current &&
+        !this.timers.has(k)
+      )
+        this.timers.set(k, 0.1);
       if (!movement) continue;
       for (const cell of movement.changed) changed.set(key(...cell), cell);
       broken.push(...movement.broken);

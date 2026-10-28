@@ -2,6 +2,34 @@ import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 
 test.setTimeout(240000);
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus || page.isClosed()) return;
+  const manifest = await page.evaluate(() => {
+    const g = window.__hexwild;
+    if (!g) return { ready: false };
+    g.save();
+    const w = g.state.world,
+      saved = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return {
+      observerCells: [...w.edits]
+        .filter(([, type]) => type === 'observer')
+        .sort(([a], [b]) => a.localeCompare(b)),
+      floatingCells: [
+        [-1, 42, 0],
+        [2, 41, 0],
+      ].map((p) => ({ position: p, type: w.get(...p) || null })),
+      observerInventory: g.state.inventory.observer || 0,
+      observerDrops: (saved?.dimensions?.[g.state.dimension]?.drops || [])
+        .filter((d) => d.item === 'observer')
+        .reduce((n, d) => n + d.count, 0),
+    };
+  });
+  await writeFile(
+    info.outputPath('observer-failure.json'),
+    JSON.stringify(manifest, null, 2),
+  );
+  await page.screenshot({ path: info.outputPath('observer-failure.png') });
+});
 const use = (page) =>
   page.evaluate(() => {
     for (const type of ['mousedown', 'mouseup'])
@@ -19,6 +47,32 @@ async function aim(page, q, y, r, type) {
       }),
     )
     .toEqual([q, Math.floor(y), r, type]);
+}
+async function mineAt(page, q, y, r, type) {
+  await aim(page, q, y, r, type);
+  await page.evaluate(() =>
+    document
+      .querySelector('#world')
+      .dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true })),
+  );
+  try {
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            (p) => window.__hexwild.state.world.get(...p) || null,
+            [q, Math.floor(y), r],
+          ),
+        { timeout: 15000 },
+      )
+      .toBe(null);
+  } finally {
+    await page.evaluate(() =>
+      document
+        .querySelector('#world')
+        .dispatchEvent(new MouseEvent('mouseup', { button: 0, bubbles: true })),
+    );
+  }
 }
 const transferred = (page) =>
   page.evaluate(() =>
@@ -262,6 +316,100 @@ test('player collision rejects ordinary and shaped trial placements without fals
   });
   await writeFile(
     info.outputPath('observer-rejected-placement.json'),
+    JSON.stringify(manifest, null, 2),
+  );
+});
+
+test('player places a floating observer and removes both side and floor supports without losing either machine', async ({
+  page,
+}, info) => {
+  await page.route('https://fonts.googleapis.com/**', (r) => r.abort());
+  await page.setViewportSize({ width: 900, height: 650 });
+  await page.goto('/');
+  await page.locator('#start').click();
+  await page.evaluate(() => {
+    const g = window.__hexwild,
+      w = g.state.world,
+      cells = [];
+    for (let q = -4; q <= 5; q++)
+      for (let r = -3; r <= 3; r++) {
+        w.set(q, 39, r, 'stone');
+        for (let y = 40; y <= 46; y++) w.set(q, y, r, null);
+        cells.push([q, 39, r]);
+      }
+    w.set(0, 42, 0, 'stone');
+    w.set(2, 40, 0, 'stone');
+    cells.push([0, 42, 0], [2, 40, 0]);
+    g.graphics.updateCells(cells);
+    g.teleport(-3, 40, 0);
+    g.give('observer', 2);
+    g.give('pick4', 1);
+    g.selectItem('observer');
+  });
+  await aim(page, 0, 42.5, 0, 'stone');
+  await use(page);
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__hexwild.state.world.get(-1, 42, 0)),
+    )
+    .toBe('observer');
+  expect(
+    await page.evaluate(
+      () => window.__hexwild.state.world.get(-1, 41, 0) || null,
+    ),
+  ).toBe(null);
+  await page.evaluate(() => window.__hexwild.teleport(0, 40, 1));
+  await aim(page, 2, 40.95, 0, 'stone');
+  await use(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__hexwild.state.world.get(2, 41, 0)))
+    .toBe('observer');
+  await page.evaluate(() => {
+    const g = window.__hexwild;
+    g.teleport(2, 40, 2);
+    g.selectItem('pick4');
+  });
+  await mineAt(page, 2, 40.15, 0, 'stone');
+  expect(
+    await page.evaluate(() => window.__hexwild.state.world.get(2, 41, 0)),
+  ).toBe('observer');
+  await page.evaluate(() => window.__hexwild.teleport(0, 40, 2));
+  await mineAt(page, 0, 42.5, 0, 'stone');
+  await page.evaluate(() => window.__hexwild.save());
+  await page.reload();
+  await page.locator('#continue').click();
+  const manifest = await page.evaluate(() => {
+    const g = window.__hexwild,
+      w = g.state.world;
+    g.save();
+    const saved = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return {
+      observers: [
+        [-1, 42, 0],
+        [2, 41, 0],
+      ].map((p) => ({ position: p, type: w.get(...p) || null })),
+      removedSupports: [
+        [0, 42, 0],
+        [2, 40, 0],
+      ].every((p) => !w.get(...p)),
+      observerInventory: g.state.inventory.observer || 0,
+      observerDrops: saved.dimensions.overworld.drops
+        .filter((d) => d.item === 'observer')
+        .reduce((n, d) => n + d.count, 0),
+    };
+  });
+  expect(manifest).toEqual({
+    observers: [
+      { position: [-1, 42, 0], type: 'observer' },
+      { position: [2, 41, 0], type: 'observer' },
+    ],
+    removedSupports: true,
+    observerInventory: 0,
+    observerDrops: 0,
+  });
+  await page.screenshot({ path: info.outputPath('floating-observers.png') });
+  await writeFile(
+    info.outputPath('floating-observers.json'),
     JSON.stringify(manifest, null, 2),
   );
 });
