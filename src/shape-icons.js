@@ -1,9 +1,10 @@
 import { WEB_STRANDS } from './cobwebs.js';
 import { isGlass } from './dye-data.js';
+import { isWool } from './wool-data.js';
 import { BLOCKS } from './core.js';
 import { cutItemWorld } from './cut-blocks.js';
 import { buildingParts } from './building-shapes.js';
-import { blockTextures, textureURL } from './texture-pack.js';
+import { blockTextures, textureURL, itemImage } from './texture-pack.js';
 import { HEX_POLYGON } from './cut-blocks.js';
 
 // Small isometric projections reuse the same cut polygons and licensed tiles
@@ -104,7 +105,9 @@ export function cutBlockIcon(id) {
             : '';
       return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="${surface.color}"/><path d="M1 2h4v2H1zM8 5h5v2H8zM3 10h3v3H3zM11 12h4v2h-4z" fill="${surface.side || '#000'}" opacity="${surface.side ? 1 : 0.13}"/>${mouth}</pattern>`;
     }
-    const url = textureURL(name === 'top' ? tiles[0] : tiles.at(-1));
+    const url = isWool(tile)
+      ? itemImage(tile).toDataURL()
+      : textureURL(name === 'top' ? tiles[0] : tiles.at(-1));
     const crop = (y, height, destY, destHeight) =>
       `<svg x="0" y="${destY}" width="16" height="${destHeight}" viewBox="16 ${y} 16 ${height}" preserveAspectRatio="none"><image href="${url}" width="64" height="64"/></svg>`;
     const content = def.portable

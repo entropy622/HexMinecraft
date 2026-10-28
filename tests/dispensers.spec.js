@@ -690,6 +690,7 @@ test('shearing wears the actual named tool and a neutral arrow kill drops loot w
     {
       ...template,
       kind: 'sheep',
+      color: 'white',
       position: [Math.sqrt(3), 40, 0],
       hp: 8,
       baby: 0,
@@ -717,6 +718,22 @@ test('shearing wears the actual named tool and a neutral arrow kill drops loot w
   ).toBe(3);
   await pulse(page);
   expect((await sourceSlots(page))[0].wear.value).toBe(4);
+  const blue = await snapshot(page);
+  const blueSheep = blue.dimensions.overworld.fauna.mobs.find(
+    (m) => m.id === template.id,
+  );
+  blueSheep.color = 'blue';
+  blueSheep.wool = 0;
+  blueSheep.position = [Math.sqrt(3), 40, 0];
+  await load(page, blue);
+  await pulse(page);
+  const blueSheared = await snapshot(page);
+  expect((await sourceSlots(page))[0].wear.value).toBe(3);
+  expect(
+    blueSheared.dimensions.overworld.drops
+      .filter((d) => d.item === 'blueWool')
+      .reduce((n, d) => n + d.count, 0),
+  ).toBe(3);
   const kill = await snapshot(page);
   kill.dimensions.overworld.fauna.mobs = [
     {
@@ -742,6 +759,11 @@ test('shearing wears the actual named tool and a neutral arrow kill drops loot w
     )
     .toBe(true);
   const dead = await snapshot(page);
+  expect(
+    dead.dimensions.overworld.drops
+      .filter((d) => d.item === 'blueWool')
+      .reduce((n, d) => n + d.count, 0),
+  ).toBe(3);
   expect(dead.experience.total).toBe(kill.experience.total);
   expect(dead.dimensions.overworld.experienceOrbs).toEqual([]);
   expect(dead.dimensions.overworld.drops.some((d) => d.item === 'meat')).toBe(

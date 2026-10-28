@@ -2,6 +2,7 @@
 import { POTIONS } from './brewing-data.js';
 import { DYE_ITEMS, isPigmentPlant } from './dye-data.js';
 import { paintPigment } from './pigment-art.js';
+import { isWool, WOOL_BLOCKS, WOOL_TYPES } from './wool-data.js';
 import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
 import { WOOD_BLOCKS, TREES } from './wood-data.js';
 export const blockTextures = {
@@ -106,8 +107,8 @@ export const blockTextures = {
   farmland: ['mcl_farming_farmland_wet', 'default_dirt'],
   glowstone: ['mcl_nether_glowstone'],
   bedrock: ['mcl_core_bedrock'],
-  wool: ['wool_white'],
 };
+for (const id of WOOL_TYPES) blockTextures[id] = ['wool_white'];
 for (const species of ['birch', 'spruce']) {
   const ids = WOOD_BUILDINGS[species],
     plank = blockTextures[TREES[species].planks][0];
@@ -332,6 +333,15 @@ export const plantImage = (kind, stage) => {
 const generatedItems = new Map();
 let berriesImage;
 export const itemImage = (id) => {
+  if (isWool(id)) {
+    if (!generatedItems.has(id)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 16;
+      paintPackTile(canvas.getContext('2d'), id, true);
+      generatedItems.set(id, canvas);
+    }
+    return generatedItems.get(id);
+  }
   if (DYE_ITEMS[id] || isPigmentPlant(id)) {
     if (!generatedItems.has(id)) {
       const canvas = document.createElement('canvas');
@@ -550,6 +560,12 @@ export function paintPackTile(ctx, id, top) {
   }
   const frame = id === 'stonecutterSaw2' ? 1 : id === 'stonecutterSaw3' ? 2 : 0;
   ctx.drawImage(image, 0, frame * 16, 16, 16, 0, 0, 16, 16);
+  if (isWool(id)) {
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = WOOL_BLOCKS[id].color;
+    ctx.fillRect(0, 0, 16, 16);
+    ctx.globalCompositeOperation = 'source-over';
+  }
   const leafTint = id === 'leaves' ? '#79a94d' : WOOD_BLOCKS[id]?.leafTint;
   if (leafTint || (id === 'grass' && top)) {
     ctx.globalCompositeOperation = 'multiply';

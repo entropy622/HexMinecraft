@@ -1,9 +1,11 @@
 import { WOOD_GROUPS, LOG_VARIANTS, woodKey } from './wood-data.js';
+import { isWool, WOOL_TYPES } from './wool-data.js';
 
 export const ingredientKey = (id) =>
-  id === 'cobbledDeepslate' ? 'cobble' : woodKey(id);
+  isWool(id) ? 'wool' : id === 'cobbledDeepslate' ? 'cobble' : woodKey(id);
 
 export const ingredientChoices = (recipe, id) =>
+  (id === 'wool' && isWool(recipe.id) ? WOOL_TYPES : null) ||
   (recipe.cobbleGroup && id === 'cobble'
     ? ['cobble', 'cobbledDeepslate']
     : null) ||
@@ -15,13 +17,15 @@ export const ingredientCount = (recipe, id, stock) =>
   ingredientChoices(recipe, id).reduce((n, key) => n + (stock[key] || 0), 0);
 export const ingredientName = (recipe, id, name) =>
   ingredientChoices(recipe, id).length > 1
-    ? recipe.cobbleGroup && id === 'cobble'
-      ? '圆石或深板岩圆石'
-      : !recipe.exactWood && WOOD_GROUPS[id]
-        ? id === 'wood'
-          ? '任意原木'
-          : '任意木板'
-        : name + '（含去皮）'
+    ? id === 'wool' && isWool(recipe.id)
+      ? '任意颜色羊毛'
+      : recipe.cobbleGroup && id === 'cobble'
+        ? '圆石或深板岩圆石'
+        : !recipe.exactWood && WOOD_GROUPS[id]
+          ? id === 'wood'
+            ? '任意原木'
+            : '任意木板'
+          : name + '（含去皮）'
     : name;
 
 // Assign one real material to each cell, since a slot cannot hold a mixture of

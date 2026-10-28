@@ -1,6 +1,7 @@
 import { BLOCKS, ITEMS } from './core.js';
 import { woodKey } from './wood-data.js';
 import { isGlass } from './dye-data.js';
+import { isWool } from './wool-data.js';
 
 const PICK_REQUIRED = new Set([
   'stone',
@@ -91,7 +92,7 @@ export function miningStats(block, held, enchant = {}) {
   const kind =
     material === 'hayBale' || material === 'mossBlock'
       ? 'hoe'
-      : material === 'leaves' || material === 'wool'
+      : material === 'leaves' || isWool(material)
         ? 'shears'
         : AXE.has(material)
           ? 'axe'
@@ -115,7 +116,9 @@ export function miningStats(block, held, enchant = {}) {
   const baseSpeed = !effective
     ? 1
     : kind === 'shears'
-      ? 15
+      ? isWool(material)
+        ? 5
+        : 15
       : [1, 2, 4, 6, 8][item.tier] || 1;
   const efficiency =
     effective && baseSpeed > 1 && enchant.efficiency

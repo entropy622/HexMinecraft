@@ -1,4 +1,5 @@
 import { DYE_ITEMS, isGlass, isPigmentPlant } from './dye-data.js';
+import { isWool } from './wool-data.js';
 import {
   createElement,
   Pickaxe,
@@ -92,7 +93,6 @@ const symbols = {
   portal: DoorOpen,
   endportal: Orbit,
   bedrock: BrickWall,
-  wool: Cloud,
   pick1: Pickaxe,
   pick2: Pickaxe,
   pick3: Pickaxe,
@@ -132,6 +132,7 @@ export function itemIcon(id) {
     if (
       ITEMS[id]?.portable ||
       isGlass(id) ||
+      isWool(id) ||
       PROCESSING_BLOCKS[id] ||
       CAVE_BLOCKS[id] ||
       CIRCUIT_BLOCKS[id] ||

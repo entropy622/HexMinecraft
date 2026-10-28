@@ -77,6 +77,10 @@ export const DYE_ITEMS = {
   inkSac: { name: '墨囊', color: '#30313b', use: true },
   cocoaBeans: { name: '可可豆', color: '#845333', use: true },
 };
+export const dyeColor = (id) => {
+  const color = id?.endsWith('Dye') ? id.slice(0, -3) : null;
+  return Object.hasOwn(DYES, color) ? color : null;
+};
 const recipe = (id, ingredients, count = 1) => {
   const pattern = Array(7).fill(null);
   ingredients.forEach((id, i) => (pattern[i] = id));

@@ -17,6 +17,8 @@ import { powderContact } from './powder-snow.js';
 import { campfireHeat } from './campfires.js';
 import { spawnCaveBats, updateBat } from './bats.js';
 import { touchesWeb } from './cobwebs.js';
+import { DYES, dyeColor } from './dye-data.js';
+import { naturalSheepColor, offspringColor, woolItem } from './wool-data.js';
 
 const timers = ['baby', 'love', 'cooldown', 'wool', 'milk', 'eggTimer'];
 export class Fauna {
@@ -57,6 +59,7 @@ export class Fauna {
       hp: m.hp,
       angle: m.angle,
       eggs: m.eggs,
+      ...(m.kind === 'sheep' ? { color: m.color } : {}),
       ...(m.kind === 'enderman' ? { carried: m.carried } : {}),
       ...(m.kind === 'shulker' ? { attach: m.attach } : {}),
       ...(m.slowness > 0 ? { slowness: m.slowness } : {}),
@@ -91,6 +94,10 @@ export class Fauna {
       conversion: 0,
     };
     this.active.push(m);
+    if (m.kind === 'sheep') {
+      this.dyeSheep(m, record.color ?? 'white');
+      m.mesh.userData.wool.visible = m.wool <= 0;
+    }
     if (m.kind === 'shulker') {
       m.attach = record.attach ?? 0;
       m.peek = 0;
@@ -100,6 +107,7 @@ export class Fauna {
     return m;
   }
   spawn(kind, position, baby = 0, attach = 0) {
+    const cell = worldToAxial(position[0], position[2]);
     const m = this.instantiate({
       id: this.nextId++,
       kind,
@@ -113,10 +121,25 @@ export class Fauna {
       milk: 0,
       eggTimer: 100 + Math.random() * 60,
       eggs: 0,
+      ...(kind === 'sheep'
+        ? {
+            color: naturalSheepColor(
+              this.world.biome(cell.q, cell.r),
+              Math.random(),
+            ),
+          }
+        : {}),
       ...(kind === 'shulker' ? { attach } : {}),
     });
     this.remember(m);
     return m;
+  }
+  dyeSheep(m, color) {
+    m.color = color;
+    for (const material of m.mesh.userData.woolMaterials) {
+      material.userData.baseColor.set(DYES[color].color);
+      material.color.copy(material.userData.baseColor);
+    }
   }
   remove(m) {
     if (m.carried) this.callbacks.drop(m.carried, 1, m.mesh.position.toArray());
@@ -315,7 +338,10 @@ export class Fauna {
       if (m.kind === 'enderman' && Math.random() < 0.5) delete drops.pearl;
       if (m.kind === 'shulker' && Math.random() < 0.5)
         delete drops.shulkerShell;
-      if (m.kind === 'sheep' && m.wool > 0) delete drops.wool;
+      if (m.kind === 'sheep') {
+        delete drops.wool;
+        if (m.wool <= 0) drops[woolItem(m.color)] = 1;
+      }
       if (m.kind === 'crawler' && this.world.dimension === 'nether') {
         delete drops.pearl;
         drops.ember = 1;
@@ -333,13 +359,25 @@ export class Fauna {
     const def = MOBS[m.kind];
     if (def.ambient) return { message: '蝙蝠喜欢安静的洞穴，靠近时会惊飞。' };
     if (def.hostile) return null;
+    const color = dyeColor(item);
+    if (m.kind === 'sheep' && color) {
+      if (m.wool > 0) return { message: '等羊毛长回后再染色。' };
+      if (m.color === color)
+        return { message: '这只绵羊已经是' + DYES[color].name + '。' };
+      this.dyeSheep(m, color);
+      return {
+        consume: item,
+        message: '染成' + DYES[color].name + ' · 剪毛与再生保留颜色',
+      };
+    }
     if (item === 'shears' && m.kind === 'sheep' && !m.baby) {
       if (m.wool > 0) return { message: '羊毛尚未长好，让它在草地上吃草。' };
       m.wool = 120;
+      m.mesh.userData.wool.visible = false;
       return {
         wear: 'shears',
-        give: { wool: 3 },
-        message: '剪下羊毛 ×3 · 绵羊安然无恙',
+        give: { [woolItem(m.color)]: 3 },
+        message: '剪下' + DYES[m.color].name + '羊毛 ×3 · 绵羊安然无恙',
       };
     }
     if (item === 'bucket' && m.kind === 'cow' && !m.baby) {
@@ -522,11 +560,23 @@ export class Fauna {
       m.attack -= dt;
       m.slowness = Math.max(0, m.slowness - dt);
       const cell = worldToAxial(p.x, p.z);
-      if (
-        m.wool > 0 &&
-        world.get(cell.q, Math.floor(p.y) - 1, cell.r) === 'grass'
-      )
-        m.wool = Math.max(0, m.wool - dt);
+      const grass = world.get(cell.q, Math.floor(p.y) - 1, cell.r) === 'grass';
+      const growing =
+        m.kind === 'sheep' && m.wool > 0 && grass && m.flee <= 0 && m.love <= 0;
+      m.grazing = growing && m.wool <= 1.8;
+      if (growing) {
+        const remaining = Math.max(0, m.wool - dt);
+        if (
+          remaining > 0 ||
+          this.callbacks.moveBlock(
+            cell.q,
+            Math.floor(p.y) - 1,
+            cell.r,
+            'dirt',
+          ) !== false
+        )
+          m.wool = remaining;
+      }
       if (m.kind === 'chicken' && !m.baby) {
         m.eggTimer -= dt;
         if (m.eggTimer <= 0) {
@@ -668,7 +718,14 @@ export class Fauna {
           ) {
             m.love = partner.love = 0;
             m.cooldown = partner.cooldown = 100;
-            this.spawn(m.kind, p.toArray(), 180);
+            const child = this.spawn(m.kind, p.toArray(), 180);
+            if (m.kind === 'sheep') {
+              this.dyeSheep(
+                child,
+                offspringColor(m.color, partner.color, Math.random()),
+              );
+              this.remember(child);
+            }
             this.callbacks.experience?.(1 + Math.floor(Math.random() * 7), [
               p.x,
               p.y + 0.5,
@@ -694,6 +751,7 @@ export class Fauna {
         }
       }
       if (aggressive && !def.arrow && withinMeleeReach) speed = 0;
+      if (m.grazing) speed = 0;
       if (
         !def.webImmune &&
         touchesWeb(world, p.x, p.y, p.z, def.height, def.radius || 0.32)
@@ -843,6 +901,10 @@ export function validFauna(state) {
       !Number.isFinite(m.angle) ||
       (m.slowness !== undefined &&
         (!Number.isFinite(m.slowness) || m.slowness <= 0 || m.slowness > 30)) ||
+      (m.color !== undefined &&
+        (m.kind !== 'sheep' ||
+          typeof m.color !== 'string' ||
+          !Object.hasOwn(DYES, m.color))) ||
       !Number.isInteger(m.eggs) ||
       m.eggs < 0 ||
       m.eggs > 8 ||

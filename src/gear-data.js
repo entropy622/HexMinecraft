@@ -109,7 +109,7 @@ recipe(
   ['ingot', null, null, null, 'ingot', null, null],
   1,
   false,
-  '对成年绵羊右键剪羊毛；草地上约两分钟长回。',
+  '对成年绵羊右键剪下对应颜色羊毛；草地上约两分钟吃草长回，保留颜色。',
 );
 GEAR.hoe = {
   name: '石锄',

@@ -44,6 +44,7 @@ export function createMob(kind, textures) {
     cream = rig.material(null, '#d8c397');
   let head,
     wool = null,
+    woolMaterials,
     headY = 1;
   const limb = (
     x,
@@ -265,12 +266,17 @@ export function createMob(kind, textures) {
       : sheep
         ? skinBox(28, 8, 8, 16, 6)
         : skinBox(28, 8, 10, 16, 8);
+    const undercoat = sheep ? skin.clone() : skin;
+    if (sheep) {
+      undercoat.userData.baseColor = undercoat.color.clone();
+      rig.materials.set('sheep-undercoat', undercoat);
+    }
     rig.part(
       cow ? 0.86 : 0.68,
       cow ? 0.74 : 0.6,
       cow ? 1.18 : 1.0,
       bodyUV,
-      skin,
+      undercoat,
       0,
       cow ? 0.85 : 0.68,
       0.06,
@@ -347,6 +353,7 @@ export function createMob(kind, textures) {
     if (sheep) {
       wool = rig.pivot(0, 0, 0);
       const coat = rig.material('mobs_mc_sheep_fur');
+      woolMaterials = [coat, undercoat];
       rig.part(0.93, 0.78, 1.13, bodyUV, coat, 0, 0.72, 0.06, wool);
     }
   }
@@ -362,6 +369,7 @@ export function createMob(kind, textures) {
     arms,
     wings,
     wool,
+    ...(wool ? { woolMaterials } : {}),
   });
   mesh.scale.setScalar(MOBS[kind].scale || 1);
   return mesh;
@@ -372,8 +380,16 @@ export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
   const dx = camera.position.x - p.x,
     dz = camera.position.z - p.z,
     distance = Math.hypot(dx, dz);
-  const look =
-    distance < 7 || aggressive
+  if (mob.kind === 'sheep')
+    data.head.position.y = THREE.MathUtils.damp(
+      data.head.position.y,
+      (data.headY / (MOBS[mob.kind].scale || 1)) * (mob.grazing ? 0.35 : 1),
+      9,
+      dt,
+    );
+  const look = mob.grazing
+    ? { yaw: 0, pitch: -0.9 + Math.sin(time * 13) * 0.08 }
+    : distance < 7 || aggressive
       ? {
           yaw: THREE.MathUtils.clamp(
             wrap(Math.atan2(dx, dz) + Math.PI - mob.mesh.rotation.y),

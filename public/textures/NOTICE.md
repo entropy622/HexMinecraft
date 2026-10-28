@@ -19,6 +19,11 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.82 reuses the existing white wool and sheep skin images. Runtime
+colored wool tiles and their hex-projected icons retain CC BY-SA 3.0;
+colored sheep coat and undercoat views retain the mob media's CC BY-SA 4.0.
+The source PNGs are unchanged. No new images, models or upstream code are bundled.
+
 Version 0.53 adds thirteen unmodified images from the same revision and
 CC BY-SA 3.0 media license: `blast_furnace_front.png`,
 `blast_furnace_front_on.png`, `blast_furnace_side.png`, `blast_furnace_top.png`,

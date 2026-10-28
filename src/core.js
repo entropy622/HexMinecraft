@@ -24,6 +24,7 @@ import { FLIGHT_BLOCKS, FLIGHT_ITEMS, FLIGHT_RECIPES } from './flight-data.js';
 import { CITY_BLOCKS, CITY_RECIPES } from './end-city-data.js';
 import { CHORUS_BLOCKS, CHORUS_ITEMS, CHORUS_RECIPES } from './chorus-data.js';
 import { WOOD_BLOCKS, WOOD_ITEMS, WOOD_RECIPES } from './wood-data.js';
+import { WOOL_BLOCKS, WOOL_RECIPES } from './wool-data.js';
 import { recipeMaterials } from './wood-ingredients.js';
 import { applyMiningHardness } from './mining-data.js';
 import {
@@ -60,6 +61,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...WOOL_BLOCKS,
   ...GLASS_BLOCKS,
   ...PIGMENT_PLANTS,
   ...CAULDRON_BLOCKS,
@@ -279,7 +281,6 @@ export const ITEMS = {
   powderSnowBucket: { name: '细雪桶', color: '#e5f4fa', bucket: 'powderSnow' },
   lavaBucket: { name: '岩浆桶', color: '#ff792b', bucket: 'lava' },
   glowBucket: { name: '萤晶液桶', color: '#7ef8cb', bucket: 'glow' },
-  wool: { name: '羊毛', color: '#ede1c7' },
   pick1: { name: '木镐', color: '#cba16a' },
   pick2: { name: '石镐', color: '#a9b8b3' },
   pick3: { name: '铁镐', color: '#e5d8c5' },
@@ -703,6 +704,7 @@ RECIPES.push(
   ...BUILDING_RECIPES,
   ...CAVE_RECIPES,
   ...DYE_RECIPES,
+  ...WOOL_RECIPES,
 );
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (
