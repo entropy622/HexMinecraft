@@ -122,8 +122,10 @@ for (const species of ['birch', 'spruce']) {
   ];
 }
 for (const [base] of CUT_MATERIALS) {
-  blockTextures[base + 'Slab'] = blockTextures[base];
-  blockTextures[base + 'Stairs'] = blockTextures[base];
+  if (blockTextures[base]) {
+    blockTextures[base + 'Slab'] = blockTextures[base];
+    blockTextures[base + 'Stairs'] = blockTextures[base];
+  }
 }
 export const itemTextures = {
   coal: 'default_coal_lump',
