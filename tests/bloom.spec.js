@@ -616,7 +616,14 @@ test('bloom lifecycle follows zero amount, physical size, quality and context re
         b = g.composer.effects.bloom;
       return {
         stage: 'dpr',
-        frame: [g.composer.readBuffer.width, g.composer.readBuffer.height],
+        frame: [
+          g.composer.passes[0].target.width,
+          g.composer.passes[0].target.height,
+        ],
+        composerSize: [
+          g.composer.readBuffer.width,
+          g.composer.readBuffer.height,
+        ],
         first: [b.down[0].width, b.down[0].height],
         gl: g.renderer.getContext().getError(),
       };
@@ -671,7 +678,14 @@ test('bloom lifecycle follows zero amount, physical size, quality and context re
         stage: 'restored',
         targets: b.down.length + b.up.length,
         first: [b.down[0].width, b.down[0].height],
-        frame: [g.composer.readBuffer.width, g.composer.readBuffer.height],
+        frame: [
+          g.composer.passes[0].target.width,
+          g.composer.passes[0].target.height,
+        ],
+        composerSize: [
+          g.composer.readBuffer.width,
+          g.composer.readBuffer.height,
+        ],
         targetPixels: [...b.down, ...b.up].reduce(
           (sum, t) => sum + t.width * t.height,
           0,
