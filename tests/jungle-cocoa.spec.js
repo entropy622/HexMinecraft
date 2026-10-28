@@ -44,6 +44,11 @@ const cell = (page, q, y, r) =>
     ([q, y, r]) => window.__hexwild.state.world.get(q, y, r) || null,
     [q, y, r],
   );
+const logFace = (page) =>
+  page.evaluate(() => {
+    const t = window.__hexwild.state.target;
+    return t && [t.q, t.y, t.r, t.type, t.place.q, t.place.y, t.place.r];
+  });
 async function click(page, button = 2) {
   for (const type of ['mousedown', 'mouseup'])
     await page.locator('#world').dispatchEvent(type, { button });
@@ -119,6 +124,7 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
           ];
         if (
           Math.abs(view[1] - y) > 2 ||
+          world.biome(view[0], view[2]) !== '丛林' ||
           world.get(view[0], view[1], view[2]) ||
           world.get(a - dq, y, c - dr)
         )
@@ -133,7 +139,25 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
     g.teleport(...view);
     g.lookAt(q, y + 0.5, r);
   }, jungle);
+  expect(
+    await page.evaluate(
+      ({ view }) => window.__hexwild.state.world.biome(view[0], view[2]),
+      jungle,
+    ),
+  ).toBe('丛林');
   await page.screenshot({ path: info.outputPath('natural-jungle.png') });
+  await page.evaluate(({ trunk: [q, y, r] }) => {
+    const g = window.__hexwild,
+      w = g.state.world;
+    g.teleport(
+      q + 12,
+      Math.max(w.surface(q + 12, r + 4), w.surface(q, r)) + 10,
+      r + 4,
+    );
+    g.lookAt(q, w.surface(q, r) - 2, r);
+  }, jungle);
+  await page.screenshot({ path: info.outputPath('jungle-canopy.png') });
+  await page.evaluate((p) => window.__hexwild.teleport(...p), jungle.view);
   const before = await page.evaluate(
     () => window.__hexwild.state.inventory.cocoaBeans || 0,
   );
@@ -190,11 +214,11 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
     g.give('boneMeal', 3);
     g.selectItem('cocoaBeans');
     g.teleport(6, 40, 4);
-    g.lookAt(4, 40.5, 4);
+    g.lookAt(4, 40.25, 4);
   });
   await expect
-    .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
-    .toBe('jungleWood');
+    .poll(() => logFace(page))
+    .toEqual([4, 40, 4, 'jungleWood', 5, 40, 4]);
   const stock = await page.evaluate(
     () => window.__hexwild.state.inventory.cocoaBeans,
   );
@@ -204,13 +228,8 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
     g.lookAt(4, 39, 4);
   });
   await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const p = window.__hexwild.state.target?.place;
-        return p && [p.q, p.y, p.r];
-      }),
-    )
-    .toEqual([5, 40, 4]);
+    .poll(() => logFace(page))
+    .toEqual([4, 40, 4, 'jungleWood', 5, 40, 4]);
   await click(page);
   expect(await cell(page, 5, 40, 4)).toBe(null);
   expect(
@@ -219,11 +238,11 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.teleport(6, 40, 4);
-    g.lookAt(4, 40.5, 4);
+    g.lookAt(4, 40.25, 4);
   });
   await expect
-    .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
-    .toBe('jungleWood');
+    .poll(() => logFace(page))
+    .toEqual([4, 40, 4, 'jungleWood', 5, 40, 4]);
   await click(page);
   await expect.poll(() => cell(page, 5, 40, 4)).toBe('cocoa');
   expect(
@@ -310,11 +329,11 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
       const g = window.__hexwild;
       g.selectItem('cocoaBeans');
       g.teleport(6, 40, 4);
-      g.lookAt(4, 40.5, 4);
+      g.lookAt(4, 40.25, 4);
     });
     await expect
-      .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
-      .toBe('jungleWood');
+      .poll(() => logFace(page))
+      .toEqual([4, 40, 4, 'jungleWood', 5, 40, 4]);
     await click(page);
     await expect.poll(() => cell(page, 5, 40, 4)).toBe('cocoa');
     expect(
