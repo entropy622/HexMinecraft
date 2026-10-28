@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'bloom.spec.js',
+  testMatch: ['bloom.spec.js', 'colored-shafts.spec.js'],
   timeout: 180000,
   workers: 1,
   outputDir: '../test-results/bloom-runs',
