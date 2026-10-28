@@ -9,6 +9,7 @@ import { validStack } from './inventory.js';
 import { portableBoxMesh } from './portable-box-graphics.js';
 import { isDoor } from './building-data.js';
 import { insertSlot } from './container-actions.js';
+import { cactusContact } from './cactus.js';
 
 const vec = (p) =>
   Array.isArray(p) && p.length === 3 && p.every(Number.isFinite);
@@ -279,7 +280,12 @@ export class ItemDrops {
       d.life -= dt;
       d.delay = Math.max(0, d.delay - dt);
       const fluid = world.fluids.get(a.q, Math.floor(p[1]), a.r);
-      if (fluid?.type === 'lava' || p[1] < -20) d.life = 0;
+      if (
+        fluid?.type === 'lava' ||
+        p[1] < -20 ||
+        cactusContact(world, p[0], p[1] - 0.15, p[2], 0.3, 0.125)
+      )
+        d.life = 0;
       if (d.life <= 0) continue;
       if (distance < 2.2 && d.delay === 0 && this.clearPath(world, p, player)) {
         if (distance < 0.85) {
@@ -310,10 +316,19 @@ export class ItemDrops {
           const probe = [...next];
           probe[1] -= 0.15;
           if (this.blocked(world, probe)) {
+            if (axis === 1 && d.velocity[1] < 0) {
+              const floor = world.groundAt(p[0], p[2], probe[1], p[1] - 0.15);
+              if (floor !== null) p[1] = floor + 0.15;
+            }
             d.velocity[axis] = 0;
           } else p[axis] = next[axis];
         }
+        if (cactusContact(world, p[0], p[1] - 0.15, p[2], 0.3, 0.125)) {
+          d.life = 0;
+          break;
+        }
       }
+      if (d.life <= 0) continue;
       const drag = Math.exp(-(fluid ? 3 : 2) * dt);
       d.velocity[0] *= drag;
       d.velocity[2] *= drag;

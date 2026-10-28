@@ -270,7 +270,8 @@ export class World {
         ...(state.output !== undefined ? { output: state.output } : {}),
         ...(state.subtract !== undefined ? { subtract: state.subtract } : {}),
         ...(state.down !== undefined ? { down: state.down } : {}),
-        ...(this.get(q, y, r) === 'cocoa' && state.age !== undefined
+        ...(state.age !== undefined &&
+        ['cactus', 'cocoa'].includes(this.get(q, y, r))
           ? { age: state.age }
           : {}),
       };

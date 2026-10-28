@@ -86,9 +86,9 @@ export function buildingParts(world, q, y, r, collision = false) {
     return [
       {
         x: 0,
-        y: 0.5,
+        y: shape === 'cactus' && collision ? 15 / 32 : 0.5,
         z: 0,
-        h: 1,
+        h: shape === 'cactus' && collision ? 15 / 16 : 1,
         angle: 0,
         tile: type,
         polygon:

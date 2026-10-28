@@ -14,6 +14,7 @@ import {
 import { findFloor, bodyClear, bodyOffsets } from './grounding.js';
 import { Freezing } from './survival.js';
 import { powderContact } from './powder-snow.js';
+import { cactusContact } from './cactus.js';
 import { campfireHeat } from './campfires.js';
 import { spawnCaveBats, updateBat } from './bats.js';
 import { touchesWeb } from './cobwebs.js';
@@ -555,6 +556,21 @@ export class Fauna {
           m[field] = Math.max(0, m[field] - dt);
       m.think -= dt;
       m.hit = Math.max(0, m.hit - dt);
+      if (
+        m.hit === 0 &&
+        cactusContact(
+          world,
+          p.x,
+          p.y,
+          p.z,
+          def.height,
+          def.radius ?? (m.kind === 'chicken' ? 0.18 : 0.32),
+        )
+      ) {
+        this.hit(m, 1, null, true, false, 0, false);
+        m.hit = 0.5;
+        if (!this.active.includes(m)) continue;
+      }
       m.flee = Math.max(0, m.flee - dt);
       m.anger = Math.max(0, m.anger - dt);
       m.attack -= dt;

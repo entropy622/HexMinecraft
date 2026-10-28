@@ -88,6 +88,7 @@ export class Fluids {
         this.world.get(q, y, r) === 'cobweb' ||
         this.world.get(q, y, r) === 'powderSnow' ||
         this.world.get(q, y, r) === 'cocoa' ||
+        this.world.get(q, y, r) === 'cactusFlower' ||
         isCarpet(this.world.get(q, y, r)) ||
         isHangingPlant(this.world.get(q, y, r)))
     );

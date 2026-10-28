@@ -109,7 +109,7 @@ export function validateSave(s) {
             (e[1].powered !== undefined && typeof e[1].powered !== 'boolean') ||
             (e[1].down !== undefined && typeof e[1].down !== 'boolean') ||
             (e[1].age !== undefined &&
-              (!Number.isInteger(e[1].age) || e[1].age < 0 || e[1].age > 2)) ||
+              (!Number.isInteger(e[1].age) || e[1].age < 0 || e[1].age > 15)) ||
             (e[1].subtract !== undefined &&
               typeof e[1].subtract !== 'boolean') ||
             (e[1].output !== undefined &&
@@ -126,7 +126,7 @@ export function validateSave(s) {
               (!Number.isInteger(e[1].axis) || e[1].axis < 0 || e[1].axis > 3)),
         ))
     )
-      throw Error('建筑朝向或开关状态无效');
+      throw Error('方块朝向、开关或生长状态无效');
     {
       const edits = new Map(d.edits),
         states = new Map(d.blockStates || []);
@@ -139,7 +139,9 @@ export function validateSave(s) {
               )) ||
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
             (state.down !== undefined && edits.get(k) !== 'hopper') ||
-            (state.age !== undefined && edits.get(k) !== 'cocoa') ||
+            (state.age !== undefined &&
+              (!['cactus', 'cocoa'].includes(edits.get(k)) ||
+                (edits.get(k) === 'cocoa' && state.age > 2))) ||
             ((state.output !== undefined || state.subtract !== undefined) &&
               edits.get(k) !== 'comparator') ||
             (edits.get(k) === 'comparator' && state.powered !== undefined) ||
@@ -149,7 +151,7 @@ export function validateSave(s) {
               state.mount !== 'floor'),
         )
       )
-        throw Error('比较器或中继器状态无效');
+        throw Error('方块类型与状态不匹配');
       const view = {
         get: (...p) => edits.get(p.join(',')),
         state: (...p) => states.get(p.join(',')) || {},

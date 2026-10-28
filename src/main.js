@@ -1,6 +1,7 @@
 import { powderContact, powderSupport } from './powder-snow.js';
 import { DYES, dyeColor, isPigmentPlant } from './dye-data.js';
 import { pigmentSupport } from './pigment-plants.js';
+import { cactusContact, tickCactus } from './cactus.js';
 import { isCarpet, carpetSupport } from './carpet-data.js';
 import { touchesWeb } from './cobwebs.js';
 import {
@@ -3216,7 +3217,9 @@ function placeBuilding(type, p) {
     toast(
       type === 'cactus'
         ? '仙人掌需要沙或仙人掌支撑，侧面保持空隙。'
-        : '花朵需要草、泥土、耕地或苔藓支撑。',
+        : type === 'cactusFlower'
+          ? '仙人掌花需要仙人掌、耕地或顶面中心的支撑。'
+          : '花朵需要草、泥土、耕地或苔藓支撑。',
     );
     return;
   }
@@ -3494,11 +3497,13 @@ function maintainBuildings() {
         DIRECTIONS.some(([dq, dr]) => !world.loaded(q + dq, r + dr))
       )
         continue;
-      if (!pigmentSupport(world, type, q, y, r)) {
+      if (!pigmentSupport(world, type, q, y, r) || world.fluids.get(q, y, r)) {
         removeBuilding(q, y, r);
-        if (type === 'cactus')
-          for (let h = y + 1; world.get(q, h, r) === type; h++)
-            removeBuilding(q, h, r);
+        if (type === 'cactus') {
+          let h = y + 1;
+          for (; world.get(q, h, r) === type; h++) removeBuilding(q, h, r);
+          if (world.get(q, h, r) === 'cactusFlower') removeBuilding(q, h, r);
+        }
       }
       continue;
     }
@@ -3955,6 +3960,11 @@ function updatePlants(dt) {
     graphics.updateVoxelLight(0, true);
   const grass = tickGrass(world, dt, graphics.voxelLight, time, weather);
   if (grass.length) graphics.updateCells(grass);
+  const cactus = tickCactus(world, dt);
+  if (cactus.length) {
+    graphics.updateCells(cactus);
+    maintainBuildings();
+  }
   const stoneGrowth = tickDripstone(world, dt, growthOccupied);
   if (stoneGrowth.length) graphics.updateCells(stoneGrowth);
   applyPlantChanges(tickCavePlants(world, dt), !creative);
@@ -5095,6 +5105,17 @@ function playerFluidAt(height) {
   return fluid && height < y + world.fluids.height(a.q, y, a.r) ? fluid : null;
 }
 function updateSurvival(dt) {
+  if (
+    cactusContact(
+      world,
+      camera.position.x,
+      playerFeet(),
+      camera.position.z,
+      playerHeight(),
+      0.24,
+    )
+  )
+    hurt(1, 'cactus');
   if (creative) {
     survivalSubmerged = false;
     survival.frost.reset();
@@ -5339,6 +5360,7 @@ function hurt(amount, cause = 'combat', source = null) {
       'explosion',
       'burn',
       'fallingBlock',
+      'cactus',
     ].includes(cause)
   ) {
     const protection = equipment.protection();
@@ -5370,7 +5392,7 @@ function hurt(amount, cause = 'combat', source = null) {
   }
   survival.exhaust(0.1);
   health = Math.max(0, health - amount);
-  damageCooldown = 0.8;
+  damageCooldown = cause === 'cactus' ? 0.5 : 0.8;
   $('#damage').style.opacity = '.6';
   $('#damage').dataset.cause = cause;
   setTimeout(() => ($('#damage').style.opacity = '0'), 250);
@@ -5412,7 +5434,9 @@ function hurt(amount, cause = 'combat', source = null) {
           ? '你在细雪中冻伤倒下了。'
           : cause === 'burn'
             ? '你被烧伤倒下了。'
-            : '') + '已在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。',
+            : cause === 'cactus'
+              ? '你被仙人掌刺伤倒下了。'
+              : '') + '已在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。',
     );
     saveGame();
     return 'dead';
