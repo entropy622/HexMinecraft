@@ -9,6 +9,7 @@ export default defineConfig({
     'cloud-layers.spec.js',
     'clouds.spec.js',
     'cloud-history.spec.js',
+    'soft-shadows.spec.js',
   ],
   outputDir: '../test-results/photon-integration',
   use: { ...atmosphere.use, headless: true, baseURL: 'http://127.0.0.1:5193' },

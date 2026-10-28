@@ -262,8 +262,41 @@ test('real suspended blocks produce wider daylight and moonlight penumbras than 
     expect(high.width).toBeGreaterThan(low.width * 1.6);
     expect(high.width - low.width).toBeGreaterThan(0.15);
   }
-  expect(results[1].high.width).toBeLessThan(results[0].high.width * 0.95);
+  // Source radii and elevations do not imply a universally narrower Moon
+  // penumbra when the atmospheric source changes. Instead
+  // change the actual visible source and require the real filter to respond.
   await clock(page, 120);
+  const original = await page.evaluateHandle(
+    () => window.__hexwild.graphics.sunDisk.geometry,
+  );
+  try {
+    await page.evaluate(() => {
+      const disk = window.__hexwild.graphics.sunDisk;
+      disk.geometry = new disk.geometry.constructor(
+        disk.geometry.parameters.radius * 0.5,
+        disk.geometry.parameters.segments,
+      );
+    });
+    await caster(page, null);
+    const lit = await line(page, 49);
+    await caster(page, 49);
+    const smallerSun = penumbra(lit, await line(page, 49));
+    await writeFile(
+      info.outputPath('penumbras.json'),
+      JSON.stringify({ results, smallerSun, errors }, null, 2),
+    );
+    expect(smallerSun.finite).toBe(true);
+    expect(smallerSun.minRatio).toBeLessThan(0.85);
+    expect(smallerSun.width).toBeLessThan(results[0].high.width * 0.8);
+    await page.screenshot({ path: info.outputPath('smaller-sun.png') });
+  } finally {
+    await page.evaluate((geometry) => {
+      const disk = window.__hexwild.graphics.sunDisk;
+      disk.geometry.dispose();
+      disk.geometry = geometry;
+    }, original);
+    await original.dispose();
+  }
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.state.world.set(-4, 41, 0, 'stone');
