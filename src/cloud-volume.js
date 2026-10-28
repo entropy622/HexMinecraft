@@ -9,11 +9,12 @@ import {
   UniformsUtils,
   Vector2,
   Vector3,
+  Vector4,
   WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
-import { cloudFieldGLSL } from './cloud-field.js';
+import { CLOUD_PLANET_RADIUS, cloudFieldGLSL } from './cloud-field.js';
 
 const vertexShader = /* glsl */ `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
 const volumeShader = /* glsl */ `
@@ -28,51 +29,77 @@ layout(location = 1) out vec4 cloudData;
 float phaseHG(float cosine, float g) {
   return (1.0 - g * g) / (12.5663706 * pow(max(0.001, 1.0 + g * g - 2.0 * g * cosine), 1.5));
 }
-void main() {
-  vec4 view = cloudInverseProjection * vec4(vUv * 2.0 - 1.0, texture2D(sceneDepth, vUv).r * 2.0 - 1.0, 1.0);
-  view /= view.w;
-  float distance = length(view.xyz);
-  vec3 origin = cloudCameraWorld[3].xyz;
-  vec3 direction = normalize(mat3(cloudCameraWorld) * view.xyz);
-  float low = cloudBase, high = cloudBase + cloudHeight * 1.6;
-  float start = 0.0, end = min(distance, cloudFar);
-  cloudColor = vec4(0.0, 0.0, 0.0, 1.0);
-  cloudData = vec4(0.0, distance, 0.0, 0.0);
-  if (distance < 0.8) return;
-  if (abs(direction.y) < 0.0001) {
-    if (origin.y <= low || origin.y >= high) return;
-  } else {
-    float a = (low - origin.y) / direction.y, b = (high - origin.y) / direction.y;
-    start = max(0.0, min(a, b)); end = min(end, max(a, b));
-  }
-  if (end <= start) return;
-  float stepLength = (end - start) / 24.0;
+vec4 integrateLayer(vec3 origin, vec3 direction, vec2 span, int layer, float jitter, out float apparent) {
+  apparent = 0.0;
+  if (span.y <= span.x) return vec4(0.0, 0.0, 0.0, 1.0);
+  float horizon = 1.0 - abs(direction.y);
+  int steps = layer == 0 ? int(mix(24.0, 40.0, horizon)) : (layer == 1 ? int(mix(12.0, 20.0, horizon)) : 6);
+  float stepLength = (span.y - span.x) / float(steps);
   float transmission = 1.0;
   vec3 scattering = vec3(0.0);
-  float apparentDistance = 0.0;
-  float jitter = fract(dot(gl_FragCoord.xy, vec2(0.754877666, 0.569840296)) + cloudPhase * 0.618033989);
   float cosine = dot(direction, cloudLightDirection);
   float phase = phaseHG(cosine, 0.65) * 0.7 + phaseHG(cosine, -0.2) * 0.3;
-  for (int i = 0; i < 24; i++) {
-    vec3 position = origin + direction * (start + (float(i) + jitter) * stepLength);
+  // Coverage above the current band approximates the upper deck's average
+  // illumination loss. Visible layers and surface shadows use actual density.
+  float upper = 1.0;
+  for (int n = 0; n < 3; n++) if (n > layer) upper *= exp(-cloudLayers[n].z * (n == 1 ? 0.5 : 0.15));
+  for (int i = 0; i < 40; i++) {
+    if (i >= steps) break;
+    float distance = span.x + (float(i) + jitter) * stepLength;
+    vec3 position = origin + direction * distance;
     float fade = 1.0 - smoothstep(cloudFar * 0.72, cloudFar, length(position.xz - origin.xz));
-    float density = hexCloudVolumeDensity(position) * fade;
+    float density = hexCloudLayerDensity(position, layer) * fade;
     if (density < 0.0001) continue;
-    float reach = min(48.0, max(0.0, (high - position.y) / max(0.04, cloudLightDirection.y)));
-    float shadow = hexCloudExtinction * hexCloudOpticalDepth(position, cloudLightDirection, reach);
-    float altitude = clamp((position.y - low) / (high - low), 0.0, 1.0);
+    vec2 lightSpan = hexCloudInterval(position, cloudLightDirection, layer, cloudFar);
+    float shadow = hexCloudExtinction * hexCloudLayerOpticalDepth(position, cloudLightDirection, min(80.0, lightSpan.y), layer);
+    float altitude = clamp((hexCloudAltitude(position) - cloudLayers[layer].x) / cloudLayers[layer].y, 0.0, 1.0);
     // Single scattering plus a reduced-extinction, isotropic bounce approximation.
     vec3 source = cloudAmbient * (0.3 + altitude * 0.7) +
-      cloudDirect * (phase * exp(-shadow) + 0.28 * exp(-shadow * 0.35));
+      cloudDirect * upper * (phase * exp(-shadow) + 0.28 * exp(-shadow * 0.35));
     float attenuation = exp(-hexCloudExtinction * density * stepLength);
     float weight = transmission * (1.0 - attenuation);
     scattering += weight * source;
-    apparentDistance += weight * (start + (float(i) + jitter) * stepLength);
+    apparent += weight * distance;
     transmission *= attenuation;
     if (transmission < 0.005) break;
   }
-  cloudColor = vec4(scattering, transmission);
-  cloudData.x = transmission < 0.9999 ? apparentDistance / (1.0 - transmission) : 0.0;
+  apparent = transmission < 0.9999 ? apparent / (1.0 - transmission) : 0.0;
+  return vec4(scattering, transmission);
+}
+void main() {
+  float depth = texture2D(sceneDepth, vUv).r;
+  vec4 view = cloudInverseProjection * vec4(vUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+  view /= view.w;
+  bool sky = depth >= 0.999999;
+  float distance = sky ? cloudFar : length(view.xyz);
+  vec3 origin = cloudCameraWorld[3].xyz;
+  vec3 direction = normalize(mat3(cloudCameraWorld) * view.xyz);
+  cloudColor = vec4(0.0, 0.0, 0.0, 1.0);
+  // Negative scene distance means unoccluded sky, never a camera-far obstacle.
+  cloudData = vec4(0.0, sky ? -1.0 : distance, 0.0, -1.0);
+  if (distance < 0.8) return;
+  vec2 spans[3]; int order[3];
+  for (int layer = 0; layer < 3; layer++) {
+    spans[layer] = hexCloudInterval(origin, direction, layer, min(distance, cloudFar));
+    order[layer] = layer;
+  }
+  // The camera may be below, inside, between or above the bands.
+  for (int a = 0; a < 2; a++) for (int b = 0; b < 2; b++) {
+    if (spans[order[b]].x > spans[order[b + 1]].x) {
+      int swap = order[b]; order[b] = order[b + 1]; order[b + 1] = swap;
+    }
+  }
+  float jitter = fract(dot(gl_FragCoord.xy, vec2(0.754877666, 0.569840296)) + cloudPhase * 0.618033989);
+  for (int n = 0; n < 3; n++) {
+    int layer = order[n];
+    float apparent;
+    vec4 integral = integrateLayer(origin, direction, spans[layer], layer, jitter, apparent);
+    if (apparent <= 0.0) continue;
+    if (cloudData.x <= 0.0) { cloudData.x = apparent; cloudData.w = float(layer); }
+    cloudColor.rgb += cloudColor.a * integral.rgb;
+    cloudColor.a *= integral.a;
+    if (cloudColor.a < 0.005) break;
+  }
 }
 `;
 // Resolve only the cloud integral. Terrain, sky and water never enter history.
@@ -81,20 +108,29 @@ varying vec2 vUv;
 uniform sampler2D currentCloud, currentData, previousCloud, previousData;
 uniform mat4 cloudInverseProjection, cloudCameraWorld, cloudPreviousViewProjection;
 uniform vec3 cloudPreviousPosition;
-uniform vec2 cloudDeltaWind;
+uniform vec2 cloudDeltaWind[3];
 uniform bool cloudReady;
 layout(location = 0) out vec4 resolvedCloud;
 layout(location = 1) out vec4 resolvedData;
 void main() {
   ivec2 size = textureSize(currentCloud, 0), pixel = ivec2(gl_FragCoord.xy);
   vec4 current = texelFetch(currentCloud, pixel, 0);
-  vec2 data = texelFetch(currentData, pixel, 0).xy;
+  vec4 data = texelFetch(currentData, pixel, 0);
   resolvedCloud = current;
-  resolvedData = vec4(data, 1.0, 0.0);
+  resolvedData = vec4(data.xy, 1.0, data.w);
   if (!cloudReady || data.x <= 0.0) return;
   vec4 view = cloudInverseProjection * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
   vec3 direction = normalize(mat3(cloudCameraWorld) * view.xyz);
-  vec3 position = cloudCameraWorld[3].xyz + direction * data.x - vec3(cloudDeltaWind.x, 0.0, cloudDeltaWind.y);
+  vec2 wind = cloudDeltaWind[clamp(int(data.w + 0.5), 0, 2)];
+  vec3 currentPosition = cloudCameraWorld[3].xyz + direction * data.x;
+  vec3 position = currentPosition - vec3(wind.x, 0.0, wind.y);
+  // Density uses world xz but a local tangent-plane altitude. Preserve that
+  // altitude when mapping into the previous view's tangent plane and wind.
+  vec2 currentOffset = currentPosition.xz - cloudCameraWorld[3].xz;
+  vec2 previousOffset = position.xz - cloudPreviousPosition.xz;
+  float radialY = currentPosition.y + ${CLOUD_PLANET_RADIUS.toFixed(1)};
+  float delta = dot(currentOffset, currentOffset) - dot(previousOffset, previousOffset);
+  position.y = currentPosition.y + delta / (sqrt(max(0.0, radialY * radialY + delta)) + radialY);
   vec4 clip = cloudPreviousViewProjection * vec4(position, 1.0);
   vec2 uv = clip.xy / max(clip.w, 0.00001) * 0.5 + 0.5;
   if (clip.w <= 0.0 || any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return;
@@ -105,9 +141,9 @@ void main() {
   for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++) {
     ivec2 p = ivec2(base) + ivec2(x, y);
     if (any(lessThan(p, ivec2(0))) || any(greaterThanEqual(p, size))) continue;
-    vec3 old = texelFetch(previousData, p, 0).xyz;
+    vec4 old = texelFetch(previousData, p, 0);
     // Reject missing clouds and foreground that covered this cloud last frame.
-    if (old.x <= 0.0 || old.z < 1.0 || old.y + 0.25 < expected || abs(old.x - expected) > max(2.0, expected * 0.1)) continue;
+    if (old.x <= 0.0 || old.z < 1.0 || old.w != data.w || (old.y >= 0.0 && old.y + 0.25 < expected) || abs(old.x - expected) > max(2.0, expected * 0.1)) continue;
     vec2 spatial = mix(1.0 - f, f, vec2(float(x), float(y)));
     float w = spatial.x * spatial.y;
     history += texelFetch(previousCloud, p, 0) * w;
@@ -199,7 +235,9 @@ export class CloudVolumePass {
         cloudCameraWorld: this.volume.uniforms.cloudCameraWorld,
         cloudPreviousViewProjection: { value: null },
         cloudPreviousPosition: { value: null },
-        cloudDeltaWind: { value: new Vector2() },
+        cloudDeltaWind: {
+          value: [new Vector2(), new Vector2(), new Vector2()],
+        },
         cloudReady: { value: false },
       },
     });
@@ -261,7 +299,8 @@ export class CloudVolumePass {
         position: new Vector3(),
         rotation: new Quaternion(),
         scale: new Vector2(),
-        wind: new Vector2(),
+        wind: [new Vector2(), new Vector2(), new Vector2()],
+        layers: [new Vector4(), new Vector4(), new Vector4()],
         light: new Color(),
         direction: new Vector3(),
       };
@@ -277,9 +316,15 @@ export class CloudVolumePass {
         Math.abs(c.quaternion.dot(state.rotation)) < Math.cos(Math.PI / 8) ||
         Math.abs(p[0] / state.scale.x - 1) > 0.06 ||
         Math.abs(p[5] / state.scale.y - 1) > 0.06 ||
-        u.cloudWind.value.distanceToSquared(state.wind) > 4 ||
-        Math.abs(u.cloudHeight.value - state.height) > 1 ||
-        Math.abs(u.cloudThreshold.value - state.threshold) > 0.04 ||
+        u.cloudLayerWind.value.some(
+          (v, i) => v.distanceToSquared(state.wind[i]) > 4,
+        ) ||
+        u.cloudLayers.value.some(
+          (v, i) =>
+            Math.abs(v.y - state.layers[i].y) > 1 ||
+            Math.abs(v.z - state.layers[i].z) > 0.04 ||
+            Math.abs(v.w - state.layers[i].w) > 0.08,
+        ) ||
         u.cloudNoise.value.version !== state.noise ||
         (this.light.r - state.light.r) ** 2 +
           (this.light.g - state.light.g) ** 2 +
@@ -294,7 +339,9 @@ export class CloudVolumePass {
     h.previousData.value = previous.textures[1];
     h.cloudPreviousViewProjection.value = state.viewProjection;
     h.cloudPreviousPosition.value = state.position;
-    h.cloudDeltaWind.value.subVectors(u.cloudWind.value, state.wind);
+    h.cloudDeltaWind.value.forEach((v, i) =>
+      v.subVectors(u.cloudLayerWind.value[i], state.wind[i]),
+    );
     h.cloudReady.value = state.frames > 0;
     this.volume.uniforms.cloudPhase.value = state.frames % 8;
     const autoClear = renderer.autoClear,
@@ -328,9 +375,8 @@ export class CloudVolumePass {
       state.position.copy(c.position);
       state.rotation.copy(c.quaternion);
       state.scale.set(p[0], p[5]);
-      state.wind.copy(u.cloudWind.value);
-      state.height = u.cloudHeight.value;
-      state.threshold = u.cloudThreshold.value;
+      state.wind.forEach((v, i) => v.copy(u.cloudLayerWind.value[i]));
+      state.layers.forEach((v, i) => v.copy(u.cloudLayers.value[i]));
       state.noise = u.cloudNoise.value.version;
       state.light.copy(this.light);
       state.direction.copy(u.cloudLightDirection.value);

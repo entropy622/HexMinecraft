@@ -1,10 +1,13 @@
 import * as THREE from 'three';
-import { axialToWorld, worldToAxial } from './core.js';
+import { axialToWorld, worldToAxial, noise } from './core.js';
 import {
   CLOUD_RADIUS,
   CLOUD_BASE,
+  CLOUD_PLANET_RADIUS,
   cloudDensity,
   cloudNoiseData,
+  cloudWorleyData,
+  cloudWeather,
   cloudFieldGLSL,
 } from './cloud-field.js';
 
@@ -22,8 +25,19 @@ export class HexClouds {
       THREE.UnsignedByteType,
     );
     this.noise.needsUpdate = true;
+    this.worley = new THREE.Data3DTexture(new Uint8Array(64 ** 3), 64, 64, 64);
+    this.worley.format = THREE.RedFormat;
+    this.worley.type = THREE.UnsignedByteType;
+    this.worley.minFilter = this.worley.magFilter = THREE.LinearFilter;
+    this.worley.wrapS =
+      this.worley.wrapT =
+      this.worley.wrapR =
+        THREE.RepeatWrapping;
+    this.worley.unpackAlignment = 1;
+    this.worley.needsUpdate = true;
     this.uniforms = {
       cloudNoise: { value: this.noise },
+      cloudWorley: { value: this.worley },
       cloudRadius: { value: CLOUD_RADIUS },
       cloudBase: { value: CLOUD_BASE },
       cloudWind: { value: new THREE.Vector2() },
@@ -38,6 +52,18 @@ export class HexClouds {
       cloudZenith: { value: new THREE.Color() },
       cloudHorizon: { value: new THREE.Color() },
       cloudFar: { value: 130 },
+      cloudLayers: {
+        value: [
+          new THREE.Vector4(CLOUD_BASE, 8, 0.5, 0),
+          new THREE.Vector4(160, 10, 0.4, 0),
+          new THREE.Vector4(300, 3.5, 0.4, 0),
+        ],
+      },
+      cloudLayerWind: {
+        value: [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()],
+      },
+      cloudCurvatureOrigin: { value: new THREE.Vector2() },
+      cloudShear: { value: 1 },
     };
     const geometry = new THREE.CylinderGeometry(1, 1, 1, 6)
       .rotateY(Math.PI / 3)
@@ -146,15 +172,70 @@ export class HexClouds {
     u.cloudEnabled.value = active && quality >= 1 ? 1 : 0;
     u.cloudVolumetric.value = active && quality >= 1.7 ? 1 : 0;
     if (!active) return;
-    if (this.noiseSeed !== world.seed % 127) {
-      this.noiseSeed = world.seed % 127;
+    if (this.noiseSeed !== world.seed) {
+      this.noiseSeed = world.seed;
       this.noise.image.data.set(cloudNoiseData(this.noiseSeed));
       this.noise.needsUpdate = true;
     }
-    u.cloudWind.value.set(time * 0.065, time * 0.017);
-    u.cloudThreshold.value = 0.56 - rain * 0.2;
-    u.cloudHeight.value = (quality >= 1.7 ? 5 : 2.5) + rain * 6 + storm * 2.5;
-    u.cloudFar.value = quality < 1 ? 87 : 130;
+    if (quality >= 1.7 && this.worleySeed !== world.seed) {
+      this.worleySeed = world.seed;
+      this.worley.image.data.set(cloudWorleyData(world.seed));
+      this.worley.needsUpdate = true;
+    }
+    // Sample the biome's existing temperature/humidity noises in fractional
+    // axial coordinates. Rounded cell or biome labels would move the whole
+    // sky in visible steps when the player crosses an otherwise seamless edge.
+    const climateQ = camera.position.x / Math.sqrt(3) - camera.position.z / 3;
+    const climateR = camera.position.z / 1.5;
+    const climate = cloudWeather(
+      world.seed,
+      time,
+      noise(climateQ * 0.017, climateR * 0.017, world.seed + 140),
+      noise(climateQ * 0.019, climateR * 0.019, world.seed + 76),
+      rain,
+      storm,
+    );
+    u.cloudLayers.value[0].set(
+      CLOUD_BASE,
+      8 + rain * 9 + storm * 5,
+      climate.coverage[0],
+      climate.stratus,
+    );
+    u.cloudLayers.value[1].set(
+      160,
+      8 + climate.humidity * 5,
+      climate.coverage[1],
+      climate.stratus * 0.8,
+    );
+    u.cloudLayers.value[2].set(300, 3.5, climate.coverage[2], climate.stratus);
+    u.cloudLayerWind.value.forEach((wind, layer) =>
+      wind.fromArray(climate.winds[layer]),
+    );
+    u.cloudWind.value.copy(u.cloudLayerWind.value[0]);
+    u.cloudCurvatureOrigin.value.set(camera.position.x, camera.position.z);
+    u.cloudShear.value = climate.shear;
+    u.cloudThreshold.value = 1 - climate.coverage[0];
+    u.cloudHeight.value =
+      quality >= 1.7
+        ? u.cloudLayers.value[0].y / 1.6
+        : 2.5 + rain * 6 + storm * 2.5;
+    // A local tangent plane is enough for this flat voxel world. Reach the
+    // highest band's horizon without extending the terrain camera or chunks.
+    // Keep distances representable in the existing half-float history MRT.
+    const highest = u.cloudLayers.value[2];
+    const skyHeight = Math.max(
+      Math.abs(highest.x + highest.y - camera.position.y),
+      Math.abs(CLOUD_BASE - camera.position.y),
+    );
+    u.cloudFar.value =
+      quality >= 1.7
+        ? Math.min(
+            60000,
+            Math.sqrt(skyHeight * (2 * CLOUD_PLANET_RADIUS + skyHeight)) + 1000,
+          )
+        : quality < 1
+          ? 87
+          : 130;
     u.cloudLightDirection.value
       .subVectors(sun.position, sun.target.position)
       .normalize();
