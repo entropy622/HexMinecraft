@@ -1,5 +1,7 @@
 // Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
 import { POTIONS } from './brewing-data.js';
+import { DYE_ITEMS, isPigmentPlant } from './dye-data.js';
+import { paintPigment } from './pigment-art.js';
 import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
 import { WOOD_BLOCKS, TREES } from './wood-data.js';
 export const blockTextures = {
@@ -330,6 +332,15 @@ export const plantImage = (kind, stage) => {
 const generatedItems = new Map();
 let berriesImage;
 export const itemImage = (id) => {
+  if (DYE_ITEMS[id] || isPigmentPlant(id)) {
+    if (!generatedItems.has(id)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 16;
+      paintPigment(canvas.getContext('2d'), id);
+      generatedItems.set(id, canvas);
+    }
+    return generatedItems.get(id);
+  }
   if (id === 'slownessArrow') {
     if (!generatedItems.has(id)) {
       const canvas = document.createElement('canvas');

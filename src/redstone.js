@@ -2,6 +2,7 @@ import { BLOCKS, DIRECTIONS, axialToWorld, key } from './core.js';
 import { isOpenable, doorUpper } from './building-data.js';
 import { isCircuitInput, attachmentCell, isPiston } from './redstone-data.js';
 import { actuatePiston } from './pistons.js';
+import { isGlass } from './dye-data.js';
 import { dropperOffset } from './droppers.js';
 import { stackSize } from './inventory.js';
 import { blockSlots } from './block-inventory.js';
@@ -39,7 +40,7 @@ export class Redstone {
       !!block &&
       !block.nonSolid &&
       !block.foliage &&
-      type !== 'glass' &&
+      !isGlass(type) &&
       (!block.shape ||
         block.shape === 'dropper' ||
         (block.shape === 'piston' && !this.world.state(q, y, r).open) ||

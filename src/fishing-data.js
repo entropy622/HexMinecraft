@@ -58,14 +58,23 @@ export function fishingLoot(conditions, random = Math.random) {
               ? 'pearl'
               : 'diamond',
       category: '宝物',
+      count: 1,
     };
   }
   if (roll >= 0.9) {
     const junk = ['leather', 'string', 'bone', 'wood'];
-    return { item: junk[Math.floor(random() * junk.length)], category: '杂物' };
+    const n = random();
+    return n >= 0.99
+      ? { item: 'inkSac', count: 10, category: '杂物' }
+      : {
+          item: junk[Math.floor((n / 0.99) * junk.length)],
+          count: 1,
+          category: '杂物',
+        };
   }
   const fishRoll = random();
-  if (fishRoll < 0.12) return { item: 'pufferFish', category: '鱼获' };
+  if (fishRoll < 0.12)
+    return { item: 'pufferFish', count: 1, category: '鱼获' };
   const n = (fishRoll - 0.12) / 0.88,
     cold = conditions.biome === '雪原',
     hot = conditions.biome === '沙漠';
@@ -77,5 +86,6 @@ export function fishingLoot(conditions, random = Math.random) {
           ? 'tropicalFish'
           : 'rawCod',
     category: '鱼获',
+    count: 1,
   };
 }

@@ -24,7 +24,12 @@ bool insideLightVolume(ivec3 cell) {
 vec4 readLightCell(ivec3 cell) {
   if (cell.x < 0) return vec4(0.0, 0.0, 0.0, 15.0);
   if (!insideLightVolume(cell)) return vec4(0.0, 0.0, 0.0, entityOutsideSky * 240.0 + 15.0);
-  return floor(texelFetch(entityLightVolume, cell, 0) * 255.0 + 0.5);
+  vec4 packed = floor(texelFetch(entityLightVolume, cell, 0) * 255.0 + 0.5);
+  return vec4(mod(packed.rgb, 16.0), packed.a);
+}
+int glassMaterialIndex(ivec3 cell) {
+  vec2 packed = floor(texelFetch(entityLightVolume, cell, 0).rg * 255.0 + 0.5);
+  return int(floor(packed.r / 16.0) + floor(packed.g / 16.0) * 16.0);
 }
 float lightWaterHeight(float medium) {
   return medium < 0.5 || medium > 9.5 ? 0.0 : medium < 1.5 ? 1.0 : 0.92 - (medium - 2.0) * 0.085;

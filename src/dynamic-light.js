@@ -2,11 +2,13 @@ import { Data3DTexture, NearestFilter, Vector3 } from 'three';
 import { lightVolumeGLSL } from './light-volume-shader.js';
 import { waterLightingGLSL } from './water-lighting.js';
 import { axialToWorld } from './core.js';
+import { GLASS_TYPES } from './dye-data.js';
 import { voxelLightingChunk, visionUniforms } from './skylight.js';
 
-// Packed RGBA8: RGB contain 0..15 block-light levels; alpha packs sky in
+// Packed RGBA8: low RGB nibbles contain 0..15 block-light levels; high R/G
+// nibbles pack the glass palette index. Alpha packs sky in
 // its high nibble; low nibble: 0 solid, 1 full water, 2..9 water levels 0..7,
-// 10 lava, 11 glow, 12 foliage, 13 partial solid, 14 amber glass, 15 air.
+// 10 lava, 11 glow, 12 foliage, 13 partial solid, 14 glass, 15 air.
 // Internal stacked water cells are full height.
 // This shares one small
 // volume across every animated mesh, including those sharing a material.
@@ -113,6 +115,9 @@ export class DynamicLight {
           r = field.minR + (Math.floor(i / 64) % field.depth),
           q = field.minQ + Math.floor(i / (64 * field.depth)),
           p = axialToWorld(q, r);
+        const material = GLASS_TYPES.indexOf(field.world.get(q, y, r));
+        this.data[i * 4] += (material % 16) * 16;
+        this.data[i * 4 + 1] += Math.floor(material / 16) * 16;
         glassMin.set(
           Math.min(glassMin.x, p.x - 1),
           Math.min(glassMin.y, y),

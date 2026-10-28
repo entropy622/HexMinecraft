@@ -4,6 +4,12 @@ import {
   EXPLORATION_RECIPES,
 } from './exploration-data.js';
 import { ARROW_ITEMS } from './arrow-data.js';
+import {
+  DYE_ITEMS,
+  DYE_RECIPES,
+  GLASS_BLOCKS,
+  PIGMENT_PLANTS,
+} from './dye-data.js';
 import { GEAR, GEAR_RECIPES } from './gear-data.js';
 import { FARM_BLOCKS, FARM_ITEMS, FARM_RECIPES } from './farming-data.js';
 import { BUILDING_BLOCKS, BUILDING_RECIPES } from './building-data.js';
@@ -54,6 +60,8 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...GLASS_BLOCKS,
+  ...PIGMENT_PLANTS,
   ...CAULDRON_BLOCKS,
   ...CIRCUIT_BLOCKS,
   ...CAVE_BLOCKS,
@@ -137,13 +145,6 @@ export const BLOCKS = {
     drop: 'rawIron',
   },
   brick: { name: '石砖', color: '#bcc4b7', side: '#8e9d94', hardness: 0.8 },
-  glass: {
-    name: '琥珀玻璃',
-    color: '#edcc88',
-    side: '#b89762',
-    hardness: 0.3,
-    opacity: 0.38,
-  },
   lantern: {
     name: '萤灯',
     color: '#ffdf92',
@@ -256,6 +257,7 @@ export const BLOCKS = {
 };
 applyMiningHardness(BLOCKS);
 export const ITEMS = {
+  ...DYE_ITEMS,
   ...CAVE_ITEMS,
   ...MINERAL_ITEMS,
   ...IGNITION_ITEMS,
@@ -700,6 +702,7 @@ RECIPES.push(
   ...FARM_RECIPES,
   ...BUILDING_RECIPES,
   ...CAVE_RECIPES,
+  ...DYE_RECIPES,
 );
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (

@@ -1,3 +1,4 @@
+import { DYE_ITEMS, isGlass, isPigmentPlant } from './dye-data.js';
 import {
   createElement,
   Pickaxe,
@@ -112,6 +113,8 @@ const cache = new Map();
 export function itemIcon(id) {
   if (!cache.has(id)) {
     if (
+      DYE_ITEMS[id] ||
+      isPigmentPlant(id) ||
       [
         'glowBerries',
         'netherQuartz',
@@ -128,6 +131,7 @@ export function itemIcon(id) {
     }
     if (
       ITEMS[id]?.portable ||
+      isGlass(id) ||
       PROCESSING_BLOCKS[id] ||
       CAVE_BLOCKS[id] ||
       CIRCUIT_BLOCKS[id] ||

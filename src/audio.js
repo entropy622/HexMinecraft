@@ -1,3 +1,4 @@
+import { isGlass } from './dye-data.js';
 /** Small synthesized sound bank. No network files; audio starts on interaction. */
 export class GameAudio {
   constructor() {
@@ -125,7 +126,7 @@ export class GameAudio {
       this.noise(0.055, soft ? 0.055 : 0.075, wood ? 650 : soft ? 1100 : 2600);
       this.tone(wood ? 155 : soft ? 100 : 220, 0.035, 'triangle', 0.025);
     } else if (event === 'break') {
-      this.noise(0.15, 0.22, material === 'glass' ? 5500 : 1500);
+      this.noise(0.15, 0.22, isGlass(material) ? 5500 : 1500);
       this.tone(160, 0.08, 'triangle', 0.08);
     } else if (event === 'campfireCrackle') {
       this.noise(0.09, 0.035, 1600);

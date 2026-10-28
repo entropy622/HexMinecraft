@@ -1,5 +1,6 @@
 import { BLOCKS, ITEMS } from './core.js';
 import { woodKey } from './wood-data.js';
+import { isGlass } from './dye-data.js';
 
 const PICK_REQUIRED = new Set([
   'stone',
@@ -96,7 +97,7 @@ export function miningStats(block, held, enchant = {}) {
           ? 'axe'
           : SHOVEL.has(material)
             ? 'shovel'
-            : material === 'glass' || material === 'shroom'
+            : isGlass(material) || material === 'shroom'
               ? null
               : 'pick';
   const requiredTier = def.tool || (PICK_REQUIRED.has(material) ? 1 : 0);

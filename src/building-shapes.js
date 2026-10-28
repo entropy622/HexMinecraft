@@ -12,6 +12,7 @@ import { dropperOffset } from './droppers.js';
 import { hopperParts } from './hopper-shape.js';
 import { cauldronParts } from './cauldron-shape.js';
 import { pistonParts } from './piston-shape.js';
+import { isGlass } from './dye-data.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -37,6 +38,34 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (isGlass(type) || shape === 'cactus')
+    return [
+      {
+        x: 0,
+        y: 0.5,
+        z: 0,
+        h: 1,
+        angle: 0,
+        tile: type,
+        polygon:
+          shape === 'cactus'
+            ? HEX_POLYGON.map(([x, z]) => [x * 0.875, z * 0.875])
+            : HEX_POLYGON,
+      },
+    ];
+  if (shape === 'flower')
+    return collision
+      ? []
+      : [0, 1, 2].map((i) => ({
+          x: 0,
+          y: 0.45,
+          z: 0,
+          w: 0.85,
+          h: 0.9,
+          d: 0.001,
+          angle: (i * Math.PI) / 3,
+          tile: type,
+        }));
   if (shape === 'piston' || shape === 'pistonHead')
     return pistonParts(type, state, collision);
   if (type === 'pointedDripstone') return dripstoneParts(world, q, y, r);

@@ -26,6 +26,7 @@ import { createHeldItem, disposeHeldItem } from './held-item.js';
 import { createShield } from './shield-graphics.js';
 import { Atmosphere } from './atmosphere.js';
 import { SoftShadows } from './soft-shadows.js';
+import { isGlass } from './dye-data.js';
 import { HexClouds } from './clouds.js';
 import { SkyEnvironment, moonPhase } from './sky-environment.js';
 import { EnchantingModels, applyEnchantGlow } from './enchanting-graphics.js';
@@ -622,7 +623,7 @@ export class Graphics {
       const t = world.get(q, y, r);
       return (
         t &&
-        t !== 'glass' &&
+        !isGlass(t) &&
         !isStorage(t) &&
         t !== 'enchantingTable' &&
         !isSmithingStation(t) &&
@@ -719,7 +720,7 @@ export class Graphics {
           if (BLOCKS[type].nonSolid && type !== 'powderSnow') continue;
           out = BLOCKS[type].foliage
             ? leaves
-            : type === 'glass'
+            : isGlass(type)
               ? glass
               : type === 'redstoneLamp' && world.state(q, y, r).powered
                 ? lamps
@@ -751,8 +752,7 @@ export class Graphics {
             tri(vertices, uv, tile, shade, ao);
           };
           const visible = (q, y, r) =>
-            !opaque(q, y, r) &&
-            (type !== 'glass' || world.get(q, y, r) !== 'glass');
+            !opaque(q, y, r) && (!isGlass(type) || world.get(q, y, r) !== type);
           const tint = 0.94 + hash(q, y, r) * 0.06;
           const capUV = (i) => [
             (corners[i][0] + 1) / 2,
@@ -934,7 +934,9 @@ export class Graphics {
         this.textures,
         isDoor(world.get(q, y, r)) ||
           isTrapdoor(world.get(q, y, r)) ||
-          ['stonecutter', 'cobweb'].includes(world.get(q, y, r))
+          ['stonecutter', 'cobweb', 'flower'].includes(
+            BLOCKS[world.get(q, y, r)].shape,
+          )
           ? this.doorMaterial
           : this.material,
       );

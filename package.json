@@ -1,13 +1,13 @@
 {
   "name": "hexwild",
-  "version": "0.80.0",
+  "version": "0.81.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/core.test.js tests/world.test.js tests/fluids.test.js tests/caves.test.js tests/movement.test.js tests/redstone.test.js tests/cave-ecology.test.js tests/dripstone.test.js tests/diodes.test.js tests/mineshafts.test.js tests/comparators.test.js tests/hoppers.test.js tests/cauldrons.test.js tests/powder-snow.test.js tests/droppers.test.js tests/dispensers.test.js tests/pistons.test.js",
+    "test": "node --test tests/core.test.js tests/world.test.js tests/fluids.test.js tests/caves.test.js tests/movement.test.js tests/redstone.test.js tests/cave-ecology.test.js tests/dripstone.test.js tests/diodes.test.js tests/mineshafts.test.js tests/comparators.test.js tests/hoppers.test.js tests/cauldrons.test.js tests/powder-snow.test.js tests/droppers.test.js tests/dispensers.test.js tests/pistons.test.js tests/stained-glass.test.js",
     "test:e2e": "playwright test",
     "check": "npm test && npm run build",
     "format": "prettier --write .",

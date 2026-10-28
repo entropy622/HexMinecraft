@@ -13,6 +13,7 @@ import { isHangingPlant } from './cave-data.js';
 import { harvestCavePlant } from './cave-plants.js';
 import { isChorus } from './chorus-data.js';
 import { harvestChorus } from './chorus.js';
+import { isPigmentPlant } from './dye-data.js';
 
 function reaction(world, p) {
   const type = world.get(...p),
@@ -40,6 +41,7 @@ function reaction(world, p) {
     block.nonSolid ||
     block.foliage ||
     isChorus(type) ||
+    isPigmentPlant(type) ||
     isDoor(type) ||
     type === 'pointedDripstone'
   )

@@ -1,4 +1,6 @@
 import { powderContact, powderSupport } from './powder-snow.js';
+import { isPigmentPlant } from './dye-data.js';
+import { pigmentSupport } from './pigment-plants.js';
 import { touchesWeb } from './cobwebs.js';
 import {
   STRUCTURE_NAMES,
@@ -198,7 +200,7 @@ $('#app').innerHTML = `
    <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.80 — THROUGH THE GLASS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.81 — COLOR EVERY RAY</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -357,7 +359,7 @@ const fishing = new Fishing(
         withUseHand(fishingUse.hand, () => wearUseItem('fishingRod', n));
     },
     catch: (loot) => {
-      const taken = addItem(loot.item);
+      const taken = addItem(loot.item, loot.count);
       awardXP(1 + Math.floor(Math.random() * 6), [
         camera.position.x,
         playerFeet() + 0.5,
@@ -367,6 +369,8 @@ const fishing = new Fishing(
         loot.category +
           ' · ' +
           ITEMS[loot.item].name +
+          ' ×' +
+          loot.count +
           (taken ? '' : ' · 背包已满，留在脚边'),
       );
     },
@@ -2056,6 +2060,7 @@ function mine(dt) {
   }
   if (BLOCKS[type].shape) {
     removeBuilding(q, y, r, !creative && stats.harvest && type !== 'cobweb');
+    maintainBuildings();
     if (type === 'cobweb' && !creative && stats.harvest)
       for (const stack of miningLoot(type, { tool: ITEMS[held]?.kind, enchant })
         .stacks)
@@ -2070,6 +2075,7 @@ function mine(dt) {
   graphics.blockBreak(target);
   world.set(q, y, r, null);
   graphics.updateBlock(q, y, r);
+  maintainBuildings();
   if (type === 'obsidian') refreshNetherPortals();
   soundFX.play('break', type);
   wearItem(held, ITEMS[held]?.kind === 'sword' ? 2 : 1);
@@ -3053,6 +3059,7 @@ function place() {
   graphics.updateBlock(q, y, r);
   if (isStorage(id)) chests.set(key(q, y, r), stored || newChest());
   rememberBlockUse(id);
+  maintainBuildings();
   soundFX.play('place', id);
   useSwing();
   updateHUD();
@@ -3120,6 +3127,14 @@ function buildingOccupied(q, y, r) {
 }
 function placeBuilding(type, p) {
   const { q, y, r } = p;
+  if (isPigmentPlant(type) && !pigmentSupport(world, type, q, y, r)) {
+    toast(
+      type === 'cactus'
+        ? '仙人掌需要沙或仙人掌支撑，侧面保持空隙。'
+        : '花朵需要草、泥土、耕地或苔藓支撑。',
+    );
+    return;
+  }
   const item = circuitItem(type);
   if (
     type === 'sporeBlossom' &&
@@ -3277,6 +3292,7 @@ function placeBuilding(type, p) {
   consumeUseItem(item);
   rememberBlockUse(item);
   graphics.updateBlock(q, y, r);
+  maintainBuildings();
   useSwing();
   soundFX.play('place', BLOCKS[type].base || 'wood');
   updateHUD();
@@ -3361,6 +3377,20 @@ function maintainBuildings() {
   for (const k of [...world.buildings]) {
     const [q, y, r] = k.split(',').map(Number),
       type = world.get(q, y, r);
+    if (isPigmentPlant(type)) {
+      if (
+        type === 'cactus' &&
+        DIRECTIONS.some(([dq, dr]) => !world.loaded(q + dq, r + dr))
+      )
+        continue;
+      if (!pigmentSupport(world, type, q, y, r)) {
+        removeBuilding(q, y, r);
+        if (type === 'cactus')
+          for (let h = y + 1; world.get(q, h, r) === type; h++)
+            removeBuilding(q, h, r);
+      }
+      continue;
+    }
     if (
       doorUpper(type) &&
       (!fullSupport(q, y - 1, r, true) ||

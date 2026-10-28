@@ -1,5 +1,6 @@
 import { Float32BufferAttribute } from 'three';
 import { WATER_EXTINCTION } from './fluids.js';
+import { isGlass } from './dye-data.js';
 import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
 import { isDoor, isTrapdoor } from './building-data.js';
 import { isCampfire } from './campfire-data.js';
@@ -157,7 +158,7 @@ export class VoxelLight {
       const block = BLOCKS[type];
       cost[i] = block?.foliage
         ? 3
-        : type === 'glass'
+        : isGlass(type)
           ? 1
           : isDoor(type)
             ? this.world.state(q, y, r).open
@@ -176,7 +177,7 @@ export class VoxelLight {
                     : 16;
       // Spare optical codes distinguish porous canopy from partial blockers
       // without changing RGB light transport or the sky nibble.
-      if (type === 'glass') this.medium[i] = 14;
+      if (isGlass(type)) this.medium[i] = 14;
       else if (block?.foliage) this.medium[i] = 12;
       else if (cost[i] > 1 && cost[i] < 16 && !block?.nonSolid)
         this.medium[i] = 13;

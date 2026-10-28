@@ -175,6 +175,7 @@ export const EXPLORATION_RECIPES = [
   ),
 ];
 export const SMELTING = {
+  greenDye: { input: 'cactus', seconds: 10, xp: 1 },
   netherQuartz: { input: 'netherQuartzOre', seconds: 10, xp: 0.2 },
   smoothStone: { input: 'stone', seconds: 10, xp: 0.1 },
   poppedChorusFruit: { input: 'chorusFruit', seconds: 10 },

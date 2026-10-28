@@ -2,10 +2,14 @@ import * as THREE from 'three';
 import { BLOCKS, axialToWorld } from './core.js';
 import { buildingParts } from './building-shapes.js';
 import { cutItemWorld } from './cut-blocks.js';
+import { isGlass } from './dye-data.js';
 
 // Held blocks and loose items must select the same real partial-block model.
 export const usesBuildingItemMesh = (type) =>
+  isGlass(type) ||
   [
+    'flower',
+    'cactus',
     'slab',
     'stairs',
     'egg',
@@ -192,7 +196,10 @@ export function buildingItemMesh(type, textures) {
     new THREE.MeshLambertMaterial({
       map: textures.atlas,
       vertexColors: true,
-      alphaTest: ['trapdoor', 'stonecutter', 'cobweb'].includes(
+      transparent: isGlass(type),
+      opacity: isGlass(type) ? BLOCKS[type].opacity : 1,
+      depthWrite: !isGlass(type),
+      alphaTest: ['trapdoor', 'stonecutter', 'cobweb', 'flower'].includes(
         BLOCKS[type]?.shape,
       )
         ? 0.5

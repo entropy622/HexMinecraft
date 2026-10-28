@@ -1,4 +1,5 @@
 import { BLOCKS } from './core.js';
+import { isGlass } from './dye-data.js';
 import { leafDrops } from './leaves.js';
 
 const ORES = {
@@ -57,7 +58,7 @@ export function miningLoot(
     return one(random() < [0.1, 1 / 7, 0.25, 1][fortune] ? 'flint' : 'gravel');
   if (type === 'snow')
     return tool === 'shovel' ? one('snowball', 4) : { stacks: [], xp: 0 };
-  if (type === 'glass') return { stacks: [], xp: 0 };
+  if (isGlass(type)) return { stacks: [], xp: 0 };
   if (type === 'bookshelf') return one('book', 3);
   if (type === 'glowstone')
     return one(

@@ -3,6 +3,8 @@ import { paintPackTile } from './texture-pack.js';
 import { BLOCKS, hash } from './core.js';
 import { woodKey } from './wood-data.js';
 import { WEB_STRANDS } from './cobwebs.js';
+import { isGlass } from './dye-data.js';
+import { paintPigment } from './pigment-art.js';
 
 // Pixel Perfection tiles with procedural fallbacks and original fantasy materials.
 // Wide gutters prevent color bleeding between mipmapped tiles.
@@ -271,9 +273,10 @@ export function createTextures() {
         fill('#38291e', x, 0, 2, 16);
         fill('#97724a', x + 2, 0, 1, 16);
       }
-    if (id === 'glass') {
+    paintPigment(c, id);
+    if (isGlass(id)) {
       c.clearRect(0, 0, 16, 16);
-      fill(BLOCKS.glass.color, 0, 0, 16, 16);
+      fill(BLOCKS[id].color, 0, 0, 16, 16);
       c.strokeStyle = '#e4f7ff';
       c.strokeRect(0.5, 0.5, 15, 15);
       for (let i = 3; i < 10; i++) fill('#ffffff', i, 13 - i);

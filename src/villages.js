@@ -47,6 +47,7 @@ export const ROLES = {
       { cost: { emerald: 1 }, give: { sugarCane: 3 } },
       { cost: { carrot: 12 }, give: { emerald: 1 } },
       { cost: { potato: 12 }, give: { emerald: 1 } },
+      { cost: { emerald: 1 }, give: { cocoaBeans: 3 } },
     ],
   },
   smith: {

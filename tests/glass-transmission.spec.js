@@ -1,6 +1,7 @@
 import { test, expect } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { writeFile } from 'node:fs/promises';
+import { GLASS_TYPES } from '../src/dye-data.js';
 
 test.setTimeout(240000);
 async function frames(page, n = 3) {
@@ -106,7 +107,7 @@ async function glazing(page, layers, roof = false) {
       for (const p of cells) w.set(...p, null);
       window.glassProbeCells = [];
       const { center, direction: d } = window.glassProbe;
-      for (let layer = 0; layer < layers + (roof ? 1 : 0); layer++) {
+      for (let layer = 0; layer < layers.length + (roof ? 1 : 0); layer++) {
         const y = 44 + layer,
           distance = (y + 0.5 - center.y) / d[1];
         const a = worldToAxial(
@@ -118,7 +119,11 @@ async function glazing(page, layers, roof = false) {
             const p = [a.q + dq, y, a.r + dr];
             w.set(
               ...p,
-              layer < layers ? 'glass' : roof === true ? 'stone' : roof,
+              layer < layers.length
+                ? layers[layer]
+                : roof === true
+                  ? 'stone'
+                  : roof,
             );
             cells.push(p);
             window.glassProbeCells.push(p);
@@ -193,16 +198,16 @@ test('real amber glass filters directional RGB by path length, stacks, blocks be
   });
   await setup(page);
   const bare = await sample(page);
-  await glazing(page, 1);
+  await glazing(page, ['glass']);
   const single = await sample(page);
   await page.screenshot({ path: info.outputPath('amber-sunlight.png') });
-  await glazing(page, 3);
+  await glazing(page, ['glass', 'glass', 'glass']);
   const stacked = await sample(page);
-  await glazing(page, 1, true);
+  await glazing(page, ['glass'], true);
   const blocked = await sample(page);
-  await glazing(page, 1, 'stoneSlab');
+  await glazing(page, ['glass'], 'stoneSlab');
   const slab = await sample(page);
-  await glazing(page, 0);
+  await glazing(page, []);
   const removed = await sample(page);
   const ratio = (s) => s.direct.map((v, i) => v / bare.direct[i]);
   const result = {
@@ -245,10 +250,10 @@ test('glass filtering follows moonlight and oblique negative-coordinate rays, su
   await setup(page);
   const result = { rays: [], qualities: [], errors };
   for (const time of [120, 60, 450]) {
-    await glazing(page, 0);
+    await glazing(page, []);
     await clock(page, time, -2, -2);
     const bare = await sample(page);
-    await glazing(page, 1);
+    await glazing(page, ['glass']);
     const glass = await sample(page);
     const ratio = glass.direct.map((v, i) => v / bare.direct[i]);
     result.rays.push({ time, origin: [-2, -2], ratio });
@@ -279,7 +284,7 @@ test('glass filtering follows moonlight and oblique negative-coordinate rays, su
   await fresh(page);
   await clock(page, 450, -2, -2);
   const continued = await sample(page);
-  await glazing(page, 0);
+  await glazing(page, []);
   const continuedBare = await sample(page);
   result.continued = continued.direct.map(
     (v, i) => v / continuedBare.direct[i],
@@ -289,7 +294,7 @@ test('glass filtering follows moonlight and oblique negative-coordinate rays, su
       Math.abs(result.continued[c] - result.rays[2].ratio[c]),
     ).toBeLessThan(0.025);
   await clock(page, 120, -2, -2);
-  await glazing(page, 1);
+  await glazing(page, ['glass']);
   for (const quality of [1, 0.65, 1.7]) {
     await page.evaluate(
       (quality) => window.__hexwild.graphics.setQuality(quality),
@@ -461,4 +466,105 @@ test('real UI selects and places amber glass with the shipped light-effects shad
   );
   expect(runtime.gl).toBe(0);
   expect(errors).toEqual([]);
+});
+
+test('all sixteen stained colors filter actual sunlight, unlike layers compose and GPU decoding preserves local light', async ({
+  page,
+}, info) => {
+  test.setTimeout(360000);
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') errors.push(e.text());
+  });
+  await setup(page);
+  const bare = await sample(page),
+    colors = {};
+  for (const type of GLASS_TYPES) {
+    await glazing(page, [type]);
+    const s = await sample(page);
+    colors[type] = s.direct.map((v, i) => v / bare.direct[i]);
+    expect(s.gl).toBe(0);
+    for (const v of colors[type]) expect(v).toBeGreaterThan(0.35);
+    for (const v of colors[type]) expect(v).toBeLessThanOrEqual(1.025);
+  }
+  const red = colors.redStainedGlass,
+    green = colors.greenStainedGlass,
+    blue = colors.blueStainedGlass;
+  expect(red[0]).toBeGreaterThan(Math.max(red[1], red[2]) + 0.1);
+  expect(green[1]).toBeGreaterThan(Math.max(green[0], green[2]) + 0.02);
+  expect(blue[2]).toBeGreaterThan(Math.max(blue[0], blue[1]) + 0.08);
+  expect(Math.min(...colors.whiteStainedGlass)).toBeGreaterThan(0.95);
+  expect(Math.max(...colors.blackStainedGlass)).toBeLessThan(0.7);
+  expect(
+    new Set(
+      Object.values(colors).map((rgb) =>
+        rgb.map((v) => v.toFixed(3)).join(','),
+      ),
+    ).size,
+  ).toBe(17);
+  const mixed = [];
+  for (const layers of [
+    ['redStainedGlass', 'blueStainedGlass'],
+    ['blueStainedGlass', 'redStainedGlass'],
+  ]) {
+    await glazing(page, layers);
+    mixed.push((await sample(page)).direct.map((v, i) => v / bare.direct[i]));
+  }
+  for (let c = 0; c < 3; c++) {
+    expect(mixed[0][c]).toBeLessThan(Math.min(red[c], blue[c]) - 0.035);
+    expect(Math.abs(mixed[0][c] - mixed[1][c])).toBeLessThan(0.015);
+  }
+  await page.screenshot({ path: info.outputPath('red-blue-layered.png') });
+  await glazing(page, []);
+  const removed = (await sample(page)).direct.map((v, i) => v / bare.direct[i]);
+  for (const v of removed) expect(Math.abs(v - 1)).toBeLessThan(0.025);
+  // Separate isolated GPU check of the production volume decoder, using all
+  // seventeen indices and real torch transport. This is not another game shader.
+  await page.evaluate(async () => {
+    const { GLASS_TYPES } = await import('/src/dye-data.js');
+    const g = window.__hexwild,
+      cells = [];
+    window.paletteProbePositions = GLASS_TYPES.map((type, i) => [
+      -3 + (i % 6),
+      48,
+      -1 + Math.floor(i / 6),
+      type,
+    ]);
+    for (const [q, y, r, type] of window.paletteProbePositions) {
+      g.state.world.set(q, y, r, type);
+      cells.push([q, y, r]);
+    }
+    g.state.world.set(-4, 48, -1, 'torch');
+    cells.push([-4, 48, -1]);
+    g.graphics.updateCells(cells);
+  });
+  await fresh(page);
+  const decoder = await page.evaluate(async () => {
+    const { readVolumeCells } =
+      await import('/tests/fixtures/light-volume-probe.js');
+    const g = window.__hexwild.graphics,
+      field = g.voxelLight;
+    const cells = window.paletteProbePositions.map(([q, y, r]) => [
+      y,
+      r - field.minR,
+      q - field.minQ,
+    ]);
+    const expected = window.paletteProbePositions.map(([q, y, r]) => {
+      const i = field.index(q, y, r);
+      return [...field.rgb.map((c) => c[i]), field.sky[i]];
+    });
+    return {
+      expected,
+      actual: readVolumeCells(g, cells),
+      gl: g.renderer.getContext().getError(),
+    };
+  });
+  expect(decoder.actual).toEqual(decoder.expected);
+  expect(decoder.gl).toBe(0);
+  expect(errors).toEqual([]);
+  await writeFile(
+    info.outputPath('stained-color-transmission.json'),
+    JSON.stringify({ colors, mixed, removed, decoder, errors }, null, 2),
+  );
 });

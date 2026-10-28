@@ -1,4 +1,5 @@
 import { structuresNear, stampStructure } from './structures.js';
+import { stampPigments } from './pigment-plants.js';
 import { villagesNear, villageAt, stampVillage, features } from './villages.js';
 import { Fluids } from './fluids.js';
 import { END_FLOOR } from './end-data.js';
@@ -581,6 +582,7 @@ export class World {
       stampVillage(this, v, cq, cr);
     for (const s of structures) stampStructure(this, s, cq, cr);
     stampEndArena(this, cq, cr);
+    stampPigments(this, cq, cr);
     for (const [k, t] of this.editChunks.get(ck) || []) {
       if (isChorus(t)) this.chorusPending.add(k);
       if (BLOCKS[t]?.shape) this.buildings.add(k);

@@ -1,4 +1,5 @@
 import { WEB_STRANDS } from './cobwebs.js';
+import { isGlass } from './dye-data.js';
 import { BLOCKS } from './core.js';
 import { cutItemWorld } from './cut-blocks.js';
 import { buildingParts } from './building-shapes.js';
@@ -89,6 +90,8 @@ export function cutBlockIcon(id) {
     }
   }
   const pattern = (name, tile) => {
+    if (isGlass(tile))
+      return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="${BLOCKS[tile].color}" opacity="0.65"/><path d="M1 1h14v14H1zM3 11l6-6" fill="none" stroke="#f4faff" stroke-width="0.7" opacity="0.7"/></pattern>`;
     const tiles = blockTextures[tile];
     if (!tiles) {
       const surface =
