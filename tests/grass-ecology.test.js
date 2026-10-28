@@ -177,6 +177,28 @@ test('day/night and rain/thunder attenuate sky while true block light remains us
   assert.deepEqual(step(p), [[3, 39, 4]]);
 });
 
+test('Nether and End have no gameplay skylight; actual placed block light enables grass spreading', () => {
+  for (const dimension of ['nether', 'end']) {
+    const p = pasture(dimension);
+    p.light.update(0, true);
+    assert.equal(
+      Math.max(
+        ...p.light.baseRGB.map((channel) => channel[p.light.index(4, 40, 4)]),
+      ),
+      0,
+    );
+    assert.deepEqual(step(p), [], `${dimension} without a lamp`);
+    assert.equal(p.world.get(4, 39, 4), 'grass');
+    assert.equal(p.world.get(3, 39, 4), 'dirt');
+    p.world.set(4, 40, 5, 'torch');
+    assert.deepEqual(step(p), [[3, 39, 4]], `${dimension} with a placed torch`);
+    p.world.set(3, 39, 4, 'dirt');
+    p.world.set(4, 40, 5, null);
+    assert.deepEqual(step(p), [], `${dimension} after torch removal`);
+    assert.equal(p.world.get(3, 39, 4), 'dirt');
+  }
+});
+
 test('full fluid kills sources; flowing water survives but every destination fluid forbids spread', () => {
   for (const type of ['water', 'lava', 'glow']) {
     const p = pasture();
@@ -257,11 +279,18 @@ test('sampling is bounded to loaded chunks and active duration; invalid/stale fi
   const revision = p.light.revision;
   assert.notEqual(revision, p.world.lightRevision);
   p.light.update(0, true);
+  const lightBefore = p.light.revision;
   random([], (calls) => {
-    tickGrass(p.world, 0.5, p.light, 100, p.weather);
-    assert.equal(calls(), 90);
+    assert.deepEqual(tickGrass(p.world, 0.5, p.light, 100, p.weather), [
+      [4, 39, 4],
+    ]);
+    assert.ok(
+      calls() <= 120,
+      'loaded-chunk maintenance exceeds bounded random work',
+    );
   });
-  assert.equal(p.light.revision, p.world.lightRevision - 1);
+  assert.equal(p.world.get(4, 39, 4), 'dirt');
+  assert.equal(p.light.revision, lightBefore);
   p.world.clearLoaded();
   p.light.update(0, true);
   random([], (calls) => {

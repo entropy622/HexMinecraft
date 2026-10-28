@@ -68,11 +68,11 @@ export function tickGrass(world, dt, light, time, weather) {
       }
       const index = light.index(q, y + 1, r),
         sky =
-          index < 0
-            ? world.dimension === 'nether'
-              ? 0
-              : 15
-            : light.sky[index];
+          world.dimension !== 'overworld'
+            ? 0
+            : index < 0
+              ? 15
+              : light.sky[index];
       const level = Math.max(
         sky - skyLoss,
         ...light.baseRGB.map((channel) => (index < 0 ? 0 : channel[index])),
