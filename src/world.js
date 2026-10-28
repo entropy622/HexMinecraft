@@ -244,6 +244,7 @@ export class World {
         ...(state.output !== undefined ? { output: state.output } : {}),
         ...(state.subtract !== undefined ? { subtract: state.subtract } : {}),
         ...(state.down !== undefined ? { down: state.down } : {}),
+        ...(state.age !== undefined ? { age: state.age } : {}),
       };
     this.blockStates.set(key(q, y, r), next);
     this.shapeCache.clear();
@@ -259,6 +260,7 @@ export class World {
       down: false,
       mount: 'floor',
       delay: 1,
+      age: 0,
     };
     if (
       record &&

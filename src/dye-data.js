@@ -58,6 +58,13 @@ export const PIGMENT_PLANTS = {
     shape: 'flower',
     nonSolid: true,
   },
+  cactusFlower: {
+    name: '仙人掌花',
+    color: '#e591c3',
+    hardness: 0,
+    shape: 'flower',
+    nonSolid: true,
+  },
   cactus: {
     name: '仙人掌',
     color: '#638a36',
@@ -101,6 +108,7 @@ export const DYE_RECIPES = [
     ['blue', 'lapis'],
     ['red', 'poppy'],
     ['yellow', 'dandelion'],
+    ['pink', 'cactusFlower'],
     ['black', 'inkSac'],
     ['brown', 'cocoaBeans'],
   ].map(([color, source]) => recipe(color + 'Dye', [source])),

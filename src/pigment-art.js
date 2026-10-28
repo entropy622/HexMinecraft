@@ -15,7 +15,14 @@ export function paintPigment(c, id) {
       for (let x = 2; x < 16; x += 5) fill('#c2d39a', x, y, 1, 2);
   } else {
     c.clearRect(0, 0, 16, 16);
-    if (PIGMENT_PLANTS[id]) {
+    if (id === 'cactusFlower') {
+      fill('#66833a', 5, 11, 6, 4);
+      fill('#ae538b', 2, 7, 12, 5);
+      fill(def.color, 1, 4, 4, 5);
+      fill(def.color, 6, 2, 4, 9);
+      fill(def.color, 11, 4, 4, 5);
+      fill('#ffe3a1', 6, 7, 4, 3);
+    } else if (PIGMENT_PLANTS[id]) {
       fill('#426c30', 7, 5, 2, 10);
       fill('#66933d', 3, 9, 5, 2);
       fill('#709d43', 9, 11, 4, 2);
