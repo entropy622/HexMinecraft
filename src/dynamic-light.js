@@ -1,12 +1,13 @@
-import { Data3DTexture, NearestFilter, Vector3 } from 'three';
+import { Color, Data3DTexture, NearestFilter, Vector3 } from 'three';
 import { lightVolumeGLSL } from './light-volume-shader.js';
 import { waterLightingGLSL } from './water-lighting.js';
 import { axialToWorld } from './core.js';
-import { GLASS_TYPES } from './dye-data.js';
+import { GLASS_BLOCKS, GLASS_TYPES } from './dye-data.js';
 import { voxelLightingChunk, visionUniforms } from './skylight.js';
 
 // Packed RGBA8: low RGB nibbles contain 0..15 block-light levels; high R/G
-// nibbles pack the glass palette index. Alpha packs sky in
+// nibbles pack the glass palette index; high B is a conservative glass-clearance
+// bound. Alpha packs sky in
 // its high nibble; low nibble: 0 solid, 1 full water, 2..9 water levels 0..7,
 // 10 lava, 11 glow, 12 foliage, 13 partial solid, 14 glass, 15 air.
 // Internal stacked water cells are full height.
@@ -74,6 +75,20 @@ export class DynamicLight {
       waterTime: { value: 0 },
       waterSunlight: { value: 0 },
       glassSunlight: { value: 0 },
+      glassExtinction: {
+        value: GLASS_TYPES.map((type) => {
+          const block = GLASS_BLOCKS[type];
+          const transmission = new Color(1, 1, 1).lerp(
+            new Color(block.color),
+            block.opacity,
+          );
+          return new Vector3(
+            -Math.log(transmission.r),
+            -Math.log(transmission.g),
+            -Math.log(transmission.b),
+          );
+        }),
+      },
       glassBoundsMin: { value: new Vector3(0, 1, 0) },
       glassBoundsMax: { value: new Vector3() },
     };
@@ -104,6 +119,7 @@ export class DynamicLight {
         -Infinity,
         -Infinity,
       );
+    let clearance;
     for (let i = 0; i < size; i++) {
       this.data[i * 4] = field.rgb[0][i];
       this.data[i * 4 + 1] = field.rgb[1][i];
@@ -111,6 +127,8 @@ export class DynamicLight {
       this.data[i * 4 + 3] =
         field.sky[i] * 16 + (field.cost[i] < 16 ? field.medium[i] || 15 : 0);
       if (field.medium[i] === 14) {
+        clearance ??= new Uint8Array(size).fill(45);
+        clearance[i] = 0;
         const y = i % 64,
           r = field.minR + (Math.floor(i / 64) % field.depth),
           q = field.minQ + Math.floor(i / (64 * field.depth)),
@@ -129,6 +147,33 @@ export class DynamicLight {
           Math.max(glassMax.z, p.z + 1),
         );
       }
+    }
+    if (clearance) {
+      // Two sweeps compute capped six-neighbor Manhattan distance. Dividing
+      // by three gives a lower bound on nearest-glass Chebyshev cell distance.
+      // Its value minus one is safe in world units even at hex/vertical faces.
+      const stride = 64 * field.depth;
+      let i = 0;
+      for (let q = 0; q < field.width; q++)
+        for (let r = 0; r < field.depth; r++)
+          for (let y = 0; y < 64; y++, i++) {
+            let d = clearance[i];
+            if (y > 0) d = Math.min(d, clearance[i - 1] + 1);
+            if (r > 0) d = Math.min(d, clearance[i - 64] + 1);
+            if (q > 0) d = Math.min(d, clearance[i - stride] + 1);
+            clearance[i] = d;
+          }
+      i = size - 1;
+      for (let q = field.width - 1; q >= 0; q--)
+        for (let r = field.depth - 1; r >= 0; r--)
+          for (let y = 63; y >= 0; y--, i--) {
+            let d = clearance[i];
+            if (y < 63) d = Math.min(d, clearance[i + 1] + 1);
+            if (r < field.depth - 1) d = Math.min(d, clearance[i + 64] + 1);
+            if (q < field.width - 1) d = Math.min(d, clearance[i + stride] + 1);
+            clearance[i] = d;
+            this.data[i * 4 + 2] += Math.ceil(d / 3) * 16;
+          }
     }
     if (!Number.isFinite(glassMin.x)) {
       glassMin.set(0, 1, 0);

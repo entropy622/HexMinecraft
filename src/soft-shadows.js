@@ -1,43 +1,5 @@
-import { Color, ShaderChunk, Vector3 } from 'three';
-import { GLASS_BLOCKS, GLASS_TYPES } from './dye-data.js';
-import { lightVolumeGLSL } from './light-volume-shader.js';
-
-const glassTransmission = /* glsl */ `
-${lightVolumeGLSL}
-uniform vec3 glassExtinction[${GLASS_TYPES.length}];
-uniform vec3 glassBoundsMin;
-uniform vec3 glassBoundsMax;
-uniform float glassSunlight;
-vec3 glassSunResponse(vec3 position, vec3 normal, vec3 ray) {
-  #if defined(USE_SHADOWMAP) && defined(SHADOWMAP_TYPE_BASIC)
-    if (glassSunlight < 0.5 || glassBoundsMin.y > glassBoundsMax.y) return vec3(1.0);
-    vec3 start = position + normal * 0.045;
-    vec3 safeRay = mix(vec3(-1.0), vec3(1.0), step(vec3(0.0), ray)) * max(abs(ray), vec3(0.000001));
-    vec3 a = (glassBoundsMin - start) / safeRay, b = (glassBoundsMax - start) / safeRay;
-    vec3 nearPoint = min(a, b), farPoint = max(a, b);
-    float distance = max(0.0, max(max(nearPoint.x, nearPoint.y), nearPoint.z));
-    float end = min(min(farPoint.x, farPoint.y), farPoint.z);
-    if (end <= distance) return vec3(1.0);
-    distance += 0.002;
-    vec3 opticalDepth = vec3(0.0);
-    // A loaded 9x9 chunk footprint plus 64 vertical cells needs fewer than
-    // 256 face crossings. The glass bounds usually reduce this to a few cells.
-    for (int i = 0; i < 256; i++) {
-      if (distance >= end) break;
-      vec3 point = start + ray * distance;
-      ivec3 cell = lightCell(point);
-      if (!insideLightVolume(cell)) break;
-      float segment = min(end - distance, lightCellExit(point, cell, ray));
-      if (mod(readLightCell(cell).a, 16.0) == 14.0)
-        opticalDepth += glassExtinction[glassMaterialIndex(cell)] * segment;
-      distance += segment + 0.002;
-    }
-    return exp(-opticalDepth);
-  #else
-    return vec3(1.0);
-  #endif
-}
-`;
+import { ShaderChunk, Vector3 } from 'three';
+import { glassTransmissionGLSL } from './glass-transmission.js';
 
 // Directional, orthographic PCSS. Depth is already linear in this projection;
 // convert separations to world units before applying the visible disk's angle.
@@ -125,20 +87,6 @@ export class SoftShadows {
       softShadowFrustum: { value: new Vector3() },
       softShadowMatrix: { value: light.shadow.matrix },
       softShadowAngle: { value: 0 },
-      glassExtinction: {
-        value: GLASS_TYPES.map((type) => {
-          const block = GLASS_BLOCKS[type];
-          const transmission = new Color(1, 1, 1).lerp(
-            new Color(block.color),
-            block.opacity,
-          );
-          return new Vector3(
-            -Math.log(transmission.r),
-            -Math.log(transmission.g),
-            -Math.log(transmission.b),
-          );
-        }),
-      },
     };
   }
   attach(scene, disk) {
@@ -167,16 +115,16 @@ export class SoftShadows {
           shader.fragmentShader = shader.fragmentShader
             .replace(
               '#include <shadowmap_pars_fragment>',
-              shadowChunk + glassTransmission,
+              shadowChunk + glassTransmissionGLSL,
             )
             .replace(
               'getDirectionalLightInfo( directionalLight, directLight );',
               `getDirectionalLightInfo( directionalLight, directLight );
-            directLight.color *= glassSunResponse(vLightPosition, inverseTransformDirection(normal, viewMatrix), inverseTransformDirection(directLight.direction, viewMatrix));`,
+            directLight.color *= glassTransmittance(vLightPosition + inverseTransformDirection(normal, viewMatrix) * 0.045, inverseTransformDirection(directLight.direction, viewMatrix));`,
             );
         };
         material.customProgramCacheKey = () =>
-          key.call(material) + '-contact-shadows-glass-v4';
+          key.call(material) + '-contact-shadows-glass-v5';
         material.needsUpdate = true;
       }
     });

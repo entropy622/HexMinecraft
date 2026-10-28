@@ -8,7 +8,7 @@ import {
 } from 'three';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { cloudFieldGLSL } from './cloud-field.js';
-import { lightVolumeGLSL } from './light-volume-shader.js';
+import { glassTransmissionGLSL } from './glass-transmission.js';
 import { waterExtinctionGLSL, waterScatteringGLSL } from './water-shader.js';
 
 const vertexShader = /* glsl */ `
@@ -29,7 +29,7 @@ uniform mat4 airCameraWorld;
 uniform vec3 airCameraPosition;
 uniform float airShadowReady;
 uniform vec2 fogResolution;
-${lightVolumeGLSL}
+${glassTransmissionGLSL}
 uniform float airDensity;
 uniform float airBaseHeight;
 uniform float airFalloff;
@@ -108,7 +108,8 @@ void main() {
       } else if (fract(position.y) > height) continue;
       float sky = pow(floor(packedLight.a / 16.0) / 15.0, 2.0);
       vec3 block = pow(packedLight.rgb / 15.0, vec3(2.0));
-      float sun = airSunVisibility(position, sky) * cloudSun;
+      float visibility = airSunVisibility(position, sky) * cloudSun;
+      vec3 sun = visibility > 0.0001 ? glassTransmittance(position, airSunDirection) * visibility : vec3(0.0);
       vec2 beam = position.xz - position.y * airSunDirection.xz / max(0.15, airSunDirection.y);
       float shafts = 0.35 + 1.3 * smoothstep(0.4, 0.72, airNoise(beam * 0.45 + vec2(airTime * 0.06, -airTime * 0.04)));
       vec3 source = waterAmbientSource(airHorizon, airAmbient, sky, block) +
@@ -146,7 +147,8 @@ void main() {
     float density = airDensity * exp(clamp(-(position.y - airBaseHeight) * airFalloff, -8.0, 1.4));
     density *= 0.65 + airNoise(position.xz * 0.09 + vec2(airTime * 0.018, -airTime * 0.012)) * 0.7;
     float attenuation = exp(-density * stepLength);
-    float sun = airSunVisibility(position, sky) * cloudSun;
+    float visibility = airSunVisibility(position, sky) * cloudSun;
+    vec3 sun = visibility > 0.0001 ? glassTransmittance(position, airSunDirection) * visibility : vec3(0.0);
     // Sealed caverns scatter local lights without inheriting outdoor sky blue.
     vec3 source = mix(vec3(0.003, 0.004, 0.005), airHorizon * airAmbient, sky) + block * 0.85 +
       airSunColor * airSunPower * sun * (0.12 + phase * 0.18);

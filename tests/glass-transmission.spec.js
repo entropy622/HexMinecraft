@@ -242,6 +242,9 @@ test('real amber glass filters directional RGB by path length, stacks, blocks be
 test('glass filtering follows moonlight and oblique negative-coordinate rays, survives native Continue and context restoration', async ({
   page,
 }, info) => {
+  // Native reload, quality/device rebuilds and readbacks accumulate under
+  // SwiftShader. Individual readiness polls retain their 60-second deadline.
+  test.setTimeout(480000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (e) => {
@@ -471,7 +474,7 @@ test('real UI selects and places amber glass with the shipped light-effects shad
 test('all sixteen stained colors filter actual sunlight, unlike layers compose and GPU decoding preserves local light', async ({
   page,
 }, info) => {
-  test.setTimeout(360000);
+  test.setTimeout(600000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (e) => {
@@ -545,22 +548,33 @@ test('all sixteen stained colors filter actual sunlight, unlike layers compose a
       await import('/tests/fixtures/light-volume-probe.js');
     const g = window.__hexwild.graphics,
       field = g.voxelLight;
-    const cells = window.paletteProbePositions.map(([q, y, r]) => [
+    const positions = [
+      ...window.paletteProbePositions,
+      [-7, 48, -3],
+      [-4, 48, -1],
+    ];
+    const cells = positions.map(([q, y, r]) => [
       y,
       r - field.minR,
       q - field.minQ,
     ]);
-    const expected = window.paletteProbePositions.map(([q, y, r]) => {
+    const expected = positions.map(([q, y, r]) => {
       const i = field.index(q, y, r);
       return [...field.rgb.map((c) => c[i]), field.sky[i]];
     });
     return {
       expected,
       actual: readVolumeCells(g, cells),
+      airAndTorchClearance: positions
+        .slice(-2)
+        .map(
+          ([q, y, r]) => g.dynamicLight.data[field.index(q, y, r) * 4 + 2] >> 4,
+        ),
       gl: g.renderer.getContext().getError(),
     };
   });
   expect(decoder.actual).toEqual(decoder.expected);
+  for (const d of decoder.airAndTorchClearance) expect(d).toBeGreaterThan(0);
   expect(decoder.gl).toBe(0);
   expect(errors).toEqual([]);
   await writeFile(
