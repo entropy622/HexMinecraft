@@ -109,7 +109,14 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
     () => {
       const g = window.__hexwild;
       if (g.state.world.get(3, 39, 4) !== 'dirt') return false;
-      g.open('#pause-overlay');
+      for (const type of ['keydown', 'keyup'])
+        document.querySelector('#world').dispatchEvent(
+          new KeyboardEvent(type, {
+            code: 'Escape',
+            key: 'Escape',
+            bubbles: true,
+          }),
+        );
       return g.state.time;
     },
     null,
@@ -121,6 +128,7 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
     buffer: Buffer.from(JSON.stringify(saved)),
   });
   const paused = await (await pauseReceipt).jsonValue();
+  await expect(page.locator('#pause-overlay')).toBeVisible();
   const cell = (q, y, r) =>
     page.evaluate(
       ([q, y, r]) => window.__hexwild.state.world.get(q, y, r) || null,
@@ -129,7 +137,7 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   await page.waitForTimeout(1500);
   expect(await page.evaluate(() => window.__hexwild.state.time)).toBe(paused);
   expect(await cell(3, 39, 4)).toBe('dirt');
-  await page.evaluate(() => window.__hexwild.close());
+  await page.locator('#resume').click();
   await expect.poll(() => cell(3, 39, 4), { timeout: 30000 }).toBe('grass');
   await page.evaluate(() => {
     const g = window.__hexwild;
@@ -175,12 +183,19 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   await expect.poll(() => cell(4, 40, 4)).toBe('stone');
   await expect.poll(() => cell(4, 39, 4), { timeout: 30000 }).toBe('dirt');
   await page.screenshot({ path: info.outputPath('covered-pasture.png') });
-  await page.evaluate(() => {
+  const unloaded = await page.evaluate(() => {
     const g = window.__hexwild;
     g.teleport(180, 45, 180);
+    return g.state.world.loaded(4, 4);
+  });
+  expect(unloaded).toBe(false);
+  const returnedLoaded = await page.evaluate(() => {
+    const g = window.__hexwild;
     g.teleport(3, 40, 3);
     g.save();
+    return g.state.world.loaded(4, 4);
   });
+  expect(returnedLoaded).toBe(true);
   expect(await cell(4, 39, 4)).toBe('dirt');
   expect(await cell(3, 39, 4)).toBe('grass');
   await page.reload();
@@ -218,7 +233,13 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   await writeFile(
     info.outputPath('grass-ecology.json'),
     JSON.stringify(
-      { ...manifest, paused: true, streamed: true, continued: true, errors },
+      {
+        ...manifest,
+        paused: true,
+        streamed: !unloaded && returnedLoaded,
+        continued: true,
+        errors,
+      },
       null,
       2,
     ),
