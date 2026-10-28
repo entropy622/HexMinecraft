@@ -5,6 +5,10 @@ export const visionUniforms = { nightVision: { value: 0 } };
 // Both static surfaces and moving models use the same response to voxel light.
 export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
   .replace(
+    'irradiance += getLightProbeIrradiance( lightProbe, geometryNormal );',
+    'irradiance += vSkylight * max(vec3(0.0), getLightProbeIrradiance( lightProbe, geometryNormal ));',
+  )
+  .replace(
     'getDirectionalLightInfo( directionalLight, directLight );',
     `getDirectionalLightInfo( directionalLight, directLight );
     #ifdef HEX_WATER_RECEIVER
@@ -57,6 +61,6 @@ export function applySkylight(material, sharedUniforms) {
         #include <opaque_fragment>`,
         );
   };
-  material.customProgramCacheKey = () => 'hex-colored-voxel-wet-v6';
+  material.customProgramCacheKey = () => 'hex-colored-voxel-wet-sky-v7';
   return uniforms;
 }

@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { hash } from './core.js';
 import { effectImage } from './texture-pack.js';
+import {
+  SkyAtmosphere,
+  SOLAR_IRRADIANCE,
+  SUN_RADIUS,
+  skyRadianceGLSL,
+} from './sky-atmosphere.js';
 
 const PHASES = [
   '满月',
@@ -19,39 +25,25 @@ export const moonPhase = (time) => {
 };
 export class SkyEnvironment {
   constructor(scene) {
+    this.atmosphere = new SkyAtmosphere();
+    this.uniforms = this.atmosphere.uniforms;
+    this.uniforms.skyFlash = { value: 0 };
+    scene.add(this.atmosphere.probe);
     this.dome = new THREE.Mesh(
       new THREE.SphereGeometry(180, 32, 16),
       new THREE.ShaderMaterial({
         side: THREE.BackSide,
         depthWrite: false,
-        uniforms: {
-          zenith: { value: new THREE.Color('#4b91df') },
-          horizon: { value: new THREE.Color('#c0d9ed') },
-          sunDirection: { value: new THREE.Vector3(0, 1, 0) },
-          sunColor: { value: new THREE.Color('#ffe3ad') },
-          sunStrength: { value: 0 },
-          hazeRain: { value: 0 },
-        },
+        uniforms: this.uniforms,
         vertexShader:
-          'varying vec3 skyDirection; void main(){ skyDirection = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+          'varying vec3 vSkyDirection; void main(){ vSkyDirection = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: /* glsl */ `
-        uniform vec3 zenith; uniform vec3 horizon; uniform vec3 sunDirection;
-        uniform vec3 sunColor; uniform float sunStrength; uniform float hazeRain;
-        varying vec3 skyDirection;
+        ${skyRadianceGLSL}
+        uniform float skyFlash;
+        varying vec3 vSkyDirection;
         void main() {
-          vec3 direction = normalize(skyDirection);
-          float h = pow(max(direction.y, 0.0), 0.65);
-          float mu = dot(direction, sunDirection);
-          float rayleigh = 0.86 + 0.07 * (1.0 + mu * mu);
-          float mie = 0.018 * (1.0 - 0.76 * 0.76) / pow(max(0.015, 1.0 + 0.76 * 0.76 - 1.52 * mu), 1.5);
-          vec3 color = mix(horizon, zenith, h) * rayleigh;
-          color += sunColor * (mie + pow(max(mu, 0.0), 260.0) * 0.8) * sunStrength;
-          float dusk = exp(-pow(sunDirection.y / 0.18, 2.0)) * (1.0 - hazeRain * 0.85);
-          float toward = max(0.0, dot(normalize(direction.xz + vec2(0.0001)), normalize(sunDirection.xz + vec2(0.0001))));
-          float belt = exp(-pow((direction.y + 0.02) * 5.0, 2.0));
-          color += sunColor * dusk * belt * (0.1 + 0.48 * pow(toward, 4.0));
-          color = mix(color, color * vec3(0.87, 0.86, 1.07), dusk * belt * (1.0 - toward) * 0.3);
-          gl_FragColor = vec4(color, 1.0);
+          vec3 sky = mix(hexSkyRadiance(vSkyDirection), vec3(0.571, 0.687, 0.831), skyFlash * 0.5);
+          gl_FragColor = vec4(sky, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }
@@ -64,9 +56,26 @@ export class SkyEnvironment {
     this.objects = new THREE.Group();
     this.objects.userData.temporalSky = true;
     this.sunDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(4.5, 6),
-      new THREE.MeshBasicMaterial({
-        color: '#fff0bd',
+      new THREE.CircleGeometry(Math.tan(SUN_RADIUS) * Math.hypot(78, 45), 64),
+      new THREE.ShaderMaterial({
+        uniforms: { diskRadiance: { value: new THREE.Color() } },
+        vertexShader: /* glsl */ `
+          varying vec2 diskPosition;
+          void main() { diskPosition = uv * 2.0 - 1.0;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+        `,
+        fragmentShader: /* glsl */ `
+          uniform vec3 diskRadiance;
+          varying vec2 diskPosition;
+          void main() {
+            float r2 = dot(diskPosition, diskPosition);
+            float edge = 1.0 - smoothstep(1.0 - max(fwidth(r2), 0.0001), 1.0, r2);
+            float limb = (0.4 + 0.6 * sqrt(max(0.0, 1.0 - r2))) / 0.8;
+            gl_FragColor = vec4(diskRadiance * limb, edge);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }
+        `,
         fog: false,
         transparent: true,
         depthWrite: false,
@@ -165,12 +174,59 @@ export class SkyEnvironment {
     this.objects.add(this.stars);
     scene.add(this.objects);
   }
-  frame(time, rain) {
+  frame(renderer, { time, dt, rain, flash, camera, sun, quality, dimension }) {
     const phase = moonPhase(time);
     const col = phase.index % 4,
       row = Math.floor(phase.index / 4);
     this.moonMap.offset.set((col * 64 + 16) / 256, 1 - (row * 64 + 48) / 128);
-    this.dome.material.uniforms.hazeRain.value = rain;
+    const angle = ((time % 600) / 600) * Math.PI * 2,
+      active = dimension === 'overworld';
+    this.sunDisk.position.set(Math.cos(angle) * 78, Math.sin(angle) * 78, -45);
+    this.moonDisk.position.copy(this.sunDisk.position).multiplyScalar(-1);
+    const direction = this.sunDisk.position.clone().normalize();
+    this.uniforms.skyFlash.value = flash;
+    this.atmosphere.update(renderer, {
+      direction,
+      height: camera.position.y,
+      rain,
+      moon: phase.illumination,
+      quality,
+      active,
+      time,
+      dt,
+    });
+    if (active) {
+      direction.copy(this.uniforms.skySunDirection.value);
+      this.sunDisk.position.copy(direction).multiplyScalar(Math.hypot(78, 45));
+      this.moonDisk.position.copy(this.sunDisk.position).multiplyScalar(-1);
+      const day = direction.y >= 0,
+        transmission = day
+          ? this.atmosphere.sunTransmission
+          : this.atmosphere.moonTransmission;
+      sun.position
+        .copy(camera.position)
+        .addScaledVector(direction, day ? 90 : -90);
+      sun.target.position.copy(camera.position);
+      sun.color.copy(SOLAR_IRRADIANCE).multiply(transmission);
+      sun.intensity = day
+        ? 1
+        : 0.015 + 0.025 * this.uniforms.skyMoonIllumination.value;
+      if (!day) sun.color.multiply(new THREE.Color(0.72, 0.84, 1));
+      this.sunDisk.material.uniforms.diskRadiance.value
+        .copy(SOLAR_IRRADIANCE)
+        .multiply(this.atmosphere.sunTransmission)
+        .multiplyScalar(1 / (2 * Math.PI * (1 - Math.cos(SUN_RADIUS))));
+      this.moonDisk.material.color
+        .copy(this.atmosphere.moonTransmission)
+        .multiply(new THREE.Color('#d8e5ff'));
+    } else {
+      this.sunDisk.material.uniforms.diskRadiance.value
+        .set('#dac4ff')
+        .multiplyScalar(2.5);
+      this.moonDisk.material.color.set('#d8e5ff');
+    }
+    this.sunDisk.visible =
+      dimension === 'end' || (active && direction.y > -Math.sin(SUN_RADIUS));
     this.starClock.value = time;
     this.stars.rotation.set(0.25, 0.18, (time / 600) * Math.PI * 2);
   }
