@@ -25,6 +25,7 @@ import { actuatePiston } from '../src/pistons.js';
 import { bodyClear } from '../src/grounding.js';
 import { ItemDrops } from '../src/item-drops.js';
 import { PerspectiveCamera, Scene } from 'three';
+import { tickCactus } from '../src/cactus.js';
 
 // Each group traces to the preimplementation failure list in the verification doc.
 function farm(dimension = 'overworld') {
@@ -39,6 +40,65 @@ function pod(w, q = 0, y = 40, r = 0, facing = 0, age = 0) {
   w.setState(q, y, r, { facing, open: false, age });
 }
 const tick = (w, dt = 0) => w.redstone.tick(dt, [], () => true);
+
+test('a cactus grown in a harvested natural pod cell starts at zero before and after streaming', () => {
+  for (const stream of [false, true]) {
+    const w = farm();
+    w.ensureAround(-160, 38, 1);
+    const [k] = [...w.blocks].find(([k, type]) => {
+      const [q, y, r] = k.split(',').map(Number),
+        local = (n) => ((n % 8) + 8) % 8;
+      return (
+        type === 'cocoa' &&
+        w.state(q, y, r).age === 2 &&
+        [local(q), local(r)].every((n) => n > 0 && n < 7)
+      );
+    });
+    const [q, y, r] = k.split(',').map(Number),
+      cq = Math.floor(q / 8),
+      cr = Math.floor(r / 8);
+    assert.equal(harvestCocoa(w, q, y, r).drops[0].count, 3);
+    w.set(q, y - 3, r, 'stone');
+    w.set(q, y - 2, r, 'sand');
+    w.set(q, y - 1, r, 'cactus');
+    w.setState(q, y - 1, r, { facing: 0, open: false, age: 15 });
+    w.set(q, y + 1, r, null);
+    for (const [dq, dr] of DIRECTIONS) {
+      w.set(q + dq, y - 1, r + dr, null);
+      w.set(q + dq, y, r + dr, null);
+    }
+    for (const ck of [...w.chunks.keys()])
+      if (ck !== `${cq},${cr}`) w.unloadChunk(...ck.split(',').map(Number));
+    if (stream) {
+      w.unloadChunk(cq, cr);
+      w.generateChunk(cq, cr);
+    }
+    const random = Math.random,
+      samples = [
+        (q - cq * 8 + 0.5) / 8,
+        (r - cr * 8 + 0.5) / 8,
+        (y - 0.5) / 64,
+      ];
+    let i = 0;
+    try {
+      Math.random = () => samples[i++] ?? 0.61;
+      assert.deepEqual(tickCactus(w, 1 / 60), [[q, y, r]]);
+    } finally {
+      Math.random = random;
+    }
+    assert.equal(w.state(q, y, r).age ?? 0, 0);
+    assert.equal(w.state(q, y, r).facing, 0);
+    const saved = validateSave(currentSave(w)),
+      continued = new World(w.seed, w.dimension, {
+        ...saved.dimensions.overworld,
+        load: false,
+      });
+    continued.generateChunk(cq, cr);
+    assert.equal(continued.get(q, y, r), 'cactus');
+    assert.equal(continued.state(q, y, r).age ?? 0, 0);
+    assert.equal(continued.state(q, y, r).facing, 0);
+  }
+});
 
 test('cactus and cocoa ages coexist in one real save with their separate bounds', () => {
   const w = farm();
