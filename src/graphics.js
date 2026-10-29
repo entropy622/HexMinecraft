@@ -2,8 +2,8 @@ import { wetPorosity } from './wet-surfaces.js';
 import { applySkylight, visionUniforms } from './skylight.js';
 import {
   foliageUniforms,
-  applyFoliageWind,
   leafMaterials,
+  plantMaterials,
 } from './foliage-shader.js';
 import { LeafParticles } from './leaf-particles.js';
 import { CaveAmbience } from './cave-ambience.js';
@@ -180,11 +180,17 @@ export class Graphics {
       this.leafUniforms,
     );
     this.weatherEffects = new WeatherEffects(this.scene);
-    this.foliageMaterial = new THREE.MeshLambertMaterial({
-      map: this.textures.atlas,
-      alphaTest: 0.5,
-      side: THREE.DoubleSide,
-    });
+    this.plantUniforms = {
+      ...this.leafUniforms,
+      leafSssAmount: { value: 0 },
+      leafSheen: { value: 1 },
+    };
+    this.plantMaterials = plantMaterials(
+      this.textures.atlas,
+      this.weatherUniforms,
+      this.plantUniforms,
+    );
+    this.foliageMaterial = this.plantMaterials.material;
     this.glassMaterial = new THREE.MeshPhongMaterial({
       vertexColors: true,
       map: this.textures.atlas,
@@ -194,8 +200,6 @@ export class Graphics {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
-    applySkylight(this.foliageMaterial, this.weatherUniforms);
-    applyFoliageWind(this.foliageMaterial, this.leafUniforms, true);
     applySkylight(this.glassMaterial, this.weatherUniforms);
     this.ray = new THREE.Raycaster();
     this.ray.far = 7;
@@ -985,14 +989,18 @@ export class Graphics {
         r,
         origin,
         this.textures,
-        isDoor(world.get(q, y, r)) ||
-          isTrapdoor(world.get(q, y, r)) ||
-          ['stonecutter', 'cobweb', 'flower'].includes(
-            BLOCKS[world.get(q, y, r)].shape,
-          )
-          ? this.doorMaterial
-          : this.material,
+        BLOCKS[world.get(q, y, r)].shape === 'flower'
+          ? this.foliageMaterial
+          : isDoor(world.get(q, y, r)) ||
+              isTrapdoor(world.get(q, y, r)) ||
+              ['stonecutter', 'cobweb'].includes(
+                BLOCKS[world.get(q, y, r)].shape,
+              )
+            ? this.doorMaterial
+            : this.material,
       );
+      if (BLOCKS[world.get(q, y, r)].shape === 'flower')
+        building.customDepthMaterial = this.plantMaterials.depth;
       if (['slab', 'stairs'].includes(BLOCKS[world.get(q, y, r)].shape))
         cuts.push(building.geometry);
       else mesh.add(building);
@@ -1512,6 +1520,8 @@ export class Graphics {
       .multiplyScalar(overworld && this.usePost ? this.sun.intensity : 0);
     this.leafUniforms.leafVolumeTop.value = this.voxelLight.opticalTop ?? 64;
     this.leafUniforms.leafSssAmount.value = overworld && this.usePost ? 1 : 0;
+    this.plantUniforms.leafSssAmount.value =
+      this.leafUniforms.leafSssAmount.value * 0.5;
     this.leafParticles.frame(dt, time, this.leafUniforms.leafWind.value);
     this.caveAmbience.frame(dt, time, this.world, this.camera);
     this.dripstoneEffects.frame(dt, time, this.world, this.camera);

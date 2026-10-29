@@ -61,6 +61,7 @@ export class FoliageRenderPass extends RenderPass {
         if (
           object.isMesh &&
           object.customDepthMaterial &&
+          material?.userData?.foliageDepthPrepass &&
           material?.visible &&
           !material.transparent &&
           material.depthWrite &&

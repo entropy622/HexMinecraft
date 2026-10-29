@@ -44,7 +44,15 @@ vec3 leafNearTransmittance(vec3 albedo, vec3 p) {
     // cannot represent its subcell silhouette. Probe just inside its front face.
     if (reach > 0.08) {
       ivec3 blocker = lightCell(start + leafSunDirection * max(0.0, reach - 0.05));
-      if (!insideLightVolume(blocker) || mod(readLightCell(blocker).a, 16.0) != 12.0) return vec3(0.0);
+      if (!insideLightVolume(blocker)) return vec3(0.0);
+      float medium=mod(readLightCell(blocker).a,16.0);
+      bool transmitting=medium==12.0;
+      #ifdef HEX_THIN_PLANT
+        // Crossed flower planes can shadow one another inside their own air
+        // cell. Keep their micro-thickness; opaque and partial blocks still stop SSS.
+        transmitting=transmitting || (medium==15.0 && all(equal(blocker,lightCell(start))));
+      #endif
+      if (!transmitting) return vec3(0.0);
     }
     float distance = 0.0, thickness = 0.06;
     bool complete = reach <= 0.001;

@@ -57,7 +57,7 @@ export function applyFoliageWind(material, uniforms, grass = false) {
     cacheKey + (grass ? '-grass-wind-v1' : '-leaf-wind-v1');
 }
 
-export function leafMaterials(atlas, weather, uniforms) {
+function subsurfaceMaterials(atlas, weather, uniforms, thin) {
   const material = new MeshLambertMaterial({
     map: atlas,
     vertexColors: true,
@@ -65,19 +65,23 @@ export function leafMaterials(atlas, weather, uniforms) {
     side: DoubleSide,
   });
   applySkylight(material, weather, true);
-  material.defaultAttributeValues.leafAmbient = [0];
-  applyFoliageWind(material, uniforms);
+  // Thick canopies benefit from early depth. Thin plants keep wind-aware
+  // shadow depth without adding a second main/capture draw for every flower.
+  material.userData.foliageDepthPrepass = !thin;
+  if (!thin) material.defaultAttributeValues.leafAmbient = [0];
+  applyFoliageWind(material, uniforms, thin);
   const previous = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     previous.call(material, shader, renderer);
-    shader.vertexShader =
-      'attribute float leafAmbient; varying float vLeafAmbient;\n' +
-      shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
-      );
+    if (!thin)
+      shader.vertexShader =
+        'attribute float leafAmbient; varying float vLeafAmbient;\n' +
+        shader.vertexShader.replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
+        );
     shader.fragmentShader =
-      `#define HEX_LEAF_PRIMARY_SSS\nvarying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen; uniform float leafDepthOnly;\n${leafLightingGLSL}\n` +
+      `#define HEX_LEAF_PRIMARY_SSS\n${thin ? '#define HEX_THIN_PLANT\n' : 'varying float vLeafAmbient;\n'}uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen; uniform float leafDepthOnly;\n${leafLightingGLSL}\n` +
       shader.fragmentShader
         .replace(
           '#include <alphatest_fragment>',
@@ -87,11 +91,13 @@ export function leafMaterials(atlas, weather, uniforms) {
         .replace(
           'irradiance += vSkylight * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);',
           `vec3 leafSkyUp=max(vec3(0.0),shGetIrradianceAt(vec3(0.0,1.0,0.0),lightProbe));
-          irradiance += 0.5 * vSkylight * leafSkyUp;`,
+          ${thin ? 'irradiance += vSkylight * mix(surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion),0.5*leafSkyUp,leafSssAmount);' : 'irradiance += 0.5 * vSkylight * leafSkyUp;'}`,
         )
         .replace(
           'reflectedLight.indirectDiffuse *= vAmbientOcclusion;',
-          `reflectedLight.indirectDiffuse *= vAmbientOcclusion;
+          thin
+            ? 'reflectedLight.indirectDiffuse *= vAmbientOcclusion;'
+            : `reflectedLight.indirectDiffuse *= vAmbientOcclusion;
           #if defined(USE_LIGHT_PROBES)
             vec3 leafFaceShade=vec3(1.0);
             #if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)
@@ -128,13 +134,21 @@ export function leafMaterials(atlas, weather, uniforms) {
   };
   const key = material.customProgramCacheKey();
   material.customProgramCacheKey = () =>
-    key + '-transmission-v6-sky-subsurface-v1-primary-sheen-range-depth';
+    key +
+    '-transmission-v6-sky-subsurface-v1-primary-sheen-range-depth' +
+    (thin ? '-plant-v1' : '');
   const depth = new MeshDepthMaterial({
     map: atlas,
     depthPacking: RGBADepthPacking,
     alphaTest: 0.5,
     side: DoubleSide,
   });
-  applyFoliageWind(depth, uniforms);
+  applyFoliageWind(depth, uniforms, thin);
   return { material, depth };
 }
+
+export const leafMaterials = (atlas, weather, uniforms) =>
+  subsurfaceMaterials(atlas, weather, uniforms, false);
+
+export const plantMaterials = (atlas, weather, uniforms) =>
+  subsurfaceMaterials(atlas, weather, uniforms, true);
