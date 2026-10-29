@@ -202,7 +202,7 @@ export class HexClouds {
       160,
       24 + climate.humidity * 6 + storm * 8,
       climate.coverage[1],
-      climate.stratus * 0.8,
+      climate.altoStratus,
     );
     u.cloudLayers.value[2].set(300, 3.5, climate.coverage[2], climate.stratus);
     u.cloudLayerWind.value.forEach((wind, layer) =>
@@ -322,7 +322,7 @@ export class HexClouds {
               );
         };
         material.customProgramCacheKey = () =>
-          cache.call(material) + '-hex-cloud-shadow-v6';
+          cache.call(material) + '-hex-cloud-shadow-v7';
         material.needsUpdate = true;
       }
     });

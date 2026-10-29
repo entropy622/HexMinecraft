@@ -20,7 +20,12 @@ test('derived cloud climate is bounded, deterministic and varies continuously wi
               c,
               cloudWeather(seed, time, heat, wet, rain, rain),
             );
-            for (const v of [c.humidity, c.stratus, ...c.coverage])
+            for (const v of [
+              c.humidity,
+              c.stratus,
+              c.altoStratus,
+              ...c.coverage,
+            ])
               assert.ok(Number.isFinite(v) && v >= 0 && v <= 1);
             assert.ok(c.winds.flat().every(Number.isFinite));
             const next = cloudWeather(seed, time + 0.01, heat, wet, rain, rain);
@@ -42,6 +47,21 @@ test('derived cloud climate is bounded, deterministic and varies continuously wi
   const d = later.winds.map((p, i) => p.map((v, j) => v - dry.winds[i][j]));
   for (let i = 0; i < 2; i++)
     assert.ok(Math.abs(d[i][0] * d[i + 1][1] - d[i][1] * d[i + 1][0]) > 1);
+});
+
+test('warm humid weather keeps cumulus while cold upper sheets vary independently', () => {
+  const warm = cloudWeather(624, 0, 0.9, 0.9, 0, 0),
+    warmDry = cloudWeather(624, 0, 0.9, 0.1, 0, 0),
+    cool = cloudWeather(624, 0, 0.4, 0.9, 0, 0),
+    storm = cloudWeather(624, 0, 0.4, 0.9, 1, 1);
+  assert.equal(warm.stratus, 0);
+  assert.equal(warm.altoStratus, 0);
+  assert.ok(warm.coverage[0] > warmDry.coverage[0]);
+  assert.ok(cool.stratus > warm.stratus);
+  assert.ok(cool.altoStratus > cool.stratus + 0.2);
+  assert.ok(storm.stratus > cool.stratus);
+  assert.ok(storm.coverage[0] > cool.coverage[0]);
+  assert.deepEqual(storm.winds, cool.winds);
 });
 
 test('seeded tileable cloud fields have useful distribution without the old 127-seed alias', () => {

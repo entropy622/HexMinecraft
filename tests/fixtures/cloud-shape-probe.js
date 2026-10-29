@@ -10,9 +10,9 @@ import { cloudFieldGLSL } from '../../src/cloud-field.js';
 // Sample the real world-anchored density, not a CPU reimplementation. These
 // are physical cloud volumes; connected components are measured by the test.
 export function readCloudShape(g) {
-  const width = 64,
-    levels = 32,
-    spacing = 5;
+  const width = 128,
+    levels = 64,
+    spacing = 2.5;
   const band = g.cloudSystem.uniforms.cloudLayers.value[0];
   const material = new ShaderMaterial({
     depthTest: false,
@@ -26,10 +26,10 @@ export function readCloudShape(g) {
     fragmentShader: `${cloudFieldGLSL}
       uniform vec3 shapeCenter;
       void main(){
-        float row=floor(gl_FragCoord.y), z=mod(row,64.0), y=floor(row/64.0);
-        vec3 p=vec3(shapeCenter.x+(gl_FragCoord.x-32.0)*5.0,
-          cloudLayers[0].x+(y+0.5)*cloudLayers[0].y/32.0,
-          shapeCenter.z+(z-31.5)*5.0);
+        float row=floor(gl_FragCoord.y), z=mod(row,${width.toFixed(1)}), y=floor(row/${width.toFixed(1)});
+        vec3 p=vec3(shapeCenter.x+(gl_FragCoord.x-${(width / 2).toFixed(1)})*${spacing.toFixed(1)},
+          cloudLayers[0].x+(y+0.5)*cloudLayers[0].y/${levels.toFixed(1)},
+          shapeCenter.z+(z-${((width - 1) / 2).toFixed(1)})*${spacing.toFixed(1)});
         gl_FragColor=vec4(hexCloudLayerDensity(p,0),0.0,0.0,1.0);
       }`,
   });
@@ -65,6 +65,7 @@ export function readCloudShape(g) {
     levels,
     spacing,
     verticalSpacing: band.y / levels,
+    center: g.camera.position.toArray(),
     band: band.toArray(),
     density,
   };

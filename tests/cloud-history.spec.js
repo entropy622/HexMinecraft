@@ -361,38 +361,97 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
     reference.field.filter((v) => v > 0.02 && v < 0.98).length,
   ).toBeGreaterThan(100);
   expect(fieldError(moving, reference)).toBeLessThan(0.025);
+  // Select the building fixture from the actual low cloud volume, independent
+  // of history. A fixed roof two units above the base can sit in empty wisps.
+  const buildingSite = await page.evaluate(async () => {
+    const a = window.__hexwild,
+      g = a.graphics,
+      { readCloudShape } = await import('/tests/fixtures/cloud-shape-probe.js'),
+      { worldToAxial } = await import('/src/core.js'),
+      grid = readCloudShape(g);
+    let best = null;
+    for (let y = 0; y < grid.levels; y++) {
+      const height = grid.band[0] + (y + 0.5) * grid.verticalSpacing;
+      if (height < 56 || height > 60) continue;
+      for (let z = 0; z < grid.width; z++)
+        for (let x = 0; x < grid.width; x++) {
+          const dx = (x + 0.5 - grid.width / 2) * grid.spacing,
+            dz = (z + 0.5 - grid.width / 2) * grid.spacing,
+            distance = Math.hypot(dx, dz),
+            density = grid.density[(y * grid.width + z) * grid.width + x];
+          if (distance < 15 || distance > 65 || density <= 0.04) continue;
+          if (!best || density > best.density)
+            best = {
+              point: [grid.center[0] + dx, height, grid.center[2] + dz],
+              density,
+            };
+        }
+    }
+    if (!best)
+      throw Error('No buildable low-cloud body in the actual density grid');
+    const target = worldToAxial(best.point[0], best.point[2]);
+    a.lookAt(target.q, best.point[1], target.r);
+    g.stepOffset = 0;
+    return {
+      ...best,
+      target,
+      roofHeight: Math.ceil(best.point[1]) + 1,
+      band: grid.band,
+      camera: g.camera.position.toArray(),
+    };
+  });
+  await frames(page, 32);
+  const buildingReference = await cloudSample(page);
+  await writeFile(
+    info.outputPath('occlusion-site.json'),
+    JSON.stringify({ buildingSite, buildingReference }, null, 2),
+  );
+  expect(buildingSite.roofHeight).toBeLessThan(64);
+  expect(buildingReference.rgba[3]).toBeLessThan(0.98);
   // Retain independent unobstructed controls for every projection/noise phase.
   // Immediate reveal still gets only two frames; its control must have the
   // same subpixel coverage, just like the partial-occlusion comparison below.
-  const referencePhases = new Map([[reference.phase, reference]]);
+  const referencePhases = new Map([
+    [buildingReference.phase, buildingReference],
+  ]);
   for (let phase = 0; phase < 8; phase++)
     if (!referencePhases.has(phase))
       referencePhases.set(phase, await cloudSample(page, phase));
   const occlusion = [];
   let revealed;
-  for (const height of [47, 54]) {
-    const center =
-      site.q - 23 + Math.round((23 * (height - 43.65)) / (55 - 43.65));
+  for (const height of [47, buildingSite.roofHeight]) {
+    const center = await page.evaluate(async (height) => {
+      const { worldToAxial } = await import('/src/core.js'),
+        camera = window.__hexwild.graphics.camera,
+        direction = camera.getWorldDirection(camera.position.clone()),
+        position = camera.position
+          .clone()
+          .addScaledVector(
+            direction,
+            (height - camera.position.y) / direction.y,
+          );
+      return worldToAxial(position.x, position.z);
+    }, height);
     for (const solid of [true, false]) {
       await page.evaluate(
-        ({ s, center, height, solid }) => {
+        ({ center, height, solid }) => {
           const g = window.__hexwild,
             cells = [];
-          for (let q = center - 5; q <= center + 5; q++)
-            for (let r = s.r - 5; r <= s.r + 5; r++) {
+          for (let q = center.q - 5; q <= center.q + 5; q++)
+            for (let r = center.r - 5; r <= center.r + 5; r++) {
               g.state.world.set(q, height, r, solid ? 'calcite' : null);
               cells.push([q, height, r]);
             }
           g.graphics.updateCells(cells);
         },
-        { s: site, center, height, solid },
+        { center, height, solid },
       );
       await frames(page, 2);
       const immediate = await cloudSample(page);
       if (solid) {
         if (height === 47) expect(immediate.rgba[3]).toBeCloseTo(1, 3);
         else {
-          expect(immediate.rgba[3]).toBeGreaterThan(reference.rgba[3]);
+          expect(immediate.rgba[3]).toBeGreaterThan(buildingReference.rgba[3]);
           expect(immediate.rgba[3]).toBeLessThan(0.999);
         }
         await page.evaluate(() => {
@@ -480,12 +539,8 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
   expect(restored.age).toBeGreaterThan(4);
   expect(restored.error).toBe(0);
   expect(restored.rgba[3]).toBeLessThan(0.98);
-  expect(Math.abs(restored.rgba[3] - reference.rgba[3])).toBeLessThan(0.03);
-  const restoredError = fieldError(
-    restored,
-    referencePhases.get(restored.phase),
-  );
-  expect(restoredError).toBeLessThan(0.025);
+  const restoredReference = referencePhases.get(restored.phase),
+    restoredError = fieldError(restored, restoredReference);
   await page.screenshot({ path: info.outputPath('restored-clouds.png') });
   await writeFile(
     info.outputPath('cloud-motion-recovery.json'),
@@ -495,6 +550,9 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
         initial: { ...initial, field: undefined },
         moving: { ...moving, field: undefined },
         reference: { ...reference, field: undefined },
+        buildingSite,
+        buildingReference: { ...buildingReference, field: undefined },
+        restoredReference: { ...restoredReference, field: undefined },
         revealed: { ...revealed, field: undefined },
         restored: { ...restored, field: undefined },
         movingFieldError: fieldError(moving, reference),
@@ -507,5 +565,9 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
       2,
     ),
   );
+  expect(Math.abs(restored.rgba[3] - restoredReference.rgba[3])).toBeLessThan(
+    0.03,
+  );
+  expect(restoredError).toBeLessThan(0.025);
   expect(errors).toEqual([]);
 });

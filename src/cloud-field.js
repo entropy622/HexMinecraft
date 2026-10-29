@@ -58,20 +58,26 @@ export function cloudWeather(seed, time, heat, wet, rain, storm) {
         0.06,
     ),
   );
-  const wind = 0.7 + noise(time / 1400, 43, seed) * 0.6;
+  const breeze = noise(time / 1400, 43, seed),
+    wind = 0.7 + breeze * 0.6;
+  const cold = Math.max(0, Math.min(1, (0.5 - temperature) * 2)),
+    calm = 1 - breeze,
+    upperCold = Math.max(0, Math.min(1, (0.5 - temperature) / 0.16));
   const stratus = Math.max(
     0,
-    Math.min(1, (humidity - temperature * 0.35 - 0.28) * 1.7 + storm * 0.25),
+    Math.min(1, cold * (2 - cold) * calm * (2 - calm) + storm * 0.25),
   );
+  const altoStratus = upperCold * upperCold * (3 - 2 * upperCold);
   return {
     humidity,
     stratus,
+    altoStratus,
     coverage: [
       Math.max(
         0.2,
         Math.min(0.94, 0.33 + humidity * 0.18 + rain * 0.3 + storm * 0.08),
       ),
-      Math.max(0.12, Math.min(0.9, 0.2 + humidity * 0.23 + stratus * 0.16)),
+      Math.max(0.12, Math.min(0.9, 0.2 + humidity * 0.23 + altoStratus * 0.16)),
       Math.max(0.12, Math.min(0.78, 0.26 + humidity * 0.3 - storm * 0.08)),
     ],
     winds: [0, 1, 2].map((layer) => {
@@ -187,6 +193,18 @@ uniform float cloudShear;
 uniform float cloudCoverageReady;
 uniform vec2 cloudCoverageOrigin[2];
 const float hexCloudPlanet = ${CLOUD_PLANET_RADIUS.toFixed(1)};
+// Rotate the analytic gradient of a C2 scalar field. Each octave needs only
+// four seed fetches, and the flow remains continuous across lattice cells.
+vec2 hexCloudCurl(vec2 p) {
+  vec2 cell = floor(p), f = fract(p);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  vec2 du = 30.0 * f * f * (f - 1.0) * (f - 1.0);
+  vec4 n = vec4(hexCloudRandom(cell), hexCloudRandom(cell + vec2(1,0)),
+    hexCloudRandom(cell + vec2(0,1)), hexCloudRandom(cell + 1.0));
+  vec2 gradient = vec2(mix(n.y - n.x, n.w - n.z, u.y),
+    mix(n.z - n.x, n.w - n.y, u.x)) * du;
+  return vec2(gradient.y, -gradient.x);
+}
 vec2 hexCloudMacro(vec2 drifting, int layer) {
   vec2 origin = layer == 0 ? cloudCoverageOrigin[0] : cloudCoverageOrigin[1];
   float span = layer == 0 ? ${CLOUD_COVERAGE_SPANS[0].toFixed(1)} : ${CLOUD_COVERAGE_SPANS[1].toFixed(1)};
@@ -263,49 +281,83 @@ float hexCloudLayerDensity(vec3 position, int layer) {
   vec2 drifting = position.xz - cloudLayerWind[layer];
   float fraction = y / band.y;
   if (layer == 2) {
-    vec2 p = drifting * 0.013;
-    vec2 warp = vec2(hexCloudNoise(p * 0.23), hexCloudNoise(p * 0.23 + 41.0));
-    p += (warp - 0.5) * 5.0;
-    float macro = hexCloudNoise(p * 0.3);
-    float fibers = hexCloudNoise(vec2(p.x * 0.55 + p.y * 0.3, p.y * 5.0));
-    float ripples = hexCloudNoise(p * vec2(2.4, 4.8));
-    float sheet = smoothstep(1.0 - band.z - 0.12, 1.0 - band.z + 0.18, macro);
-    float cirrus = sheet * smoothstep(0.3, 0.8, fibers) * 0.055;
-    // Cirrocumulus has its own coverage: mixing its ripples into the fiber
-    // detail left both types absent inside every large cirrus coverage hole.
-    float patches = hexCloudNoise(p * 0.57 + vec2(27.0, 53.0));
-    float broken = smoothstep(1.0 - band.z - 0.1, 1.0 - band.z + 0.1, patches);
-    float cells = smoothstep(0.35, 0.8, ripples);
-    float cirrocumulus = broken * cells * cells * (0.02 + band.w * 0.05);
-    return (cirrus + cirrocumulus) * sin(fraction * 3.14159265);
+    vec2 curl = hexCloudCurl(drifting * 0.0004) * 0.5 +
+      hexCloudCurl(drifting * 0.0008) * 0.25 + hexCloudCurl(drifting * 0.0016) * 0.125;
+    float base = 0.7 * hexCloudNoise(drifting * 0.01024 + curl * 1.6) +
+      0.3 * hexCloudNoise(drifting * 0.08192 + curl * 3.2);
+    float cirrus = clamp((base - (0.7 - band.z)) / (0.3 + band.z), 0.0, 1.0);
+    float frequency = 0.2048, amplitude = 0.2, bend = 40.96;
+    for (int octave = 0; octave < 4; octave++) {
+      if (cirrus <= 0.0) break;
+      cirrus -= hexCloudNoise(drifting * frequency + curl * bend) * amplitude;
+      frequency *= 2.0; amplitude *= 0.6; bend *= 4.0;
+    }
+    cirrus = max(0.0, cirrus);
+    float height = 1.0 - abs(1.0 - 2.0 * fraction);
+    float wisps = cirrus * cirrus * cirrus * height * height * 1.2;
+    // Independent coverage keeps small high-cloud patches outside the wisps.
+    float patches = smoothstep(1.0 - band.z - 0.1, 1.0 - band.z + 0.1,
+      hexCloudNoise(drifting * 0.007 + vec2(27.0, 53.0)));
+    float cells = smoothstep(0.45, 0.8, hexCloudNoise(drifting * 0.256 + curl * 13.5));
+    cells = max(0.0, cells - 0.6 * hexCloudNoise(drifting * 0.512 + curl * 1.5));
+    float cirrocumulus = cells * cells * cells * cells * patches * height * (0.12 + band.w * 0.15);
+    return wisps + cirrocumulus;
   }
   vec2 coverage = hexCloudMacro(drifting, layer);
   float macro = coverage.x, regional = coverage.y;
+  // The weather controls layer depth. Applying the local coverage a second
+  // time to altitude squeezed every footprint into a tall pointed column.
+  float thickness = min(1.0, mix(0.5, 1.0, smoothstep(0.4, 0.6, band.z)) / 0.8);
+  fraction /= thickness;
+  if (fraction >= 1.0) return 0.0;
+  float sheet = clamp(fraction * 2.0, 0.0, 1.0) * clamp(fraction / 0.1, 0.0, 1.0) * clamp((1.0 - fraction) / 0.6, 0.0, 1.0);
+  sheet *= 2.0 - sheet;
+  float bottom = smoothstep(0.0, 0.2, fraction);
+  float profile = 1.0 - smoothstep(0.88, 1.0, fraction);
+  if (layer == 1) {
+    // A separate patch/sheet mixture gives the upper deck its own morphology.
+    // Reuse the cached base and seed header; no additional texture or sampler.
+    float localCoverage = clamp(band.z + (regional - 0.5) * 0.25, 0.05, 0.95);
+    float threshold = (1.0 - localCoverage) * (1.0 - localCoverage);
+    float ac = clamp((macro - threshold) / (1.0 - threshold), 0.0, 1.0);
+    float detail = hexCloudNoise(drifting * 0.12 + vec2(71.0, 29.0));
+    ac -= 1.9 * (1.0 - detail) * (1.0 - detail) * (1.0 - ac * ac);
+    ac = max(0.0, ac - smoothstep(0.2, 1.0, fraction) * 0.6) * bottom;
+    float deck = clamp((2.0 * regional * band.z - (0.9 - band.z)) / (0.1 + band.z), 0.0, 1.0);
+    deck = deck * deck * (3.0 - 2.0 * deck);
+    deck *= (0.5 + smoothstep(0.3, 0.6, macro)) * (0.5 + smoothstep(0.3, 0.7, detail));
+    deck = deck / (1.0 + deck) * sheet;
+    float upperDensity = mix(ac, deck, band.w);
+    if (upperDensity <= 0.0) return 0.0;
+    float erosion = 1.0 - textureLod(cloudWorley, vec3(drifting.x, y, drifting.y) * 0.06, 0.0).r;
+    upperDensity = max(0.0, upperDensity - 0.2 * erosion * erosion * (1.0 - upperDensity * upperDensity) * (1.0 - 0.85 * band.w));
+    vec2 edge = mix(vec2(3.0, 14.0), vec2(2.0, 7.0), band.w);
+    float sharp = mix(edge.x, edge.y, fraction);
+    upperDensity = upperDensity * (1.0 + sharp) / (1.0 + upperDensity * sharp);
+    return upperDensity * mix(0.1, 1.0, smoothstep(0.2, 0.7, fraction)) * profile * 0.48;
+  }
   float cover = macro * 0.82 + regional * 0.18;
-  // Coverage selects the horizontal footprint before erosion. A positive
-  // threshold bias saturated broad regions when the thin layer became deep.
   float fill = clamp((cover - (1.0 - band.z)) / max(0.18, band.z * 0.75), 0.0, 1.0);
-  fraction /= mix(0.5 + macro * 0.5, 1.0, band.w * 0.75);
-  if (fraction >= 1.0 || fill <= 0.0) return 0.0;
-  // Isotropic cells form billows throughout the depth of the body. The old
-  // vertical frequency compressed the same features into thin horizontal bands.
-  vec3 detailPosition = vec3(drifting.x, y, drifting.y) * (layer == 0 ? 0.006 : 0.018);
+  float crown = smoothstep(0.2, 1.0, fraction) * mix(0.6, 0.3, band.w);
+  float density = max(0.0, mix(fill, fill * sheet, band.w) - crown) * bottom;
+  if (density <= 0.0) return 0.0;
+  // ~139 m cells at the shared 20 m/local scale. The former ~416 m cells
+  // gave a deep cloud too few independent billows along its vertical axis.
+  vec3 detailPosition = vec3(drifting.x, y, drifting.y) * 0.018;
   detailPosition.xz += fraction * vec2(0.12, -0.06) * cloudShear;
   vec2 erosionNoise = 1.0 - vec2(textureLod(cloudWorley, detailPosition, 0.0).r,
     textureLod(cloudWorley, detailPosition * 5.4 + 0.31, 0.0).r);
-  float crown = smoothstep(0.2, 1.0, fraction) * mix(0.55, 0.3, band.w);
-  float profile = smoothstep(0.0, 0.2, fraction) * (1.0 - smoothstep(0.88, 1.0, fraction));
-  float density = max(0.0, fill - crown);
   // Erode the envelope with independent coarse billows and smaller wisps.
   // Dense interiors survive; fragmented edges retain detail with two samples.
   vec2 erosion = mix(vec2(0.33, 0.40), vec2(0.07, 0.10), vec2(band.w * band.w, band.w));
-  float fineWeight = mix(0.8, 0.35, smoothstep(0.05, 0.5, fraction));
+  float fineWeight = 0.2 * smoothstep(0.85, 1.0, 1.0 - fraction) - 0.35 * smoothstep(0.05, 0.5, fraction) + 0.6;
   float edge = 1.0 - density * density;
   density = max(0.0, density - dot(erosionNoise * erosionNoise, erosion * vec2(1.0, fineWeight)) * edge);
-  float sharpening = mix(3.0, 10.0, fraction);
+  vec2 sharpness = mix(vec2(3.0, 12.0), vec2(2.0, 7.0), band.w * band.w);
+  float sharpening = mix(sharpness.x, sharpness.y, fraction);
   density = density * (1.0 + sharpening) / (1.0 + density * sharpening);
   density *= mix(0.1, 1.0, smoothstep(0.2, 0.7, fraction));
-  return density * profile * (layer == 0 ? 1.0 : 0.48);
+  return density * profile;
 }
 float hexCloudLayerOpticalDepth(vec3 origin, vec3 direction, float reach, int layer, int steps) {
   float depth = 0.0;

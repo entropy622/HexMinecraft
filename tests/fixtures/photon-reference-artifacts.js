@@ -252,6 +252,74 @@ export function readReferenceFrame(layout) {
   };
 }
 
+// False color of the production history's nearest contributing cloud layer.
+// Read only after timing; this does not isolate or replace the rendered layers.
+export function readReferenceCloudLayers() {
+  const g = window.__hexwild.graphics,
+    scene = g.composer.passes[0],
+    target = scene.clouds.histories.get(scene.target).history[0],
+    color = new Uint16Array(target.width * target.height * 4),
+    data = new Uint16Array(color.length);
+  g.renderer.readRenderTargetPixels(
+    target,
+    0,
+    0,
+    target.width,
+    target.height,
+    color,
+  );
+  g.renderer.readRenderTargetPixels(
+    target,
+    0,
+    0,
+    target.width,
+    target.height,
+    data,
+    undefined,
+    1,
+  );
+  const canvas = document.createElement('canvas');
+  canvas.width = target.width;
+  canvas.height = target.height;
+  const ctx = canvas.getContext('2d'),
+    pixels = ctx.createImageData(canvas.width, canvas.height),
+    counts = [0, 0, 0],
+    palette = [
+      [255, 48, 48],
+      [48, 255, 48],
+      [48, 96, 255],
+    ];
+  for (let y = 0; y < canvas.height; y++)
+    for (let x = 0; x < canvas.width; x++) {
+      const source = (y * canvas.width + x) * 4,
+        destination = ((canvas.height - 1 - y) * canvas.width + x) * 4,
+        layer = Math.round(THREE.DataUtils.fromHalfFloat(data[source + 3])),
+        opacity = 1 - THREE.DataUtils.fromHalfFloat(color[source + 3]);
+      const present = layer >= 0 && layer < 3 && opacity > 0.01;
+      if (present) counts[layer]++;
+      for (let c = 0; c < 3; c++)
+        pixels.data[destination + c] = present
+          ? palette[layer][c] * opacity
+          : 12;
+      pixels.data[destination + 3] = 255;
+    }
+  ctx.putImageData(pixels, 0, 0);
+  return {
+    width: canvas.width,
+    height: canvas.height,
+    counts,
+    bands: g.cloudSystem.uniforms.cloudLayers.value.map((v) => v.toArray()),
+    legend: [
+      'red: nearest cumulus',
+      'green: nearest altocumulus',
+      'blue: nearest cirrus',
+    ],
+    limitation:
+      'Nearest contributing layer, not the dominant layer or isolated opacity. Dark pixels have less than 1 percent total cloud opacity.',
+    png: canvas.toDataURL('image/png').split(',')[1],
+  };
+}
+
 export async function readReferenceHDR() {
   const g = window.__hexwild.graphics,
     output = g.composer.passes.at(-1);

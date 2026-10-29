@@ -55,6 +55,19 @@ function cloudComponents(grid) {
   }
   return {
     occupiedFraction: occupied / density.length,
+    verticalProfile: Array.from({ length: levels }, (_, y) => {
+      let cells = 0,
+        total = 0;
+      for (let i = y * n * n; i < (y + 1) * n * n; i++) {
+        cells += density[i] > 0.04;
+        total += density[i];
+      }
+      return {
+        altitude: (y + 0.5) * verticalSpacing,
+        occupiedFraction: cells / (n * n),
+        meanDensity: total / (n * n),
+      };
+    }),
     components: components.sort((a, b) => b.cells - a.cells).slice(0, 32),
     maxHeight: Math.max(
       0,

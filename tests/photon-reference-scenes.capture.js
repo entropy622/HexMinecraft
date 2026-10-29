@@ -317,6 +317,17 @@ for (const size of referenceSizes)
           await page
             .locator('#world')
             .screenshot({ path: info.outputPath('baseline.png') });
+          const layers = await page.evaluate(async () => {
+            const { readReferenceCloudLayers } =
+              await import('/tests/fixtures/photon-reference-artifacts.js');
+            return readReferenceCloudLayers();
+          });
+          await writeFile(
+            info.outputPath('cloud-layers.png'),
+            Buffer.from(layers.png, 'base64'),
+          );
+          delete layers.png;
+          await writeJSON(info.outputPath('cloud-layers.json'), layers);
           const hdr = await page.evaluate(readReferenceHDR);
           const foreground = foregroundRadiance(hdr);
           const raw = Buffer.from(hdr.base64, 'base64');
