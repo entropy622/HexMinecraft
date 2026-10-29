@@ -74,4 +74,37 @@ test('natural forest lighting provenance at a fixed native camera', async ({
   for (const m of result.maps) if (m.stats) expect(m.stats.finite).toBe(true);
   expect(messages.errors).toEqual([]);
   expect(messages.warnings).toEqual([]);
+  // Keep the fixed-exposure comparison above intact. Also observe the shipped
+  // default adaptation, which referenceSettings intentionally disables.
+  const adaptAt = await page.evaluate(async () => {
+    const { DEFAULT_POST_SETTINGS } = await import('/src/render-settings.js');
+    window.__hexwild.graphics.setPostOptions({
+      exposure: DEFAULT_POST_SETTINGS.exposure,
+    });
+    return window.__photonProbe.rendered;
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__photonProbe.rendered), {
+      timeout: 60000,
+    })
+    .toBeGreaterThanOrEqual(adaptAt + 16);
+  const adapted = await page.evaluate(async () => {
+    const { readForestExposure } =
+      await import('/tests/fixtures/forest-lighting-probe.js');
+    return readForestExposure(window.__hexwild.graphics);
+  });
+  await page
+    .locator('#world')
+    .screenshot({ path: info.outputPath('default-exposure.png') });
+  await writeFile(
+    info.outputPath('default-exposure.json'),
+    JSON.stringify({ adapted, messages }, null, 2),
+  );
+  expect(adapted.enabled).toBe(true);
+  expect(adapted.ready).toBe(true);
+  expect(adapted.exposure).toBeGreaterThanOrEqual(0.72);
+  expect(adapted.exposure).toBeLessThanOrEqual(2.8);
+  expect(adapted.gl).toBe(0);
+  expect(messages.errors).toEqual([]);
+  expect(messages.warnings).toEqual([]);
 });

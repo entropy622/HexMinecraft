@@ -5,7 +5,7 @@
 审计基准：
 
 - Photon：`D:/Git/photon`，固定提交 [`6e67b36e818bacde0304edd49f28e2bb70e33f04`][p-root]。已对照 [README][p-readme]、[settings.glsl][p-settings]、[shaders.properties][p-properties] 的菜单/启用条件，以及对应 program/include 的实际实现。下方所有 Photon 链接固定到该提交。
-- HexMinecraft：初始审计基线为 [`bf64bbf855484deb040d56561fc6713b74fa0480`][h-root]，版本 0.85；下方机制状态已按当前 0.93 源码更新。各验证文件保留首次失败与后续结果，本矩阵不替代实际图像和性能验收。
+- HexMinecraft：初始审计基线为 [`bf64bbf855484deb040d56561fc6713b74fa0480`][h-root]，版本 0.85；下方机制状态已按当前 0.94 源码更新。各验证文件保留首次失败与后续结果，本矩阵不替代实际图像和性能验收。
 - 参考图：用户附件 `codex-clipboard-332466b9-bff0-4693-9c2d-c219012105ea.png`。实际查看了 1920x1080 图像；场景是向光森林，白色太阳周围薄云发亮，多层积云有明显厚度和暗底，远山与林冠向空气色递进，低洼湿霾保留前景深绿与背光亮叶的对比。不能从单张图确定其资源包、全部开关、时刻或曝光值。
 
 机制表中的本项目源码链接跟随当前检出版本；初始审计基线保留在上方固定提交中。
@@ -27,6 +27,8 @@
 0.92 加入[体素叶片环境透光](leaf-ambient-verification.md)，叶片按共享天空向上辐照度、几何 AO 和局部通透量组合环境 SSS。采用缓存的体素近似，未产生 GTAO ambient SSS/bent normal/专用历史；固定森林仍偏暗，部分厚冠层略暗，不能视为视觉验收完成。远雾起点继续为旧值的约 2.5 倍。
 
 0.93 加入[叶片透射 sheen 与日月光单位修正](leaf-sheen-verification.md)，沿用真实厚度和玻璃/云影过滤，低天光门槛按平方属性修正。近处背光冠层有可见改善，远距 SSS/阴影范围过渡、整体光色和完整 PBR 仍待完善，参考图尚未验收。
+
+0.94 加入[远距叶片体素透射与覆盖过渡](leaf-range-verification.md)，按已加载叶层、屋顶和玻璃计算阴影图外的透光；普通地面与生物阴影覆盖未扩大。未实现 Photon 的远距厚度归零和 AO/环境 SSS 补偿，主 SSS 与 PBR 仍部分缺失。固定 1080p GPU 批次合计增加约 5.9 ms，需继续优化。新增默认明暗适应画面与 GPU 曝光记录，保留固定曝光对照，生产默认未变。
 
 1. 统一天空辐亮度与方向天光。0.86 已接通球壳天空图和 SH；天空、云、雾、叶片和反射仍需在同一时刻、方向和颜色尺度下完成视觉校准，不能仅凭数值通过认定参考图已还原。
 2. 建立厚积云、独立第二体积层和薄高云的形态与遮挡关系。0.86 已扩展既有积分和历史路径；各层厚度、内部光学和天空留白仍需按参考图改善。
@@ -82,7 +84,7 @@
 | 阴影投影扭曲/像素化与覆盖分配           | [distortion.glsl][p-distortion]、[pcss][p-pcss]                                                                                  | **部分**。单张 2048 正交阴影图，无 Photon 的扭曲分辨率分配和可选像素化                                                                                                                                            | **P1/P2**，近处枝叶锐度、远处覆盖；需先测别名收益与边缘稳定性             |
 | 屏幕空间直接光接触阴影 SSRT             | [shadows/ssrt.glsl][p-ssrt] 沿直接光方向追屏幕深度，还估 SSS 距离                                                                | **缺失**。GTAO 不是直接光方向的接触阴影                                                                                                                                                                           | **P1**，细枝、草、模型接触和 shadow-map 分辨率补充                        |
 | 透明彩色阴影                            | [shadow program][p-shadow-program]、[pcss][p-pcss] 的双深度/颜色采样                                                             | **部分**。体素玻璃光程真实存在，但未覆盖任意透明模型/贴图/非体素透明几何                                                                                                                                          | **P1**，保持玻璃、树叶和模型混合遮挡的区别                                |
-| 叶片/植物 SSS 与 sheen                  | [diffuse_lighting][p-diffuse] 的透射和 sheen；[material][p-material] 的叶/草材质参数                                             | **部分**。[foliage-shader.js][h-foliage] 已有真实厚度透射、归一化 HG 透射 sheen、实际日月辐照度及体素环境 SSS；缺远距 SSS/阴影范围过渡、精细冠层可见性、草/通用材质 sheen 和完整 PBR 组合                         | **P0**，参考图背光亮绿叶与深冠层并存，继续校准实际画面                    |
+| 叶片/植物 SSS 与 sheen                  | [diffuse_lighting][p-diffuse] 的透射和 sheen；[material][p-material] 的叶/草材质参数                                             | **部分**。[foliage-shader.js][h-foliage] 已有真实厚度透射、HG sheen、实际日月辐照度、体素环境 SSS 和远距覆盖过渡；未实现 Photon 主 SSS/远距补偿、精细冠层可见性、草/通用材质 sheen 和完整 PBR，远距查询成本待优化 | **P0**，参考图背光亮绿叶与深冠层并存，继续校准实际画面                    |
 | GTAO/SSAO 与几何 AO                     | [gtao.glsl][p-gtao]、[ssao.glsl][p-ssao]、[d3][p-ao]                                                                             | **已有 GTAO 核心，部分能力**。[contact-occlusion.js][h-ao] 使用 Three GTAO、Poisson 去噪和深度上采样/保护遮罩；没有 Photon 可选 SSAO 路线和完整输出                                                               | **P1**，保留真实深度与手持/水保护；不必新增第二套玩家 AO 实现             |
 | Bent normal、ambient SSS 与 AO 专用历史 | [d3_ao.fsh][p-ao] 输出 AO/ambient SSS/bent normal 和深度年龄历史                                                                 | **缺失这些屏幕空间输出**。当前 AO 输出仍为 AO+距离，另有独立体素叶片环境 SSS；主画面 TAA 不等于 AO 专用重投影或 bent-normal 天光                                                                                  | **P1**，在已有 SH 上继续加入有几何依据的方向信息与历史                    |
 | 方向 lightmap 梯度                      | [directional_lightmaps.glsl][p-directional-lightmap] 从光级屏幕梯度恢复方向响应                                                  | **缺失该机制**。现有光体插值/表面 sky 属性不等于 directional lightmap                                                                                                                                             | **P2**，兼容资源包或提高局部照明方向感；避免与真实动态灯重复计光          |

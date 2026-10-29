@@ -1,6 +1,14 @@
 // Independent adaptation of Photon's normalized HG sheen lobe. The existing
 // hex-volume Beer transmission supplies thickness; sky SSS remains separate.
 export const leafLightingGLSL = /* glsl */ `
+// Photon uses a 32nd-power approach to the shadow boundary. Include the host's
+// depth clipping as well as its XY projection; outside coverage uses voxels.
+float leafShadowRangeFade(vec3 shadowPosition) {
+  vec3 edge=abs(shadowPosition*2.0-1.0);
+  float x=clamp(max(max(edge.x,edge.y),edge.z),0.0,1.0);
+  x*=x; x*=x; x*=x; x*=x; x*=x;
+  return clamp((x-0.1)/0.9,0.0,1.0);
+}
 vec3 leafSolarResponse(vec3 albedo, float cosine, vec3 transmission, float sheenAmount) {
   float mu=clamp(cosine,-1.0,1.0);
   float diffusePhase=0.65+0.35*0.64/pow(1.36-1.2*mu,1.5);

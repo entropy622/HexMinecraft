@@ -5,6 +5,7 @@ import atmosphere from './atmosphere.playwright.config.js';
 export default defineConfig({
   ...atmosphere,
   testMatch: [
+    'leaf-range.spec.js',
     'leaf-sheen.spec.js',
     'leaf-ambient.spec.js',
     'surface-indirect.spec.js',

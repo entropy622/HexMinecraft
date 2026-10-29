@@ -290,6 +290,122 @@ async function backlight(page, time) {
   await frames(page);
 }
 
+test('far native leaves retain real roof, slab and colored-glass occlusion beyond shadow coverage', async ({
+  page,
+}, info) => {
+  const errors = [],
+    warnings = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') errors.push(e.text());
+    if (e.type() === 'warning') warnings.push(e.text());
+  });
+  await setup(page);
+  await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    g.camera.fov = 12;
+    g.camera.updateProjectionMatrix();
+    g.camera.position.set(50, 45.5, 50);
+    window.__hexwild.lookAt(0, 45.5, 0);
+    g.camera.updateMatrixWorld();
+    g.renderer.shadowMap.needsUpdate = true;
+  });
+  await frames(page);
+  const projection = await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    return g.camera.position
+      .clone()
+      .set(0, 45.5, 0)
+      .applyMatrix4(g.sun.shadow.matrix)
+      .toArray();
+  });
+  expect(projection.some((v) => v < 0 || v > 1)).toBe(true);
+  const thin = await sample(page),
+    mask = litPixels(thin);
+  expect(mask.length).toBeGreaterThan(30);
+  expect(energy(thin, mask)).toBeGreaterThan(0.0001);
+  await occluder(page, 'leaves');
+  const thick = await sample(page);
+  expect(energy(thick, mask) / energy(thin, mask)).toBeLessThan(0.65);
+  await occluder(page, 'stone');
+  const roof = await sample(page);
+  expect(energy(roof, mask)).toBeLessThan(0.000001);
+  await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    for (const p of window.leafProbeCells) {
+      g.world.set(...p, 'stoneSlab');
+      g.world.setState(...p, { upper: true, facing: 0, open: false });
+    }
+    g.updateCells(window.leafProbeCells);
+  });
+  await fresh(page);
+  const slab = await sample(page);
+  expect(energy(slab, mask)).toBeLessThan(0.000001);
+  const tinted = [];
+  for (const kind of ['redStainedGlass', 'blueStainedGlass']) {
+    await occluder(page, null);
+    await page.evaluate(async (kind) => {
+      const { worldToAxial } = await import('/src/core.js'),
+        g = window.__hexwild.graphics,
+        d = window.leafProbeDirection,
+        cells = [];
+      for (const distance of [2, 3.5, 5]) {
+        const a = worldToAxial(d[0] * distance, d[2] * distance),
+          y = Math.floor(45.5 + d[1] * distance);
+        for (let dq = -1; dq <= 1; dq++)
+          for (let dr = -1; dr <= 1; dr++) {
+            const p = [a.q + dq, y, a.r + dr];
+            g.world.set(...p, kind);
+            cells.push(p);
+          }
+      }
+      window.leafProbeCells = cells;
+      g.updateCells(cells);
+    }, kind);
+    await fresh(page);
+    const s = await sample(page);
+    tinted.push({
+      kind,
+      ratio: [0, 1, 2].map(
+        (c) =>
+          mask.reduce((sum, i) => sum + s.added[i * 3 + c], 0) /
+          mask.reduce((sum, i) => sum + thin.added[i * 3 + c], 0),
+      ),
+      gl: s.gl,
+    });
+  }
+  expect(tinted[0].ratio[0]).toBeGreaterThan(tinted[0].ratio[2] * 1.5);
+  expect(tinted[1].ratio[2]).toBeGreaterThan(tinted[1].ratio[0] * 1.5);
+  await occluder(page, null);
+  const restored = await sample(page);
+  expect(
+    Math.abs(energy(restored, mask) / energy(thin, mask) - 1),
+  ).toBeLessThan(0.03);
+  await writeFile(
+    info.outputPath('far-native-leaves.json'),
+    JSON.stringify(
+      {
+        projection,
+        pixels: mask.length,
+        thin: energy(thin, mask),
+        thick: energy(thick, mask),
+        roof: energy(roof, mask),
+        slab: energy(slab, mask),
+        restored: energy(restored, mask),
+        tinted,
+        errors,
+        warnings,
+      },
+      null,
+      2,
+    ),
+  );
+  for (const s of [thin, thick, roof, slab, restored, ...tinted])
+    expect(s.gl).toBe(0);
+  expect(errors).toEqual([]);
+  expect(warnings).toEqual([]);
+});
+
 test('real leaves transmit thin-canopy sunlight while thick foliage attenuates it and opaque roofs stop it', async ({
   page,
 }, info) => {
@@ -536,7 +652,7 @@ test('all three leaf materials follow actual cloud shadows, moonlight and a paus
   for (const s of [clear, cloudy, moon, advanced]) expect(s.gl).toBe(0);
 });
 
-test('a real canopy and water capture survive quality, context restoration and dimension changes without extra transmission outside the shadow map', async ({
+test('a real canopy and water capture survive quality, context restoration and dimension changes with voxel transport outside the shadow map', async ({
   page,
 }, info) => {
   const errors = [];
@@ -701,7 +817,7 @@ test('a real canopy and water capture survive quality, context restoration and d
   });
   expect(visibleLeaf).toBe(true);
   const outside = await sample(page);
-  expect(Math.max(...outside.added)).toBeLessThan(0.00002);
+  expect(Math.max(...outside.added)).toBeGreaterThan(0.00002);
   await page.evaluate(() => window.__hexwild.travel('nether'));
   await frames(page, 5);
   const netherGl = await page.evaluate(() =>

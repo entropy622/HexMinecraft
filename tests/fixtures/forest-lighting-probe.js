@@ -6,6 +6,19 @@ import {
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
+export function readForestExposure(g) {
+  const pass = g.composer.effects.exposure,
+    pixels = new Uint16Array(4);
+  g.renderer.readRenderTargetPixels(pass.history[0], 0, 0, 1, 1, pixels);
+  return {
+    enabled: pass.enabled,
+    ready: pass.meter.uniforms.ready.value,
+    exposure: DataUtils.fromHalfFloat(pixels[0]),
+    quality: g.quality,
+    gl: g.renderer.getContext().getError(),
+  };
+}
+
 // Offscreen diagnostic clones retain the production material callbacks, vertex
 // attributes, alpha test, lights and shadows. Only their final output changes.
 // The original scene/materials and render state are restored before returning.

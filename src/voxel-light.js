@@ -144,6 +144,7 @@ export class VoxelLight {
         }
     const emitters = [],
       leafCells = [];
+    this.opticalTop = 0;
     for (const [key, type] of this.world.blocks) {
       const i = this.indexKey(key);
       if (i < 0) continue;
@@ -153,6 +154,7 @@ export class VoxelLight {
         data = blockLight(this.world, q, y, r, type),
         emission = (data >>> 9) & 4095;
       cost[i] = data & 31;
+      this.opticalTop = Math.max(this.opticalTop, y + 1);
       this.medium[i] = (data >>> 5) & 15;
       if (BLOCKS[type]?.foliage && !BLOCKS[type]?.nonSolid) leafCells.push(i);
       if (emission)
@@ -169,6 +171,7 @@ export class VoxelLight {
           q = this.minQ + Math.floor(i / (this.depth * HEIGHT)),
           r = this.minR + (Math.floor(i / HEIGHT) % this.depth);
         cost[i] = fluid.type === 'water' ? 2 : 1;
+        this.opticalTop = Math.max(this.opticalTop, y + 1);
         this.medium[i] =
           fluid.type === 'water'
             ? this.world.fluids.height(q, y, r) === 1

@@ -1509,6 +1509,7 @@ export class Graphics {
     this.leafUniforms.leafSunColor.value
       .copy(this.sun.color)
       .multiplyScalar(overworld && this.usePost ? this.sun.intensity : 0);
+    this.leafUniforms.leafVolumeTop.value = this.voxelLight.opticalTop ?? 64;
     this.leafParticles.frame(dt, time, this.leafUniforms.leafWind.value);
     this.caveAmbience.frame(dt, time, this.world, this.camera);
     this.dripstoneEffects.frame(dt, time, this.world, this.camera);

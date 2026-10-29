@@ -12,6 +12,30 @@ function fixture() {
   return { world, light };
 }
 
+test('optical height bounds follow loaded roofs, fluids, removal and streamed chunks', () => {
+  const { world, light } = fixture();
+  world.generateChunk(-1, 0);
+  world.set(-2, 40, 2, 'leaves');
+  world.set(3, 62, 3, 'stone');
+  light.update(0, true);
+  assert.equal(light.opticalTop, 63);
+  world.fluids.source(3, 63, 3, 'water');
+  light.update(1);
+  assert.equal(light.opticalTop, 64);
+  world.fluids.write(3, 63, 3, null);
+  light.update(1);
+  assert.equal(light.opticalTop, 63);
+  world.set(3, 62, 3, null);
+  light.update(1);
+  assert.equal(light.opticalTop, 41);
+  world.set(3, 60, 3, 'stone');
+  light.update(1);
+  assert.equal(light.opticalTop, 61);
+  world.unloadChunk(0, 0);
+  light.update(1);
+  assert.equal(light.opticalTop, 41);
+});
+
 test('growth and opaque replacements reuse transport while block state still invalidates circuits', () => {
   const { world, light } = fixture();
   world.set(3, 40, 3, 'grass');
