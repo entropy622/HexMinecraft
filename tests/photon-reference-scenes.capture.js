@@ -37,6 +37,65 @@ async function preparePreferences(page) {
   );
 }
 
+test('the first animation timestamp cannot send negative time into real rendering', async ({
+  page,
+}, info) => {
+  test.skip(preview, 'Observes the existing development renderer boundary');
+  const messages = captureMessages(page);
+  await preparePreferences(page);
+  await page.addInitScript(() => {
+    const nativeRAF = window.requestAnimationFrame.bind(window);
+    const clock = (window.__clockBoundary = { injected: false, records: [] });
+    window.requestAnimationFrame = (callback) =>
+      nativeRAF((timestamp) => {
+        const app = window.__hexwild;
+        if (app && !clock.injected) {
+          clock.injected = true;
+          const render = app.graphics.frame;
+          app.graphics.frame = function (...args) {
+            if (clock.records.length < 12)
+              clock.records.push({
+                simulation: args[0],
+                visual: args[7] ?? args[0],
+                time: args[1],
+              });
+            return render.apply(this, args);
+          };
+          // rAF stamps a frame before invoking its callbacks. A stalled startup
+          // can finish initialization after the timestamp of its first callback.
+          clock.firstTimestamp = timestamp - 30000;
+          callback(clock.firstTimestamp);
+        } else callback(timestamp);
+      });
+  });
+  await page.goto('/');
+  await expect
+    .poll(() => page.evaluate(() => window.__clockBoundary.records.length), {
+      timeout: 90000,
+    })
+    .toBeGreaterThanOrEqual(3);
+  const clock = await page.evaluate(() => ({
+    ...window.__clockBoundary,
+    airDensity: window.__hexwild.graphics.atmosphere.uniforms.airDensity.value,
+  }));
+  await writeJSON(info.outputPath('first-frame-clock.json'), {
+    clock,
+    messages,
+  });
+  expect(clock.injected).toBe(true);
+  expect(clock.records.every((r) => r.visual >= 0 && r.visual <= 0.25)).toBe(
+    true,
+  );
+  expect(
+    clock.records.every((r) => r.simulation >= 0 && r.simulation <= 0.25),
+  ).toBe(true);
+  expect(Number.isFinite(clock.airDensity)).toBe(true);
+  expect(clock.airDensity).toBeGreaterThanOrEqual(0);
+  expect(clock.airDensity).toBeLessThan(0.03);
+  expect(messages.errors).toEqual([]);
+  expect(messages.warnings).toEqual([]);
+});
+
 function foregroundRadiance(hdr) {
   const raw = Buffer.from(hdr.base64, 'base64');
   let sum = 0,
@@ -366,6 +425,10 @@ for (const size of referenceSizes)
           expect(frame.settings.quality).toBe(referenceSettings.quality);
           expect(frame.settings.exposure).toBe(1);
           expect(frame.settings.post).toEqual(referenceSettings.post);
+          expect(frame.skyLighting.airDensity).toBeGreaterThanOrEqual(0);
+          expect(frame.skyLighting.airDensity).toBeLessThan(0.03);
+          expect(frame.skyLighting.cameraSky).toBeGreaterThanOrEqual(0);
+          expect(frame.skyLighting.cameraSky).toBeLessThanOrEqual(1);
           if (scene.id === 'distance-ruler')
             expect(landmarks.every((point) => point.inFrustum)).toBe(true);
           expect(frame.clouds.historyCount).toBeGreaterThan(0);

@@ -6796,13 +6796,16 @@ if (isTouch) {
   });
 } else $('#mobile-controls').style.display = 'none';
 
-let last = performance.now(),
+let last = null,
   menuTime = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   // Keep simulation time at wall-clock speed on slower GPUs. Collision uses
   // smaller steps below so a long render frame cannot tunnel through terrain.
-  const dt = Math.min((now - last) / 1000, 0.25);
+  // A first rAF timestamp can precede initialization after a long startup task.
+  // Compare only adjacent rAF stamps; damping must never extrapolate backwards.
+  const dt =
+    last === null ? 0 : Math.max(0, Math.min((now - last) / 1000, 0.25));
   last = now;
   if (!hasGame) {
     soundFX.weather(0, false, false, false);
