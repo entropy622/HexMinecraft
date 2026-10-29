@@ -152,12 +152,16 @@ export class Graphics {
       vertexColors: true,
       map: this.textures.atlas,
     });
-    this.weatherUniforms = applySkylight(this.material, {
-      ...this.dynamicLight.uniforms,
-      terrainWetness: { value: 0 },
-      terrainRain: { value: 0 },
-      wetSky: { value: new THREE.Color('#7c96a5') },
-    });
+    this.weatherUniforms = applySkylight(
+      this.material,
+      {
+        ...this.dynamicLight.uniforms,
+        terrainWetness: { value: 0 },
+        terrainRain: { value: 0 },
+        wetSky: { value: new THREE.Color('#7c96a5') },
+      },
+      true,
+    );
     this.material.userData.wetSurface = true;
     this.doorMaterial = new THREE.MeshLambertMaterial({
       map: this.textures.atlas,
@@ -1679,6 +1683,7 @@ export class Graphics {
       dusk,
       horizon,
       sun: this.sun,
+      skyProbe: this.skyEnvironment.atmosphere.probe,
       cameraSky: perceivedSky,
       medium: this.fluidRenderer.medium,
       volume: this.usePost,

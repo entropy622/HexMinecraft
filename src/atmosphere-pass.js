@@ -1,7 +1,9 @@
 import {
   HalfFloatType,
+  GLSL3,
   Matrix4,
   NearestFilter,
+  RGFormat,
   ShaderMaterial,
   Vector2,
   WebGLRenderTarget,
@@ -10,6 +12,7 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { cloudFieldGLSL } from './cloud-field.js';
 import { glassTransmissionGLSL } from './glass-transmission.js';
 import { waterExtinctionGLSL, waterScatteringGLSL } from './water-shader.js';
+import { airTransportGLSL } from './air-transport.js';
 
 const vertexShader = /* glsl */ `
 varying vec2 vUv;
@@ -30,16 +33,11 @@ uniform vec3 airCameraPosition;
 uniform float airShadowReady;
 uniform vec2 fogResolution;
 ${glassTransmissionGLSL}
-uniform float airDensity;
-uniform float airBaseHeight;
-uniform float airFalloff;
-uniform vec3 airHorizon;
-uniform vec3 airSunColor;
-uniform vec3 airSunDirection;
-uniform float airSunPower;
-uniform float airAmbient;
+${airTransportGLSL}
 uniform float airTime;
 const int AIR_STEPS = 24;
+layout(location = 0) out vec4 airColor;
+layout(location = 1) out vec2 airColumnBuffer;
 
 float airHash(vec2 p) {
   vec3 a = fract(vec3(p.xyx) * 0.1031);
@@ -73,6 +71,7 @@ float airSunVisibility(vec3 position, float sky) {
   return mix(sky, lit * min(1.0, sky * 2.0), smoothstep(0.0, 0.08, edge));
 }
 void main() {
+  airColumnBuffer=vec2(0.0);
   float depth = texture2D(sceneDepth, vUv).x;
   vec4 viewEnd = inverseProjection * vec4(vUv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
   viewEnd /= viewEnd.w;
@@ -82,8 +81,8 @@ void main() {
   vec3 direction = normalize(delta);
   if (waterCamera > 0.5) {
     // Alpha carries occupied water length; the composite reconstructs RGB
-    // transmission, keeping this shared half-resolution target at four channels.
-    if (distance < 0.8) { gl_FragColor = vec4(0.0); return; }
+    // transmission. The second attachment is unused for water.
+    if (distance < 0.8) { airColor = vec4(0.0); return; }
     vec3 transmission = vec3(1.0), scattering = vec3(0.0);
     float waterLength = 0.0;
     float cosine = dot(direction, airSunDirection), g = 0.6;
@@ -119,19 +118,17 @@ void main() {
       transmission *= stepTransmission;
       waterLength += waterStep;
     }
-    gl_FragColor = vec4(scattering, waterLength);
+    airColor = vec4(scattering, waterLength);
     return;
   }
   // First-person models and nearby surfaces stay crisp.
-  if (distance < 0.8 || airDensity <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  if (distance < 0.8 || airDensity <= 0.0) { airColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
   float stepLength = distance / float(AIR_STEPS);
   // Spatially fixed dither avoids a temporally crawling grain pattern.
   float jitter = airHash(floor(vUv * fogResolution));
-  float cosine = dot(direction, airSunDirection);
-  float g = 0.55;
-  float phase = (1.0 - g * g) / pow(max(0.08, 1.0 + g * g - 2.0 * g * cosine), 1.5);
+  vec2 phase = airDirectPhase(dot(direction, airSunDirection));
   vec3 scattering = vec3(0.0);
-  float transmission = 1.0;
+  vec3 transmission = vec3(1.0);
   // One cloud-field sample per ray keeps the half-resolution fog pass bounded.
   float cloudSun = hexCloudShadow(airCameraPosition + direction * distance * 0.5);
   for (int i = 0; i < AIR_STEPS; i++) {
@@ -144,27 +141,29 @@ void main() {
     if (medium < 11.5) continue;
     float sky = pow(floor(packedLight.a / 16.0) / 15.0, 2.0);
     vec3 block = pow(packedLight.rgb / 15.0, vec3(2.0));
-    float density = airDensity * exp(clamp(-(position.y - airBaseHeight) * airFalloff, -8.0, 1.4));
-    density *= 0.65 + airNoise(position.xz * 0.09 + vec2(airTime * 0.018, -airTime * 0.012)) * 0.7;
-    float attenuation = exp(-density * stepLength);
+    vec2 columns=airColumns(airCameraPosition+direction*float(i)*stepLength,direction,stepLength);
+    columns.y *= 0.65 + airNoise(position.xz * 0.09 + vec2(airTime * 0.018, -airTime * 0.012)) * 0.7;
+    vec3 attenuation=exp(-airOpticalDepth(columns));
     float visibility = airSunVisibility(position, sky) * cloudSun;
     vec3 sun = visibility > 0.0001 ? glassTransmittance(position, airSunDirection) * visibility : vec3(0.0);
-    // Sealed caverns scatter local lights without inheriting outdoor sky blue.
-    vec3 source = mix(vec3(0.003, 0.004, 0.005), airHorizon * airAmbient, sky) + block * 0.85 +
-      airSunColor * airSunPower * sun * (0.12 + phase * 0.18);
-    scattering += transmission * (1.0 - attenuation) * source;
+    scattering += transmission * airScattering(columns,phase,sky,block,airSunColor*airSunPower*sun);
     transmission *= attenuation;
+    airColumnBuffer+=columns;
   }
-  gl_FragColor = vec4(scattering, transmission);
+  // Alpha remains the green-channel diagnostic transmission. The composite
+  // reconstructs all three channels from the independent column attachment.
+  airColor = vec4(scattering, transmission.g);
 }
 `;
 const compositeShader = /* glsl */ `
 ${waterExtinctionGLSL}
+${airTransportGLSL}
 uniform float waterCamera;
 varying vec2 vUv;
 uniform sampler2D sceneColor;
 uniform sampler2D sceneDepth;
 uniform sampler2D fogBuffer;
+uniform sampler2D fogColumns;
 uniform vec2 fogResolution;
 uniform float cameraNear;
 uniform float cameraFar;
@@ -172,9 +171,13 @@ float depthDistance(vec2 uv) {
   float depth = texture2D(sceneDepth, uv).x;
   return cameraNear * cameraFar / (cameraFar + (cameraNear - cameraFar) * depth);
 }
-void addFogSample(vec2 uv, float spatial, float centerDepth, inout vec4 fog, inout float weights) {
+void addFogSample(vec2 uv, float spatial, float centerDepth, inout vec4 fog, inout vec3 transmission, inout float weights) {
   float weight = spatial * exp(-abs(depthDistance(uv) - centerDepth) / max(0.2, centerDepth * 0.025));
-  fog += texture2D(fogBuffer, uv) * weight;
+  vec4 sampleFog=texture2D(fogBuffer, uv);
+  fog += sampleFog * weight;
+  // Average RGB transmission with the same bilateral weights as scattering.
+  // Exponentiating averaged columns would darken mixed air/opaque boundaries.
+  if(waterCamera<0.5) transmission += exp(-airOpticalDepth(texture2D(fogColumns,uv).rg)) * weight;
   weights += weight;
 }
 void main() {
@@ -182,6 +185,7 @@ void main() {
   vec2 base = floor(position), f = fract(position);
   float centerDepth = depthDistance(vUv);
   vec4 fog = vec4(0.0);
+  vec3 transmission=vec3(0.0);
   float weights = 0.0;
   if (waterCamera > 0.5) {
     // Water extinction exposes ray/voxel/shadow jitter much more than thin air.
@@ -190,19 +194,21 @@ void main() {
     for (int y = -2; y <= 2; y++) for (int x = -2; x <= 2; x++) {
       vec2 pixel = center + vec2(float(x), float(y)), delta = pixel - position;
       vec2 uv = clamp((pixel + 0.5) / fogResolution, 0.5 / fogResolution, 1.0 - 0.5 / fogResolution);
-      addFogSample(uv, exp(-dot(delta, delta) * 0.35), centerDepth, fog, weights);
+      addFogSample(uv, exp(-dot(delta, delta) * 0.35), centerDepth, fog, transmission, weights);
     }
   } else {
     for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++) {
       vec2 offset = vec2(float(x), float(y));
       vec2 uv = (base + offset + 0.5) / fogResolution;
       vec2 spatial = mix(1.0 - f, f, offset);
-      addFogSample(uv, spatial.x * spatial.y, centerDepth, fog, weights);
+      addFogSample(uv, spatial.x * spatial.y, centerDepth, fog, transmission, weights);
     }
   }
   fog = weights > 0.0001 ? fog / weights : vec4(0.0, 0.0, 0.0, waterCamera > 0.5 ? 0.0 : 1.0);
   vec4 color = texture2D(sceneColor, vUv);
-  vec3 transmission = waterCamera > 0.5 ? exp(-waterExtinction * max(0.0, fog.a)) : vec3(fog.a);
+  // Preserve water's existing filtered occupied-length reconstruction.
+  transmission=waterCamera>0.5 ? exp(-waterExtinction*max(0.0,fog.a)) :
+    (weights>0.0001 ? transmission/weights : vec3(1.0));
   gl_FragColor = vec4(color.rgb * transmission + fog.rgb, color.a);
 }
 `;
@@ -222,15 +228,18 @@ export class AtmospherePass extends Pass {
     this.sceneFrame = sceneFrame;
     this.target = new WebGLRenderTarget(1, 1, {
       type: HalfFloatType,
+      count: 2,
       minFilter: NearestFilter,
       magFilter: NearestFilter,
       depthBuffer: false,
     });
+    this.target.textures[1].format = RGFormat;
     const shared = {
       sceneDepth: { value: null },
       fogResolution: { value: new Vector2(1, 1) },
     };
     this.volume = new ShaderMaterial({
+      glslVersion: GLSL3,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
@@ -253,9 +262,11 @@ export class AtmospherePass extends Pass {
       toneMapped: false,
       uniforms: {
         ...shared,
+        ...atmosphere.uniforms,
         waterCamera: atmosphere.uniforms.waterCamera,
         sceneColor: { value: null },
         fogBuffer: { value: this.target.texture },
+        fogColumns: { value: this.target.textures[1] },
         cameraNear: { value: camera.near },
         cameraFar: { value: camera.far },
       },

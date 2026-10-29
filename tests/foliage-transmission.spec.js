@@ -361,26 +361,38 @@ test('all three leaf materials follow actual cloud shadows, moonlight and a paus
     expect(energy(s, mask)).toBeGreaterThan(0.0005);
     species.push({ id, energy: energy(s, mask), pixels: mask.length });
   }
-  // Select an actual later day whose wind places a dense, seeded cloud above
-  // this leaf. Sun phase stays the same; the cloud field is never replaced.
-  const cloudTime = await page.evaluate(async () => {
-    const { cloudDensity, CLOUD_RADIUS } = await import('/src/cloud-field.js'),
-      { worldToAxial } = await import('/src/core.js'),
-      g = window.__hexwild,
-      d = window.leafProbeDirection,
-      reach = (54.5 - 45.5) / d[1];
-    let best = null;
-    for (let day = 0; day < 16; day++) {
-      const time = 120 + day * 600,
-        a = worldToAxial(
-          (d[0] * reach - time * 0.065) / CLOUD_RADIUS,
-          (d[2] * reach - time * 0.017) / CLOUD_RADIUS,
-        ),
-        density = cloudDensity(a.q, a.r, g.state.world.seed);
-      if (!best || density > best.density) best = { time, density };
-    }
-    return best;
-  });
+  // Select a real three-layer cloud shadow at the leaf height, with native
+  // weather and wind. The old 2D-density predictor no longer describes it.
+  const cloudCandidates = [];
+  await page.evaluate(() =>
+    window.__hexwild.graphics.setPostOptions({ clouds: true }),
+  );
+  for (let day = 0; day < 16; day++) {
+    const time = 120 + day * 600;
+    await backlight(page, time);
+    const shadow = await page.evaluate(async () => {
+      const { probeCloudField } =
+        await import('/tests/fixtures/cloud-field-probe.js');
+      return probeCloudField(
+        window.__hexwild.graphics,
+        [[0, 45.5, 0]],
+        null,
+        45.5,
+      ).density[3];
+    });
+    cloudCandidates.push({ time, shadow });
+  }
+  const cloudTime = cloudCandidates.reduce((a, b) =>
+    a.shadow < b.shadow ? a : b,
+  );
+  await writeFile(
+    info.outputPath('actual-cloud-selection.json'),
+    JSON.stringify({ cloudTime, cloudCandidates }, null, 2),
+  );
+  expect(cloudTime.shadow).toBeLessThan(0.93);
+  await page.evaluate(() =>
+    window.__hexwild.graphics.setPostOptions({ clouds: false }),
+  );
   await backlight(page, cloudTime.time);
   const clear = await sample(page),
     mask = litPixels(clear);

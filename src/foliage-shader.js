@@ -107,7 +107,7 @@ export function leafMaterials(atlas, weather, uniforms) {
     alphaTest: 0.5,
     side: DoubleSide,
   });
-  applySkylight(material, weather);
+  applySkylight(material, weather, true);
   applyFoliageWind(material, uniforms);
   const previous = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {

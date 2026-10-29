@@ -1,7 +1,9 @@
 import { Color, MathUtils, Vector3 } from 'three';
+import { RAYLEIGH_PER_KM } from './sky-atmosphere.js';
+import { airTransportGLSL } from './air-transport.js';
 
-// Original height-dependent single-scattering approximation, informed by
-// Photon's separation of air density, ambient scattering and sun scattering.
+// Shared RGB height profiles and illumination for the marched and analytic
+// paths. The four direct orders remain an approximation, not a multiple-scattering LUT.
 export class Atmosphere {
   constructor(camera) {
     this.uniforms = {
@@ -10,6 +12,14 @@ export class Atmosphere {
       airDensity: { value: 0.009 },
       airBaseHeight: { value: 8 },
       airFalloff: { value: 0.14 },
+      airRayleighBaseHeight: { value: 8 },
+      airRayleighFalloff: { value: (0.14 * 7) / 30 },
+      airRayleigh: {
+        value: new Vector3(...RAYLEIGH_PER_KM).multiplyScalar(0.02),
+      },
+      airMieExtinction: { value: 0.009 },
+      airMieScattering: { value: 0.0081 },
+      airSkyMean: { value: new Color() },
       airHorizon: { value: new Color() },
       airSunColor: { value: new Color() },
       airSunDirection: { value: new Vector3() },
@@ -32,6 +42,7 @@ export class Atmosphere {
     dusk,
     horizon,
     sun,
+    skyProbe,
     cameraSky,
     medium,
     volume,
@@ -52,6 +63,24 @@ export class Atmosphere {
       : MathUtils.damp(u.airDensity.value, density, 2, dt);
     u.airBaseHeight.value = dimension === 'end' ? 20 : 8;
     u.airFalloff.value = overworld ? 0.14 : 0.035;
+    u.airRayleighBaseHeight.value = u.airBaseHeight.value;
+    u.airRayleighFalloff.value = (u.airFalloff.value * 7) / 30;
+    // Keep base-height green extinction at the existing weather density. The
+    // molecular component uses the same spectrum as the sky, at 20 m/local unit.
+    u.airRayleigh.value
+      .set(...RAYLEIGH_PER_KM)
+      .multiplyScalar(overworld && !submerged ? 0.02 : 0);
+    u.airMieExtinction.value = Math.max(
+      0,
+      u.airDensity.value - u.airRayleigh.value.y,
+    );
+    u.airMieScattering.value = u.airMieExtinction.value * (overworld ? 0.9 : 1);
+    if (overworld && skyProbe) {
+      const mean = skyProbe.sh.coefficients[0];
+      u.airSkyMean.value
+        .setRGB(Math.max(0, mean.x), Math.max(0, mean.y), Math.max(0, mean.z))
+        .multiplyScalar(0.28209479177 * skyProbe.intensity);
+    } else u.airSkyMean.value.copy(horizon);
     u.airHorizon.value.copy(horizon);
     u.airSunColor.value.copy(sun.color);
     u.airSunDirection.value
@@ -108,9 +137,8 @@ export class Atmosphere {
         );
       shader.fragmentShader =
         `varying vec3 vAirWorldPosition;
-        uniform vec3 airCameraPosition; uniform float airDensity; uniform float airBaseHeight;
-        uniform float airFalloff; uniform vec3 airHorizon; uniform vec3 airSunColor;
-        uniform vec3 airSunDirection; uniform float airSunPower; uniform float airAmbient;
+        uniform vec3 airCameraPosition;
+        ${airTransportGLSL}
         uniform float airCameraSky; uniform float airVolume; uniform float airFlight;\n` +
         shader.fragmentShader.replace('#include <fog_fragment>', '').replace(
           '#include <opaque_fragment>',
@@ -118,17 +146,17 @@ export class Atmosphere {
         #ifdef USE_FOG
           vec3 airDelta = vAirWorldPosition - airCameraPosition;
           float airDistance = length(airDelta);
-          vec3 airRay = airDelta / max(airDistance, 0.001);
-          float airStart = exp(clamp(-(airCameraPosition.y - airBaseHeight) * airFalloff, -8.0, 1.4));
-          float airEnd = exp(clamp(-(vAirWorldPosition.y - airBaseHeight) * airFalloff, -8.0, 1.4));
-          float airMass = abs(airRay.y) < 0.001 ? airStart * airDistance :
-            (airStart - airEnd) / (airFalloff * airRay.y);
-          float airFog = 1.0 - exp(-airDensity * max(0.0, airMass));
-          float airSky = max(${sky}, airCameraSky * 0.3);
-          float airForward = pow(max(0.0, dot(airRay, airSunDirection)), 12.0);
-          vec3 airSource = mix(vec3(0.003, 0.004, 0.005), airHorizon * airAmbient, airSky) +
-            airSunColor * airSunPower * airForward * airSky * 0.3;
-          outgoingLight = mix(outgoingLight, airSource, airFog * (1.0 - airVolume));
+          // The post path integrates air once after the scene; skip this work
+          // uniformly rather than computing it only to mix it away.
+          if(airVolume<0.5 && airDensity>0.0) {
+            vec3 airRay = airDelta / max(airDistance, 0.001);
+            vec2 columns = airColumns(airCameraPosition,airRay,airDistance);
+            vec3 airTransmission = exp(-airOpticalDepth(columns));
+            float airSky = max(${sky}, airCameraSky * 0.3);
+            vec3 airScatter = airScattering(columns,airDirectPhase(dot(airRay,airSunDirection)),
+              airSky,vec3(0.0),airSunColor*airSunPower*airSky);
+            outgoingLight=outgoingLight*airTransmission+airScatter;
+          }
           // Keep the streaming boundary hidden in both rendering paths.
           float edgeDistance = mix(airDistance, length(vec3(airDelta.x, airDelta.y * 0.15, airDelta.z)), airFlight);
           float airEdge = smoothstep(fogNear, fogFar, edgeDistance);
@@ -138,7 +166,7 @@ export class Atmosphere {
         );
     };
     material.customProgramCacheKey = () =>
-      cacheKey.call(material) + '-height-air-v2';
+      cacheKey.call(material) + '-rgb-height-air-v3';
     material.needsUpdate = true;
   }
 }

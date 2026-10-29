@@ -14,6 +14,7 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
 export const SUN_RADIUS = (2 * Math.PI) / 180;
 export const SOLAR_IRRADIANCE = new Color(3.8, 3.7, 3.6);
+export const RAYLEIGH_PER_KM = [0.005802, 0.013558, 0.0331];
 const vertexShader = /* glsl */ `
 varying vec2 vUv;
 void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
@@ -25,7 +26,7 @@ const transportGLSL = /* glsl */ `
 const float SKY_PI = 3.14159265359;
 const float SKY_RADIUS = 6371.0;
 const float SKY_TOP = 6471.0;
-const vec3 SKY_RAYLEIGH = vec3(0.005802, 0.013558, 0.033100);
+const vec3 SKY_RAYLEIGH = vec3(${RAYLEIGH_PER_KM.join(', ')});
 const vec3 SKY_MIE = vec3(0.003996);
 const vec3 SKY_OZONE = vec3(0.000650, 0.001881, 0.000085);
 const vec3 SKY_SOLAR = vec3(${SOLAR_IRRADIANCE.toArray().join(', ')});

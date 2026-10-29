@@ -11,7 +11,12 @@ import { cloudFieldGLSL } from '../../src/cloud-field.js';
 
 // Inspect the production GPU density/shadow field at positions recovered from
 // actual cloud integration, without replacing the game's rendering pipeline.
-export function probeCloudField(g, points = null, layer = null) {
+export function probeCloudField(
+  g,
+  points = null,
+  layer = null,
+  groundHeight = 10,
+) {
   if (!points) {
     const history = g.composer.passes[0].clouds.histories.get(
       g.composer.passes[0].target,
@@ -77,15 +82,17 @@ export function probeCloudField(g, points = null, layer = null) {
     toneMapped: false,
     uniforms: {
       ...g.cloudSystem.uniforms,
+      probeGroundHeight: { value: groundHeight },
       probePoints: { value: points.map((p) => new Vector3(...p)) },
     },
     vertexShader: 'void main(){gl_Position=vec4(position.xy,0.0,1.0);}',
     fragmentShader: `${cloudFieldGLSL}
     uniform vec3 probePoints[${points.length}];
+    uniform float probeGroundHeight;
     layout(location=0) out vec4 value;
     void main(){
       vec3 p=probePoints[int(gl_FragCoord.x)];
-      vec3 ground=vec3(p.x,10.0,p.z);
+      vec3 ground=vec3(p.x,probeGroundHeight,p.z);
       if(gl_FragCoord.y<1.0){value=vec4(hexCloudLayerDensity(p,0),hexCloudLayerDensity(p,1),hexCloudLayerDensity(p,2),hexCloudShadow(ground));return;}
       vec3 transmission=vec3(1.0);
       for(int layer=0;layer<3;layer++){

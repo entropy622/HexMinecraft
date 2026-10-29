@@ -30,8 +30,13 @@ export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
 
 // Shared weather uniforms; terrain receives persistent voxel light instead of
 // static point-light pools. Two short-range moving fireball lights supplement it.
-export function applySkylight(material, sharedUniforms) {
+export function applySkylight(
+  material,
+  sharedUniforms,
+  geometricShade = false,
+) {
   material.userData.voxelLighting = 'surface';
+  material.userData.geometricShade = geometricShade;
   const uniforms = sharedUniforms || {
     terrainWetness: { value: 0 },
   };
@@ -54,6 +59,29 @@ export function applySkylight(material, sharedUniforms) {
       uniform float terrainWetness; uniform float nightVision;\n${shader.fragmentShader}`
         .replace('#include <lights_fragment_begin>', voxelLightingChunk)
         .replace(
+          '#include <color_fragment>',
+          geometricShade
+            ? `#ifdef USE_COLOR_ALPHA
+                 diffuseColor.a *= vColor.a;
+               #endif`
+            : '#include <color_fragment>',
+        )
+        .replace(
+          '#include <lights_fragment_end>',
+          `#include <lights_fragment_end>
+          ${
+            geometricShade
+              ? `
+          // Baked face shade/AO attenuates reflected light, but is not pigment.
+          // Transmission and other material responses keep the texture albedo.
+          #if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)
+            reflectedLight.directDiffuse *= vColor.rgb;
+            reflectedLight.indirectDiffuse *= vColor.rgb;
+          #endif`
+              : ''
+          }`,
+        )
+        .replace(
           '#include <opaque_fragment>',
           `
         float wet = terrainWetness * vWetTop;
@@ -61,6 +89,7 @@ export function applySkylight(material, sharedUniforms) {
         #include <opaque_fragment>`,
         );
   };
-  material.customProgramCacheKey = () => 'hex-colored-voxel-wet-sky-v7';
+  material.customProgramCacheKey = () =>
+    'hex-colored-voxel-wet-sky-v8-' + Number(geometricShade);
   return uniforms;
 }

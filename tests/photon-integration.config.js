@@ -5,6 +5,9 @@ import atmosphere from './atmosphere.playwright.config.js';
 export default defineConfig({
   ...atmosphere,
   testMatch: [
+    'air-transport.spec.js',
+    'material-shading.spec.js',
+    'foliage-transmission.spec.js',
     'cloud-sky.spec.js',
     'cloud-scattering.spec.js',
     'cloud-coverage.spec.js',
