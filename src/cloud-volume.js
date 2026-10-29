@@ -15,7 +15,7 @@ import {
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { CLOUD_PLANET_RADIUS, cloudFieldGLSL } from './cloud-field.js';
-import { skyRadianceGLSL } from './sky-atmosphere.js';
+import { skyRadianceGLSL } from './sky-transport.js';
 import { cloudScatteringGLSL } from './cloud-scattering.js';
 import { CloudCoverage } from './cloud-coverage.js';
 

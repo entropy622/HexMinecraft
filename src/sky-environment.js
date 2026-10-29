@@ -190,6 +190,7 @@ export class SkyEnvironment {
       height: camera.position.y,
       rain,
       moon: phase.illumination,
+      phase: phase.index,
       quality,
       active,
       time,

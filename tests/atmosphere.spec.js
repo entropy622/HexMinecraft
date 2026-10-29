@@ -427,7 +427,18 @@ test.describe('fractional device DPR', () => {
     await page.evaluate(() => {
       const targets =
         window.__hexwild.graphics.skyEnvironment.atmosphere.targets;
-      window.skyDisposal = { allocated: targets.length, disposed: 0 };
+      const table =
+        window.__hexwild.graphics.skyEnvironment.atmosphere.multipleScattering;
+      window.skyTableBefore = table;
+      window.skyDisposal = {
+        allocated: targets.length,
+        disposed: 0,
+        tableDisposed: 0,
+      };
+      table.addEventListener(
+        'dispose',
+        () => window.skyDisposal.tableDisposed++,
+      );
       for (const target of targets)
         target.addEventListener('dispose', () => window.skyDisposal.disposed++);
     });
@@ -441,6 +452,14 @@ test.describe('fractional device DPR', () => {
     const disposal = await page.evaluate(() => window.skyDisposal);
     expect(disposal.allocated).toBeGreaterThan(0);
     expect(disposal.disposed).toBe(disposal.allocated);
+    expect(disposal.tableDisposed).toBe(1);
+    expect(
+      await page.evaluate(
+        () =>
+          window.__hexwild.graphics.skyEnvironment.atmosphere
+            .multipleScattering !== window.skyTableBefore,
+      ),
+    ).toBe(true);
     await page.evaluate(() => window.__hexwild.graphics.setQuality(1.7));
     await settled(page);
     await page.evaluate(() => {
@@ -470,6 +489,21 @@ test.describe('fractional device DPR', () => {
     const restored = await capture(page, info, 'lifecycle-restored');
     expect(restored.drawingBuffer).toEqual([901, 671]);
     expect(restored.skyCoefficients).not.toBeNull();
+    const restoredTable = await page.evaluate(() => {
+      const a = window.__hexwild.graphics.skyEnvironment.atmosphere;
+      return {
+        present: !!a.multipleScattering,
+        shared:
+          a.uniforms.skyMultipleScatteringMap.value === a.multipleScattering &&
+          a.work.skyMultipleScatteringMap.value === a.multipleScattering,
+        bytes: a.multipleScattering.image.data.byteLength,
+      };
+    });
+    expect(restoredTable).toEqual({
+      present: true,
+      shared: true,
+      bytes: 524288,
+    });
     for (let i = 0; i < before.skyCoefficients.length; i++)
       expect(
         Math.abs(restored.skyCoefficients[i] - before.skyCoefficients[i]),
@@ -493,9 +527,15 @@ test.describe('fractional device DPR', () => {
         active: a.probe.intensity,
         allocated: a.targets.length,
         pending: !!a.pending,
+        table: a.multipleScattering,
       };
     });
-    expect(inactive).toEqual({ active: 0, allocated: 0, pending: false });
+    expect(inactive).toEqual({
+      active: 0,
+      allocated: 0,
+      pending: false,
+      table: null,
+    });
     await writeFile(
       info.outputPath('sky-lifecycle.json'),
       JSON.stringify({ before, low, restored, inactive, diagnostics }, null, 2),

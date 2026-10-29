@@ -1,5 +1,5 @@
 import { Color, MathUtils, Vector3 } from 'three';
-import { RAYLEIGH_PER_KM } from './sky-atmosphere.js';
+import { RAYLEIGH_PER_KM } from './sky-transport.js';
 import { airTransportGLSL } from './air-transport.js';
 
 // Shared RGB height profiles and illumination for the marched and analytic

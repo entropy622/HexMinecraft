@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { axialToWorld, worldToAxial, noise } from './core.js';
-import { skyRadianceGLSL } from './sky-atmosphere.js';
+import { skyRadianceGLSL } from './sky-transport.js';
 import {
   CLOUD_RADIUS,
   CLOUD_BASE,

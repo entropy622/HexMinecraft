@@ -4,6 +4,12 @@
 
 [在线游玩](https://entropy622.github.io/HexMinecraft/) · [操作说明](#操作) · [本地开发](#开发与验证)
 
+## 0.99：Photon 天空散射表
+
+天空接入 Photon 的实际 3D 散射表，替换原有单次散射与局部回散近似；按源映射和 RGB 有限角相位处理日月光，将 Rec.2020 转为项目的线性 sRGB。天空、方向天光、云雾和反射继续共享同一个完成快照。月相变化、降雨退饱和及资源释放沿用现有状态。
+
+固定散射表增加 512 KiB 纹理数据，随应用内嵌打包，不新增外部请求。固定 1080p 森林 GPU 批次合计约 **32.22 ms**，与上一版接近；CPU 提交成本仍需改善。保留默认视距 **10**、晴天地形雾 **87.32～118** 和 v16 存档。近处深树冠、完整光色标定与其他 Photon 功能继续完善。[来源、适配与验证](docs/photon-sky-verification.md)。
+
 ## 0.98：阴影范围外的植被照明
 
 光影档接入 Photon 的远距 SSS 厚度过渡与 AO/环境透光补偿，中远处冠层恢复更多层次。草丛和三类世界花加入缓存的环境透光；屋顶、半砖、玻璃与未知区块继续参与遮挡，地面换成草或泥土沿用原有光学缓存。
@@ -989,6 +995,6 @@ Pages 使用 GitHub Actions，产物目录为 `dist/`。Vite 使用相对路径�
 
 ## 许可
 
-代码为 [MIT](LICENSE)。291 张已打包的像素材质与物品图标来自 XSSheep / VoxeLibre 的 Pixel Perfection 素材（270 张使用 CC BY-SA 3.0，21 张生物、村民与生物投射物皮肤使用 CC BY-SA 4.0），来源、作者与运行时改动见 [素材署名](public/textures/NOTICE.md)。奇幻材质保留程序绘制，其他物品图标使用 Lucide（ISC 许可）。所有素材随应用打包，无外部 CDN 请求。Three.js、Vite、Playwright、Prettier 的许可归各项目所有。界面使用系统字体，无字体 CDN 依赖。
+项目原创代码为 [MIT](LICENSE)。0.99 的 Photon 散射表和改编天空函数保留 [Photon 原许可](public/licenses/photon.txt)，映射部分保留 [Bruneton BSD 许可](public/licenses/bruneton.txt)，具体范围见 [天空来源说明](public/licenses/PHOTON-NOTICE.md)。291 张已打包的像素材质与物品图标来自 XSSheep / VoxeLibre 的 Pixel Perfection 素材（270 张使用 CC BY-SA 3.0，21 张生物、村民与生物投射物皮肤使用 CC BY-SA 4.0），来源、作者与运行时改动见 [素材署名](public/textures/NOTICE.md)。奇幻材质保留程序绘制，其他物品图标使用 Lucide（ISC 许可）。所有素材随应用打包，无外部 CDN 请求。Three.js、Vite、Playwright、Prettier 的许可归各项目所有。界面使用系统字体，无字体 CDN 依赖。
 
 与 Mojang、Microsoft 无关联。

@@ -1,4 +1,4 @@
-import { SUN_RADIUS } from './sky-atmosphere.js';
+import { SUN_RADIUS } from './sky-transport.js';
 
 // Independent WebGL2 implementation of Photon's cloud optical model:
 // finite forward peak, powder response and successively broadened scattering.
