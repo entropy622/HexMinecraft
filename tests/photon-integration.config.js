@@ -5,6 +5,7 @@ import atmosphere from './atmosphere.playwright.config.js';
 export default defineConfig({
   ...atmosphere,
   testMatch: [
+    'leaf-ambient.spec.js',
     'surface-indirect.spec.js',
     'glass-transmission.spec.js',
     'air-transport.spec.js',

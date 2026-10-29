@@ -108,13 +108,40 @@ export function leafMaterials(atlas, weather, uniforms) {
     side: DoubleSide,
   });
   applySkylight(material, weather, true);
+  material.defaultAttributeValues.leafAmbient = [0];
   applyFoliageWind(material, uniforms);
   const previous = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     previous.call(material, shader, renderer);
+    shader.vertexShader =
+      'attribute float leafAmbient; varying float vLeafAmbient;\n' +
+      shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
+      );
     shader.fragmentShader =
-      `uniform vec3 leafSunDirection; uniform vec3 leafSunColor;\n` +
+      `varying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor;\n` +
       shader.fragmentShader
+        .replace(
+          'irradiance += vSkylight * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);',
+          `vec3 leafSkyUp=max(vec3(0.0),shGetIrradianceAt(vec3(0.0,1.0,0.0),lightProbe));
+          irradiance += 0.5 * vSkylight * leafSkyUp;`,
+        )
+        .replace(
+          'reflectedLight.indirectDiffuse *= vAmbientOcclusion;',
+          `reflectedLight.indirectDiffuse *= vAmbientOcclusion;
+          #if defined(USE_LIGHT_PROBES)
+            vec3 leafFaceShade=vec3(1.0);
+            #if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)
+              leafFaceShade=vColor.rgb;
+            #endif
+            // Photon separates AO-weighted diffuse sky from ambient SSS.
+            // vSkylight is already raw sky squared. Visibility is a normalized
+            // byte from the real local canopy, not an exposure multiplier.
+            reflectedLight.indirectDiffuse += BRDF_Lambert(material.diffuseColor) *
+              leafSkyUp * vSkylight * clamp(vLeafAmbient,0.0,1.0) * leafFaceShade;
+          #endif`,
+        )
         .replace(
           '#include <shadowmap_pars_fragment>',
           '#include <shadowmap_pars_fragment>\n' + transmissionGLSL,
@@ -137,7 +164,8 @@ export function leafMaterials(atlas, weather, uniforms) {
         );
   };
   const key = material.customProgramCacheKey();
-  material.customProgramCacheKey = () => key + '-transmission-v2';
+  material.customProgramCacheKey = () =>
+    key + '-transmission-v2-sky-subsurface-v1';
   const depth = new MeshDepthMaterial({
     map: atlas,
     depthPacking: RGBADepthPacking,

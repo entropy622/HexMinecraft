@@ -1,7 +1,8 @@
 import { Float32BufferAttribute } from 'three';
 import { WATER_EXTINCTION } from './fluids.js';
-import { DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
+import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
 import { blockLight, EMISSION } from './light-data.js';
+import { LeafAmbient } from './leaf-ambient.js';
 
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
@@ -30,6 +31,7 @@ export class VoxelLight {
     this.heldSource = null;
     this.heldKey = '';
     this.heldDirty = false;
+    this.leafAmbientField = new LeafAmbient();
   }
 
   setHeld(items, position) {
@@ -140,7 +142,8 @@ export class VoxelLight {
           const i = this.index(q, 0, r);
           cost.fill(1, i, i + HEIGHT);
         }
-    const emitters = [];
+    const emitters = [],
+      leafCells = [];
     for (const [key, type] of this.world.blocks) {
       const i = this.indexKey(key);
       if (i < 0) continue;
@@ -151,6 +154,7 @@ export class VoxelLight {
         emission = (data >>> 9) & 4095;
       cost[i] = data & 31;
       this.medium[i] = (data >>> 5) & 15;
+      if (BLOCKS[type]?.foliage && !BLOCKS[type]?.nonSolid) leafCells.push(i);
       if (emission)
         emitters.push([
           i,
@@ -176,6 +180,10 @@ export class VoxelLight {
         if (EMISSION[fluid.type]) emitters.push([i, EMISSION[fluid.type]]);
       }
     this.cost = cost;
+    this.leafAmbientField.update(this, leafCells);
+    this.leafAmbient = this.leafAmbientField.values;
+    this.leafAmbientCells = this.leafAmbientField.cells;
+    this.leafAmbientVersion = this.leafAmbientField.version;
     this.sky = new Uint8Array(size);
     this.rgb = Array.from({ length: 3 }, () => new Uint8Array(size));
     const skyBuckets = Array.from({ length: 16 }, () => []);
@@ -357,6 +365,26 @@ export class VoxelLight {
           rgb.array[j * 3 + c] = i < 0 ? 0 : (this.rgb[c][i] / 15) ** 2;
       }
       sky.needsUpdate = rgb.needsUpdate = true;
+      const ambient = g.attributes.leafAmbient,
+        ranges = g.userData.leafRanges;
+      if (
+        ambient &&
+        ranges &&
+        g.userData.leafAmbientVersion !== this.leafAmbientVersion
+      ) {
+        for (let j = 0; j < ranges.length; j += 5) {
+          const i = this.index(ranges[j], ranges[j + 1], ranges[j + 2]);
+          ambient.array.fill(
+            i < 0 ? 0 : this.leafAmbient[i],
+            ranges[j + 3],
+            ranges[j + 4],
+          );
+        }
+        ambient.needsUpdate = true;
+        // Retain a scalar only: hundreds of chunk geometries must not keep
+        // older world-sized fields alive after streaming or block updates.
+        g.userData.leafAmbientVersion = this.leafAmbientVersion;
+      }
     });
   }
 

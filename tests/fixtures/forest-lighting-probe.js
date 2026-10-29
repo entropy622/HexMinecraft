@@ -300,7 +300,34 @@ export function readForestLighting(g) {
       occlusionGeometry.max = Math.max(occlusionGeometry.max, v);
     }
   });
+  const leafAmbientGeometry = {
+    vertices: 0,
+    bytes: 0,
+    rangeBytes: 0,
+    meshes: 0,
+  };
+  g.scene.traverseVisible((o) => {
+    const a = o.geometry?.attributes.leafAmbient;
+    if (!a) return;
+    leafAmbientGeometry.vertices += a.count;
+    leafAmbientGeometry.bytes += a.array.byteLength;
+    leafAmbientGeometry.rangeBytes += o.geometry.userData.leafRanges.byteLength;
+    leafAmbientGeometry.meshes++;
+  });
+  const leafValues = Array.from(
+    g.voxelLight.leafAmbientCells,
+    (i) => g.voxelLight.leafAmbient[i],
+  ).sort((a, b) => a - b);
+  const leafAmbientField = {
+    cells: leafValues.length,
+    bytes: g.voxelLight.leafAmbient.byteLength,
+    p10: leafValues[Math.floor(leafValues.length * 0.1)] / 255,
+    median: leafValues[Math.floor(leafValues.length * 0.5)] / 255,
+    p90: leafValues[Math.floor(leafValues.length * 0.9)] / 255,
+  };
   return {
+    leafAmbientGeometry,
+    leafAmbientField,
     occlusionGeometry,
     width,
     height,

@@ -611,6 +611,7 @@ export class Graphics {
         p: [],
         c: [],
         ao: [],
+        leafRanges: [],
         uv: [],
         sky: [],
         rain: [],
@@ -759,7 +760,8 @@ export class Graphics {
                 : solid;
           const abs = axialToWorld(q, r),
             x = abs.x - origin.x,
-            z = abs.z - origin.z;
+            z = abs.z - origin.z,
+            leafStart = leaves.p.length / 3;
           const axis = BLOCKS[type].pillar ? world.state(q, y, r).axis || 0 : 0;
           const blockFace = (vertices, uv, side, shade = 1, ao = [1, 1, 1]) => {
             let tile = type + (side < 0 ? ':top' : ':side');
@@ -868,6 +870,8 @@ export class Graphics {
               [bottom, cornerAO(i, y + 1), cornerAO(j, y + 1)],
             );
           }
+          if (out === leaves && leaves.p.length / 3 > leafStart)
+            leaves.leafRanges.push(q, y, r, leafStart, leaves.p.length / 3);
           if (
             type === 'grass' &&
             !world.get(q, y + 1, r) &&
@@ -914,6 +918,17 @@ export class Graphics {
           'ambientOcclusion',
           new THREE.Float32BufferAttribute(data.ao, 1),
         );
+      if (data.leafRanges) {
+        g.setAttribute(
+          'leafAmbient',
+          new THREE.Uint8BufferAttribute(
+            new Uint8Array(data.p.length / 3),
+            1,
+            true,
+          ),
+        );
+        g.userData.leafRanges = new Int32Array(data.leafRanges);
+      }
       g.setAttribute('uv', new THREE.Float32BufferAttribute(data.uv, 2));
       g.setAttribute('skylight', new THREE.Float32BufferAttribute(data.sky, 1));
       g.setAttribute(
