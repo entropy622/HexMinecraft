@@ -18,7 +18,8 @@ vec2 waterOffset(vec2 entry, vec3 sun, float depth) {
   vec3 ray = refract(-sun, waterNormal(entry, waterTime), 1.0 / waterIOR);
   return ray.xz * (depth / max(0.2, -ray.y));
 }
-vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float skylight) {
+vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float skylight, out vec3 bounceResponse) {
+  bounceResponse=vec3(1.0);
   float footprint = max(length(dFdx(position)), length(dFdy(position)));
   vec3 ordinary = vec3(smoothstep(0.45, 0.95, skylight));
   if (waterSunlight < 0.5 || sun.y <= 0.05) return ordinary;
@@ -27,6 +28,7 @@ vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float skylight
   if (!insideLightVolume(initial)) return ordinary;
   float height = lightWaterHeight(mod(readLightCell(initial).a, 16.0));
   if (height <= 0.0 || fract(start.y) >= height) return ordinary;
+  bounceResponse=ordinary;
   // Trace the mean refracted direction. Never assume a global sea level.
   vec3 direction = -refract(-sun, vec3(0.0, 1.0, 0.0), 0.75);
   float distance = 0.0, surface = start.y;
@@ -37,7 +39,7 @@ vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float skylight
     if (!insideLightVolume(cell)) return ordinary;
     float medium = mod(readLightCell(cell).a, 16.0);
     height = lightWaterHeight(medium);
-    if (medium < 0.5 || medium == 10.0 || medium == 11.0) return vec3(0.0);
+    if (medium < 0.5 || medium == 10.0 || medium == 11.0) { bounceResponse=vec3(0.0); return vec3(0.0); }
     if (height == 0.0 || fract(p.y) >= height) {
       // A step can cross a hex side before reaching its predicted top. Only
       // accept a horizontal interface with actual water directly below it.
@@ -68,6 +70,7 @@ vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float skylight
   // Deep or sub-pixel focusing tends to uniform transmitted sunlight.
   focus = mix(focus, 1.0, smoothstep(9.0, 13.0, depth));
   sun = -refract(-sun, waterNormal(entry, waterTime), 1.0 / waterIOR);
-  return exp(-waterExtinction * (depth / max(0.2, sun.y))) * focus;
+  bounceResponse=exp(-waterExtinction * (depth / max(0.2, sun.y))) * focus;
+  return bounceResponse;
 }
 `;

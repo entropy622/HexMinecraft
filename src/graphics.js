@@ -158,6 +158,7 @@ export class Graphics {
         ...this.dynamicLight.uniforms,
         terrainWetness: { value: 0 },
         terrainRain: { value: 0 },
+        surfaceBounce: { value: 1 },
         wetSky: { value: new THREE.Color('#7c96a5') },
       },
       true,
@@ -597,8 +598,24 @@ export class Graphics {
     const [cq, cr] = k.split(',').map(Number),
       world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
-    const solid = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
-      leaves = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
+    const solid = {
+        p: [],
+        c: [],
+        ao: [],
+        uv: [],
+        sky: [],
+        rain: [],
+        porosity: [],
+      },
+      leaves = {
+        p: [],
+        c: [],
+        ao: [],
+        uv: [],
+        sky: [],
+        rain: [],
+        porosity: [],
+      },
       glass = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
       plants = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
       torches = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
@@ -629,7 +646,9 @@ export class Graphics {
         out.rain.push(rainExposure);
         out.porosity.push(porosity);
         out.uv.push(...this.textures.uv(tile, ...uvs[i]));
-        out.c.push(shade * ao[i], shade * ao[i], shade * ao[i]);
+        const color = out.ao ? shade : shade * ao[i];
+        out.c.push(color, color, color);
+        if (out.ao) out.ao.push(ao[i]);
       }
     };
     const opaque = (q, y, r) => {
@@ -890,6 +909,11 @@ export class Graphics {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(data.p, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(data.c, 3));
+      if (data.ao)
+        g.setAttribute(
+          'ambientOcclusion',
+          new THREE.Float32BufferAttribute(data.ao, 1),
+        );
       g.setAttribute('uv', new THREE.Float32BufferAttribute(data.uv, 2));
       g.setAttribute('skylight', new THREE.Float32BufferAttribute(data.sky, 1));
       g.setAttribute(
@@ -1412,6 +1436,8 @@ export class Graphics {
     this.weatherUniforms.terrainWetness.value = overworld
       ? weather?.wetness || 0
       : 0;
+    this.weatherUniforms.surfaceBounce.value =
+      this.world.dimension === 'nether' ? 0 : 1;
     this.weatherUniforms.wetSky.value.copy(horizon);
     this.weatherUniforms.terrainRain.value = rain;
     if (!overworld) this.sun.color.set('#dac4ff');

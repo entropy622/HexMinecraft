@@ -52,6 +52,7 @@ export function readForestLighting(g) {
     if (clones.has(material)) return clones.get(material);
     const result = material.clone(),
       compile = material.onBeforeCompile;
+    result.defaultAttributeValues = { ...material.defaultAttributeValues };
     result.toneMapped = false;
     result.premultipliedAlpha = false;
     result.onBeforeCompile = (shader, renderer) => {
@@ -76,6 +77,13 @@ export function readForestLighting(g) {
             outgoingLight=vec3(1.0);
           #endif
         }
+        else if(forestMode==6) {
+          #ifdef HEX_GEOMETRIC_SHADE
+            outgoingLight=vec3(vAmbientOcclusion);
+          #else
+            outgoingLight=vec3(1.0);
+          #endif
+        }
         #include <opaque_fragment>
         gl_FragColor.a=forestLeaf>0.5?1.0+length(vLightPosition-cameraPosition):0.0;`,
         );
@@ -96,7 +104,7 @@ export function readForestLighting(g) {
     r.autoClear = true;
     r.shadowMap.autoUpdate = false;
     r.shadowMap.needsUpdate = false;
-    for (mode.value = 0; mode.value < 6; mode.value++) {
+    for (mode.value = 0; mode.value < 7; mode.value++) {
       r.setRenderTarget(target);
       r.render(g.scene, camera);
       buffers.push(read(target));
@@ -185,6 +193,7 @@ export function readForestLighting(g) {
       'indirect',
       'surface-total',
       'vertex-color',
+      'geometric-ao',
     ],
     maps = buffers.map((data, i) => ({
       name: names[i],
@@ -273,7 +282,26 @@ export function readForestLighting(g) {
       prefixSquared +=
         (half(buffers[4][i * 4 + c]) - half(sceneColor[i * 4 + c])) ** 2;
   maps.push({ name: 'leaf-mask', png: encode(buffers[0], true) });
+  const occlusionGeometry = {
+    vertices: 0,
+    bytes: 0,
+    min: 1,
+    max: 0,
+    meshes: 0,
+  };
+  g.scene.traverseVisible((o) => {
+    const a = o.geometry?.attributes.ambientOcclusion;
+    if (!a) return;
+    occlusionGeometry.meshes++;
+    occlusionGeometry.vertices += a.count;
+    occlusionGeometry.bytes += a.array.byteLength;
+    for (const v of a.array) {
+      occlusionGeometry.min = Math.min(occlusionGeometry.min, v);
+      occlusionGeometry.max = Math.max(occlusionGeometry.max, v);
+    }
+  });
   return {
+    occlusionGeometry,
     width,
     height,
     leafPixels: selected.length,

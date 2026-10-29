@@ -135,14 +135,17 @@ async function glazing(page, layers, roof = false) {
   );
   await fresh(page);
 }
-async function sample(page) {
-  const raw = await page.evaluate(() => {
+// Path-length gates isolate direct transmission. The native bounce test below
+// measures the reflected term separately with its production value enabled.
+async function sample(page, bounce = 0) {
+  const raw = await page.evaluate((bounce) => {
     const g = window.__hexwild.graphics,
       t = g.composer.passes[0].target,
       renderer = g.renderer;
     const data = new Uint16Array(t.width * t.height * 4),
       target = renderer.getRenderTarget(),
-      intensity = g.sun.intensity;
+      intensity = g.sun.intensity,
+      originalBounce = g.weatherUniforms.surfaceBounce.value;
     const { center } = window.glassProbe;
     const p = g.camera.position
       .clone()
@@ -162,15 +165,17 @@ async function sample(page) {
       return values;
     };
     try {
+      if (bounce !== null) g.weatherUniforms.surfaceBounce.value = bounce;
       const lit = read();
       g.sun.intensity = 0;
       return { lit, ambient: read(), gl: renderer.getContext().getError() };
     } finally {
       g.sun.intensity = intensity;
+      g.weatherUniforms.surfaceBounce.value = originalBounce;
       read();
       renderer.setRenderTarget(target);
     }
-  });
+  }, bounce);
   const mean = (values) =>
     [0, 1, 2].map(
       (c) =>
@@ -187,6 +192,115 @@ async function sample(page) {
     gl: raw.gl,
   };
 }
+
+test('native shadow bounce retains the actual red and blue glass spectrum', async ({
+  page,
+}, info) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') errors.push(e.text());
+  });
+  await setup(page);
+  const samples = {};
+  for (const id of ['redStainedGlass', 'blueStainedGlass']) {
+    // Three real layers make the spectral separation unambiguous; a single
+    // short glass segment only changes the red/blue comparison by about 29%.
+    await glazing(page, [id, id, id], true);
+    const off = await sample(page, 0),
+      on = await sample(page, 1);
+    samples[id] = {
+      off,
+      on,
+      bounced: on.direct.map((v, c) => v - off.direct[c]),
+    };
+  }
+  const candidates = [];
+  await page.evaluate(() =>
+    window.__hexwild.graphics.setPostOptions({ clouds: true }),
+  );
+  for (let day = 0; day < 16; day++) {
+    const time = 120 + day * 600;
+    await clock(page, time);
+    const shadow = await page.evaluate(async () => {
+      const { probeCloudField } =
+          await import('/tests/fixtures/cloud-field-probe.js'),
+        p = window.glassProbe.center;
+      return probeCloudField(
+        window.__hexwild.graphics,
+        [[p.x, p.y, p.z]],
+        null,
+        p.y,
+      ).density[3];
+    });
+    candidates.push({ time, shadow });
+  }
+  const selected = candidates.reduce((a, b) => (a.shadow < b.shadow ? a : b));
+  await clock(page, selected.time);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => !window.__hexwild.graphics.skyEnvironment.atmosphere.pending,
+        ),
+      { timeout: 60000 },
+    )
+    .toBe(true);
+  await page.evaluate(() =>
+    window.__hexwild.graphics.setPostOptions({ clouds: false }),
+  );
+  await frames(page);
+  const clearOff = await sample(page, 0),
+    clearOn = await sample(page, 1);
+  await page.evaluate(() =>
+    window.__hexwild.graphics.setPostOptions({ clouds: true }),
+  );
+  await frames(page);
+  const cloudOff = await sample(page, 0),
+    cloudOn = await sample(page, 1);
+  const shadow = await page.evaluate(async () => {
+    const { probeCloudField } =
+        await import('/tests/fixtures/cloud-field-probe.js'),
+      p = window.glassProbe.center;
+    return probeCloudField(
+      window.__hexwild.graphics,
+      [[p.x, p.y, p.z]],
+      null,
+      p.y,
+    ).density[3];
+  });
+  const cloud = {
+    selected,
+    candidates,
+    shadow,
+    clearOff,
+    clearOn,
+    cloudOff,
+    cloudOn,
+    ratio: cloudOn.direct.map(
+      (v, c) =>
+        (v - cloudOff.direct[c]) / (clearOn.direct[c] - clearOff.direct[c]),
+    ),
+  };
+  await writeFile(
+    info.outputPath('native-colored-bounce.json'),
+    JSON.stringify({ samples, cloud, errors }, null, 2),
+  );
+  const red = samples.redStainedGlass.bounced,
+    blue = samples.blueStainedGlass.bounced;
+  expect(Math.max(...red)).toBeGreaterThan(0.0005);
+  expect(Math.max(...blue)).toBeGreaterThan(0.0005);
+  expect(red[0]).toBeGreaterThan(blue[0] * 1.5);
+  expect(blue[2]).toBeGreaterThan(red[2] * 1.5);
+  expect(shadow).toBeLessThan(0.93);
+  for (const ratio of cloud.ratio)
+    expect(Math.abs(ratio - shadow)).toBeLessThan(0.04);
+  for (const s of Object.values(samples)) {
+    expect(s.off.gl).toBe(0);
+    expect(s.on.gl).toBe(0);
+  }
+  expect(errors).toEqual([]);
+});
 
 test('real amber glass filters directional RGB by path length, stacks, blocks behind stone and clears after removal', async ({
   page,
