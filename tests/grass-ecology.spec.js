@@ -32,6 +32,7 @@ test.afterEach(async ({ page }, info) => {
           ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
           : gl.getParameter(gl.RENDERER),
         gl: gl.getError(),
+        grassCircuitTrace: window.__grassCircuitTrace,
         fauna: JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
           .overworld.fauna,
       };
@@ -267,18 +268,66 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   } finally {
     await page.locator('#world').dispatchEvent('mouseup', { button: 0 });
   }
-  const grassPulse = page.waitForFunction(
-    () => {
-      const g = window.__hexwild;
-      return (
+  // A slow rendered frame can contain the whole 0.1 s pulse in its physics
+  // substeps. Observe the real circuit without changing its clock or result.
+  await page.evaluate(() => {
+    const g = window.__hexwild,
+      circuit = g.state.world.redstone,
+      tick = circuit.tick;
+    const trace = (window.__grassCircuitTrace = {
+      transitions: [],
+      steps: 0,
+      elapsed: 0,
+      pulse: null,
+      rafPulse: null,
+      maxRafGap: 0,
+    });
+    let previous = '',
+      lastFrame = performance.now();
+    circuit.tick = function (...args) {
+      const result = tick.apply(this, args),
+        w = g.state.world,
+        source = w.get(4, 39, 4),
+        cover = w.get(4, 40, 4),
+        observer = !!w.state(5, 39, 4).powered,
+        lamp = !!w.state(6, 39, 4).powered;
+      trace.steps++;
+      trace.elapsed += args[0];
+      const state = JSON.stringify([source, cover, observer, lamp]);
+      if (state !== previous) {
+        trace.transitions.push({
+          source,
+          cover,
+          observer,
+          lamp,
+          step: trace.steps,
+          elapsed: trace.elapsed,
+          time: g.state.time,
+          wall: performance.now(),
+        });
+        previous = state;
+      }
+      if (source === 'dirt' && cover === 'observer' && observer && lamp)
+        trace.pulse ||= trace.transitions.at(-1);
+      return result;
+    };
+    const observe = (now) => {
+      trace.maxRafGap = Math.max(trace.maxRafGap, now - lastFrame);
+      lastFrame = now;
+      if (
         g.state.world.state(5, 39, 4).powered &&
-        g.state.world.state(6, 39, 4).powered &&
-        g.state.time
-      );
-    },
-    null,
-    { polling: 'raf', timeout: 30000 },
-  );
+        g.state.world.state(6, 39, 4).powered
+      )
+        trace.rafPulse ||= g.state.time;
+      if (!trace.stop) requestAnimationFrame(observe);
+    };
+    requestAnimationFrame(observe);
+    window.__stopGrassCircuitTrace = () => {
+      trace.stop = true;
+      circuit.tick = tick;
+      return trace;
+    };
+  });
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.give('observer', 1);
@@ -321,7 +370,45 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
     await page.locator('#world').dispatchEvent(type, { button: 2 });
   await expect.poll(() => cell(4, 40, 4)).toBe('observer');
   await expect.poll(() => cell(4, 39, 4), { timeout: 30000 }).toBe('dirt');
-  expect(await (await grassPulse).jsonValue()).toBeGreaterThan(carpetTime);
+  await page.waitForFunction(
+    () => {
+      const trace = window.__grassCircuitTrace;
+      return (
+        trace.pulse &&
+        trace.transitions.some(
+          (s) => s.step > trace.pulse.step && !s.observer && !s.lamp,
+        )
+      );
+    },
+    null,
+    { polling: 'raf', timeout: 30000 },
+  );
+  const grassCircuitReceipt = await page.evaluate(() => {
+    const trace = window.__stopGrassCircuitTrace();
+    delete window.__stopGrassCircuitTrace;
+    return trace;
+  });
+  const pulse = grassCircuitReceipt.pulse,
+    off = grassCircuitReceipt.transitions.find(
+      (s) => s.step > pulse.step && !s.observer && !s.lamp,
+    );
+  expect(pulse).toMatchObject({
+    source: 'dirt',
+    cover: 'observer',
+    observer: true,
+    lamp: true,
+  });
+  expect(pulse.time).toBeGreaterThan(carpetTime);
+  // Timers expire on a physics step, whose width is at most 1/60 s.
+  const pulseWidth = off.elapsed - pulse.elapsed;
+  expect(pulseWidth).toBeGreaterThanOrEqual(0.1 - 1e-8);
+  expect(pulseWidth).toBeLessThanOrEqual(0.1 + 1 / 60 + 1e-8);
+  expect(
+    grassCircuitReceipt.transitions.some(
+      (s) =>
+        s.step < pulse.step && s.source === 'dirt' && !s.observer && !s.lamp,
+    ),
+  ).toBe(true);
   await page.screenshot({ path: info.outputPath('covered-pasture.png') });
   const unloaded = await page.evaluate(() => {
     const g = window.__hexwild;
@@ -403,6 +490,7 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
         paused: true,
         carpetPreservedGrass: true,
         convertedGrassPoweredLamp: true,
+        grassCircuitReceipt,
         streamed: !unloaded && returnedLoaded,
         continued: true,
         publication,

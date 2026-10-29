@@ -75,6 +75,7 @@ export function probeLeafRange(g) {
     volume = new DynamicLight(),
     rows = [],
     fades = [],
+    responses = [],
     material = new ShaderMaterial({
       uniforms: {
         ...volume.uniforms,
@@ -84,6 +85,10 @@ export function probeLeafRange(g) {
         vLightPosition: { value: new Vector3(0, 45.2, 0) },
         albedo: { value: new Vector3(0.16, 0.37, 0.08) },
         probeMode: { value: 0 },
+        probeFade: { value: 0 },
+        probeNoL: { value: 0 },
+        probeAO: { value: 1 },
+        probeAmbient: { value: 0 },
         probeProjection: { value: new Vector3() },
       },
       vertexShader: 'void main(){gl_Position=vec4(position.xy,0,1);}',
@@ -91,7 +96,8 @@ export function probeLeafRange(g) {
         uniform vec3 leafSunDirection; uniform vec3 vLightPosition; uniform vec3 albedo;
         ${leafTransmissionGLSL}
         uniform int probeMode; uniform vec3 probeProjection;
-        void main(){gl_FragColor=vec4(probeMode==0?leafFarTransmittance(albedo):vec3(leafShadowRangeFade(probeProjection)),1);}`,
+        uniform float probeFade;uniform float probeNoL;uniform float probeAO;uniform float probeAmbient;
+        void main(){gl_FragColor=vec4(probeMode==0?leafFarTransmittance(albedo,probeFade):vec3(probeMode==1?leafShadowRangeFade(probeProjection):leafRangeResponse(probeFade,probeNoL,probeAO,probeAmbient)),1);}`,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
@@ -133,6 +139,12 @@ export function probeLeafRange(g) {
       { name: 'outside-above-loaded-top', position: [1000, 60, 1000] },
       { name: 'below-world', position: [0, -1, 0] },
       { name: 'horizontal', directions: [[1, 0, 0]] },
+      {
+        name: 'deep-canopy',
+        position: [0, 1.2, 0],
+        directions: [[0, 1, 0]],
+        cells: Array.from({ length: 63 }, (_, i) => [0, i + 1, 0, 'leaves']),
+      },
     ]) {
       for (const cell of spec.cells || []) world.set(...cell);
       if (spec.water) world.fluids.source(0, 47, 0, 'water');
@@ -148,14 +160,19 @@ export function probeLeafRange(g) {
       ]) {
         const direction = raw.map((v) => v / Math.hypot(...raw));
         material.uniforms.leafSunDirection.value.fromArray(direction);
-        rows.push({
-          name: spec.name,
-          position,
-          direction,
-          top: field.opticalTop,
-          rgb: read(),
-          oracle: oracle(field, position, direction, field.opticalTop),
-        });
+        const expected = oracle(field, position, direction, field.opticalTop);
+        for (const fade of [0, 0.25, 0.75, 1]) {
+          material.uniforms.probeFade.value = fade;
+          rows.push({
+            name: spec.name,
+            position,
+            direction,
+            fade,
+            top: field.opticalTop,
+            rgb: read(),
+            oracle: expected,
+          });
+        }
       }
       for (const [q, y, rr] of spec.cells || []) world.set(q, y, rr, null);
       if (spec.water) world.fluids.write(0, 47, 0, null);
@@ -169,9 +186,21 @@ export function probeLeafRange(g) {
           material.uniforms.probeProjection.value.fromArray(p);
           fades.push({ axis, side, p, value: read()[0] });
         }
+    material.uniforms.probeMode.value = 2;
+    for (const fade of [0, 0.25, 0.75, 1])
+      for (const NoL of [-0.5, 0, 0.5, 1])
+        for (const ao of [0, 0.64, 1])
+          for (const ambient of [0, 0.25, 0.5]) {
+            material.uniforms.probeFade.value = fade;
+            material.uniforms.probeNoL.value = NoL;
+            material.uniforms.probeAO.value = ao;
+            material.uniforms.probeAmbient.value = ambient;
+            responses.push({ fade, NoL, ao, ambient, value: read()[0] });
+          }
     return {
       rows,
       fades,
+      responses,
       albedo: material.uniforms.albedo.value.toArray(),
       gl: r.getContext().getError(),
     };

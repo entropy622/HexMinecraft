@@ -9,6 +9,10 @@ float leafShadowRangeFade(vec3 shadowPosition) {
   x*=x; x*=x; x*=x; x*=x; x*=x;
   return clamp((x-0.1)/0.9,0.0,1.0);
 }
+float leafRangeResponse(float fade, float NoL, float ao, float ambientSss) {
+  // Photon compensates the zero-thickness far fallback with actual visibility.
+  return mix(1.0,(ao+3.14159265359*ambientSss)*(0.8*clamp(NoL,0.0,1.0)+0.2),clamp(fade,0.0,1.0));
+}
 vec3 leafBeerTransmission(vec3 albedo, float thickness, float sssAmount) {
   float amount=clamp(sssAmount,0.0,1.0);
   if(amount<0.000001)return vec3(0.0);

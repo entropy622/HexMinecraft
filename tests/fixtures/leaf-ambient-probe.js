@@ -11,9 +11,13 @@ import {
   Uint8BufferAttribute,
   WebGLRenderTarget,
 } from 'three';
-import { leafMaterials, foliageUniforms } from '../../src/foliage-shader.js';
+import {
+  leafMaterials,
+  plantMaterials,
+  foliageUniforms,
+} from '../../src/foliage-shader.js';
 
-export function probeLeafAmbient(g) {
+export function probeLeafAmbient(g, plants = false) {
   const renderer = g.renderer,
     previous = renderer.getRenderTarget(),
     shadowEnabled = renderer.shadowMap.enabled,
@@ -22,19 +26,21 @@ export function probeLeafAmbient(g) {
     scene = new Scene(),
     camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 10),
     geometry = new PlaneGeometry(4, 4),
-    materials = leafMaterials(
+    uniforms = foliageUniforms(),
+    materials = (plants ? plantMaterials : leafMaterials)(
       null,
       {
         ...g.weatherUniforms,
         terrainWetness: { value: 0 },
         surfaceBounce: { value: 0 },
       },
-      foliageUniforms(),
+      uniforms,
     ),
     material = materials.material,
     probe = new LightProbe(),
     samples = [];
   material.color = new Color(0.4, 0.6, 0.2);
+  if (plants) uniforms.leafSssAmount.value = 0.5;
   material.toneMapped = false;
   for (const [name, size, value] of [
     ['color', 3, 1],
@@ -95,7 +101,23 @@ export function probeLeafAmbient(g) {
               const off = read();
               probe.intensity = 1;
               const on = read();
-              samples.push({ field, rotated, sky, ao, byte, shade, on, off });
+              let withoutAmbient;
+              if (plants) {
+                attr('leafAmbient', 0);
+                withoutAmbient = read();
+                attr('leafAmbient', byte);
+              }
+              samples.push({
+                field,
+                rotated,
+                sky,
+                ao,
+                byte,
+                shade,
+                on,
+                off,
+                withoutAmbient,
+              });
             }
       }
     }

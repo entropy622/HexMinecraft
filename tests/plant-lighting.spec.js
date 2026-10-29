@@ -1,5 +1,6 @@
 import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
+import { assertFoliageRange } from './fixtures/far-sss-assert.js';
 
 test.setTimeout(240000);
 const issues = new WeakMap();
@@ -273,6 +274,13 @@ test('near and far native flower transmission keeps real canopy, opaque roofs, s
     expect(selected.length).toBeGreaterThan(30);
     expect(baseline).toBeGreaterThan(0.000001);
     expect(clear.shadow.some((v) => v < 0 || v > 1)).toBe(far);
+    const range = () =>
+      page.evaluate(async () => {
+        const { readFoliageRange } =
+          await import('/tests/fixtures/far-sss-probe.js');
+        return readFoliageRange(window.__hexwild.graphics, [0, 45.45, 0], true);
+      });
+    const openRange = far ? assertFoliageRange(await range()) : null;
     for (const kind of [
       'leaves',
       'stone',
@@ -301,7 +309,13 @@ test('near and far native flower transmission keeps real canopy, opaque roofs, s
         JSON.stringify(results, null, 2),
       );
       expect(s.gl).toBe(0);
-      if (kind === 'leaves') expect(value / baseline).toBeLessThan(0.8);
+      if (kind === 'leaves') {
+        if (!far) expect(value / baseline).toBeLessThan(0.8);
+        else {
+          const covered = assertFoliageRange(await range());
+          expect(covered.ambient).toBeLessThan(openRange.ambient);
+        }
+      }
       if (kind === 'stone' || kind === 'stoneSlab')
         expect(value).toBeLessThan(0.000001);
       if (kind === 'redStainedGlass')
@@ -312,6 +326,76 @@ test('near and far native flower transmission keeps real canopy, opaque roofs, s
         expect(Math.abs(value / baseline - 1)).toBeLessThan(0.03);
     }
   }
+});
+
+test('actual flower pixels follow Photon thickness and visibility continuously across the real shadow-camera edge', async ({
+  page,
+}, info) => {
+  test.setTimeout(360000);
+  await setup(page);
+  const position = [0, 45.45, 0],
+    rows = [];
+  await aim(page, position);
+  const camera = await page.evaluate(async () => {
+    const g = window.__hexwild.graphics,
+      c = g.sun.shadow.camera;
+    return {
+      left: c.left,
+      right: c.right,
+      center: g.camera.position
+        .clone()
+        .set(0, 45.45, 0)
+        .applyMatrix4(g.sun.shadow.matrix).x,
+    };
+  });
+  try {
+    for (let i = 0; i <= 24; i++) {
+      const edge = 0.88 + i * 0.006;
+      await page.evaluate(
+        ({ camera, edge }) => {
+          const g = window.__hexwild.graphics,
+            c = g.sun.shadow.camera,
+            shift =
+              (camera.right - camera.left) * (camera.center - 0.5 + edge * 0.5);
+          c.left = camera.left + shift;
+          c.right = camera.right + shift;
+          c.updateProjectionMatrix();
+          g.renderer.shadowMap.needsUpdate = true;
+        },
+        { camera, edge },
+      );
+      const sample = await page.evaluate(async (position) => {
+          const { readFoliageRange } =
+            await import('/tests/fixtures/far-sss-probe.js');
+          return readFoliageRange(window.__hexwild.graphics, position, true);
+        }, position),
+        summary = assertFoliageRange(sample, 0.06);
+      rows.push({ edge, ...summary });
+      await writeFile(
+        info.outputPath('native-shadow-edge.json'),
+        JSON.stringify(rows, null, 2),
+      );
+    }
+  } finally {
+    if (!page.isClosed())
+      await page.evaluate((camera) => {
+        const g = window.__hexwild.graphics,
+          c = g.sun.shadow.camera;
+        c.left = camera.left;
+        c.right = camera.right;
+        c.updateProjectionMatrix();
+        g.renderer.shadowMap.needsUpdate = true;
+      }, camera);
+  }
+  await writeFile(
+    info.outputPath('native-shadow-edge.json'),
+    JSON.stringify(rows, null, 2),
+  );
+  expect(rows[0].fadeMax).toBe(0);
+  expect(rows.at(-1).fadeMin).toBe(1);
+  expect(rows.some((r) => r.fadeMin > 0 && r.fadeMax < 1)).toBe(true);
+  for (let i = 1; i < rows.length; i++)
+    expect(rows[i].fadeMin).toBeGreaterThanOrEqual(rows[i - 1].fadeMin);
 });
 
 test('plant scattering follows native clouds, moon and wind and survives quality, water capture and context restoration', async ({

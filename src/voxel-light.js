@@ -1,6 +1,12 @@
 import { Float32BufferAttribute } from 'three';
 import { WATER_EXTINCTION } from './fluids.js';
-import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
+import {
+  BLOCKS,
+  DIRECTIONS,
+  axialToWorld,
+  worldToAxial,
+  hash,
+} from './core.js';
 import { blockLight, EMISSION } from './light-data.js';
 import { LeafAmbient } from './leaf-ambient.js';
 
@@ -156,7 +162,20 @@ export class VoxelLight {
       cost[i] = data & 31;
       this.opticalTop = Math.max(this.opticalTop, y + 1);
       this.medium[i] = (data >>> 5) & 15;
-      if (BLOCKS[type]?.foliage && !BLOCKS[type]?.nonSolid) leafCells.push(i);
+      if (
+        (BLOCKS[type]?.foliage && !BLOCKS[type]?.nonSolid) ||
+        BLOCKS[type]?.shape === 'flower'
+      )
+        leafCells.push(i);
+      // Reserve potential tuft roots above all opaque ground. Grass/dirt and
+      // other optically identical replacements must not rebuild the light field.
+      if (
+        cost[i] === 16 &&
+        y < HEIGHT - 1 &&
+        !this.world.get(q, y + 1, r) &&
+        hash(q, 71, r) > 0.65
+      )
+        leafCells.push(i + 1);
       if (emission)
         emitters.push([
           i,

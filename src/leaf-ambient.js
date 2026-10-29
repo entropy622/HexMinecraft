@@ -1,6 +1,6 @@
 import { axialToWorld, worldToAxial } from './core.js';
 
-// Geometry-derived ambient transmission for full leaf blocks. Photon uses a
+// Geometry-derived ambient transmission for leaves and thin plants. Photon uses a
 // screen-space horizon integral; this forward renderer uses the loaded hex
 // volume instead. This is local visibility, not an additional sky light source.
 const HEIGHT = 64,

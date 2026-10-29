@@ -1,7 +1,7 @@
 import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 
-test('real far-leaf shader matches independent occupied-length integration and continuous coverage fade', async ({
+test('real far-leaf shader keeps occupied-length and opaque gates while matching Photon thickness fade and visibility compensation', async ({
   page,
 }, info) => {
   const errors = [],
@@ -30,6 +30,7 @@ test('real far-leaf shader matches independent occupied-length integration and c
   for (const row of result.rows)
     for (let c = 0; c < 3; c++) {
       if (row.oracle.blocked) expect(row.rgb[c]).toBe(0);
+      else if (row.fade === 1) expect(row.rgb[c]).toBe(1);
       else {
         const extinction =
             14 *
@@ -41,14 +42,27 @@ test('real far-leaf shader matches independent occupied-length integration and c
                   0,
                   Math.min(1, result.albedo[c] / Math.sqrt(lum + 0.000001)),
                 )),
-          depth = -Math.log(row.rgb[c]) / extinction;
+          expected = Math.exp(
+            -extinction * row.oracle.thickness * (1 - row.fade),
+          ),
+          depth = -Math.log(row.rgb[c]) / extinction / (1 - row.fade);
         // Bound only the existing 0.002 face push and the independent Riemann
         // discretization; no screen-space brightness threshold substitutes for it.
-        expect(Math.abs(depth - row.oracle.thickness)).toBeLessThan(
-          0.002 * row.oracle.leaves + 0.0005,
-        );
+        if (expected < 2 ** -126)
+          expect(row.rgb[c]).toBeLessThanOrEqual(2 ** -126);
+        else
+          expect(Math.abs(depth - row.oracle.thickness)).toBeLessThan(
+            0.002 * row.oracle.leaves + 0.0005,
+          );
       }
     }
+  for (const row of result.responses) {
+    const far =
+        (row.ao + Math.PI * row.ambient) *
+        (0.8 * Math.max(0, Math.min(1, row.NoL)) + 0.2),
+      expected = 1 + (far - 1) * row.fade;
+    expect(Math.abs(row.value - expected)).toBeLessThan(0.00001);
+  }
   for (const row of result.fades) {
     const edge = Math.min(
         1,

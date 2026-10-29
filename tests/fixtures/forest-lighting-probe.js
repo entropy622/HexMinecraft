@@ -102,7 +102,7 @@ export function readForestLighting(g) {
           #ifdef FOREST_LEAF_SOLAR
             if(vSkylight>=0.01 && max(max(leafSunColor.r,leafSunColor.g),leafSunColor.b)>0.00001) {
               float mu=dot(normalize(vLightPosition-cameraPosition),leafSunDirection);
-              vec3 transmission=leafTransmittance(diffuseColor.rgb);
+              vec3 transmission=leafTransmittance(diffuseColor.rgb,dot(inverseTransformDirection(geometryNormal,viewMatrix),leafSunDirection),vAmbientOcclusion,0.5*clamp(vLeafAmbient,0.0,1.0));
               vec3 diffuse=leafSolarResponse(diffuseColor.rgb,mu,transmission,0.0,leafSssAmount);
               vec3 response=forestMode==7 ? diffuse : leafSolarResponse(diffuseColor.rgb,mu,transmission,leafSheen,leafSssAmount)-diffuse;
               outgoingLight=leafSunColor*clamp(leafLightTransmission,vec3(0.0),vec3(1.0))*response;

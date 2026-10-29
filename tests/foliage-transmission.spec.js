@@ -1,6 +1,7 @@
 import { test, expect } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { writeFile } from 'node:fs/promises';
+import { assertFoliageRange } from './fixtures/far-sss-assert.js';
 
 test.setTimeout(240000);
 test.beforeEach(async ({ page }) => {
@@ -364,9 +365,17 @@ test('far native leaves retain real roof, slab and colored-glass occlusion beyon
     mask = litPixels(thin);
   expect(mask.length).toBeGreaterThan(30);
   expect(energy(thin, mask)).toBeGreaterThan(0.0001);
+  const range = () =>
+    page.evaluate(async () => {
+      const { readFoliageRange } =
+        await import('/tests/fixtures/far-sss-probe.js');
+      return readFoliageRange(window.__hexwild.graphics, [0, 45.5, 0]);
+    });
+  const openRange = assertFoliageRange(await range());
   await occluder(page, 'leaves');
   const thick = await sample(page);
-  expect(energy(thick, mask) / energy(thin, mask)).toBeLessThan(0.65);
+  const thickRange = assertFoliageRange(await range());
+  expect(thickRange.ambient).toBeLessThan(openRange.ambient);
   await occluder(page, 'stone');
   const roof = await sample(page);
   expect(energy(roof, mask)).toBeLessThan(0.000001);
@@ -429,6 +438,8 @@ test('far native leaves retain real roof, slab and colored-glass occlusion beyon
         pixels: mask.length,
         thin: energy(thin, mask),
         thick: energy(thick, mask),
+        openRange,
+        thickRange,
         roof: energy(roof, mask),
         slab: energy(slab, mask),
         restored: energy(restored, mask),

@@ -33,7 +33,7 @@ export function readPlantLighting(
         '#include <opaque_fragment>',
         `#include <opaque_fragment>
         if(plantProbeMode==1) gl_FragColor.rgb=reflectedLight.directDiffuse;
-        if(plantProbeMode==2) gl_FragColor.rgb=leafTransmittance(diffuseColor.rgb);
+        if(plantProbeMode==2) gl_FragColor.rgb=leafTransmittance(diffuseColor.rgb,dot(inverseTransformDirection(geometryNormal,viewMatrix),leafSunDirection),vAmbientOcclusion,0.5*clamp(vLeafAmbient,0.0,1.0));
         if(plantProbeMode==3) gl_FragColor.rgb=leafLightTransmission;
         if(plantProbeMode==4) gl_FragColor.rgb=vec3(vSkylight);
         gl_FragColor.a=2.0;`,

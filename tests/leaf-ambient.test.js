@@ -9,7 +9,7 @@ import {
 import { LeafAmbient } from '../src/leaf-ambient.js';
 import { VoxelLight } from '../src/voxel-light.js';
 import { World } from '../src/world.js';
-import { axialToWorld } from '../src/core.js';
+import { axialToWorld, hash } from '../src/core.js';
 
 function field() {
   return {
@@ -176,6 +176,65 @@ test('static geometry cache ignores emitter RGB but detects topology, roots and 
   world.generateChunk(-1, 0);
   light.update(1);
   assert.ok(light.leafAmbientVersion > removed);
+});
+
+test('actual flower and potential grass roots share visibility while opaque ground replacements reuse optical data', () => {
+  const world = new World(624, 'overworld', { load: false });
+  world.generateChunk(0, 0);
+  for (let q = 0; q < 8; q++)
+    for (let r = 0; r < 8; r++)
+      for (let y = 39; y < 50; y++) world.set(q, y, r, null);
+  const roots = [];
+  for (let q = 2; q <= 5; q++)
+    for (let r = 2; r <= 5; r++)
+      if (hash(q, 71, r) > 0.65) roots.push([q, 40, r]);
+  const [q, y, r] = roots[0];
+  world.set(q, y - 1, r, 'calcite');
+  world.set(6, 39, 6, 'dirt');
+  world.set(6, 40, 6, 'poppy');
+  const light = new VoxelLight(world);
+  light.update(0, true);
+  for (const p of [
+    [q, y, r],
+    [6, 40, 6],
+  ]) {
+    const i = light.index(...p);
+    assert.ok(light.leafAmbientCells.includes(i));
+    assert.ok(Math.abs(light.leafAmbient[i] - oracle(light, p)) <= 1);
+    assert.ok(light.leafAmbient[i] > 0);
+  }
+  const values = light.leafAmbient,
+    version = light.leafAmbientVersion,
+    revision = world.lightRevision;
+  for (const ground of ['grass', 'dirt', 'grass']) {
+    world.set(q, y - 1, r, ground);
+    assert.equal(world.lightRevision, revision);
+    assert.equal(light.update(1), false);
+    assert.equal(light.leafAmbient, values);
+    assert.equal(light.leafAmbientVersion, version);
+  }
+  world.set(6, 40, 6, 'dandelion');
+  assert.equal(world.lightRevision, revision);
+  assert.equal(light.update(1), false);
+  assert.equal(light.leafAmbient, values);
+  const cells = [];
+  for (let a = q - 1; a <= q + 1; a++)
+    for (let b = r - 1; b <= r + 1; b++)
+      for (let h = y; h <= y + 2; h++) {
+        if (a === q && b === r && h === y) continue;
+        world.set(a, h, b, 'stone');
+        cells.push([a, h, b]);
+      }
+  light.update(1);
+  const closed = light.leafAmbient[light.index(q, y, r)];
+  assert.ok(closed < values[light.index(q, y, r)]);
+  assert.ok(Math.abs(closed - oracle(light, [q, y, r])) <= 1);
+  for (const cell of cells) world.set(...cell, null);
+  light.update(1);
+  assert.equal(
+    light.leafAmbient[light.index(q, y, r)],
+    values[light.index(q, y, r)],
+  );
 });
 
 test('normalized geometry bytes use leaf cell ranges and skip uploads on held-light updates', () => {

@@ -5,13 +5,13 @@ export const leafTransmissionGLSL = /* glsl */ `
 vec3 leafLightTransmission = vec3(1.0);
 uniform float leafVolumeTop;
 uniform float leafSssAmount;
-vec3 leafFarTransmittance(vec3 albedo) {
+vec3 leafFarTransmittance(vec3 albedo, float fade) {
   vec3 start=vLightPosition+leafSunDirection*0.015;
   ivec3 first=lightCell(start);
   if(leafSunDirection.y<=0.00001)return vec3(0.0);
   bool insideColumns=first.y>=0 && first.z>=0 && first.y<int(entityLightSize.y) && first.z<int(entityLightSize.z);
   // The world's top is known open sky; lateral/unloaded bounds stay unknown.
-  if(float(first.x)>=entityLightSize.x && insideColumns)return leafBeerTransmission(albedo,0.06,leafSssAmount);
+  if(float(first.x)>=entityLightSize.x && insideColumns)return leafBeerTransmission(albedo,0.06*(1.0-fade),leafSssAmount);
   if(!insideLightVolume(first))return vec3(0.0);
   float top=min(leafVolumeTop,entityLightOrigin.y+entityLightSize.x);
   float reach=max(0.0,(top-start.y)/leafSunDirection.y);
@@ -26,13 +26,12 @@ vec3 leafFarTransmittance(vec3 albedo) {
     if(medium<11.5 || medium==13.0) return vec3(0.0);
     float segment=min(reach-distance,lightCellExit(point,cell,leafSunDirection));
     if(medium==12.0)thickness+=segment;
-    if(thickness>32.0)return vec3(0.0);
     distance+=segment+0.002;
   }
   if(!complete && distance<reach)return vec3(0.0);
-  return leafBeerTransmission(albedo,thickness,leafSssAmount);
+  return leafBeerTransmission(albedo,thickness*(1.0-fade),leafSssAmount);
 }
-vec3 leafNearTransmittance(vec3 albedo, vec3 p) {
+vec3 leafNearTransmittance(vec3 albedo, vec3 p, float fade) {
   #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0 && defined(SHADOWMAP_TYPE_BASIC)
     // Thickness uses the unoffset receiver. Ordinary shadow normal bias moves
     // the sample ray outside a leaf's cell and must not classify it as a wall.
@@ -68,12 +67,12 @@ vec3 leafNearTransmittance(vec3 albedo, vec3 p) {
       distance += segment + 0.002;
     }
     if (!complete && distance < reach) return vec3(0.0);
-    return leafBeerTransmission(albedo,thickness,leafSssAmount);
+    return leafBeerTransmission(albedo,thickness*(1.0-fade),leafSssAmount);
   #else
     return vec3(0.0);
   #endif
 }
-vec3 leafTransmittance(vec3 albedo) {
+vec3 leafTransmittance(vec3 albedo, float NoL, float ao, float ambientSss) {
   #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0 && defined(SHADOWMAP_TYPE_BASIC)
     vec4 shadowPoint=softShadowMatrix*vec4(vLightPosition,1.0);
     vec3 p=shadowPoint.xyz/shadowPoint.w;
@@ -82,12 +81,12 @@ vec3 leafTransmittance(vec3 albedo) {
     #endif
     float fade=leafShadowRangeFade(p);
     vec3 transmission=vec3(0.0);
-    if(fade>=1.0) transmission=leafFarTransmittance(albedo);
+    if(fade>=1.0) transmission=leafFarTransmittance(albedo,fade);
     else {
-      transmission=leafNearTransmittance(albedo,p);
-      if(fade>0.0)transmission=mix(transmission,leafFarTransmittance(albedo),fade);
+      transmission=leafNearTransmittance(albedo,p,fade);
+      if(fade>0.0)transmission=mix(transmission,leafFarTransmittance(albedo,fade),fade);
     }
-    return transmission;
+    return transmission*leafRangeResponse(fade,NoL,ao,ambientSss);
   #else
     return vec3(0.0);
   #endif

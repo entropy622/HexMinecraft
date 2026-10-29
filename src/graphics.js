@@ -64,6 +64,17 @@ const corners = Array.from({ length: 6 }, (_, i) => [
   Math.sin(((i * 60 - 30) * Math.PI) / 180),
 ]);
 let sharedTextures;
+function setFoliageAmbient(geometry, ranges) {
+  geometry.setAttribute(
+    'leafAmbient',
+    new THREE.Uint8BufferAttribute(
+      new Uint8Array(geometry.attributes.position.count),
+      1,
+      true,
+    ),
+  );
+  geometry.userData.leafRanges = new Int32Array(ranges);
+}
 // Counter-clockwise axial neighbors correspond to the outward side normals.
 export class Graphics {
   constructor(canvas) {
@@ -623,7 +634,15 @@ export class Graphics {
         porosity: [],
       },
       glass = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
-      plants = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
+      plants = {
+        p: [],
+        c: [],
+        leafRanges: [],
+        uv: [],
+        sky: [],
+        rain: [],
+        porosity: [],
+      },
       torches = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
       lamps = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] };
     let out = solid,
@@ -883,6 +902,7 @@ export class Graphics {
             hash(q, 71, r) > 0.65
           ) {
             out = plants;
+            const plantStart = plants.p.length / 3;
             const tile = hash(q, 92, r) > 0.9 ? 'flower' : 'tuft';
             for (let i = 0; i < 3; i++) {
               const angle = (i * Math.PI) / 3,
@@ -912,6 +932,13 @@ export class Graphics {
                 tile,
               );
             }
+            plants.leafRanges.push(
+              q,
+              y + 1,
+              r,
+              plantStart,
+              plants.p.length / 3,
+            );
           }
         }
     const geometry = (data) => {
@@ -924,15 +951,7 @@ export class Graphics {
           new THREE.Float32BufferAttribute(data.ao, 1),
         );
       if (data.leafRanges) {
-        g.setAttribute(
-          'leafAmbient',
-          new THREE.Uint8BufferAttribute(
-            new Uint8Array(data.p.length / 3),
-            1,
-            true,
-          ),
-        );
-        g.userData.leafRanges = new Int32Array(data.leafRanges);
+        setFoliageAmbient(g, data.leafRanges);
       }
       g.setAttribute('uv', new THREE.Float32BufferAttribute(data.uv, 2));
       g.setAttribute('skylight', new THREE.Float32BufferAttribute(data.sky, 1));
@@ -999,8 +1018,16 @@ export class Graphics {
             ? this.doorMaterial
             : this.material,
       );
-      if (BLOCKS[world.get(q, y, r)].shape === 'flower')
+      if (BLOCKS[world.get(q, y, r)].shape === 'flower') {
         building.customDepthMaterial = this.plantMaterials.depth;
+        setFoliageAmbient(building.geometry, [
+          q,
+          y,
+          r,
+          0,
+          building.geometry.attributes.position.count,
+        ]);
+      }
       if (['slab', 'stairs'].includes(BLOCKS[world.get(q, y, r)].shape))
         cuts.push(building.geometry);
       else mesh.add(building);
