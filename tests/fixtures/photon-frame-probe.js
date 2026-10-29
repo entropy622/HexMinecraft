@@ -20,12 +20,25 @@ export function installFrameProbe() {
     const context = getContext.apply(this, args);
     if (this.id === 'world' && args[0] === 'webgl2' && context && !gl) {
       gl = context;
-      extension = gl.getExtension('EXT_disjoint_timer_query_webgl2');
-      if (extension)
-        counterBits = gl.getQuery(
-          extension.TIME_ELAPSED_EXT,
-          extension.QUERY_COUNTER_BITS_EXT,
-        );
+      const enableTimer = () => {
+        extension = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+        counterBits = extension
+          ? gl.getQuery(
+              extension.TIME_ELAPSED_EXT,
+              extension.QUERY_COUNTER_BITS_EXT,
+            )
+          : 0;
+      };
+      enableTimer();
+      this.addEventListener('webglcontextlost', () => {
+        // Extension objects and query handles belong to the lost context.
+        extension = null;
+        counterBits = 0;
+        active = false;
+        pending = [];
+        gpu = [];
+      });
+      this.addEventListener('webglcontextrestored', enableTimer);
       for (const name of [
         'drawArrays',
         'drawElements',

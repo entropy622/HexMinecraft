@@ -1,5 +1,9 @@
 export const CLOUD_RADIUS = 4;
 export const CLOUD_BASE = 52;
+export const CLOUD_NOISE_SCALE = 255 / 126;
+export const CLOUD_COVERAGE_SIZE = 1024;
+export const CLOUD_COVERAGE_SPANS = [512, 256];
+export const CLOUD_COVERAGE_HEADER = 128;
 // Shared with the atmosphere's conversion of 20 metres per local world unit.
 export const CLOUD_PLANET_RADIUS = 6371000 / 20;
 const mod = (x, n) => ((x % n) + n) % n;
@@ -139,10 +143,34 @@ export function cloudWorleyData(seed) {
 
 // Integer-sized arithmetic stays below the float exact-integer limit. CPU
 // geometry and GPU shadows sample the same seeded field and drifting hex grid.
-export const cloudFieldGLSL = /* glsl */ `
-uniform sampler2D cloudNoise;
-uniform highp sampler3D cloudWorley;
+export const cloudMacroGLSL = /* glsl */ `
+uniform highp sampler2D cloudNoise;
+uniform float cloudNoiseScale;
 uniform float cloudRadius;
+float hexCloudRandom(vec2 p) {
+  return texelFetch(cloudNoise, ivec2(mod(p, 127.0)), 0).r * cloudNoiseScale;
+}
+float hexCloudNoise(vec2 p) {
+  vec2 a = floor(p), f = fract(p);
+  vec2 t = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hexCloudRandom(a), hexCloudRandom(a + vec2(1.0, 0.0)), t.x),
+    mix(hexCloudRandom(a + vec2(0.0, 1.0)), hexCloudRandom(a + 1.0), t.x), t.y);
+}
+float hexCloudDensity(vec2 h) {
+  return hexCloudNoise(h * 0.15) * 0.62 +
+    hexCloudNoise(vec2(-h.y, h.x) * 0.3 + vec2(19.0, 41.0)) * 0.27 +
+    hexCloudNoise(vec2(h.x + h.y, h.y) * 0.6 + vec2(9.0, -27.0)) * 0.11;
+}
+vec2 hexCloudMacroAnalytic(vec2 drifting, int layer) {
+  vec2 p = drifting * (layer == 0 ? 1.0 : 2.8) / cloudRadius;
+  vec2 h = vec2(p.x / 1.732050808 - p.y / 3.0, p.y / 1.5);
+  return vec2(hexCloudDensity(h + vec2(float(layer) * 37.0)),
+    hexCloudNoise(drifting * 0.0025 + float(layer) * 17.0));
+}
+`;
+export const cloudFieldGLSL = /* glsl */ `
+${cloudMacroGLSL}
+uniform highp sampler3D cloudWorley;
 uniform float cloudBase;
 uniform float cloudHeight;
 uniform float cloudFar;
@@ -156,20 +184,31 @@ uniform vec4 cloudLayers[3]; // base, thickness, coverage, stratus blend
 uniform vec2 cloudLayerWind[3];
 uniform vec2 cloudCurvatureOrigin;
 uniform float cloudShear;
+uniform float cloudCoverageReady;
+uniform vec2 cloudCoverageOrigin[2];
 const float hexCloudPlanet = ${CLOUD_PLANET_RADIUS.toFixed(1)};
-float hexCloudRandom(vec2 p) {
-  return texelFetch(cloudNoise, ivec2(mod(p, 127.0)), 0).r * (255.0 / 126.0);
-}
-float hexCloudNoise(vec2 p) {
-  vec2 a = floor(p), f = fract(p);
-  vec2 t = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hexCloudRandom(a), hexCloudRandom(a + vec2(1.0, 0.0)), t.x),
-    mix(hexCloudRandom(a + vec2(0.0, 1.0)), hexCloudRandom(a + 1.0), t.x), t.y);
-}
-float hexCloudDensity(vec2 h) {
-  return hexCloudNoise(h * 0.15) * 0.62 +
-    hexCloudNoise(vec2(-h.y, h.x) * 0.3 + vec2(19.0, 41.0)) * 0.27 +
-    hexCloudNoise(vec2(h.x + h.y, h.y) * 0.6 + vec2(9.0, -27.0)) * 0.11;
+vec2 hexCloudMacro(vec2 drifting, int layer) {
+  vec2 origin = layer == 0 ? cloudCoverageOrigin[0] : cloudCoverageOrigin[1];
+  float span = layer == 0 ? ${CLOUD_COVERAGE_SPANS[0].toFixed(1)} : ${CLOUD_COVERAGE_SPANS[1].toFixed(1)};
+  vec2 uv = (drifting - origin) / span + 0.5;
+  const float guard = 0.5 / ${CLOUD_COVERAGE_SIZE.toFixed(1)};
+  bool useCache = cloudCoverageReady > 0.5 && all(greaterThanEqual(uv, vec2(guard))) && all(lessThanEqual(uv, vec2(1.0 - guard)));
+  vec2 result = vec2(0.0);
+  if (useCache) {
+    // Explicit interpolation keeps the world-aligned grid stable when a tile
+    // moves; normalized hardware filtering can round differently in this atlas.
+    vec2 pixel = uv * ${CLOUD_COVERAGE_SIZE.toFixed(1)} - 0.5;
+    ivec2 cell = ivec2(min(floor(pixel), vec2(${(CLOUD_COVERAGE_SIZE - 2).toFixed(1)})));
+    vec2 f = pixel - vec2(cell);
+    cell.y += ${CLOUD_COVERAGE_HEADER};
+    vec4 cached = mix(
+      mix(texelFetch(cloudNoise, cell, 0), texelFetch(cloudNoise, cell + ivec2(1, 0), 0), f.x),
+      mix(texelFetch(cloudNoise, cell + ivec2(0, 1), 0), texelFetch(cloudNoise, cell + ivec2(1, 1), 0), f.x), f.y);
+    result = layer == 0 ? cached.rg : cached.ba;
+  } else {
+    result = hexCloudMacroAnalytic(drifting, layer);
+  }
+  return result;
 }
 vec2 hexCloudCell(vec2 p) {
   p /= cloudRadius;
@@ -240,11 +279,8 @@ float hexCloudLayerDensity(vec3 position, int layer) {
     float cirrocumulus = broken * cells * cells * (0.02 + band.w * 0.05);
     return (cirrus + cirrocumulus) * sin(fraction * 3.14159265);
   }
-  float scale = layer == 0 ? 1.0 : 2.8;
-  vec2 p = drifting * scale / cloudRadius;
-  vec2 h = vec2(p.x / 1.732050808 - p.y / 3.0, p.y / 1.5);
-  float macro = hexCloudDensity(h + vec2(float(layer) * 37.0));
-  float regional = hexCloudNoise(drifting * 0.0025 + float(layer) * 17.0);
+  vec2 coverage = hexCloudMacro(drifting, layer);
+  float macro = coverage.x, regional = coverage.y;
   float cover = macro * 0.82 + regional * 0.18;
   // Coverage selects the horizontal footprint before erosion. A positive
   // threshold bias saturated broad regions when the thin layer became deep.

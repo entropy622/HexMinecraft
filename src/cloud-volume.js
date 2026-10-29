@@ -17,6 +17,7 @@ import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { CLOUD_PLANET_RADIUS, cloudFieldGLSL } from './cloud-field.js';
 import { skyRadianceGLSL } from './sky-atmosphere.js';
 import { cloudScatteringGLSL } from './cloud-scattering.js';
+import { CloudCoverage } from './cloud-coverage.js';
 
 const vertexShader = /* glsl */ `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
 const volumeShader = /* glsl */ `
@@ -251,6 +252,7 @@ export class CloudVolumePass {
   constructor(camera, cloudUniforms) {
     this.camera = camera;
     this.cloudUniforms = cloudUniforms;
+    this.coverage = new CloudCoverage(cloudUniforms);
     this.phase = 0;
     this.target = new WebGLRenderTarget(1, 1, {
       type: HalfFloatType,
@@ -325,6 +327,7 @@ export class CloudVolumePass {
     this.quad = new FullScreenQuad();
   }
   reset() {
+    this.coverage.reset();
     for (const state of this.histories.values()) state.frames = 0;
   }
   setSize(width, height) {
@@ -387,7 +390,7 @@ export class CloudVolumePass {
             Math.abs(v.z - state.layers[i].z) > 0.04 ||
             Math.abs(v.w - state.layers[i].w) > 0.08,
         ) ||
-        u.cloudNoise.value.version !== state.noise ||
+        u.cloudSeedNoise.value.version !== state.noise ||
         (this.light.r - state.light.r) ** 2 +
           (this.light.g - state.light.g) ** 2 +
           (this.light.b - state.light.b) ** 2 >
@@ -439,7 +442,7 @@ export class CloudVolumePass {
       state.scale.set(p[0], p[5]);
       state.wind.forEach((v, i) => v.copy(u.cloudLayerWind.value[i]));
       state.layers.forEach((v, i) => v.copy(u.cloudLayers.value[i]));
-      state.noise = u.cloudNoise.value.version;
+      state.noise = u.cloudSeedNoise.value.version;
       state.light.copy(this.light);
       state.direction.copy(u.cloudLightDirection.value);
     } catch (error) {
@@ -451,6 +454,7 @@ export class CloudVolumePass {
     }
   }
   dispose() {
+    this.coverage.dispose();
     this.target.dispose();
     for (const state of this.histories.values())
       state.history.forEach((t) => t.dispose());

@@ -55,6 +55,7 @@ export class SceneFramePass extends Pass {
     this.clouds.setSize(this.target.width, this.target.height);
   }
   render(renderer, writeBuffer, readBuffer) {
+    this.clouds.coverage.prepare(renderer, this.camera);
     const fluids = this.fluids,
       uniforms = fluids.waterUniforms;
     uniforms.waterSceneReady.value = 0;

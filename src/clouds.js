@@ -4,6 +4,7 @@ import { skyRadianceGLSL } from './sky-atmosphere.js';
 import {
   CLOUD_RADIUS,
   CLOUD_BASE,
+  CLOUD_NOISE_SCALE,
   CLOUD_PLANET_RADIUS,
   cloudDensity,
   cloudNoiseData,
@@ -42,6 +43,12 @@ export class HexClouds {
     this.worley.needsUpdate = true;
     this.uniforms = {
       cloudNoise: { value: this.noise },
+      cloudSeedNoise: { value: this.noise },
+      cloudNoiseScale: { value: CLOUD_NOISE_SCALE },
+      cloudCoverageReady: { value: 0 },
+      cloudCoverageOrigin: {
+        value: [new THREE.Vector2(), new THREE.Vector2()],
+      },
       cloudWorley: { value: this.worley },
       cloudRadius: { value: CLOUD_RADIUS },
       cloudBase: { value: CLOUD_BASE },
@@ -315,7 +322,7 @@ export class HexClouds {
               );
         };
         material.customProgramCacheKey = () =>
-          cache.call(material) + '-hex-cloud-shadow-v5';
+          cache.call(material) + '-hex-cloud-shadow-v6';
         material.needsUpdate = true;
       }
     });
