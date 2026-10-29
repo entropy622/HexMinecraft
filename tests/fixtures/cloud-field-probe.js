@@ -90,7 +90,7 @@ export function probeCloudField(g, points = null, layer = null) {
       vec3 transmission=vec3(1.0);
       for(int layer=0;layer<3;layer++){
         vec2 span=hexCloudInterval(ground,cloudLightDirection,layer,cloudFar);
-        if(span.y>span.x)transmission[layer]=exp(-hexCloudExtinction*hexCloudLayerOpticalDepth(ground+cloudLightDirection*span.x,cloudLightDirection,span.y-span.x,layer));
+        if(span.y>span.x)transmission[layer]=exp(-hexCloudExtinction*hexCloudLayerOpticalDepth(ground+cloudLightDirection*span.x,cloudLightDirection,span.y-span.x,layer,4));
       }
       value=vec4(transmission,cloudShade*smoothstep(0.04,0.18,cloudLightDirection.y));
     }`,

@@ -187,7 +187,12 @@ export class TemporalResolvePass extends Pass {
   }
   beginFrame() {
     this.jittered = false;
-    if (!this.enabled) return;
+    // Cloud integration and projection use one frame sequence. A lighting or
+    // cloud-history reset must not restart noise independently of projection.
+    if (!this.enabled) {
+      this.frame.clouds.phase = this.phase++ % samples.length;
+      return;
+    }
     const c = this.camera,
       p = c.projectionMatrix.elements,
       old = this.previousProjection.elements,
@@ -202,6 +207,7 @@ export class TemporalResolvePass extends Pass {
         medium !== this.medium)
     )
       this.reset();
+    this.frame.clouds.phase = this.phase % samples.length;
     this.medium = medium;
     this.projection.copy(c.projectionMatrix);
     this.inverse.copy(c.projectionMatrixInverse);

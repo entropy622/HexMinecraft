@@ -120,3 +120,7 @@ CPU 专项正式存档/自然场景与独立 EXR reader 2/2，通过语法、Pre
 生产版首轮在时刻 30 导出九条额外仙人掌删除记录；实际自然生成导致横向相邻列，原生维护按既有生存规则移除了它们。生成改为种子/地形优先级选点，跨区块顺序检查先红后绿。重新构建后，生产入口 1/1 通过，导出位置、方向、时刻与零编辑均保持一致，生产包没有暴露开发接口。随后仙人掌真实玩法 E2E 1/1 通过。全部 197 项 Node 和构建通过。
 
 当前云层仍偏薄和条带化，材质及低空 RGB 输运继续推进；本节不表示 Photon 参考图或绝大部分迁移目标已经完成。本机产物在 hexminecraft-photon-0.86/ 的 forest-readability-regressions、final-forest-after-cactus、production-cactus-fix、cactus-far-view-native，各自保留 CLI、PID/独立端口释放记录。早期漏过初始 PID 快照的检查已如实注明。所有验证使用后台无头 Chrome 与 DOM Pointer Lock 边界，没有操作前台鼠标或用户 5173 服务。后续由主代理独立开发，不再启动子代理。
+
+## 0.87 同镜头控制
+
+首帧跨时钟的负 dt 已由独立边界回归证实并修复，详见[时钟记录](frame-clock-verification.md)。历史黑帧缺少当时的 dt/密度记录，根因仍不能由这次修复完全追溯。新旧云控制共同采用 573bb7c 的时钟修复，并保留相同自然存档、曝光、视距和相机；最终四张画面、GPU 开销及当前形态差距见[厚云配对记录](cloud-transport-verification.md)。

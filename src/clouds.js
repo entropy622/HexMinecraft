@@ -15,6 +15,7 @@ import {
 const CHUNK = 8,
   CAPACITY = 49 * CHUNK * CHUNK;
 const UP = new THREE.Vector3(0, 1, 0);
+const DOWN = new THREE.Vector3(0, -1, 0);
 export class HexClouds {
   constructor(scene, skyProbe) {
     this.scene = scene;
@@ -52,12 +53,14 @@ export class HexClouds {
       cloudHeight: { value: 3 },
       cloudVolumetric: { value: 0 },
       cloudAmbient: { value: new THREE.Color() },
+      cloudGround: { value: new THREE.Color() },
       cloudDirect: { value: new THREE.Color() },
+      cloudAlbedo: { value: 0.995 },
       cloudFar: { value: 130 },
       cloudLayers: {
         value: [
-          new THREE.Vector4(CLOUD_BASE, 8, 0.5, 0),
-          new THREE.Vector4(160, 10, 0.4, 0),
+          new THREE.Vector4(CLOUD_BASE, 60, 0.5, 0),
+          new THREE.Vector4(160, 24, 0.4, 0),
           new THREE.Vector4(300, 3.5, 0.4, 0),
         ],
       },
@@ -184,13 +187,13 @@ export class HexClouds {
     );
     u.cloudLayers.value[0].set(
       CLOUD_BASE,
-      8 + rain * 9 + storm * 5,
+      60 + rain * 12 + storm * 8,
       climate.coverage[0],
       climate.stratus,
     );
     u.cloudLayers.value[1].set(
       160,
-      8 + climate.humidity * 5,
+      24 + climate.humidity * 6 + storm * 8,
       climate.coverage[1],
       climate.stratus * 0.8,
     );
@@ -238,7 +241,14 @@ export class HexClouds {
         Math.max(0, this.skyIrradiance.z) / Math.PI,
       )
       .addScalar(flash * 0.8);
-    u.cloudDirect.value.copy(sun.color).multiplyScalar(sun.intensity * 0.8);
+    this.skyProbe.sh.getIrradianceAt(DOWN, this.skyIrradiance);
+    u.cloudGround.value.setRGB(
+      Math.max(0, this.skyIrradiance.x) / Math.PI,
+      Math.max(0, this.skyIrradiance.y) / Math.PI,
+      Math.max(0, this.skyIrradiance.z) / Math.PI,
+    );
+    u.cloudAlbedo.value = 0.995 - rain * 0.18 - storm * 0.05;
+    u.cloudDirect.value.copy(sun.color).multiplyScalar(sun.intensity);
     if (quality >= 1.7) return;
     this.mesh.position.set(
       u.cloudWind.value.x,
@@ -305,7 +315,7 @@ export class HexClouds {
               );
         };
         material.customProgramCacheKey = () =>
-          cache.call(material) + '-hex-cloud-shadow-v4';
+          cache.call(material) + '-hex-cloud-shadow-v5';
         material.needsUpdate = true;
       }
     });

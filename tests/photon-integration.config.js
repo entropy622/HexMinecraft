@@ -6,6 +6,7 @@ export default defineConfig({
   ...atmosphere,
   testMatch: [
     'cloud-sky.spec.js',
+    'cloud-scattering.spec.js',
     'cloud-layers.spec.js',
     'clouds.spec.js',
     'cloud-history.spec.js',

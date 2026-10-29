@@ -53,12 +53,16 @@ async function setup(page) {
           const g = window.__hexwild.graphics;
           return (
             g.voxelLight.revision === g.world.lightRevision &&
-            g.relightQueue.size === 0
+            g.relightQueue.size === 0 &&
+            !g.skyEnvironment.atmosphere.pending
           );
         }),
       { timeout: 60000 },
     )
     .toBe(true);
+  // The cloud history is still disabled. Settle the requested sky and terrain
+  // before measuring a cold cloud accumulation, including its first frame.
+  await frames(page, 32);
   return site;
 }
 function statistics(frames) {
@@ -240,6 +244,14 @@ async function cloudSample(page, phase = null) {
       ],
       metadata: Array.from(metadata),
       phase: g.composer.effects.temporal.phase % 8,
+      cloudPhase: f.clouds.volume.uniforms.cloudPhase.value,
+      cloudFrames: h.frames,
+      time: window.__hexwild.state.time,
+      wind: g.cloudSystem.uniforms.cloudLayerWind.value.map((v) => v.toArray()),
+      bands: g.cloudSystem.uniforms.cloudLayers.value.map((v) => v.toArray()),
+      skyPending: !!g.skyEnvironment.atmosphere.pending,
+      lightDirection:
+        g.cloudSystem.uniforms.cloudLightDirection.value.toArray(),
       error: g.renderer.getContext().getError(),
     };
   }, phase);
@@ -264,6 +276,13 @@ async function cloudSample(page, phase = null) {
     }
   return {
     phase: raw.phase,
+    cloudPhase: raw.cloudPhase,
+    cloudFrames: raw.cloudFrames,
+    time: raw.time,
+    wind: raw.wind,
+    bands: raw.bands,
+    skyPending: raw.skyPending,
+    lightDirection: raw.lightDirection,
     rgba,
     field,
     age: meta.filter((_, i) => i % 4 === 2).reduce((a, b) => a + b, 0) / 121,
@@ -298,7 +317,9 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
       new Promise((resolve) => {
         let n = 32;
         const next = () => {
-          window.__hexwild.step(2);
+          // Stay within the production frame clock's maximum step. A large
+          // time jump can legitimately invalidate lighting history on delivery.
+          window.__hexwild.step(0.25);
           if (--n === 0) resolve();
           else requestAnimationFrame(next);
         };
@@ -306,6 +327,10 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
       }),
   );
   const moving = await cloudSample(page);
+  await writeFile(
+    info.outputPath('moving-frame.json'),
+    JSON.stringify({ moving }, null, 2),
+  );
   expect(moving.age).toBeGreaterThan(4);
   await page.evaluate(() => {
     const g = window.__hexwild.graphics;
@@ -324,10 +349,25 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
       a.field.reduce((n, v, i) => n + (v - b.field[i]) ** 2, 0) /
         a.field.length,
     );
+  await writeFile(
+    info.outputPath('moving-cloud-field.json'),
+    JSON.stringify(
+      { moving, reference, error: fieldError(moving, reference) },
+      null,
+      2,
+    ),
+  );
   expect(
     reference.field.filter((v) => v > 0.02 && v < 0.98).length,
   ).toBeGreaterThan(100);
   expect(fieldError(moving, reference)).toBeLessThan(0.025);
+  // Retain independent unobstructed controls for every projection/noise phase.
+  // Immediate reveal still gets only two frames; its control must have the
+  // same subpixel coverage, just like the partial-occlusion comparison below.
+  const referencePhases = new Map([[reference.phase, reference]]);
+  for (let phase = 0; phase < 8; phase++)
+    if (!referencePhases.has(phase))
+      referencePhases.set(phase, await cloudSample(page, phase));
   const occlusion = [];
   let revealed;
   for (const height of [47, 54]) {
@@ -388,12 +428,21 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
       } else {
         revealed = immediate;
         expect(revealed.rgba[3]).toBeLessThan(0.98);
-        const error = fieldError(revealed, reference);
+        const error = fieldError(revealed, referencePhases.get(revealed.phase));
         occlusion.push({
           height,
+          phase: revealed.phase,
           revealedTransmission: revealed.rgba[3],
           error,
         });
+        await writeFile(
+          info.outputPath(`revealed-${height}.json`),
+          JSON.stringify(
+            { revealed, reference: referencePhases.get(revealed.phase), error },
+            null,
+            2,
+          ),
+        );
         expect(error).toBeLessThan(0.03);
       }
     }
@@ -432,7 +481,11 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
   expect(restored.error).toBe(0);
   expect(restored.rgba[3]).toBeLessThan(0.98);
   expect(Math.abs(restored.rgba[3] - reference.rgba[3])).toBeLessThan(0.03);
-  expect(fieldError(restored, reference)).toBeLessThan(0.025);
+  const restoredError = fieldError(
+    restored,
+    referencePhases.get(restored.phase),
+  );
+  expect(restoredError).toBeLessThan(0.025);
   await page.screenshot({ path: info.outputPath('restored-clouds.png') });
   await writeFile(
     info.outputPath('cloud-motion-recovery.json'),
@@ -445,7 +498,7 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
         revealed: { ...revealed, field: undefined },
         restored: { ...restored, field: undefined },
         movingFieldError: fieldError(moving, reference),
-        restoredFieldError: fieldError(restored, reference),
+        restoredFieldError: restoredError,
         occlusion,
         restoredFrames,
         errors,

@@ -97,6 +97,10 @@ test('production cloud frame derives all three layers and preserves low quality,
   assert.ok(u.cloudFar.value > camera.far);
   assert.equal(u.cloudVolumetric.value, 1);
   assert.ok(
+    u.cloudLayers.value[0].y >= 50,
+    'At 20 m/local unit the primary cumulus must span at least one kilometre',
+  );
+  assert.ok(
     u.cloudLayers.value[0].x + u.cloudLayers.value[0].y <
       u.cloudLayers.value[1].x,
   );
@@ -135,6 +139,56 @@ test('production cloud frame derives all three layers and preserves low quality,
   clouds.frame(frame);
   assert.equal(u.cloudVolumetric.value, 0);
   assert.equal(clouds.mesh.visible, false);
+  clouds.noise.dispose();
+  clouds.worley.dispose();
+  clouds.mesh.geometry.dispose();
+  clouds.material.dispose();
+});
+
+test('cloud sky and ground incident radiance use both hemispheres of the same SH environment', () => {
+  const probe = new LightProbe(),
+    scene = new Scene(),
+    clouds = new HexClouds(scene, probe),
+    camera = new PerspectiveCamera(72, 1, 0.08, 220),
+    sun = new DirectionalLight(),
+    world = new World(624, 'overworld', { load: false });
+  sun.position.set(1, 2, 0);
+  const frame = {
+    world,
+    camera,
+    sun,
+    time: 120,
+    rain: 0,
+    storm: 0,
+    flash: 0,
+    quality: 1.7,
+    enabled: true,
+  };
+  const radiance = [0.2, 0.4, 0.6];
+  probe.sh.coefficients[0]
+    .fromArray(radiance)
+    .multiplyScalar(Math.sqrt(4 * Math.PI));
+  clouds.frame(frame);
+  const u = clouds.uniforms;
+  for (let c = 0; c < 3; c++) {
+    assert.ok(Math.abs(u.cloudAmbient.value.toArray()[c] - radiance[c]) < 1e-5);
+    assert.ok(Math.abs(u.cloudGround.value.toArray()[c] - radiance[c]) < 1e-5);
+  }
+  // Analytic irradiance convolution of a first-order Y spherical harmonic.
+  probe.sh.coefficients[1].setScalar(0.1);
+  clouds.frame(frame);
+  const delta = 0.1 * (2 / 3) * Math.sqrt(3 / (4 * Math.PI));
+  for (let c = 0; c < 3; c++) {
+    assert.ok(
+      Math.abs(u.cloudAmbient.value.toArray()[c] - radiance[c] - delta) < 1e-5,
+    );
+    assert.ok(
+      Math.abs(u.cloudGround.value.toArray()[c] - radiance[c] + delta) < 1e-5,
+    );
+  }
+  assert.equal(u.cloudAlbedo.value, 0.995);
+  clouds.frame({ ...frame, rain: 1, storm: 1 });
+  assert.ok(u.cloudAlbedo.value > 0 && u.cloudAlbedo.value < 0.8);
   clouds.noise.dispose();
   clouds.worley.dispose();
   clouds.mesh.geometry.dispose();

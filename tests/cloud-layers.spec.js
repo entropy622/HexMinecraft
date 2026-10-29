@@ -402,7 +402,7 @@ test('existing weather controls reshape clouds continuously and keep independent
         { timeout: 90000, intervals: [250] },
       )
       [kind === 'clear' ? 'toBeLessThan' : 'toBeGreaterThan'](
-        kind === 'clear' ? 8.1 : kind === 'rain' ? 16.9 : 21.9,
+        kind === 'clear' ? 60.1 : kind === 'rain' ? 71.9 : 79.9,
       );
     await page.evaluate(() => {
       const g = window.__hexwild;

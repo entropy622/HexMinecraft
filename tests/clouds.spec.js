@@ -312,7 +312,12 @@ test('clouds cast world-anchored shadows, stop at foreground depth and reject cl
   const below = await sample(page);
   await view(page, site, 51, { ...site, q: site.q + 15, y: 53 });
   const inside = await sample(page);
-  await view(page, site, 70, { ...site, y: 40 });
+  const cloudTop = await page.evaluate(() => {
+    const band =
+      window.__hexwild.graphics.cloudSystem.uniforms.cloudLayers.value[0];
+    return band.x + band.y;
+  });
+  await view(page, site, cloudTop + 10, { ...site, y: 40 });
   const above = await sample(page);
   await writeFile(
     info.outputPath('cloud-depth-shadow.json'),

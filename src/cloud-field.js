@@ -246,20 +246,36 @@ float hexCloudLayerDensity(vec3 position, int layer) {
   float macro = hexCloudDensity(h + vec2(float(layer) * 37.0));
   float regional = hexCloudNoise(drifting * 0.0025 + float(layer) * 17.0);
   float cover = macro * 0.82 + regional * 0.18;
-  float fill = clamp((cover - (1.0 - band.z) + 0.09) * 4.6, 0.0, 1.0);
+  // Coverage selects the horizontal footprint before erosion. A positive
+  // threshold bias saturated broad regions when the thin layer became deep.
+  float fill = clamp((cover - (1.0 - band.z)) / max(0.18, band.z * 0.75), 0.0, 1.0);
   fraction /= mix(0.5 + macro * 0.5, 1.0, band.w * 0.75);
   if (fraction >= 1.0 || fill <= 0.0) return 0.0;
-  vec3 detailPosition = vec3(drifting * (layer == 0 ? 0.022 : 0.06), y * 0.11);
-  detailPosition.xy += fraction * vec2(0.055, -0.024) * cloudShear;
-  float bubbles = textureLod(cloudWorley, detailPosition, 0.0).r * 0.72 + textureLod(cloudWorley, detailPosition * 2.7 + 0.31, 0.0).r * 0.28;
-  float profile = smoothstep(0.0, 0.13, fraction) * (1.0 - smoothstep(0.48, 1.0, fraction));
-  float erosion = mix(0.66, 0.27, band.w);
-  return max(0.0, fill - (1.0 - bubbles) * erosion) * profile * (layer == 0 ? 1.0 : 0.48);
+  // Isotropic cells form billows throughout the depth of the body. The old
+  // vertical frequency compressed the same features into thin horizontal bands.
+  vec3 detailPosition = vec3(drifting.x, y, drifting.y) * (layer == 0 ? 0.006 : 0.018);
+  detailPosition.xz += fraction * vec2(0.12, -0.06) * cloudShear;
+  vec2 erosionNoise = 1.0 - vec2(textureLod(cloudWorley, detailPosition, 0.0).r,
+    textureLod(cloudWorley, detailPosition * 5.4 + 0.31, 0.0).r);
+  float crown = smoothstep(0.2, 1.0, fraction) * mix(0.55, 0.3, band.w);
+  float profile = smoothstep(0.0, 0.2, fraction) * (1.0 - smoothstep(0.88, 1.0, fraction));
+  float density = max(0.0, fill - crown);
+  // Erode the envelope with independent coarse billows and smaller wisps.
+  // Dense interiors survive; fragmented edges retain detail with two samples.
+  vec2 erosion = mix(vec2(0.33, 0.40), vec2(0.07, 0.10), vec2(band.w * band.w, band.w));
+  float fineWeight = mix(0.8, 0.35, smoothstep(0.05, 0.5, fraction));
+  float edge = 1.0 - density * density;
+  density = max(0.0, density - dot(erosionNoise * erosionNoise, erosion * vec2(1.0, fineWeight)) * edge);
+  float sharpening = mix(3.0, 10.0, fraction);
+  density = density * (1.0 + sharpening) / (1.0 + density * sharpening);
+  density *= mix(0.1, 1.0, smoothstep(0.2, 0.7, fraction));
+  return density * profile * (layer == 0 ? 1.0 : 0.48);
 }
-float hexCloudLayerOpticalDepth(vec3 origin, vec3 direction, float reach, int layer) {
+float hexCloudLayerOpticalDepth(vec3 origin, vec3 direction, float reach, int layer, int steps) {
   float depth = 0.0;
-  for (int i = 0; i < 4; i++) {
-    float a = float(i) / 4.0, b = float(i + 1) / 4.0;
+  for (int i = 0; i < 6; i++) {
+    if (i >= steps) break;
+    float a = float(i) / float(steps), b = float(i + 1) / float(steps);
     float start = a * a * reach, end = b * b * reach;
     depth += hexCloudLayerDensity(origin + direction * ((start + end) * 0.5), layer) * (end - start);
   }
@@ -271,7 +287,7 @@ float hexCloudShadow(vec3 point) {
     float depth = 0.0;
     for (int layer = 0; layer < 3; layer++) {
       vec2 span = hexCloudInterval(point, cloudLightDirection, layer, cloudFar);
-      if (span.y > span.x) depth += hexCloudLayerOpticalDepth(point + cloudLightDirection * span.x, cloudLightDirection, span.y - span.x, layer);
+      if (span.y > span.x) depth += hexCloudLayerOpticalDepth(point + cloudLightDirection * span.x, cloudLightDirection, span.y - span.x, layer, 4);
     }
     float transmission = exp(-hexCloudExtinction * depth);
     return mix(1.0, transmission, cloudShade * smoothstep(0.04, 0.18, cloudLightDirection.y));
