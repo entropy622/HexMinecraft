@@ -1,6 +1,6 @@
 # 大气天空与方向天光验收
 
-基线是 HexMinecraft `3edc8ea0f07716671fbe756f41acdad46d91125b`（0.85）；目标参考为用户森林图及 Photon `6e67b36e818bacde0304edd49f28e2bb70e33f04` 的天空与 SH 行为。此批只做迁移矩阵批次 1，多层云由独立分工继续，不把单次散射近似写成完整 Photon 大气复刻。
+基线是 HexMinecraft `3edc8ea0f07716671fbe756f41acdad46d91125b`（0.85）；目标参考为用户森林图及 Photon `6e67b36e818bacde0304edd49f28e2bb70e33f04` 的天空与 SH 行为。此批只做迁移矩阵批次 1，多层云已在本轮整合，后续由主代理继续，不把单次散射近似写成完整 Photon 大气复刻。
 
 ## 修改前五判断
 
@@ -46,8 +46,16 @@ Three r186 的 `Sky` 为解析日光模型，包含它自己的云形态，不�
 
 持续时钟 E2E 真正恢复 `setPlaying(true)`，仅在外部 GPU 设备的异步读回 Promise 后延迟 450 ms，要求多个不同方向快照成功发布，同时真实 GPU 天顶采样与 CPU 摘要匹配。另用正常生产 update 的显式跳时验证旧在途结果不能回写。低太阳高度的晴天还要求星点不出现，满月/新月和末地外观分别保留。
 
-默认不启动任何浏览器/Vite/GPU；等父分工串行授权后，用专用 5199、隔离 cache/output、headless Chrome D3D11，复用 browser-fixture 的 Pointer Lock 边界。记录真实 RTX 4060 renderer、errors/warnings/GL，禁止屏蔽编译警告。900x650 与 1920x1080 的性能先有旧版基线，再评新成本。
+CPU 准备阶段没有运行浏览器/GPU。后续整合使用专用 5191/5193、隔离 cache/output、headless Chrome D3D11，复用 browser-fixture 的 Pointer Lock 边界。记录真实 RTX 4060 renderer、errors/warnings/GL，禁止屏蔽编译警告。900x650 与 1920x1080 的性能先有旧版基线，再评新成本。
 
-当前 checkpoint 已通过 183 项 Node 回归、生产构建、四项浏览器测试枚举、语法、格式与 diff 检查；尚未运行本批 GPU 验收。主目标画面将复用统一 photon-reference-scenes 的 time30 森林/天空镜头与已保留旧版基线，本文件自建森林/密闭场景只作补充。SH 目前来自晴空/气溶胶与地面回照近似，不含实际云体向天空图的反向照明；既有地表雾仍保留原积分机制，本批只统一其源光色，完整 RGB 低层湿霾在后续范围内。
+早期 checkpoint 已通过 183 项 Node 回归、生产构建、四项浏览器测试枚举、语法、格式与 diff 检查；当时尚未运行本批 GPU 验收，后续结果见下节。主目标画面将复用统一 photon-reference-scenes 的 time30 森林/天空镜头与已保留旧版基线，本文件自建森林/密闭场景只作补充。SH 目前来自晴空/气溶胶与地面回照近似，不含实际云体向天空图的反向照明；既有地表雾仍保留原积分机制，本批只统一其源光色，完整 RGB 低层湿霾在后续范围内。
 
 参考：[Photon 固定大气源](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/include/sky/atmosphere.glsl)、[SH 生成源](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/program/d4a_generate_sky_sh.csh)、[Bruneton 球壳透射与积分推导](https://ebruneton.github.io/precomputed_atmospheric_scattering/atmosphere/functions.glsl.html)、Three r186 `Sky` / `LightProbeGenerator` / `lights_pars_begin`。只参考原理，独立实现当前 WebGL2 所需部分。
+
+## 0.86 整合结果
+
+最终管线组合的 14 项 GPU 检查已通过，包括球壳输运与实际 SH/Lambert 求值、持续时钟、月相云环境光、多层云与历史、玻璃光束、软阴影、水焦散及设备恢复。实际 RTX 4060 / ANGLE D3D11，页面错误、着色器警告与 GL 错误均为零；原始结果在本机 hexminecraft-photon-0.86/candidate-gpu-regressions。这一批之后仅修改天然仙人掌生成，补跑了完整 197 项 Node、生产构建、原生存档入口、仙人掌玩法及两种分辨率森林镜头。
+
+散射辐亮度使用固定的 7/3.8 工作标定，直接辐照度保留既定标度；可见天空向地平线延伸，SH 仍积分包含地面回照的完整环境图。地平线摘要采用已知经度采样，消除了先前记录的 ANGLE X4122 警告。云共享同一 SH 和 RGB 空气透射。
+
+森林镜头的冠层和雾层已逐图查看，性能与异常记录见[统一参考镜头](photon-reference-scenes-verification.md)。一次早期森林黑帧未稳定复现，仍需追踪；当前结果也没有完成 Photon 的云厚度、多重散射、低空 RGB 介质和材质目标。

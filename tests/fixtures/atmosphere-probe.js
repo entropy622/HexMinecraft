@@ -7,9 +7,8 @@ import {
 } from '../../src/sky-atmosphere.js';
 import { applySkylight } from '../../src/skylight.js';
 
-export function skySnapshot(graphics) {
+export function createSkySampler(graphics) {
   const renderer = graphics.renderer,
-    previous = renderer.getRenderTarget(),
     target = new THREE.WebGLRenderTarget(1, 1, {
       type: THREE.HalfFloatType,
       depthBuffer: false,
@@ -25,32 +24,42 @@ export function skySnapshot(graphics) {
     quad = new FullScreenQuad(material),
     a = graphics.skyEnvironment.atmosphere,
     pixels = new Uint16Array(4);
-  try {
-    renderer.setRenderTarget(target);
-    quad.render(renderer);
-    renderer.readRenderTargetPixels(target, 0, 0, 1, 1, pixels);
-    const gpuZenith = Array.from(pixels, THREE.DataUtils.fromHalfFloat).slice(
-        0,
-        3,
-      ),
-      cpuZenith = a.zenith.toArray();
-    return {
-      direction: a.uniforms.skySunDirection.value.toArray(),
-      coefficients: a.probe.sh.toArray(),
-      gpuZenith,
-      cpuZenith,
-      mismatch: Math.max(
-        ...gpuZenith.map((v, i) => Math.abs(v - cpuZenith[i])),
-      ),
-      pending: !!a.pending,
-      gl: renderer.getContext().getError(),
-    };
-  } finally {
-    renderer.setRenderTarget(previous);
-    target.dispose();
-    material.dispose();
-    quad.dispose();
-  }
+  return {
+    sample() {
+      const started = performance.now(),
+        previous = renderer.getRenderTarget();
+      try {
+        renderer.setRenderTarget(target);
+        quad.render(renderer);
+        renderer.readRenderTargetPixels(target, 0, 0, 1, 1, pixels);
+        const gpuZenith = Array.from(
+            pixels,
+            THREE.DataUtils.fromHalfFloat,
+          ).slice(0, 3),
+          cpuZenith = a.zenith.toArray();
+        return {
+          direction: a.uniforms.skySunDirection.value.toArray(),
+          coefficients: a.probe.sh.toArray(),
+          gpuZenith,
+          cpuZenith,
+          mismatch: Math.max(
+            ...gpuZenith.map((v, i) => Math.abs(v - cpuZenith[i])),
+          ),
+          pending: !!a.pending,
+          gl: renderer.getContext().getError(),
+          probeMilliseconds: performance.now() - started,
+          rendererFrame: renderer.info.render.frame,
+        };
+      } finally {
+        renderer.setRenderTarget(previous);
+      }
+    },
+    dispose() {
+      target.dispose();
+      material.dispose();
+      quad.dispose();
+    },
+  };
 }
 
 // GPU pixels are the input boundary. Projection, LightProbe and surface
@@ -297,6 +306,7 @@ export async function skyContracts(graphics) {
       fields,
       transport,
       sunlight,
+      shaderPrograms: window.__skyShaderDiagnostics,
       staleReadMaximum,
       seamError: Math.max(...seam[0].map((v, i) => Math.abs(v - seam[1][i]))),
       gl: renderer.getContext().getError(),

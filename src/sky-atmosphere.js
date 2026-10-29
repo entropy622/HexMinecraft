@@ -88,7 +88,11 @@ export const skyRadianceGLSL = /* glsl */ `
 ${transportGLSL}
 uniform sampler2D skyRadianceMap;
 vec3 hexSkyRadiance(vec3 worldDirection) {
-  return textureLod(skyRadianceMap, skyUv(normalize(worldDirection)), 0.0).rgb;
+  vec2 uv = skyUv(normalize(worldDirection));
+  // Terrain supplies the visible ground. Extend the air-side horizon behind
+  // the finite streaming boundary, instead of displaying the SH ground model.
+  uv.y = max(uv.y, 0.5);
+  return textureLod(skyRadianceMap, uv, 0.0).rgb;
 }
 vec3 hexAirTransmittance(float worldDistance, vec3 worldDirection) {
   vec3 direction = normalize(worldDirection), position = vec3(0.0, SKY_RADIUS + skyObserverHeight, 0.0);
@@ -203,6 +207,9 @@ export class SkyAtmosphere {
           radiance += transmittance * source * (1.0 - stepT) / max(extinction, vec3(1e-7));
           transmittance *= stepT;
         }
+        // Fixed scattered-radiance calibration in the game's HDR working
+        // scale. Direct surface irradiance and ground albedo keep their units.
+        radiance *= 7.0 / 3.8;
         vec3 end = position + direction * distance;
         if (length(end) < SKY_RADIUS + 0.01) {
           vec3 up = normalize(end);
@@ -239,13 +246,20 @@ export class SkyAtmosphere {
             float y = 1.0 - 2.0 * (float(i / 32) + 0.5) / 16.0;
             float phi = (float(i - (i / 32) * 32) + 0.5) * (2.0 * SKY_PI / 32.0);
             vec3 d = vec3(cos(phi) * sqrt(1.0 - y * y), y, sin(phi) * sqrt(1.0 - y * y));
-            result += hexSkyRadiance(d) * basis(index, d) * (4.0 * SKY_PI / 512.0);
+            // Irradiance still sees the complete environment, including ground.
+            vec3 radiance = textureLod(skyRadianceMap, skyUv(d), 0.0).rgb;
+            result += radiance * basis(index, d) * (4.0 * SKY_PI / 512.0);
           }
         } else if (index == 9) result = hexSkyRadiance(vec3(0,1,0));
         else if (index == 10) {
+          // These directions already have known azimuths. Avoid a cos/sin ->
+          // atan2 round trip at cardinal points, where ANGLE's approximation
+          // warns about tiny constant terms added to its polynomial.
+          float elevation = atan(0.04);
+          float v = 0.5 + 0.5 * sqrt(elevation / (0.5 * SKY_PI));
           for (int i = 0; i < 32; i++) {
-            float phi = float(i) * (2.0 * SKY_PI / 32.0);
-            result += hexSkyRadiance(normalize(vec3(cos(phi), 0.04, sin(phi)))) / 32.0;
+            vec2 uv = vec2(fract(0.5 + float(i) / 32.0), v);
+            result += textureLod(skyRadianceMap, uv, 0.0).rgb / 32.0;
           }
         } else result = skyLightTransmittance(origin, index == 11 ? skySunDirection : -skySunDirection, ${SUN_RADIUS});
         gl_FragColor = vec4(result, 1.0);

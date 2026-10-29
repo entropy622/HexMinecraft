@@ -216,6 +216,15 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
   });
   await setup(page);
   const observations = [];
+  // Choose a real visible high-cloud patch. A fixed position below a natural
+  // coverage hole cannot prove that the cirrus integration itself is absent.
+  const thinAnchor = await page.evaluate(async () => {
+    const { probeCloudField } =
+      await import('/tests/fixtures/cloud-field-probe.js');
+    const { worldToAxial } = await import('/src/core.js');
+    const points = probeCloudField(window.__hexwild.graphics, null, 2).points;
+    return worldToAxial(points[0][0], points[0][2]);
+  });
   const cost = await gpuCost(page);
   for (const [name, feet, target] of [
     ['low-angle', 25, [100, 32, 0]],
@@ -225,13 +234,19 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
     ['above', 325, [30, 155, 0]],
   ]) {
     await page.evaluate(
-      ({ feet, target }) => {
+      ({ feet, target, anchor }) => {
         const g = window.__hexwild;
-        g.teleport(0, feet, 0);
-        g.lookAt(...target);
+        g.teleport(anchor.q, feet, anchor.r);
+        g.lookAt(anchor.q + target[0], target[1], anchor.r + target[2]);
         g.graphics.stepOffset = 0;
       },
-      { feet, target },
+      {
+        feet,
+        target,
+        anchor: ['cirrus', 'above'].includes(name)
+          ? thinAnchor
+          : { q: 0, r: 0 },
+      },
     );
     await frames(page, 40);
     const result = await sample(page);

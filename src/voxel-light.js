@@ -1,34 +1,10 @@
 import { Float32BufferAttribute } from 'three';
 import { WATER_EXTINCTION } from './fluids.js';
-import { isGlass } from './dye-data.js';
-import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
-import { isDoor, isTrapdoor } from './building-data.js';
-import { isCampfire } from './campfire-data.js';
-import { FURNACES, isFurnace } from './processing-data.js';
+import { DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
+import { blockLight, EMISSION } from './light-data.js';
 
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
-const EMISSION = {
-  caveVinesBerries: [14, 10, 5],
-  redstoneLamp: [15, 13, 9],
-  redstoneTorch: [7, 2, 1],
-  campfire: [15, 10, 5],
-  soulCampfire: [6, 11, 12],
-  endRod: [15, 14, 15],
-  torch: [14, 11, 7],
-  lantern: [15, 13, 9],
-  glowstone: [15, 13, 9],
-  crystal: [6, 11, 10],
-  ...Object.fromEntries(Object.keys(FURNACES).map((id) => [id, [13, 9, 5]])),
-  portal: [11, 6, 15],
-  endportal: [7, 14, 12],
-  spawner: [10, 5, 13],
-  lava: [15, 10, 5],
-  lavaCauldron: [15, 10, 5],
-  glow: [7, 15, 12],
-  enchantingTable: [8, 5, 13],
-  brewingStand: [3, 2, 1],
-};
 const HEIGHT = 64;
 export const HELD_LIGHTS = {
   redstoneTorch: 'redstoneTorch',
@@ -132,6 +108,15 @@ export class VoxelLight {
     return ((q - this.minQ) * this.depth + r - this.minR) * HEIGHT + y;
   }
 
+  indexKey(key) {
+    let i = this.indices.get(key);
+    if (i === undefined) {
+      i = this.index(...key.split(',').map(Number));
+      this.indices.set(key, i);
+    }
+    return i;
+  }
+
   rebuild() {
     const chunks = [...this.world.chunks.keys()].map((k) =>
       k.split(',').map(Number),
@@ -141,6 +126,11 @@ export class VoxelLight {
     this.minR = Math.min(...chunks.map((c) => c[1])) * 8;
     this.width = Math.max(...chunks.map((c) => c[0])) * 8 + 8 - this.minQ;
     this.depth = Math.max(...chunks.map((c) => c[1])) * 8 + 8 - this.minR;
+    const bounds = `${this.minQ},${this.minR},${this.width},${this.depth}`;
+    if (this.indexBounds !== bounds) {
+      this.indices = new Map();
+      this.indexBounds = bounds;
+    }
     const size = this.width * this.depth * HEIGHT;
     const cost = new Uint8Array(size).fill(16);
     this.medium = new Uint8Array(size);
@@ -152,50 +142,28 @@ export class VoxelLight {
         }
     const emitters = [];
     for (const [key, type] of this.world.blocks) {
-      const [q, y, r] = key.split(',').map(Number),
-        i = this.index(q, y, r);
+      const i = this.indexKey(key);
       if (i < 0) continue;
-      const block = BLOCKS[type];
-      cost[i] = block?.foliage
-        ? 3
-        : isGlass(type) || block?.shape === 'carpet'
-          ? 1
-          : isDoor(type)
-            ? this.world.state(q, y, r).open
-              ? 1
-              : 16
-            : isTrapdoor(type)
-              ? this.world.state(q, y, r).open
-                ? 1
-                : 3
-              : ['dropper', 'observer'].includes(block?.shape)
-                ? 16
-                : block?.shape
-                  ? 2
-                  : block?.nonSolid
-                    ? 1
-                    : 16;
-      // Spare optical codes distinguish porous canopy from partial blockers
-      // without changing RGB light transport or the sky nibble.
-      if (isGlass(type)) this.medium[i] = 14;
-      else if (block?.foliage) this.medium[i] = 12;
-      else if (cost[i] > 1 && cost[i] < 16 && !block?.nonSolid)
-        this.medium[i] = 13;
-      const emission =
-        (isFurnace(type) && !(this.world.furnaces.get(key)?.burn > 0)) ||
-        (isCampfire(type) && !this.world.campfires.get(key)?.lit) ||
-        (type === 'redstoneLamp' && !this.world.state(q, y, r).powered) ||
-        (type === 'redstoneTorch' &&
-          this.world.state(q, y, r).powered === false)
-          ? null
-          : EMISSION[type];
-      if (emission) emitters.push([i, emission]);
+      const y = i % HEIGHT,
+        q = this.minQ + Math.floor(i / (this.depth * HEIGHT)),
+        r = this.minR + (Math.floor(i / HEIGHT) % this.depth),
+        data = blockLight(this.world, q, y, r, type),
+        emission = (data >>> 9) & 4095;
+      cost[i] = data & 31;
+      this.medium[i] = (data >>> 5) & 15;
+      if (emission)
+        emitters.push([
+          i,
+          [emission & 15, (emission >>> 4) & 15, emission >>> 8],
+        ]);
     }
     for (const cells of this.world.fluids.chunks.values())
       for (const [key, fluid] of cells) {
-        const [q, y, r] = key.split(',').map(Number),
-          i = this.index(q, y, r);
+        const i = this.indexKey(key);
         if (i < 0 || cost[i] === 16) continue;
+        const y = i % HEIGHT,
+          q = this.minQ + Math.floor(i / (this.depth * HEIGHT)),
+          r = this.minR + (Math.floor(i / HEIGHT) % this.depth);
         cost[i] = fluid.type === 'water' ? 2 : 1;
         this.medium[i] =
           fluid.type === 'water'
@@ -227,9 +195,9 @@ export class VoxelLight {
         } else level = Math.max(0, level - (cost[i] > 1 ? cost[i] : 0));
         const quantized = Math.floor(level);
         this.sky[i] = quantized;
-        if (quantized) skyBuckets[quantized].push(i);
       }
     }
+    if (this.world.dimension !== 'nether') this.seedSkylight(skyBuckets);
     this.spread(this.sky, skyBuckets);
     for (let channel = 0; channel < 3; channel++) {
       const buckets = Array.from({ length: 16 }, () => []),
@@ -242,6 +210,37 @@ export class VoxelLight {
       }
       this.spread(field, buckets);
     }
+  }
+
+  seedSkylight(buckets) {
+    const field = this.sky,
+      stride = this.depth * HEIGHT,
+      offsets = DIRECTIONS.map(([q, r]) => q * stride + r * HEIGHT);
+    // Direct sky already solves each vertical column. Only a darker receiver
+    // beside a brighter column can start lateral transport; queuing every
+    // exposed air cell needlessly visits most of the loaded world.
+    let i = 0;
+    for (let q = 0; q < this.width; q++)
+      for (let r = 0; r < this.depth; r++)
+        for (let y = 0; y < HEIGHT; y++, i++) {
+          if (field[i] >= 14 || this.cost[i] >= 16) continue;
+          let level = field[i];
+          for (let d = 0; d < 6; d++) {
+            const [dq, dr] = DIRECTIONS[d];
+            if (
+              q + dq < 0 ||
+              q + dq >= this.width ||
+              r + dr < 0 ||
+              r + dr >= this.depth
+            )
+              continue;
+            level = Math.max(level, field[i + offsets[d]] - this.cost[i]);
+          }
+          if (level > field[i]) {
+            field[i] = level;
+            buckets[level].push(i);
+          }
+        }
   }
 
   spread(field, buckets) {

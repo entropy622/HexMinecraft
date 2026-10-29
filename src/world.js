@@ -31,10 +31,11 @@ import { Redstone } from './redstone.js';
 import { Hoppers } from './hoppers.js';
 import { isCircuit, pistonPartner } from './redstone-data.js';
 import { isHangingPlant } from './cave-data.js';
+import { blockLight } from './light-data.js';
 
 export const CHUNK_SIZE = 8;
 export const WORLD_HEIGHT = 64;
-export const VIEW_RADIUS = 3;
+export const VIEW_RADIUS = 10;
 export const DIMENSIONS = {
   overworld: {
     name: '主世界',
@@ -71,7 +72,9 @@ export class World {
     this.seed = seed;
     this.dimension = dimension;
     this.blocks = new Map();
+    // Circuits observe all block changes; transport only observes optical ones.
     this.lightRevision = 0;
+    this.blockRevision = 0;
     this.leafRevision = 0;
     this.treeLeaves = new Set();
     this.treeLogs = new Set();
@@ -255,9 +258,10 @@ export class World {
     );
   }
   setState(q, y, r, state, record = true) {
-    this.lightRevision++;
+    this.blockRevision++;
     if (isDoorTop(this.get(q, y, r))) y--;
-    const previous = this.state(q, y, r),
+    const previousLight = blockLight(this, q, y, r),
+      previous = this.state(q, y, r),
       next = {
         facing: state.facing,
         open: state.open,
@@ -276,6 +280,7 @@ export class World {
           : {}),
       };
     this.blockStates.set(key(q, y, r), next);
+    if (previousLight !== blockLight(this, q, y, r)) this.lightRevision++;
     this.shapeCache.clear();
     const defaults = {
       facing: 0,
@@ -298,6 +303,7 @@ export class World {
           (previous[name] ?? defaults[name]) !== (next[name] ?? defaults[name]),
       )
     ) {
+      if (this.loaded(q, r)) this.gravity.wake(q, y, r);
       this.redstone.blockChanged(q, y, r);
       if (isOpenable(this.get(q, y, r)) && isDoorTop(this.get(q, y + 1, r)))
         this.redstone.blockChanged(q, y + 1, r);
@@ -404,11 +410,12 @@ export class World {
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);
     const previous = this.get(q, y, r);
+    const previousLight = blockLight(this, q, y, r, previous);
     const partner =
       record && previous !== type
         ? pistonPartner(this, q, y, r, DIRECTIONS)
         : null;
-    if (previous !== type) this.lightRevision++;
+    if (previous !== type) this.blockRevision++;
     if (
       previous !== type &&
       (BLOCKS[previous]?.foliage ||
@@ -466,6 +473,7 @@ export class World {
       if (!this.editChunks.has(ck)) this.editChunks.set(ck, new Map());
       this.editChunks.get(ck).set(k, type || null);
     }
+    if (previousLight !== blockLight(this, q, y, r)) this.lightRevision++;
     // Current cell is already gone, so deleting its partner cannot recurse back.
     if (partner) this.set(...partner, null);
     if (record && (previous || null) !== (type || null))
@@ -486,6 +494,7 @@ export class World {
     const ck = `${cq},${cr}`;
     if (this.chunks.has(ck)) return;
     this.lightRevision++;
+    this.blockRevision++;
     this.leafRevision++;
     this.chunks.set(ck, true);
     const put = (q, y, r, t) => {
@@ -688,6 +697,7 @@ export class World {
   }
   unloadChunk(cq, cr) {
     this.lightRevision++;
+    this.blockRevision++;
     this.leafRevision++;
     this.fluids.unload(cq, cr);
     for (let q = cq * 8; q < cq * 8 + 8; q++)
@@ -713,6 +723,7 @@ export class World {
   }
   clearLoaded() {
     this.lightRevision++;
+    this.blockRevision++;
     this.leafRevision++;
     this.treeLeaves.clear();
     this.treeLogs.clear();

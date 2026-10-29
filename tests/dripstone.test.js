@@ -160,7 +160,7 @@ test('unsupported chains fall or break once, freeze unloaded, and restore in fli
   assert.equal(drops.filter((v) => v[0] === 'pointedDripstone').length, 5);
 });
 
-test('recent support loss is processed ahead of a large natural gravity backlog', () => {
+test('recent support loss is processed ahead of a large placed-block gravity backlog', () => {
   const w = room();
   for (let q = -9; q <= 9; q++)
     for (let r = -9; r <= 9; r++) {

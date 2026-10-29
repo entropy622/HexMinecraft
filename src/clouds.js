@@ -305,7 +305,7 @@ export class HexClouds {
               );
         };
         material.customProgramCacheKey = () =>
-          cache.call(material) + '-hex-cloud-shadow-v3';
+          cache.call(material) + '-hex-cloud-shadow-v4';
         material.needsUpdate = true;
       }
     });

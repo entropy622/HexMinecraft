@@ -339,7 +339,7 @@ export class Redstone {
       }
     };
     if (
-      this.revision === w.lightRevision &&
+      this.revision === w.blockRevision &&
       !this.retry &&
       !due.length &&
       !cooled
@@ -497,7 +497,7 @@ export class Redstone {
       // Moving a conductor or support changes the next physics step's network.
       this.retry = true;
     }
-    this.revision = w.lightRevision;
+    this.revision = w.blockRevision;
     return result();
   }
 }

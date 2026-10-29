@@ -3,7 +3,12 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   testDir: '.',
-  testMatch: ['atmosphere.spec.js'],
+  testMatch: [
+    'atmosphere.spec.js',
+    'colored-shafts.spec.js',
+    'soft-shadows.spec.js',
+    'photon-reference-scenes.capture.js',
+  ],
   timeout: 240000,
   workers: 1,
   outputDir: '../test-results/atmosphere-runs',
@@ -19,6 +24,8 @@ export default defineConfig({
         '--use-cmd-decoder=passthrough',
         '--use-gl=angle',
         '--use-angle=d3d11',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
       ],
       ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
     },

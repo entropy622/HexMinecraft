@@ -37,7 +37,8 @@ async function scene(page) {
   await page.locator('#resume').click();
   const site = await page.evaluate(async () => {
     const g = window.__hexwild,
-      { cloudDensity, CLOUD_RADIUS } = await import('/src/cloud-field.js'),
+      { cloudDensity, cloudWeather, CLOUD_RADIUS } =
+        await import('/src/cloud-field.js'),
       { axialToWorld, worldToAxial } = await import('/src/core.js');
     g.setPlaying(false);
     g.step(120 - g.state.time);
@@ -55,10 +56,11 @@ async function scene(page) {
           score = Math.abs(density - 0.65) + Math.hypot(q, r) * 0.0002;
         if (!best || score < best.score) best = { q, r, density, score };
       }
-    const p = axialToWorld(best.q, best.r),
+    const wind = cloudWeather(g.state.world.seed, 120, 0, 0, 0, 0).winds[0],
+      p = axialToWorld(best.q, best.r),
       a = worldToAxial(
-        p.x * CLOUD_RADIUS + 120 * 0.065,
-        p.z * CLOUD_RADIUS + 120 * 0.017,
+        p.x * CLOUD_RADIUS + wind[0],
+        p.z * CLOUD_RADIUS + wind[1],
       );
     g.teleport(a.q, 42, a.r);
     g.lookAt(a.q, 63, a.r);
@@ -356,8 +358,11 @@ test('cloud thickness and illumination follow imported weather, world seed and n
   // Follow the same moving cloud column to isolate lighting from advection.
   const nightSite = await page.evaluate(async (s) => {
     const { axialToWorld, worldToAxial } = await import('/src/core.js'),
-      p = axialToWorld(...s.macro);
-    return worldToAxial(p.x * 4 + 450 * 0.065, p.z * 4 + 450 * 0.017);
+      { cloudWeather } = await import('/src/cloud-field.js'),
+      p = axialToWorld(...s.macro),
+      wind = cloudWeather(window.__hexwild.state.world.seed, 450, 0, 0, 0, 0)
+        .winds[0];
+    return worldToAxial(p.x * 4 + wind[0], p.z * 4 + wind[1]);
   }, site);
   await view(page, nightSite, 42, { ...nightSite, y: 65 }, 450);
   const night = await sample(page);

@@ -54,7 +54,11 @@ import {
   hash,
   worldToAxial,
 } from './core.js';
-import { DIMENSIONS, VIEW_RADIUS, WORLD_HEIGHT } from './world.js';
+import { DIMENSIONS, VIEW_RADIUS, CHUNK_SIZE, WORLD_HEIGHT } from './world.js';
+// A chunk spans 1.5 * CHUNK_SIZE perpendicular to either axial boundary.
+// Fade before the nearest loaded edge, including an off-centre player.
+const terrainFogFar = VIEW_RADIUS * CHUNK_SIZE * 1.5 - 2;
+const terrainFogNear = terrainFogFar * 0.74;
 const corners = Array.from({ length: 6 }, (_, i) => [
   Math.cos(((i * 60 - 30) * Math.PI) / 180),
   Math.sin(((i * 60 - 30) * Math.PI) / 180),
@@ -81,7 +85,7 @@ export class Graphics {
     this.scene = new THREE.Scene();
     this.dynamicLight = new DynamicLight();
     this.scene.background = new THREE.Color('#b5d9cf');
-    this.scene.fog = new THREE.Fog('#b5d9cf', 22, 44);
+    this.scene.fog = new THREE.Fog('#b5d9cf', terrainFogNear, terrainFogFar);
     this.camera = new THREE.PerspectiveCamera(
       72,
       innerWidth / innerHeight,
@@ -107,7 +111,7 @@ export class Graphics {
     this.sun.shadow.normalBias = 0.035;
     this.sun.shadow.radius = 2;
     this.sun.shadow.bias = -0.0002;
-    this.softShadows = new SoftShadows(this.sun);
+    this.softShadows = new SoftShadows(this.sun, this.dynamicLight.uniforms);
     this.scene.add(this.sun, this.sun.target);
     this.textures = createTextures();
     this.leafParticles = new LeafParticles(this.scene, this.textures);
@@ -432,8 +436,8 @@ export class Graphics {
     this.skyObjects.visible = world.dimension !== 'nether';
     this.sunDisk.visible = world.dimension === 'overworld';
     this.moonDisk.visible = world.dimension === 'overworld';
-    this.scene.fog.near = world.dimension === 'nether' ? 15 : 22;
-    this.scene.fog.far = world.dimension === 'nether' ? 39 : 44;
+    this.scene.fog.near = world.dimension === 'nether' ? 15 : terrainFogNear;
+    this.scene.fog.far = world.dimension === 'nether' ? 39 : terrainFogFar;
   }
   sync(q, r, immediate = false) {
     const cq = Math.floor(q / 8),
@@ -1398,8 +1402,8 @@ export class Graphics {
     if (overworld) {
       sky.lerp(new THREE.Color('#c7d8eb'), flash * 0.5);
       horizon.lerp(new THREE.Color('#c7d8eb'), flash * 0.35);
-      this.scene.fog.near = 22 - rain * 6;
-      this.scene.fog.far = 44 - rain * 7 - storm * 3;
+      this.scene.fog.near = terrainFogNear - rain * 6;
+      this.scene.fog.far = terrainFogFar - rain * 7 - storm * 3;
     }
     this.weatherUniforms.terrainWetness.value = overworld
       ? weather?.wetness || 0

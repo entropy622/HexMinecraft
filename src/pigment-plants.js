@@ -115,6 +115,22 @@ export function stampPigments(world, cq, cr) {
         DIRECTIONS.some(([dq, dr]) => world.terrainHeight(q + dq, r + dr) > h)
       )
         continue;
+      if (
+        cactus &&
+        DIRECTIONS.some(([dq, dr]) => {
+          const a = q + dq,
+            b = r + dr;
+          if (world.terrainHeight(a, b) !== h || world.biome(a, b) !== '沙漠')
+            return false;
+          const other = hash(a, h, b, world.seed + 1181);
+          return (
+            other > roll || (other === roll && (a < q || (a === q && b < r)))
+          );
+        })
+      )
+        // Resolve neighboring candidate columns from seed/terrain alone.
+        // Loaded neighbor blocks would make the choice depend on chunk order.
+        continue;
       const type = cactus
         ? 'cactus'
         : hash(q, h, r, world.seed + 1182) < 0.5

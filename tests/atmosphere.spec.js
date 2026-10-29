@@ -1,5 +1,6 @@
 import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 async function frames(page, count = 8) {
   await page.evaluate(
@@ -269,11 +270,21 @@ test('real scene: fixed-exposure forest, sunset, moonlight, sealed light and bal
 test('GPU contracts: production sky transport and SH drive real Lambert surfaces', async ({
   page,
 }, info) => {
+  await page.addInitScript({
+    path: fileURLToPath(
+      new URL('./fixtures/shader-diagnostics.js', import.meta.url),
+    ),
+  });
   const diagnostics = await forest(page);
   const result = await page.evaluate(async () => {
     const probe = await import('/tests/fixtures/atmosphere-probe.js');
     return probe.skyContracts(window.__hexwild.graphics);
   });
+  await writeFile(
+    info.outputPath('sky-shaders.json'),
+    JSON.stringify(result.shaderPrograms, null, 2),
+  );
+  delete result.shaderPrograms;
   await writeFile(
     info.outputPath('sky-contracts.json'),
     JSON.stringify({ result, diagnostics }, null, 2),
@@ -323,7 +334,9 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
     const app = window.__hexwild,
       renderer = app.graphics.renderer,
       original = renderer.readRenderTargetPixelsAsync,
-      { skySnapshot } = await import('/tests/fixtures/atmosphere-probe.js');
+      { createSkySampler } =
+        await import('/tests/fixtures/atmosphere-probe.js');
+    window.liveSkySampler = createSkySampler(app.graphics);
     window.restoreSkyDevice = () =>
       (renderer.readRenderTargetPixelsAsync = original);
     renderer.readRenderTargetPixelsAsync = function (...args) {
@@ -334,7 +347,26 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
             new Promise((resolve) => setTimeout(() => resolve(value), 450)),
         );
     };
-    const sample = { time: app.state.time, ...skySnapshot(app.graphics) };
+    const sample = { time: app.state.time, ...window.liveSkySampler.sample() };
+    window.liveSkyTrace = { frames: 0, publications: [] };
+    let key = '';
+    const observe = () => {
+      const a = app.graphics.skyEnvironment.atmosphere,
+        direction = a.uniforms.skySunDirection.value.toArray(),
+        nextKey = direction.join(',');
+      window.liveSkyTrace.frames++;
+      if (nextKey !== key) {
+        window.liveSkyTrace.publications.push({
+          time: app.state.time,
+          wallTime: performance.now(),
+          direction,
+          pending: !!a.pending,
+        });
+        key = nextKey;
+      }
+      window.liveSkyFrame = requestAnimationFrame(observe);
+    };
+    window.liveSkyFrame = requestAnimationFrame(observe);
     app.setPlaying(true);
     return sample;
   });
@@ -343,18 +375,19 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
     await expect
       .poll(
         async () => {
-          const sample = await page.evaluate(async () => {
-            const app = window.__hexwild,
-              { skySnapshot } =
-                await import('/tests/fixtures/atmosphere-probe.js');
-            return { time: app.state.time, ...skySnapshot(app.graphics) };
+          const sample = await page.evaluate(() => {
+            const app = window.__hexwild;
+            return { time: app.state.time, ...window.liveSkySampler.sample() };
           });
           samples.push(sample);
-          return sample.time - start.time;
+          return (
+            sample.time - start.time > 3 &&
+            new Set(samples.map((s) => s.direction.join(','))).size >= 3
+          );
         },
         { timeout: 30000, intervals: [250] },
       )
-      .toBeGreaterThan(3);
+      .toBe(true);
     const end = samples.at(-1),
       change = Math.hypot(
         ...end.direction.map((v, i) => v - start.direction[i]),
@@ -366,19 +399,18 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
       expect(sample.mismatch).toBeLessThan(0.002);
       expect(sample.gl).toBe(0);
     }
-    await writeFile(
-      info.outputPath('live-clock-delayed-device.json'),
-      JSON.stringify(
-        { start, samples, change, publications, diagnostics },
-        null,
-        2,
-      ),
-    );
   } finally {
-    await page.evaluate(() => {
+    const observed = await page.evaluate(() => {
+      cancelAnimationFrame(window.liveSkyFrame);
       window.__hexwild.setPlaying(false);
       window.restoreSkyDevice();
+      window.liveSkySampler.dispose();
+      return window.liveSkyTrace;
     });
+    await writeFile(
+      info.outputPath('live-clock-delayed-device.json'),
+      JSON.stringify({ start, samples, observed, diagnostics }, null, 2),
+    );
   }
   expect(diagnostics.errors).toEqual([]);
 });

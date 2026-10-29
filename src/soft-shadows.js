@@ -81,8 +81,9 @@ if (shadowChunk === ShaderChunk.shadowmap_pars_fragment)
   throw Error('Three.js 的原始深度阴影分支发生变化，需更新接触软阴影接入。');
 
 export class SoftShadows {
-  constructor(light) {
+  constructor(light, lightUniforms) {
     this.light = light;
+    this.lightUniforms = lightUniforms;
     this.uniforms = {
       softShadowFrustum: { value: new Vector3() },
       softShadowMatrix: { value: light.shadow.matrix },
@@ -111,7 +112,9 @@ export class SoftShadows {
           key = material.customProgramCacheKey;
         material.onBeforeCompile = (shader, renderer) => {
           previous.call(material, shader, renderer);
-          Object.assign(shader.uniforms, this.uniforms);
+          // Bind from the producer when compiling: Graphics finishes wiring
+          // shared water-time uniforms after this shadow owner is constructed.
+          Object.assign(shader.uniforms, this.lightUniforms, this.uniforms);
           shader.fragmentShader = shader.fragmentShader
             .replace(
               '#include <shadowmap_pars_fragment>',
@@ -124,7 +127,7 @@ export class SoftShadows {
             );
         };
         material.customProgramCacheKey = () =>
-          key.call(material) + '-contact-shadows-glass-v6';
+          key.call(material) + '-contact-shadows-glass-v7';
         material.needsUpdate = true;
       }
     });

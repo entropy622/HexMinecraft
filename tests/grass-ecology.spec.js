@@ -173,6 +173,54 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
     )
     .toEqual([4, 39, 4, 'grass', 4, 40, 4]);
   await expect(page.locator('#target')).toHaveText('草地');
+  // The sheep has just grazed this patch. Wait for it to walk off before
+  // placing a solid carpet through its body; keep real occupancy checks.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const { axialToWorld } = await import('/src/core.js');
+          const g = window.__hexwild,
+            p = axialToWorld(4, 4);
+          g.save();
+          const mobs = JSON.parse(localStorage.getItem('hexwild-save-v16'))
+            .dimensions.overworld.fauna.mobs;
+          return mobs.every(
+            (m) => Math.hypot(m.position[0] - p.x, m.position[2] - p.z) > 1.6,
+          );
+        }),
+      { timeout: 15000, intervals: [500] },
+    )
+    .toBe(true);
+  await writeFile(
+    info.outputPath('carpet-placement-before.json'),
+    JSON.stringify(
+      await page.evaluate(async () => {
+        const { bodyClear } = await import('/src/grounding.js');
+        const g = window.__hexwild,
+          [x, y, z] = g.state.position;
+        g.save();
+        return {
+          position: [x, y, z],
+          low: y - 1.65 + 0.005,
+          clear: bodyClear(
+            g.state.world,
+            x,
+            z,
+            y - 1.65 + 0.005,
+            y - 1.65 + 1.8 - 0.03,
+          ),
+          mobs: JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+            .overworld.fauna.mobs,
+          villagers: [...g.villagers.residents.values()].map((m) => ({
+            position: m.mesh.position.toArray(),
+          })),
+        };
+      }),
+      null,
+      2,
+    ),
+  );
   for (const type of ['mousedown', 'mouseup'])
     await page.locator('#world').dispatchEvent(type, { button: 2 });
   await expect.poll(() => cell(4, 40, 4)).toBe('blueCarpet');
@@ -194,7 +242,26 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
     .toBe('blueCarpet');
-  await page.locator('#world').dispatchEvent('mousedown', { button: 0 });
+  // Release on the rendered frame in which this carpet disappears. A host
+  // round trip can hold mining long enough to break the grass underneath too.
+  await page.evaluate(() => {
+    const canvas = document.querySelector('#world'),
+      started = performance.now();
+    const observe = () => {
+      if (
+        !window.__hexwild.state.world.get(4, 40, 4) ||
+        performance.now() - started > 15000
+      )
+        canvas.dispatchEvent(
+          new MouseEvent('mouseup', { button: 0, bubbles: true }),
+        );
+      else requestAnimationFrame(observe);
+    };
+    requestAnimationFrame(observe);
+    canvas.dispatchEvent(
+      new MouseEvent('mousedown', { button: 0, bubbles: true }),
+    );
+  });
   try {
     await expect.poll(() => cell(4, 40, 4), { timeout: 15000 }).toBe(null);
   } finally {

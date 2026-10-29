@@ -11,6 +11,7 @@ export function setCampfireLit(world, k, lit) {
   if (!fire || fire.lit === lit) return false;
   fire.lit = lit;
   world.lightRevision++;
+  world.blockRevision++;
   return true;
 }
 export function campfireWet(world, q, y, r) {

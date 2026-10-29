@@ -1,6 +1,6 @@
 import { test, expect } from './browser-fixture.js';
 import { readFile, writeFile } from 'node:fs/promises';
-import { HalfFloatType, RGBAFormat } from 'three';
+import { DataUtils, HalfFloatType, RGBAFormat } from 'three';
 import { World } from '../src/world.js';
 import {
   referenceScenes,
@@ -36,6 +36,104 @@ async function preparePreferences(page) {
     referenceSettings,
   );
 }
+
+function foregroundRadiance(hdr) {
+  const raw = Buffer.from(hdr.base64, 'base64');
+  let sum = 0,
+    dark = 0,
+    count = 0;
+  for (let i = 0; i < hdr.width * Math.floor(hdr.height * 0.4) * 8; i += 8) {
+    const l =
+      DataUtils.fromHalfFloat(raw.readUInt16LE(i)) * 0.2126 +
+      DataUtils.fromHalfFloat(raw.readUInt16LE(i + 2)) * 0.7152 +
+      DataUtils.fromHalfFloat(raw.readUInt16LE(i + 4)) * 0.0722;
+    sum += l;
+    dark += l < 0.001;
+    count++;
+  }
+  return { mean: sum / count, nearBlackFraction: dark / count };
+}
+
+test('live gameplay CPU profile at the fixed forest camera', async ({
+  page,
+  context,
+}, info) => {
+  test.skip(
+    preview,
+    'CPU profiling uses the existing development pause boundary',
+  );
+  const messages = captureMessages(page),
+    client = await context.newCDPSession(page);
+  try {
+    await preparePreferences(page);
+    await page.addInitScript(installFrameProbe);
+    await page.goto('/');
+    await page.evaluate(() => {
+      window.__photonFreeze = true;
+    });
+    await importScene(page, referenceScenes[0]);
+    await page.keyboard.press('F1');
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const g = window.__hexwild.graphics;
+            return !g.relightQueue.size && !g.skyEnvironment.atmosphere.pending;
+          }),
+        { timeout: 90000 },
+      )
+      .toBe(true);
+    const state = () => {
+      const app = window.__hexwild,
+        w = app.state.world;
+      return {
+        wallTime: performance.now(),
+        time: app.state.time,
+        renderedFrames: window.__photonProbe.rendered,
+        blocks: w.blocks.size,
+        residentChunks: w.chunks.size,
+        lightRevision: w.lightRevision,
+        gravityPending: w.gravity.pending.size,
+        falling: w.gravity.active.length,
+        fluidActive: w.fluids.active.size,
+      };
+    };
+    const before = await page.evaluate(state);
+    await client.send('Profiler.enable');
+    await client.send('Profiler.setSamplingInterval', { interval: 1000 });
+    await client.send('Profiler.start');
+    await page.evaluate(() => {
+      window.__photonFreeze = false;
+      window.__hexwild.setPlaying(true);
+    });
+    await page.waitForTimeout(12000);
+    const { profile } = await client.send('Profiler.stop');
+    await page.evaluate(() => {
+      window.__photonFreeze = true;
+      window.__hexwild.setPlaying(false);
+    });
+    const after = await page.evaluate(state);
+    await writeJSON(info.outputPath('live-gameplay.cpuprofile'), profile);
+    await writeJSON(info.outputPath('live-gameplay.json'), {
+      before,
+      after,
+      actualFrames: after.renderedFrames - before.renderedFrames,
+      elapsedWallMilliseconds: after.wallTime - before.wallTime,
+      simulationSeconds: after.time - before.time,
+      frame: await page.evaluate(readReferenceFrame, resourceLayout),
+      messages,
+    });
+    expect(after.time).toBeGreaterThan(before.time);
+    expect(messages.errors).toEqual([]);
+  } finally {
+    await page.evaluate(() => {
+      window.__photonFreeze = true;
+      window.__hexwild?.setPlaying(false);
+    });
+    await client.detach();
+    await writeJSON(info.outputPath('browser-messages.json'), messages);
+  }
+});
 function captureMessages(page) {
   const errors = [],
     warnings = [];
@@ -161,6 +259,7 @@ for (const size of referenceSizes)
             .locator('#world')
             .screenshot({ path: info.outputPath('baseline.png') });
           const hdr = await page.evaluate(readReferenceHDR);
+          const foreground = foregroundRadiance(hdr);
           const raw = Buffer.from(hdr.base64, 'base64');
           delete hdr.base64;
           await writeFile(info.outputPath('baseline.rgba16f'), raw);
@@ -236,6 +335,7 @@ for (const size of referenceSizes)
             },
             hdr: {
               ...hdr,
+              foreground,
               channels: 4,
               rawByteOrder: 'little-endian',
               rawRows: 'bottom-to-top',
@@ -249,6 +349,12 @@ for (const size of referenceSizes)
             glAfterReadback: after.glErrors,
             messages,
           });
+          if (scene.id === 'forest-toward-light') {
+            // A finite HDR buffer alone allowed a near-black canopy through.
+            // This fixed daytime camera must retain actual foreground radiance.
+            expect(foreground.mean).toBeGreaterThan(0.005);
+            expect(foreground.nearBlackFraction).toBeLessThan(0.1);
+          }
           expect(frame.canvas).toEqual({ ...size, pixelRatio: 1 });
           expect([hdr.width, hdr.height]).toEqual([size.width, size.height]);
           expect(frame.seed).toBe(input.seed);

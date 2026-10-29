@@ -27,6 +27,48 @@ function garden(dimension = 'overworld', height = 1, age) {
     w.setState(4, 38 + height, 4, { facing: 0, open: false, age });
   return w;
 }
+
+test('natural cactus columns survive large-view loading in either chunk order', () => {
+  const chunks = new Set();
+  // These real seed-624 sites produced adjacent columns that the ordinary
+  // native import immediately broke, recording edits before time advanced.
+  for (const [q, r] of [
+    [-202, 58],
+    [-188, 29],
+    [-119, -80],
+    [-120, -59],
+    [-109, -67],
+  ])
+    for (let dq = -1; dq <= 1; dq++)
+      for (let dr = -1; dr <= 1; dr++)
+        chunks.add(`${Math.floor(q / 8) + dq},${Math.floor(r / 8) + dr}`);
+  const orders = [[...chunks].sort(), [...chunks].sort().reverse()];
+  const columns = orders.map((order) => {
+    const w = new World(624, 'overworld', { load: false });
+    for (const chunk of order) w.generateChunk(...chunk.split(',').map(Number));
+    const cactus = [...w.blocks]
+      .filter(([, type]) => type === 'cactus')
+      .map(([k]) => k)
+      .sort();
+    const invalid = [];
+    let checked = 0;
+    for (const k of cactus) {
+      const [q, y, r] = k.split(',').map(Number);
+      if (!DIRECTIONS.every(([dq, dr]) => w.loaded(q + dq, r + dr))) continue;
+      checked++;
+      if (!pigmentSupport(w, 'cactus', q, y, r)) invalid.push(k);
+    }
+    assert.ok(checked >= 5, 'The fixture must contain actual natural columns');
+    assert.deepEqual(
+      invalid,
+      [],
+      'Natural cactus must not need import-time removal',
+    );
+    assert.equal(w.edits.size, 0);
+    return cactus;
+  });
+  assert.deepEqual(columns[0], columns[1]);
+});
 function tick(w, y = 39, roll = 0.61, dt = 1 / 60) {
   const original = Math.random,
     values = [4.5 / 8, 4.5 / 8, (y + 0.5) / 64, roll];

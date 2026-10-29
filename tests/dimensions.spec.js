@@ -7,14 +7,31 @@ test('walking streams new chunks; distant edits survive unloading, return and re
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.locator('#creative').click();
-  await page.evaluate(() => window.__hexwild.teleport(80, 30, -30));
+  await page.evaluate(() => {
+    const g = window.__hexwild,
+      cells = [];
+    g.teleport(80, 30, -30);
+    // The natural route drops from y=30 onto a one-block uphill step. Keep
+    // this streaming scenario walkable instead of testing jump/step climbing.
+    for (let q = 76; q <= 90; q++)
+      for (let r = -33; r <= -27; r++)
+        for (let y = 29; y <= 32; y++) {
+          g.state.world.set(q, y, r, y === 29 ? 'stone' : null);
+          cells.push([q, y, r]);
+        }
+    g.graphics.updateCells(cells);
+  });
   const before = await page.evaluate(() => window.__hexwild.state.position[0]);
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(1800);
-  await page.keyboard.up('KeyW');
-  expect(
-    await page.evaluate(() => window.__hexwild.state.position[0]),
-  ).toBeGreaterThan(before + 4);
+  try {
+    await expect
+      .poll(() => page.evaluate(() => window.__hexwild.state.position[0]), {
+        timeout: 10000,
+      })
+      .toBeGreaterThan(before + 4);
+  } finally {
+    await page.keyboard.up('KeyW');
+  }
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.state.world.set(80, 40, -30, 'glass');
@@ -29,8 +46,8 @@ test('walking streams new chunks; distant edits survive unloading, return and re
       (m) => m.geometry.boundingSphere.radius,
     ),
   }));
-  expect(far.chunks).toBe(81);
-  expect(far.meshes).toBeLessThanOrEqual(49);
+  expect(far.chunks).toBe(529);
+  expect(far.meshes).toBe(441);
   expect(far.nearLoaded).toBe(false);
   expect(Math.max(...far.radii)).toBeLessThan(50);
   await page.evaluate(() => {

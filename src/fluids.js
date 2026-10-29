@@ -117,6 +117,7 @@ export class Fluids {
     }
     // The packed optical medium includes the liquid's physical height.
     this.world.lightRevision++;
+    this.world.blockRevision++;
     if (f) cells.set(k, { ...f });
     else cells.delete(k);
     if (record) this.world.redstone.blockChanged(q, y, r);

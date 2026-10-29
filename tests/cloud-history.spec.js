@@ -15,7 +15,8 @@ async function setup(page) {
   await page.locator('#resume').click();
   const site = await page.evaluate(async () => {
     const g = window.__hexwild,
-      { cloudDensity, CLOUD_RADIUS } = await import('/src/cloud-field.js'),
+      { cloudDensity, cloudWeather, CLOUD_RADIUS } =
+        await import('/src/cloud-field.js'),
       { axialToWorld, worldToAxial } = await import('/src/core.js');
     g.setPlaying(false);
     g.step(120 - g.state.time);
@@ -34,10 +35,11 @@ async function setup(page) {
           Math.hypot(q, r) * 0.0002;
         if (!best || score < best.score) best = { q, r, score };
       }
-    const p = axialToWorld(best.q, best.r),
+    const wind = cloudWeather(g.state.world.seed, 120, 0, 0, 0, 0).winds[0],
+      p = axialToWorld(best.q, best.r),
       a = worldToAxial(
-        p.x * CLOUD_RADIUS + 120 * 0.065,
-        p.z * CLOUD_RADIUS + 120 * 0.017,
+        p.x * CLOUD_RADIUS + wind[0],
+        p.z * CLOUD_RADIUS + wind[1],
       );
     g.teleport(a.q - 24, 42, a.r);
     g.lookAt(a.q, 55, a.r);

@@ -37,9 +37,9 @@ test('all dimensions generate far beyond the old world boundary with bounded res
       [200000, -50000],
     ]) {
       w.ensureAround(q, r);
-      assert.equal(w.chunks.size, 81);
-      assert.equal(w.heights.size, 81 * 64);
-      assert.ok(w.blocks.size < 81 * 64 * 64);
+      assert.equal(w.chunks.size, 529);
+      assert.equal(w.heights.size, 529 * 64);
+      assert.ok(w.blocks.size < 529 * 64 * 64);
       assert.ok(w.loaded(q, r));
       if (dimension !== 'end') assert.equal(w.get(q, 0, r), 'bedrock');
     }

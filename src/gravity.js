@@ -1,6 +1,13 @@
-import { BLOCKS, axialToWorld, key } from './core.js';
+import { DIRECTIONS, axialToWorld, key } from './core.js';
 import { granular } from './ignition-data.js';
 import { pointedSupport, stalactiteImpactDamage } from './dripstone.js';
+
+const NEIGHBORS = [
+  [0, 0, 0],
+  [0, -1, 0],
+  [0, 1, 0],
+  ...DIRECTIONS.map(([q, r]) => [q, 0, r]),
+];
 
 export const validFalling = (records) =>
   Array.isArray(records) &&
@@ -28,22 +35,27 @@ export class Gravity {
   }
   wake(q, y, r) {
     const immediate = [];
-    for (const h of [y - 1, y, y + 1]) {
-      const type = this.world.get(q, h, r);
-      if (type === 'pointedDripstone') immediate.push(key(q, h, r));
-      else if (h >= y && granular(type)) this.pending.add(key(q, h, r));
+    for (const [dq, dy, dr] of NEIGHBORS) {
+      const a = q + dq,
+        h = y + dy,
+        c = r + dr,
+        type = this.world.get(a, h, c);
+      if (type === 'pointedDripstone') immediate.push(key(a, h, c));
+      else if (granular(type)) this.pending.add(key(a, h, c));
     }
     if (immediate.length)
       this.pending = new Set([...immediate, ...this.pending]);
   }
   index(q, y, r, type) {
-    if (type === 'pointedDripstone') {
-      this.pending.add(key(q, y, r));
-      return;
-    }
-    if (!granular(type)) return;
-    const below = this.world.get(q, y - 1, r);
-    if (!below || BLOCKS[below].nonSolid || BLOCKS[below].shape)
+    if (type !== 'pointedDripstone' && !granular(type)) return;
+    // Generation is not a neighbor update. Replay edits at chunk boundaries
+    // so support loss made before unloading still wakes the returning block.
+    if (
+      NEIGHBORS.some(([dq, dy, dr]) => {
+        const k = key(q + dq, y + dy, r + dr);
+        return this.world.edits.has(k) || this.world.blockStates.has(k);
+      })
+    )
       this.pending.add(key(q, y, r));
   }
   tick(dt, callbacks) {

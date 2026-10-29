@@ -65,9 +65,9 @@ export function cloudWeather(seed, time, heat, wet, rain, storm) {
     coverage: [
       Math.max(
         0.2,
-        Math.min(0.94, 0.4 + humidity * 0.22 + rain * 0.2 + storm * 0.08),
+        Math.min(0.94, 0.33 + humidity * 0.18 + rain * 0.3 + storm * 0.08),
       ),
-      Math.max(0.12, Math.min(0.9, 0.24 + humidity * 0.3 + stratus * 0.28)),
+      Math.max(0.12, Math.min(0.9, 0.2 + humidity * 0.23 + stratus * 0.16)),
       Math.max(0.12, Math.min(0.78, 0.26 + humidity * 0.3 - storm * 0.08)),
     ],
     winds: [0, 1, 2].map((layer) => {
@@ -231,7 +231,14 @@ float hexCloudLayerDensity(vec3 position, int layer) {
     float fibers = hexCloudNoise(vec2(p.x * 0.55 + p.y * 0.3, p.y * 5.0));
     float ripples = hexCloudNoise(p * vec2(2.4, 4.8));
     float sheet = smoothstep(1.0 - band.z - 0.12, 1.0 - band.z + 0.18, macro);
-    return sheet * smoothstep(0.3, 0.8, mix(fibers, ripples, band.w * 0.4)) * sin(fraction * 3.14159265) * 0.055;
+    float cirrus = sheet * smoothstep(0.3, 0.8, fibers) * 0.055;
+    // Cirrocumulus has its own coverage: mixing its ripples into the fiber
+    // detail left both types absent inside every large cirrus coverage hole.
+    float patches = hexCloudNoise(p * 0.57 + vec2(27.0, 53.0));
+    float broken = smoothstep(1.0 - band.z - 0.1, 1.0 - band.z + 0.1, patches);
+    float cells = smoothstep(0.35, 0.8, ripples);
+    float cirrocumulus = broken * cells * cells * (0.02 + band.w * 0.05);
+    return (cirrus + cirrocumulus) * sin(fraction * 3.14159265);
   }
   float scale = layer == 0 ? 1.0 : 2.8;
   vec2 p = drifting * scale / cloudRadius;

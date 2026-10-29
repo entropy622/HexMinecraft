@@ -11,12 +11,13 @@ import { cloudFieldGLSL } from '../../src/cloud-field.js';
 
 // Inspect the production GPU density/shadow field at positions recovered from
 // actual cloud integration, without replacing the game's rendering pipeline.
-export function probeCloudField(g, points = null) {
+export function probeCloudField(g, points = null, layer = null) {
   if (!points) {
     const history = g.composer.passes[0].clouds.histories.get(
       g.composer.passes[0].target,
     ).history[0];
     const data = new Uint16Array(history.width * history.height * 4);
+    const color = layer === null ? null : new Uint16Array(data.length);
     g.renderer.readRenderTargetPixels(
       history,
       0,
@@ -27,12 +28,28 @@ export function probeCloudField(g, points = null) {
       undefined,
       1,
     );
+    if (color)
+      g.renderer.readRenderTargetPixels(
+        history,
+        0,
+        0,
+        history.width,
+        history.height,
+        color,
+      );
     points = [];
     for (let y = 2; y < history.height - 2 && points.length < 32; y += 7)
       for (let x = 2; x < history.width - 2 && points.length < 32; x += 7) {
         const i = (y * history.width + x) * 4,
           distance = DataUtils.fromHalfFloat(data[i]);
-        if (!(distance > 0 && distance < 3000)) continue;
+        if (!(distance > 0 && distance < (layer === null ? 3000 : 60000)))
+          continue;
+        if (
+          layer !== null &&
+          (Math.round(DataUtils.fromHalfFloat(data[i + 3])) !== layer ||
+            DataUtils.fromHalfFloat(color[i + 3]) >= 0.995)
+        )
+          continue;
         const direction = new Vector3(
           ((x + 0.5) / history.width) * 2 - 1,
           ((y + 0.5) / history.height) * 2 - 1,

@@ -21,9 +21,23 @@ async function fresh(page) {
       () =>
         page.evaluate(() => {
           const g = window.__hexwild.graphics;
+          const a = g.skyEnvironment.atmosphere,
+            angle = ((window.__hexwild.state.time % 600) / 600) * Math.PI * 2,
+            direction = [Math.cos(angle) * 78, Math.sin(angle) * 78, -45],
+            length = Math.hypot(...direction),
+            skyReady =
+              !a ||
+              ((g.world.dimension !== 'overworld' ||
+                a.uniforms.skySunDirection.value
+                  .toArray()
+                  .every(
+                    (v, i) => Math.abs(v - direction[i] / length) < 0.004,
+                  )) &&
+                !a.pending);
           return (
             g.voxelLight.revision === g.world.lightRevision &&
-            g.relightQueue.size === 0
+            g.relightQueue.size === 0 &&
+            skyReady
           );
         }),
       { timeout: 60000 },
@@ -106,12 +120,27 @@ async function roof(page, layers) {
 // No replacement shader: the difference isolates sun scattering from ambient
 // and local light, while alpha independently measures view-ray extinction.
 async function volume(page) {
+  await fresh(page);
+  await settledDensity(page);
   const raw = await page.evaluate(() => {
     const g = window.__hexwild.graphics,
       frame = g.composer.passes[0];
     const pass = g.composer.passes.find((p) => p.volume && p.composite);
     const u = pass.volume.uniforms,
       power = u.airSunPower.value;
+    const inputs = {
+      density: u.airDensity.value,
+      horizon: u.airHorizon.value.toArray(),
+      direction: u.airSunDirection.value.toArray(),
+      eye: u.airCameraPosition.value.toArray(),
+      cameraMatrix: u.airCameraWorld.value.elements.slice(12, 15),
+      voxelOrigin: g.dynamicLight.uniforms.entityLightOrigin.value.toArray(),
+      voxelSize: g.dynamicLight.uniforms.entityLightSize.value.toArray(),
+      eyeSky: g.voxelLight.atPosition(g.camera.position),
+      skyPending: !!g.skyEnvironment.atmosphere.pending,
+      frame: g.renderer.info.render.frame,
+      time: window.__hexwild.state.time,
+    };
     const previous = g.renderer.getRenderTarget(),
       target = pass.target;
     const data = new Uint16Array(9 * 9 * 4);
@@ -136,6 +165,7 @@ async function volume(page) {
         power,
         water: u.waterCamera.value,
         gl: g.renderer.getContext().getError(),
+        inputs,
       };
     } finally {
       u.airSunPower.value = power;
@@ -160,6 +190,7 @@ async function volume(page) {
     power: raw.power,
     water: raw.water,
     gl: raw.gl,
+    inputs: raw.inputs,
   };
 }
 const ratio = (value, bare) => value.direct.map((v, c) => v / bare.direct[c]);
@@ -232,7 +263,15 @@ test('distant glass outside the sunbeam keeps the actual fog unchanged across a 
   await writeFile(
     info.outputPath('distant-glass-volume.json'),
     JSON.stringify(
-      { ratio: transmission, water: far.water, loaded, gl: far.gl, errors },
+      {
+        bare,
+        far,
+        ratio: transmission,
+        water: far.water,
+        loaded,
+        gl: far.gl,
+        errors,
+      },
       null,
       2,
     ),
@@ -385,6 +424,93 @@ test('actual occupied water scatters glass-filtered sunlight while a real torch 
   expect(Math.abs(blue.extinction - stacked.extinction)).toBeLessThan(0.001);
   for (const s of Object.values(result.samples)) expect(s.gl).toBe(0);
   expect(errors).toEqual([]);
+});
+
+test('emissive liquids bind glass-shadow lighting before and after device restoration', async ({
+  page,
+}, info) => {
+  const errors = await chamber(page);
+  await page.evaluate(async () => {
+    const { DIRECTIONS } = await import('/src/core.js'),
+      g = window.__hexwild,
+      w = g.state.world,
+      cells = [];
+    for (const [q, type] of [
+      [-2, 'lava'],
+      [2, 'glow'],
+    ]) {
+      for (const [dq, dr] of [[0, 0], ...DIRECTIONS]) {
+        w.set(q + dq, 9, dr, 'stone');
+        if (dq || dr) w.set(q + dq, 10, dr, 'stone');
+        cells.push([q + dq, 9, dr]);
+      }
+      w.fluids.source(q, 10, 0, type);
+    }
+    g.graphics.updateCells(cells);
+    g.fluidStep(1);
+    g.lookAt(0, 10.5, 0);
+  });
+  await roof(page, ['blueStainedGlass']);
+  await fresh(page);
+  const visible = await page.evaluate(async () => {
+    const { axialToWorld } = await import('/src/core.js');
+    const g = window.__hexwild.graphics,
+      types = new Set();
+    g.fluidRenderer.group.traverseVisible((object) => {
+      if (object.isMesh) types.add(object.userData.liquid);
+    });
+    const centers = [-2, 2].map((q) => {
+      const p = axialToWorld(q, 0);
+      return g.camera.position
+        .clone()
+        .set(p.x, 10.92, p.z)
+        .project(g.camera)
+        .toArray();
+    });
+    return {
+      types: [...types],
+      centers,
+      gl: g.renderer.getContext().getError(),
+    };
+  });
+  expect(visible.types).toContain('lava');
+  expect(visible.types).toContain('glow');
+  for (const [x, y, z] of visible.centers) {
+    expect(Math.max(Math.abs(x), Math.abs(y), Math.abs(z))).toBeLessThan(1);
+  }
+  expect(visible.gl).toBe(0);
+  await page.evaluate(() => {
+    const canvas = document.querySelector('#world'),
+      ext = canvas.getContext('webgl2').getExtension('WEBGL_lose_context');
+    window.nativeSamplersRestored = false;
+    canvas.addEventListener(
+      'webglcontextrestored',
+      () => (window.nativeSamplersRestored = true),
+      { once: true },
+    );
+    window.restoreNativeSamplers = () => ext.restoreContext();
+    ext.loseContext();
+  });
+  await page.waitForTimeout(100);
+  await page.evaluate(() => window.restoreNativeSamplers());
+  await expect
+    .poll(() => page.evaluate(() => window.nativeSamplersRestored), {
+      timeout: 30000,
+    })
+    .toBe(true);
+  await fresh(page);
+  const state = await page.evaluate(() => ({
+    gl: window.__hexwild.graphics.renderer.getContext().getError(),
+  }));
+  await writeFile(
+    info.outputPath('native-sampler-restore.json'),
+    JSON.stringify({ visible, ...state, errors }, null, 2),
+  );
+  expect(state.gl).toBe(0);
+  expect(errors).toEqual([]);
+  await page.screenshot({
+    path: info.outputPath('emissive-liquid-receivers.png'),
+  });
 });
 
 test('colored air shafts follow oblique moonlight at negative coordinates through native Continue, quality and device recovery', async ({

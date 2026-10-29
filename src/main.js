@@ -6847,7 +6847,7 @@ function frame(now) {
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
     if (
       world.circuitCells.size &&
-      world.redstone.revision !== world.lightRevision
+      world.redstone.revision !== world.blockRevision
     )
       maintainBuildings();
     const redstoneChanges = new Map();

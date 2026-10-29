@@ -315,7 +315,8 @@ test('scheduled movement freezes outside loaded chunks and resumes the same rema
   a.tick();
   a.tick(0.04);
   const timer = a.w.redstone.timers.get(key(...a.origin));
-  a.w.ensureAround(80, 80);
+  a.w.ensureAround(3000, 3000);
+  assert.equal(a.w.loaded(a.origin[0], a.origin[2]), false);
   a.tick(10);
   assert.equal(a.w.redstone.timers.get(key(...a.origin)), timer);
   a.w.ensureAround(a.origin[0], a.origin[2]);
