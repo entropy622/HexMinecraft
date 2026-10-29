@@ -9,14 +9,14 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { FoliageRenderPass } from './foliage-render-pass.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { CloudVolumePass } from './cloud-volume.js';
 
 // Keep the scene depth outside the composer's alternating color attachments.
 // Every later effect reads the same current-frame depth, even when passes are disabled.
 export class SceneFramePass extends Pass {
-  constructor(scene, camera, fluids, cloudUniforms) {
+  constructor(scene, camera, fluids, cloudUniforms, foliageUniforms) {
     super();
     this.needsSwap = false;
     this.scene = scene;
@@ -30,7 +30,7 @@ export class SceneFramePass extends Pass {
       type: HalfFloatType,
       depthTexture: new DepthTexture(1, 1, UnsignedIntType),
     });
-    this.beauty = new RenderPass(scene, camera);
+    this.beauty = new FoliageRenderPass(scene, camera, foliageUniforms);
     this.opaque = this.target.clone();
     this.copy = new ShaderMaterial({
       uniforms: UniformsUtils.clone(CopyShader.uniforms),

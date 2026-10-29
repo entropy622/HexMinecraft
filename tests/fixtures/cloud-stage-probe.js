@@ -4,7 +4,8 @@ export function installCloudStageProbe() {
     extension,
     bits = 0,
     inside = false,
-    measuring = false;
+    measuring = false,
+    gpuEnabled = true;
   let count = 0,
     rendered = 0,
     targetFrames = 0,
@@ -62,7 +63,7 @@ export function installCloudStageProbe() {
       gl[name] = (...a) => {
         if (inside) {
           count++;
-          if (frame && extension && bits && !batch) {
+          if (frame && gpuEnabled && extension && bits && !batch) {
             if (
               pending.length < 256 &&
               !gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY)
@@ -79,7 +80,7 @@ export function installCloudStageProbe() {
     return result;
   };
   function poll() {
-    if (!extension || !bits) return;
+    if (!gpuEnabled || !extension || !bits) return;
     if (gl.getParameter(extension.GPU_DISJOINT_EXT)) {
       if (pending.length || measuring) disjoint++;
       pending.forEach((p) => gl.deleteQuery(p.query));
@@ -132,7 +133,7 @@ export function installCloudStageProbe() {
     get rendered() {
       return rendered;
     },
-    start(n) {
+    start(n, withGpu = true) {
       if (measuring || pending.length)
         throw Error('GPU measurement is pending');
       const g = window.__hexwild.graphics,
@@ -152,6 +153,7 @@ export function installCloudStageProbe() {
       busy = 0;
       disjoint = 0;
       targetFrames = n;
+      gpuEnabled = withGpu;
       measuring = true;
     },
     get done() {

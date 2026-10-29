@@ -13,6 +13,7 @@ import {
 } from './fixtures/photon-reference-artifacts.js';
 
 test('FHD forest real WebGL stage costs', async ({ page }, info) => {
+  test.setTimeout(240000);
   const messages = { errors: [], warnings: [] };
   page.on('pageerror', (e) => messages.errors.push(e.message));
   page.on('console', (e) => {
@@ -52,12 +53,27 @@ test('FHD forest real WebGL stage costs', async ({ page }, info) => {
       timeout: 90000,
     })
     .toBeGreaterThanOrEqual(first + 120);
+  const cpuSession =
+    process.env.PHOTON_PROFILE_CPU === '1'
+      ? await page.context().newCDPSession(page)
+      : null;
+  if (cpuSession) {
+    await cpuSession.send('Profiler.enable');
+    await cpuSession.send('Profiler.start');
+  }
   await page.evaluate(() => window.__cloudStages.start(120));
   await expect
     .poll(() => page.evaluate(() => window.__cloudStages.done), {
       timeout: 90000,
     })
     .toBe(true);
+  if (cpuSession) {
+    const { profile } = await cpuSession.send('Profiler.stop');
+    await writeFile(
+      info.outputPath('depth-on.cpuprofile'),
+      JSON.stringify(profile),
+    );
+  }
   const measured = await page.evaluate(() => window.__cloudStages.result());
   const frame = await page.evaluate(readReferenceFrame, resourceLayout);
   const stages = {};
@@ -97,6 +113,107 @@ test('FHD forest real WebGL stage costs', async ({ page }, info) => {
   expect(measured.busy).toBe(0);
   expect(messages.errors).toEqual([]);
   expect(messages.warnings).toEqual([]);
+  // Same-process control retains the complete current lighting algorithm.
+  // Disable only early leaf depth, warm it, and measure the same fixed view.
+  const controlAt = await page.evaluate(() => {
+    window.__hexwild.graphics.composer.passes[0].beauty.depthPrepassEnabled = false;
+    return window.__cloudStages.rendered;
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.rendered), {
+      timeout: 90000,
+    })
+    .toBeGreaterThanOrEqual(controlAt + 24);
+  if (cpuSession) await cpuSession.send('Profiler.start');
+  await page.evaluate(() => window.__cloudStages.start(120));
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.done), {
+      timeout: 90000,
+    })
+    .toBe(true);
+  if (cpuSession) {
+    const { profile } = await cpuSession.send('Profiler.stop');
+    await writeFile(
+      info.outputPath('depth-off.cpuprofile'),
+      JSON.stringify(profile),
+    );
+    await cpuSession.detach();
+  }
+  const control = await page.evaluate(() => ({
+      measured: window.__cloudStages.result(),
+      enabled:
+        window.__hexwild.graphics.composer.passes[0].beauty.depthPrepassEnabled,
+    })),
+    controlFrame = await page.evaluate(readReferenceFrame, resourceLayout),
+    controlStages = {};
+  for (const name of new Set(control.measured.gpu.map((s) => s.stage)))
+    controlStages[name] = distribution(
+      control.measured.frames.map((f) =>
+        control.measured.gpu
+          .filter((s) => s.index === f.index && s.stage === name)
+          .reduce((a, s) => a + s.milliseconds, 0),
+      ),
+    );
+  await writeFile(
+    info.outputPath('depth-prepass-control.json'),
+    JSON.stringify(
+      {
+        ...control,
+        stages: controlStages,
+        cpu: distribution(control.measured.frames.map((f) => f.cpuSubmitMs)),
+        frame: controlFrame,
+        messages,
+      },
+      null,
+      2,
+    ),
+  );
+  expect(control.enabled).toBe(false);
+  expect(control.measured.frames).toHaveLength(120);
+  expect(control.measured.disjoint).toBe(0);
+  expect(control.measured.busy).toBe(0);
+  expect(controlFrame.glErrors).toEqual([]);
+  // Timer-query calls can themselves affect driver/CPU submission. Observe
+  // ordinary RAF/CPU windows too, without any GPU queries or GPU status polls.
+  const passive = [];
+  for (const enabled of [true, false]) {
+    const at = await page.evaluate((enabled) => {
+      window.__hexwild.graphics.composer.passes[0].beauty.depthPrepassEnabled =
+        enabled;
+      return window.__cloudStages.rendered;
+    }, enabled);
+    await expect
+      .poll(() => page.evaluate(() => window.__cloudStages.rendered), {
+        timeout: 90000,
+      })
+      .toBeGreaterThanOrEqual(at + 24);
+    await page.evaluate(() => window.__cloudStages.start(120, false));
+    await expect
+      .poll(() => page.evaluate(() => window.__cloudStages.done), {
+        timeout: 90000,
+      })
+      .toBe(true);
+    const measured = await page.evaluate(() => window.__cloudStages.result());
+    expect(measured.gpu).toEqual([]);
+    expect(measured.frames).toHaveLength(120);
+    passive.push({
+      enabled,
+      measured,
+      cpu: distribution(measured.frames.map((f) => f.cpuSubmitMs)),
+      raf: distribution(
+        measured.frames
+          .slice(1)
+          .map((f, i) => f.timestamp - measured.frames[i].timestamp),
+      ),
+    });
+  }
+  await writeFile(
+    info.outputPath('depth-prepass-cpu-only.json'),
+    JSON.stringify({ passive, messages }, null, 2),
+  );
+  await page.evaluate(() => {
+    window.__hexwild.graphics.composer.passes[0].beauty.depthPrepassEnabled = true;
+  });
   await page.evaluate(() => {
     window.__cloudStages.start(120);
     const a = window.__hexwild;

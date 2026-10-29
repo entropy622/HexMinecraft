@@ -16,6 +16,7 @@ export const foliageUniforms = () => ({
   leafSunDirection: { value: new Vector3(0, 1, 0) },
   leafSunColor: { value: new Color(0) },
   leafSheen: { value: 0.5 },
+  leafDepthOnly: { value: 0 },
   leafVolumeTop: { value: 64 },
   leafViewer: { value: new Vector3() },
 });
@@ -75,8 +76,13 @@ export function leafMaterials(atlas, weather, uniforms) {
         '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
       );
     shader.fragmentShader =
-      `varying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen;\n${leafLightingGLSL}\n` +
+      `varying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen; uniform float leafDepthOnly;\n${leafLightingGLSL}\n` +
       shader.fragmentShader
+        .replace(
+          '#include <alphatest_fragment>',
+          `#include <alphatest_fragment>
+          if (leafDepthOnly > 0.5) { gl_FragColor=vec4(0.0); return; }`,
+        )
         .replace(
           'irradiance += vSkylight * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);',
           `vec3 leafSkyUp=max(vec3(0.0),shGetIrradianceAt(vec3(0.0,1.0,0.0),lightProbe));
@@ -121,7 +127,7 @@ export function leafMaterials(atlas, weather, uniforms) {
   };
   const key = material.customProgramCacheKey();
   material.customProgramCacheKey = () =>
-    key + '-transmission-v4-sky-subsurface-v1-sheen-range';
+    key + '-transmission-v5-sky-subsurface-v1-sheen-range-depth';
   const depth = new MeshDepthMaterial({
     map: atlas,
     depthPacking: RGBADepthPacking,

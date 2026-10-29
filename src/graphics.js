@@ -342,6 +342,7 @@ export class Graphics {
         this.cloudSystem.uniforms,
         this.fluidRenderer,
         this.weatherUniforms,
+        this.leafUniforms,
       );
     if (!this.usePost && this.composer) {
       disposePostprocessing(this.composer);

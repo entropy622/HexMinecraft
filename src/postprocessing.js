@@ -24,13 +24,20 @@ export function createPostprocessing(
   cloudUniforms,
   fluids,
   weatherUniforms,
+  foliageUniforms,
 ) {
   const target = new WebGLRenderTarget(innerWidth, innerHeight, {
     type: HalfFloatType,
     depthBuffer: false,
   });
   const composer = new EffectComposer(renderer, target);
-  const frame = new SceneFramePass(scene, camera, fluids, cloudUniforms);
+  const frame = new SceneFramePass(
+    scene,
+    camera,
+    fluids,
+    cloudUniforms,
+    foliageUniforms,
+  );
   const wet = new WetSurfacePass(camera, frame, weatherUniforms);
   const protection = new SurfaceProtectionPass(scene, camera, frame, wet);
   const contact = new ContactOcclusionPass(camera, frame, protection);
