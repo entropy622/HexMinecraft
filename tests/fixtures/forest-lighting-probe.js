@@ -62,7 +62,7 @@ export function readForestLighting(g) {
         forestLeaf: { value: material === g.leafMaterials.material ? 1 : 0 },
       });
       shader.fragmentShader =
-        `uniform int forestMode; uniform float forestLeaf;\n` +
+        `${material === g.leafMaterials.material ? '#define FOREST_LEAF_SOLAR\n' : ''}uniform int forestMode; uniform float forestLeaf;\n` +
         shader.fragmentShader.replace(
           '#include <opaque_fragment>',
           `
@@ -82,6 +82,18 @@ export function readForestLighting(g) {
             outgoingLight=vec3(vAmbientOcclusion);
           #else
             outgoingLight=vec3(1.0);
+          #endif
+        }
+        else if(forestMode==7 || forestMode==8) {
+          outgoingLight=vec3(0.0);
+          #ifdef FOREST_LEAF_SOLAR
+            if(vSkylight>=0.01 && max(max(leafSunColor.r,leafSunColor.g),leafSunColor.b)>0.00001) {
+              float mu=dot(normalize(vLightPosition-cameraPosition),leafSunDirection);
+              vec3 transmission=leafTransmittance(diffuseColor.rgb);
+              vec3 diffuse=leafSolarResponse(diffuseColor.rgb,mu,transmission,0.0);
+              vec3 response=forestMode==7 ? diffuse : leafSolarResponse(diffuseColor.rgb,mu,transmission,leafSheen)-diffuse;
+              outgoingLight=leafSunColor*clamp(leafLightTransmission,vec3(0.0),vec3(1.0))*response;
+            }
           #endif
         }
         #include <opaque_fragment>
@@ -104,7 +116,7 @@ export function readForestLighting(g) {
     r.autoClear = true;
     r.shadowMap.autoUpdate = false;
     r.shadowMap.needsUpdate = false;
-    for (mode.value = 0; mode.value < 7; mode.value++) {
+    for (mode.value = 0; mode.value < 9; mode.value++) {
       r.setRenderTarget(target);
       r.render(g.scene, camera);
       buffers.push(read(target));
@@ -194,6 +206,8 @@ export function readForestLighting(g) {
       'surface-total',
       'vertex-color',
       'geometric-ao',
+      'solar-transmission',
+      'solar-sheen',
     ],
     maps = buffers.map((data, i) => ({
       name: names[i],

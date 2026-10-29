@@ -1508,7 +1508,7 @@ export class Graphics {
       .normalize();
     this.leafUniforms.leafSunColor.value
       .copy(this.sun.color)
-      .multiplyScalar(overworld && this.usePost ? this.sun.intensity * 0.2 : 0);
+      .multiplyScalar(overworld && this.usePost ? this.sun.intensity : 0);
     this.leafParticles.frame(dt, time, this.leafUniforms.leafWind.value);
     this.caveAmbience.frame(dt, time, this.world, this.camera);
     this.dripstoneEffects.frame(dt, time, this.world, this.camera);

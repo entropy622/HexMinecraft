@@ -121,14 +121,20 @@ async function occluder(page, kind) {
   }, kind);
   await fresh(page);
 }
-async function sample(page) {
-  const raw = await page.evaluate(() => {
+async function sample(page, component = 'sun') {
+  const raw = await page.evaluate((component) => {
     const g = window.__hexwild.graphics,
       t = g.composer.passes[0].target,
       renderer = g.renderer,
       all = new Uint16Array(t.width * t.height * 4),
-      color = g.leafUniforms.leafSunColor.value,
-      previous = color.clone(),
+      uniform =
+        component === 'sheen'
+          ? g.leafUniforms.leafSheen
+          : g.leafUniforms.leafSunColor,
+      previous =
+        typeof uniform.value === 'number'
+          ? uniform.value
+          : uniform.value.clone(),
       target = renderer.getRenderTarget(),
       center = g.camera.position.clone().set(0, 45.5, 0).project(g.camera);
     const x = Math.round((center.x * 0.5 + 0.5) * t.width),
@@ -146,7 +152,8 @@ async function sample(page) {
     };
     try {
       const on = read();
-      color.setRGB(0, 0, 0);
+      if (typeof uniform.value === 'number') uniform.value = 0;
+      else uniform.value.setRGB(0, 0, 0);
       const off = read();
       return {
         on,
@@ -156,11 +163,12 @@ async function sample(page) {
         gl: renderer.getContext().getError(),
       };
     } finally {
-      color.copy(previous);
+      if (typeof uniform.value === 'number') uniform.value = previous;
+      else uniform.value.copy(previous);
       read();
       renderer.setRenderTarget(target);
     }
-  });
+  }, component);
   const added = raw.on.map((v, i) =>
     Math.max(
       0,
@@ -185,6 +193,85 @@ const litPixels = (s) =>
   Array.from({ length: s.added.length / 3 }, (_, i) => i).filter(
     (i) => Math.max(...s.added.slice(i * 3, i * 3 + 3)) > 0.00002,
   );
+
+test('native leaf sheen uses real sun energy, canopy thickness and raw-sky eligibility', async ({
+  page,
+}, info) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') errors.push(e.text());
+  });
+  await setup(page);
+  const source = await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    return {
+      leaf: g.leafUniforms.leafSunColor.value.toArray(),
+      actual: g.sun.color.clone().multiplyScalar(g.sun.intensity).toArray(),
+      amount: g.leafUniforms.leafSheen.value,
+    };
+  });
+  expect(source.amount).toBe(0.5);
+  source.leaf.forEach((v, i) =>
+    expect(Math.abs(v - source.actual[i])).toBeLessThan(1e-7),
+  );
+  const thin = await sample(page, 'sheen'),
+    mask = litPixels(thin);
+  expect(mask.length).toBeGreaterThan(30);
+  expect(energy(thin, mask)).toBeGreaterThan(0.0001);
+  await occluder(page, 'leaves');
+  const thick = await sample(page, 'sheen');
+  await occluder(page, 'stone');
+  const blocked = await sample(page, 'sheen');
+  expect(energy(thick, mask) / energy(thin, mask)).toBeLessThan(0.65);
+  expect(energy(blocked, mask) / energy(thin, mask)).toBeLessThan(0.03);
+  await occluder(page, null);
+  const rawSky = [];
+  for (const raw of [1, 2]) {
+    await page.evaluate((raw) => {
+      const g = window.__hexwild.graphics;
+      g.chunks.get('0,0').traverse((o) => {
+        if (!o.geometry?.attributes.leafAmbient) return;
+        const a = o.geometry.attributes.skylight;
+        a.array.fill((raw / 15) ** 2);
+        a.needsUpdate = true;
+      });
+    }, raw);
+    rawSky.push({ raw, energy: energy(await sample(page, 'sheen'), mask) });
+  }
+  expect(rawSky[0].energy).toBeLessThan(1e-7);
+  expect(rawSky[1].energy).toBeGreaterThan(0.0001);
+  await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    g.voxelLight.relight(g.chunks.get('0,0'));
+    const d = g.sun.position.clone().sub(g.sun.target.position).normalize();
+    g.camera.position.set(0, 45.5, 0).addScaledVector(d, 4);
+    window.__hexwild.lookAt(0, 45.5, 0);
+    g.camera.updateMatrixWorld();
+  });
+  await frames(page);
+  const front = await sample(page, 'sheen');
+  expect(Math.max(...front.added)).toBeLessThan(1e-7);
+  await writeFile(
+    info.outputPath('native-leaf-sheen.json'),
+    JSON.stringify(
+      {
+        source,
+        thin: energy(thin, mask),
+        thick: energy(thick, mask),
+        blocked: energy(blocked, mask),
+        rawSky,
+        frontMaximum: Math.max(...front.added),
+        pixels: mask.length,
+        errors,
+      },
+      null,
+      2,
+    ),
+  );
+  for (const s of [thin, thick, blocked, front]) expect(s.gl).toBe(0);
+  expect(errors).toEqual([]);
+});
 async function backlight(page, time) {
   await page.evaluate(
     (time) => window.__hexwild.step(time - window.__hexwild.state.time),

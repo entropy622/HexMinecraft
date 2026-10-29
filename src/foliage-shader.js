@@ -7,12 +7,14 @@ import {
   Vector3,
 } from 'three';
 import { applySkylight } from './skylight.js';
+import { leafLightingGLSL } from './leaf-lighting.js';
 
 export const foliageUniforms = () => ({
   leafTime: { value: 0 },
   leafWind: { value: 0 },
   leafSunDirection: { value: new Vector3(0, 1, 0) },
   leafSunColor: { value: new Color(0) },
+  leafSheen: { value: 0.5 },
   leafViewer: { value: new Vector3() },
 });
 
@@ -120,7 +122,7 @@ export function leafMaterials(atlas, weather, uniforms) {
         '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
       );
     shader.fragmentShader =
-      `varying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor;\n` +
+      `varying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen;\n${leafLightingGLSL}\n` +
       shader.fragmentShader
         .replace(
           'irradiance += vSkylight * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);',
@@ -154,10 +156,11 @@ export function leafMaterials(atlas, weather, uniforms) {
         .replace(
           '#include <opaque_fragment>',
           /* glsl */ `
-        if (max(max(leafSunColor.r, leafSunColor.g), leafSunColor.b) > 0.00001 && vSkylight > 0.1) {
+        // Photon gates at raw sky 0.1; vSkylight already contains raw sky squared.
+        if (max(max(leafSunColor.r, leafSunColor.g), leafSunColor.b) > 0.00001 && vSkylight >= 0.01) {
           float leafMu = dot(normalize(vLightPosition - cameraPosition), leafSunDirection);
-          float leafPhase = 0.65 + 0.35 * 0.64 / pow(max(0.04, 1.36 - 1.2 * leafMu), 1.5);
-          outgoingLight += diffuseColor.rgb * leafSunColor * leafPhase * clamp(leafLightTransmission, vec3(0.0), vec3(1.0)) * leafTransmittance(diffuseColor.rgb);
+          outgoingLight += leafSunColor * clamp(leafLightTransmission, vec3(0.0), vec3(1.0)) *
+            leafSolarResponse(diffuseColor.rgb,leafMu,leafTransmittance(diffuseColor.rgb),leafSheen);
         }
         #include <opaque_fragment>
       `,
@@ -165,7 +168,7 @@ export function leafMaterials(atlas, weather, uniforms) {
   };
   const key = material.customProgramCacheKey();
   material.customProgramCacheKey = () =>
-    key + '-transmission-v2-sky-subsurface-v1';
+    key + '-transmission-v3-sky-subsurface-v1-sheen';
   const depth = new MeshDepthMaterial({
     map: atlas,
     depthPacking: RGBADepthPacking,
