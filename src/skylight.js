@@ -60,6 +60,11 @@ const geometricLightingChunk = voxelLightingChunk
       (0.033*surfaceBounce*(1.0-geometricShadow)*(1.0-0.1*geometricUp)*
         // The vertex attribute already contains (voxel sky level / 15)^2.
         sqrt(geometricAO)*pow(clamp(vSkylight,0.0,1.0),2.0));
+    #ifdef HEX_LEAF_PRIMARY_SSS
+      // Reduce only the ordinary directional diffuse after capturing the full
+      // incident energy for transmission and bounce. Local RGB stays unchanged.
+      directLight.color*=1.0-0.5*clamp(leafSssAmount,0.0,1.0);
+    #endif
   `,
   );
 

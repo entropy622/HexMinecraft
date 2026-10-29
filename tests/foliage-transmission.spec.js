@@ -290,6 +290,46 @@ async function backlight(page, time) {
   await frames(page);
 }
 
+test('leaf SSS reduces only directional diffuse while local point illumination stays intact', async ({
+  page,
+}, info) => {
+  const errors = [],
+    warnings = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (e) => {
+    if (e.type() === 'error') errors.push(e.text());
+    if (e.type() === 'warning') warnings.push(e.text());
+  });
+  await setup(page);
+  const result = await page.evaluate(async () => {
+    const { probeLeafDirectionalDiffuse } =
+      await import('/tests/fixtures/leaf-primary-native.js');
+    return probeLeafDirectionalDiffuse(window.__hexwild.graphics);
+  });
+  await writeFile(
+    info.outputPath('leaf-directional-diffuse.json'),
+    JSON.stringify({ result, errors, warnings }, null, 2),
+  );
+  for (const row of result.rows) {
+    expect(row.pairs.length).toBeGreaterThan(30);
+    for (const pair of row.pairs)
+      for (let c = 0; c < 3; c++) {
+        const expected = pair.a[c] * row.weight,
+          ulp =
+            expected < 2 ** -14
+              ? 2 ** -24
+              : 2 ** (Math.floor(Math.log2(expected)) - 10);
+        expect(Math.abs(pair.b[c] - expected)).toBeLessThanOrEqual(
+          ulp * 1.01 + 1e-7,
+        );
+        if (row.source === 'point') expect(pair.b[c]).toBe(pair.a[c]);
+      }
+  }
+  expect(result.gl).toBe(0);
+  expect(errors).toEqual([]);
+  expect(warnings).toEqual([]);
+});
+
 test('far native leaves retain real roof, slab and colored-glass occlusion beyond shadow coverage', async ({
   page,
 }, info) => {

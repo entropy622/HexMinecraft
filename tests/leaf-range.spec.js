@@ -32,12 +32,14 @@ test('real far-leaf shader matches independent occupied-length integration and c
       if (row.oracle.blocked) expect(row.rgb[c]).toBe(0);
       else {
         const extinction =
-            1.6 *
+            14 *
+            Math.LN2 *
+            0.2 *
             (1 -
               0.75 *
                 Math.max(
                   0,
-                  Math.min(1, result.albedo[c] / Math.sqrt(lum + 0.0001)),
+                  Math.min(1, result.albedo[c] / Math.sqrt(lum + 0.000001)),
                 )),
           depth = -Math.log(row.rgb[c]) / extinction;
         // Bound only the existing 0.002 face push and the independent Riemann

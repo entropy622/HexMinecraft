@@ -4,18 +4,14 @@
 export const leafTransmissionGLSL = /* glsl */ `
 vec3 leafLightTransmission = vec3(1.0);
 uniform float leafVolumeTop;
-vec3 leafBeerTransmission(vec3 albedo, float thickness) {
-  float luminance=dot(albedo,vec3(0.2126,0.7152,0.0722));
-  vec3 tint=clamp(albedo*inversesqrt(luminance+0.0001),vec3(0.0),vec3(1.0));
-  return exp(-(vec3(1.0)-0.75*tint)*1.6*thickness);
-}
+uniform float leafSssAmount;
 vec3 leafFarTransmittance(vec3 albedo) {
   vec3 start=vLightPosition+leafSunDirection*0.015;
   ivec3 first=lightCell(start);
   if(leafSunDirection.y<=0.00001)return vec3(0.0);
   bool insideColumns=first.y>=0 && first.z>=0 && first.y<int(entityLightSize.y) && first.z<int(entityLightSize.z);
   // The world's top is known open sky; lateral/unloaded bounds stay unknown.
-  if(float(first.x)>=entityLightSize.x && insideColumns)return leafBeerTransmission(albedo,0.06);
+  if(float(first.x)>=entityLightSize.x && insideColumns)return leafBeerTransmission(albedo,0.06,leafSssAmount);
   if(!insideLightVolume(first))return vec3(0.0);
   float top=min(leafVolumeTop,entityLightOrigin.y+entityLightSize.x);
   float reach=max(0.0,(top-start.y)/leafSunDirection.y);
@@ -34,7 +30,7 @@ vec3 leafFarTransmittance(vec3 albedo) {
     distance+=segment+0.002;
   }
   if(!complete && distance<reach)return vec3(0.0);
-  return leafBeerTransmission(albedo,thickness);
+  return leafBeerTransmission(albedo,thickness,leafSssAmount);
 }
 vec3 leafNearTransmittance(vec3 albedo, vec3 p) {
   #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0 && defined(SHADOWMAP_TYPE_BASIC)
@@ -64,7 +60,7 @@ vec3 leafNearTransmittance(vec3 albedo, vec3 p) {
       distance += segment + 0.002;
     }
     if (!complete && distance < reach) return vec3(0.0);
-    return leafBeerTransmission(albedo,thickness);
+    return leafBeerTransmission(albedo,thickness,leafSssAmount);
   #else
     return vec3(0.0);
   #endif

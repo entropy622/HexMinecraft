@@ -1,7 +1,7 @@
 import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 
-test('actual leaf solar kernel preserves diffuse units and matches normalized sheen with zero-energy and black limits', async ({
+test('actual leaf solar kernel matches Photon primary phase, amount, geometry-ray absorption and sheen', async ({
   page,
 }, info) => {
   const errors = [],
@@ -26,18 +26,27 @@ test('actual leaf solar kernel preserves diffuse units and matches normalized sh
   let maxError = 0;
   for (const row of result.samples) {
     const mu = Math.max(-1, Math.min(1, row.cosine)),
-      legacy =
-        0.65 + (0.35 * (1 - 0.6 ** 2)) / (1 + 0.6 ** 2 - 2 * 0.6 * mu) ** 1.5,
+      primary =
+        0.67 / (4 * Math.PI) +
+        (0.33 * (1 - 0.7 ** 2)) /
+          (4 * Math.PI * (1 + 0.7 ** 2 - 2 * 0.7 * mu) ** 1.5),
       hg =
         (1 - 0.5 ** 2) / (4 * Math.PI * (1 + 0.5 ** 2 - 2 * 0.5 * mu) ** 1.5),
       forward = Math.max(0, Math.min(1, (mu + 0.8) / 0.6));
     for (let c = 0; c < 3; c++) {
       const expected =
-          row.irradiance[c] *
-          row.transmission[c] *
-          (0.2 * legacy * row.albedo[c] +
-            (((0.8 * row.amount * hg * forward) / Math.PI) * row.albedo[c]) /
-              (row.albedo[c] + 1e-6)),
+          row.sssAmount === 0
+            ? 0
+            : row.irradiance[c] *
+              row.transmission[c] *
+              (5 *
+                primary *
+                row.sssAmount *
+                (2 - row.sssAmount) *
+                row.albedo[c] +
+                (((0.8 * row.amount * hg * forward) / Math.PI) *
+                  row.albedo[c]) /
+                  (row.albedo[c] + 1e-6)),
         error = Math.abs(row.rgb[c] - expected) / Math.max(1, expected);
       maxError = Math.max(maxError, error);
       expect(Number.isFinite(row.rgb[c])).toBe(true);
@@ -52,13 +61,47 @@ test('actual leaf solar kernel preserves diffuse units and matches normalized sh
       expect(Math.abs(row.half[c] - row.rgb[c])).toBeLessThanOrEqual(
         ulp * 1.01 + 1e-7,
       );
-      if (!row.irradiance[c] || !row.transmission[c] || !row.albedo[c])
+      if (
+        !row.irradiance[c] ||
+        !row.transmission[c] ||
+        !row.albedo[c] ||
+        !row.sssAmount
+      )
         expect(row.rgb[c]).toBe(0);
+    }
+  }
+  let maxBeerError = 0;
+  for (const row of result.beer) {
+    const luminance = row.albedo.reduce(
+      (sum, v, c) => sum + v * [0.2126, 0.7152, 0.0722][c],
+      0,
+    );
+    for (let c = 0; c < 3; c++) {
+      const pigment = Math.max(
+          0,
+          Math.min(1, row.albedo[c] / Math.sqrt(luminance + 1e-6)),
+        ),
+        expected =
+          row.sssAmount === 0
+            ? 0
+            : 2 **
+              ((-14 * (1 - 0.75 * pigment) * row.thickness * 0.2) /
+                row.sssAmount),
+        error = Math.abs(row.rgb[c] - expected);
+      maxBeerError = Math.max(maxBeerError, error);
+      expect(Number.isFinite(row.rgb[c])).toBe(true);
+      expect(row.rgb[c]).toBeGreaterThanOrEqual(0);
+      expect(row.rgb[c]).toBeLessThanOrEqual(1);
+      expect(error).toBeLessThan(0.00001);
     }
   }
   await writeFile(
     info.outputPath('leaf-sheen-kernel.json'),
-    JSON.stringify({ result, maxError, errors, warnings }, null, 2),
+    JSON.stringify(
+      { result, maxError, maxBeerError, errors, warnings },
+      null,
+      2,
+    ),
   );
   expect(result.gl).toBe(0);
   expect(errors).toEqual([]);

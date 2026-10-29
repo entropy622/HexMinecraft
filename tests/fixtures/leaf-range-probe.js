@@ -79,6 +79,7 @@ export function probeLeafRange(g) {
       uniforms: {
         ...volume.uniforms,
         leafVolumeTop: { value: 64 },
+        leafSssAmount: { value: 1 },
         leafSunDirection: { value: new Vector3(0, 1, 0) },
         vLightPosition: { value: new Vector3(0, 45.2, 0) },
         albedo: { value: new Vector3(0.16, 0.37, 0.08) },

@@ -16,6 +16,7 @@ export const foliageUniforms = () => ({
   leafSunDirection: { value: new Vector3(0, 1, 0) },
   leafSunColor: { value: new Color(0) },
   leafSheen: { value: 0.5 },
+  leafSssAmount: { value: 0 },
   leafDepthOnly: { value: 0 },
   leafVolumeTop: { value: 64 },
   leafViewer: { value: new Vector3() },
@@ -76,7 +77,7 @@ export function leafMaterials(atlas, weather, uniforms) {
         '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
       );
     shader.fragmentShader =
-      `varying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen; uniform float leafDepthOnly;\n${leafLightingGLSL}\n` +
+      `#define HEX_LEAF_PRIMARY_SSS\nvarying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen; uniform float leafDepthOnly;\n${leafLightingGLSL}\n` +
       shader.fragmentShader
         .replace(
           '#include <alphatest_fragment>',
@@ -116,10 +117,10 @@ export function leafMaterials(atlas, weather, uniforms) {
           '#include <opaque_fragment>',
           /* glsl */ `
         // Photon gates at raw sky 0.1; vSkylight already contains raw sky squared.
-        if (max(max(leafSunColor.r, leafSunColor.g), leafSunColor.b) > 0.00001 && vSkylight >= 0.01) {
+        if (leafSssAmount >= 0.000001 && max(max(leafSunColor.r, leafSunColor.g), leafSunColor.b) > 0.00001 && vSkylight >= 0.01) {
           float leafMu = dot(normalize(vLightPosition - cameraPosition), leafSunDirection);
           outgoingLight += leafSunColor * clamp(leafLightTransmission, vec3(0.0), vec3(1.0)) *
-            leafSolarResponse(diffuseColor.rgb,leafMu,leafTransmittance(diffuseColor.rgb),leafSheen);
+            leafSolarResponse(diffuseColor.rgb,leafMu,leafTransmittance(diffuseColor.rgb),leafSheen,leafSssAmount);
         }
         #include <opaque_fragment>
       `,
@@ -127,7 +128,7 @@ export function leafMaterials(atlas, weather, uniforms) {
   };
   const key = material.customProgramCacheKey();
   material.customProgramCacheKey = () =>
-    key + '-transmission-v5-sky-subsurface-v1-sheen-range-depth';
+    key + '-transmission-v6-sky-subsurface-v1-primary-sheen-range-depth';
   const depth = new MeshDepthMaterial({
     map: atlas,
     depthPacking: RGBADepthPacking,
