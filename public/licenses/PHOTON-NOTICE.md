@@ -20,6 +20,14 @@ retains linear-sRGB transport, local height profiles, a spatial hex biome
 filter, its shared cloud climate and local block-light scattering. Photon's
 license also covers these derived portions.
 
+Since 0.113, `src/sky-fog.js`, `src/sky-clouds.js` and
+`src/sky-atmosphere.js` adapt the sky-map air-fog composition and raw clear-sky
+incident-light direction/normalization from `program/d0_sky_map.*` and
+`include/fog/overworld/analytic.glsl`. The host keeps its shared capped height
+profiles and local units, publishes fog with sky lighting, and composes a
+non-overlapping analytic far segment after the near-field volume march.
+Photon's license applies to these derived portions as well.
+
 `src/photon-sky.js` adapts the lookup mapping, finite-area RGB Mie phases,
 colour matrices and atmosphere saturation from Photon's `atmosphere.glsl`,
 `phase_functions.glsl`, `color.glsl`, settings and `shaders.properties`.

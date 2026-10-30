@@ -18,6 +18,8 @@ uniform float airSunPower;
 uniform float airAmbient;
 uniform float airDirectMultiplier;
 uniform float airScatterMultiplier;
+uniform float airFogDistance;
+uniform float airSkyFogActive;
 
 // Exact integral of min(1, exp(-(height-base)*falloff)). Splitting at the
 // profile's ceiling avoids the horizontal-ray singularity and overflow when
@@ -55,12 +57,16 @@ vec2 airDirectPhase(float cosine) {
 }
 // Mean incoming sky radiance already integrates the isotropic phase over 4pi.
 // The direct input is irradiance and therefore retains its normalized phase.
-vec3 airScattering(vec2 columns, vec2 phase, float sky, vec3 block, vec3 sun) {
+vec3 airMediumScattering(vec2 columns, vec2 phase, vec3 ambient, vec3 sun) {
   vec3 tau=airOpticalDepth(columns), integral=(1.0-exp(-tau))/max(tau,vec3(0.000001));
-  vec3 ambient=airSkyMean*airAmbient*sky;
-  vec3 local=mix(vec3(0.003,0.004,0.005),vec3(0.0),sky)+block*0.85;
   sun *= airDirectMultiplier;
-  return integral*((airRayleigh*columns.x*(ambient+sun*phase.x) +
-    airMieScattering*columns.y*(ambient+sun*phase.y))*airScatterMultiplier + tau*local);
+  return integral*(airRayleigh*columns.x*(ambient+sun*phase.x) +
+    airMieScattering*columns.y*(ambient+sun*phase.y))*airScatterMultiplier;
+}
+vec3 airScattering(vec2 columns, vec2 phase, float sky, vec3 block, vec3 sun) {
+  vec3 tau=airOpticalDepth(columns);
+  vec3 integral=(1.0-exp(-tau))/max(tau,vec3(0.000001));
+  vec3 local=mix(vec3(0.003,0.004,0.005),vec3(0.0),sky)+block*0.85;
+  return airMediumScattering(columns,phase,airSkyMean*airAmbient*sky,sun)+integral*tau*local;
 }
 `;

@@ -8,6 +8,7 @@ import {
   skyRadianceGLSL,
 } from './sky-atmosphere.js';
 import { PHOTON_SUN_SCALE } from './photon-lighting.js';
+import { airTransportGLSL } from './air-transport.js';
 
 const PHASES = [
   '满月',
@@ -20,15 +21,50 @@ const PHASES = [
   '盈凸月',
 ];
 const ILLUMINATION = [1, 0.85, 0.5, 0.15, 0, 0.15, 0.5, 0.85];
+const celestialFogGLSL = /* glsl */ `
+${airTransportGLSL}
+uniform float airVolume;
+uniform vec3 airCameraPosition;
+varying vec3 celestialDirection;
+vec3 celestialAirTransmission(){
+  if(airVolume>0.5 || airDensity<=0.0 || airSkyFogActive<0.5)return vec3(1);
+  return exp(-airOpticalDepth(airColumns(airCameraPosition,normalize(celestialDirection),airFogDistance)));
+}
+`;
+function attachCelestialFog(material, uniforms) {
+  const previous = material.onBeforeCompile,
+    cache = material.customProgramCacheKey;
+  material.onBeforeCompile = (shader, renderer) => {
+    previous.call(material, shader, renderer);
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader =
+      'uniform vec3 airCameraPosition;varying vec3 celestialDirection;\n' +
+      shader.vertexShader.replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\ncelestialDirection=(modelMatrix*vec4(transformed,1.0)).xyz-airCameraPosition;',
+      );
+    shader.fragmentShader =
+      celestialFogGLSL +
+      '\n' +
+      shader.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        'outgoingLight*=celestialAirTransmission();\n#include <opaque_fragment>',
+      );
+  };
+  material.customProgramCacheKey = () =>
+    cache.call(material) + '-celestial-air-v1';
+}
 export const moonPhase = (time) => {
   const index = ((Math.floor(time / 600) % 8) + 8) % 8;
   return { index, name: PHASES[index], illumination: ILLUMINATION[index] };
 };
 export class SkyEnvironment {
-  constructor(scene) {
+  constructor(scene, air = null) {
     this.atmosphere = new SkyAtmosphere();
     this.uniforms = this.atmosphere.uniforms;
     this.uniforms.skyFlash = { value: 0 };
+    this.air = air;
+    if (air) Object.assign(this.uniforms, air);
     scene.add(this.atmosphere.probe);
     this.dome = new THREE.Mesh(
       new THREE.SphereGeometry(180, 32, 16),
@@ -40,10 +76,23 @@ export class SkyEnvironment {
           'varying vec3 vSkyDirection; void main(){ vSkyDirection = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: /* glsl */ `
         ${skyRadianceGLSL}
+        ${air ? airTransportGLSL : ''}
+        ${air ? 'uniform vec3 airCameraPosition;uniform float airCameraSky,airVolume;' : ''}
         uniform float skyFlash;
         varying vec3 vSkyDirection;
         void main() {
           vec3 sky = mix(hexSkyRadiance(vSkyDirection), vec3(0.571, 0.687, 0.831), skyFlash * 0.5);
+          ${
+            air
+              ? `if(airVolume<0.5 && airDensity>0.0 && airSkyFogActive>0.5){
+            vec3 direction=normalize(vSkyDirection);
+            vec2 columns=airColumns(airCameraPosition,direction,airFogDistance);
+            sky=sky*exp(-airOpticalDepth(columns))+airMediumScattering(columns,
+              airDirectPhase(dot(direction,airSunDirection)),airSkyMean*airCameraSky,
+              airSunColor*airSunPower*airCameraSky);
+          }`
+              : ''
+          }
           gl_FragColor = vec4(sky, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -59,20 +108,26 @@ export class SkyEnvironment {
     this.sunDisk = new THREE.Mesh(
       new THREE.CircleGeometry(Math.tan(SUN_RADIUS) * Math.hypot(78, 45), 64),
       new THREE.ShaderMaterial({
-        uniforms: { diskRadiance: { value: new THREE.Color() } },
+        uniforms: {
+          diskRadiance: { value: new THREE.Color() },
+          ...(air || {}),
+        },
         vertexShader: /* glsl */ `
           varying vec2 diskPosition;
+          ${air ? 'uniform vec3 airCameraPosition;varying vec3 celestialDirection;' : ''}
           void main() { diskPosition = uv * 2.0 - 1.0;
+            ${air ? 'celestialDirection=(modelMatrix*vec4(position,1.0)).xyz-airCameraPosition;' : ''}
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
         `,
         fragmentShader: /* glsl */ `
           uniform vec3 diskRadiance;
           varying vec2 diskPosition;
+          ${air ? celestialFogGLSL : ''}
           void main() {
             float r2 = dot(diskPosition, diskPosition);
             float edge = 1.0 - smoothstep(1.0 - max(fwidth(r2), 0.0001), 1.0, r2);
             float limb = (0.4 + 0.6 * sqrt(max(0.0, 1.0 - r2))) / 0.8;
-            gl_FragColor = vec4(diskRadiance * limb, edge);
+            gl_FragColor = vec4(diskRadiance * limb ${air ? '*celestialAirTransmission()' : ''}, edge);
             #include <tonemapping_fragment>
             #include <colorspace_fragment>
           }
@@ -171,11 +226,18 @@ export class SkyEnvironment {
         );
     };
     material.customProgramCacheKey = () => 'hex-stars-v1';
+    if (air) {
+      attachCelestialFog(this.moonDisk.material, air);
+      attachCelestialFog(material, air);
+    }
     this.stars = new THREE.Points(geometry, material);
     this.objects.add(this.stars);
     scene.add(this.objects);
   }
-  frame(renderer, { time, dt, rain, flash, camera, sun, quality, dimension }) {
+  frame(
+    renderer,
+    { time, dt, rain, flash, camera, sun, quality, dimension, fog = null },
+  ) {
     const phase = moonPhase(time);
     const angle = ((time % 600) / 600) * Math.PI * 2,
       active = dimension === 'overworld';
@@ -194,6 +256,7 @@ export class SkyEnvironment {
       time,
       dt,
       position: camera.position,
+      fog,
     });
     if (active) {
       direction.copy(this.uniforms.skySunDirection.value);

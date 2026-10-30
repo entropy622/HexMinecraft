@@ -164,14 +164,16 @@ export function probeAirTransport(g, rays) {
         mie: u.airMieExtinction.value,
         mieScattering: u.airMieScattering.value,
         skyMean: g.atmosphere.uniforms.airSkyMean.value.toArray(),
-        expectedSkyMean: g.skyEnvironment.atmosphere.probe.sh.coefficients[0]
-          .toArray()
-          .map(
-            (v) =>
-              Math.max(0, v) *
-              0.28209479177 *
-              g.skyEnvironment.atmosphere.probe.intensity,
-          ),
+        expectedSkyMean:
+          g.skyEnvironment.atmosphere.fogSnapshot?.ambient.toArray() ||
+          g.skyEnvironment.atmosphere.probe.sh.coefficients[0]
+            .toArray()
+            .map(
+              (v) =>
+                Math.max(0, v) *
+                0.28209479177 *
+                g.skyEnvironment.atmosphere.probe.intensity,
+            ),
         base: [u.airRayleighBaseHeight.value, u.airBaseHeight.value],
         falloff: [u.airRayleighFalloff.value, u.airFalloff.value],
       },

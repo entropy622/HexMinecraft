@@ -311,7 +311,7 @@ test('real clouds enter SH and reflection sky while clear background and cloud f
     [96, 48],
     [96, 48],
   ]);
-  expect(resources.reduction).toEqual([19, 1]);
+  expect(resources.reduction).toEqual([20, 1]);
   const clearIds = await page.evaluate(() =>
     window.__hexwild.graphics.skyEnvironment.atmosphere.targets
       .slice(0, 2)
@@ -327,8 +327,8 @@ test('real clouds enter SH and reflection sky while clear background and cloud f
           return (
             !a.pending &&
             a.key !== null &&
-            a.cloudSky.targets.length === 0 &&
-            a.uniforms.skyEnvironmentMap.value ===
+            a.cloudSky.targets.length === 2 &&
+            a.uniforms.skyEnvironmentMap.value !==
               a.uniforms.skyRadianceMap.value
           );
         }),

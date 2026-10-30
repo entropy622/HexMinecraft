@@ -248,7 +248,10 @@ export class Graphics {
     this.shapeOutline.matrixAutoUpdate = false;
     this.shapeOutline.visible = false;
     this.scene.add(this.shapeOutline);
-    this.skyEnvironment = new SkyEnvironment(this.scene);
+    this.skyEnvironment = new SkyEnvironment(
+      this.scene,
+      this.atmosphere.uniforms,
+    );
     this.sky = this.skyEnvironment.dome;
     this.skyObjects = this.skyEnvironment.objects;
     this.sunDisk = this.skyEnvironment.sunDisk;
@@ -1570,6 +1573,23 @@ export class Graphics {
       quality: this.quality,
       enabled: this.postOptions.clouds,
     });
+    const localSky = this.voxelLight.atPosition(this.camera.position);
+    this.caveSky = THREE.MathUtils.damp(
+      this.caveSky ?? localSky,
+      localSky,
+      3,
+      renderDt,
+    );
+    visionUniforms.nightVision.value = THREE.MathUtils.damp(
+      visionUniforms.nightVision.value,
+      this.nightVision || 0,
+      4,
+      renderDt,
+    );
+    const perceivedSky = Math.max(
+      this.caveSky,
+      visionUniforms.nightVision.value * 0.75,
+    );
     // All consumers below share the atmospheric sky and direct-light source.
     this.skyEnvironment.frame(this.renderer, {
       time,
@@ -1580,6 +1600,14 @@ export class Graphics {
       sun: this.sun,
       quality: this.quality,
       dimension: this.world.dimension,
+      fog: overworld
+        ? {
+            world: this.world,
+            climate: this.cloudSystem.climate,
+            distance: terrainFogFar - rain * 7 - storm * 3,
+            skylight: perceivedSky,
+          }
+        : null,
     });
     if (overworld) {
       sky.copy(this.skyEnvironment.atmosphere.zenith);
@@ -1621,23 +1649,6 @@ export class Graphics {
     this.scene.background.copy(horizon);
     this.scene.fog.color.copy(horizon);
     // Outdoor distance haze must not turn a sealed cave sky-blue.
-    const localSky = this.voxelLight.atPosition(this.camera.position);
-    this.caveSky = THREE.MathUtils.damp(
-      this.caveSky ?? localSky,
-      localSky,
-      3,
-      renderDt,
-    );
-    visionUniforms.nightVision.value = THREE.MathUtils.damp(
-      visionUniforms.nightVision.value,
-      this.nightVision || 0,
-      4,
-      renderDt,
-    );
-    const perceivedSky = Math.max(
-      this.caveSky,
-      visionUniforms.nightVision.value * 0.75,
-    );
     this.scene.fog.color.multiplyScalar(0.035 + perceivedSky * 0.965);
     this.sky.position.copy(this.camera.position);
     this.hemi.intensity = overworld ? 0 : 1.15;
@@ -1884,6 +1895,7 @@ export class Graphics {
       horizon,
       sun: this.sun,
       skyProbe: this.skyEnvironment.atmosphere.probe,
+      fogSnapshot: this.skyEnvironment.atmosphere.fogSnapshot,
       cameraSky: perceivedSky,
       medium: this.fluidRenderer.medium,
       volume: this.usePost,

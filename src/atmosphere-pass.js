@@ -31,6 +31,7 @@ uniform mat4 inverseProjection;
 uniform mat4 airCameraWorld;
 uniform vec3 airCameraPosition;
 uniform float airShadowReady;
+uniform float airCameraSky;
 uniform vec2 fogResolution;
 ${glassTransmissionGLSL}
 ${airTransportGLSL}
@@ -52,7 +53,13 @@ float airNoise(vec2 p) {
 }
 vec4 airVoxel(vec3 position) {
   ivec3 cell = lightCell(position);
-  return cell.x < 0 ? vec4(0.0) : readLightCell(cell);
+  vec4 result=vec4(0.0);
+  if(cell.x>=0)result=readLightCell(cell);
+  // Air continues above/outside the finite voxel-light texture. Retain the
+  // camera's sky gate so an underground/out-of-bounds ray cannot add daylight.
+  else if(airSkyFogActive>0.5)
+    result=vec4(0,0,0,12.0+16.0*floor(sqrt(clamp(airCameraSky,0.0,1.0))*15.0+0.5));
+  return result;
 }
 float airSunVisibility(vec3 position, float sky) {
   if (airShadowReady < 0.5) return sky;
@@ -78,6 +85,7 @@ void main() {
   vec3 endPosition = (airCameraWorld * viewEnd).xyz;
   vec3 delta = endPosition - airCameraPosition;
   float distance = min(length(delta), 58.0);
+  float fullAirDistance=airSkyFogActive>0.5 ? min(length(delta),airFogDistance) : distance;
   vec3 direction = normalize(delta);
   if (waterCamera > 0.5) {
     // Alpha carries occupied water length; the composite reconstructs RGB
@@ -149,6 +157,26 @@ void main() {
     scattering += transmission * airScattering(columns,phase,sky,block,airSunColor*airSunPower*sun);
     transmission *= attenuation;
     airColumnBuffer+=columns;
+  }
+  // Preserve the established near-field steps and beam detail. Beyond their
+  // range, compose one analytic air segment instead of silently stopping fog.
+  // The segment begins exactly at the near march's endpoint, never overlaps it.
+  if(fullAirDistance>distance){
+    float tailLength=fullAirDistance-distance;
+    vec3 position=airCameraPosition+direction*(distance+tailLength*0.5);
+    ivec3 cell=lightCell(position);
+    vec4 packedLight=cell.x<0 ? vec4(0,0,0,252) : readLightCell(cell);
+    float medium=mod(packedLight.a,16.0);
+    if(medium>=11.5){
+      float sky=cell.x<0 ? airCameraSky : pow(floor(packedLight.a/16.0)/15.0,2.0);
+      vec3 block=pow(packedLight.rgb/15.0,vec3(2.0));
+      vec2 columns=airColumns(airCameraPosition+direction*distance,direction,tailLength);
+      float visibility=airSunVisibility(position,sky)*hexCloudShadow(position);
+      vec3 sun=visibility>0.0001 ? glassTransmittance(position,airSunDirection)*visibility : vec3(0);
+      scattering+=transmission*airScattering(columns,phase,sky,block,airSunColor*airSunPower*sun);
+      transmission*=exp(-airOpticalDepth(columns));
+      airColumnBuffer+=columns;
+    }
   }
   // Alpha remains the green-channel diagnostic transmission. The composite
   // reconstructs all three channels from the independent column attachment.

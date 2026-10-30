@@ -241,6 +241,12 @@ test.describe('fractional DPR air volume', () => {
         formats: p.target.textures.map((t) => t.format),
         columnBinding:
           p.composite.uniforms.fogColumns.value === p.target.textures[1],
+        skyFogActive: g.atmosphere.uniforms.airSkyFogActive.value,
+        skyFogTargets: g.skyEnvironment.atmosphere.cloudSky.targets.length,
+        summary: [
+          g.skyEnvironment.atmosphere.targets[2].width,
+          g.skyEnvironment.atmosphere.targets[2].height,
+        ],
         gl: g.renderer.getContext().getError(),
       };
     });
@@ -252,6 +258,9 @@ test.describe('fractional DPR air volume', () => {
       size: [451, 336],
       formats: [1023, 1030],
       columnBinding: true,
+      skyFogActive: 1,
+      skyFogTargets: 2,
+      summary: [20, 1],
       gl: 0,
     });
     expect(errors).toEqual([]);

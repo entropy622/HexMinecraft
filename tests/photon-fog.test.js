@@ -128,3 +128,51 @@ test('fog uses shared climate with clouds hidden, disables inside liquids and st
   clouds.noise.dispose();
   clouds.worley.dispose();
 });
+
+test('published sky fog stays in one epoch and never takes illumination from its own fogged SH', () => {
+  const camera = new PerspectiveCamera(),
+    air = new Atmosphere(camera),
+    sun = new DirectionalLight(),
+    world = { dimension: 'overworld', biome: () => '森林' },
+    snapshot = {
+      parameters: parameters(),
+      distance: 111,
+      ambient: new Color(0.12, 0.23, 0.34),
+    };
+  const state = {
+    time: 120,
+    dt: 0.016,
+    dimension: 'overworld',
+    world,
+    climate: { humidity: 1, temperature: 1 },
+    sunDirection: new Vector3(0, 1, 0),
+    rain: 1,
+    horizon: new Color(),
+    sun,
+    cameraSky: 1,
+    medium: null,
+    volume: true,
+    skyProbe: {
+      intensity: 1,
+      sh: { coefficients: [new Vector3(100, 200, 300)] },
+    },
+    fogSnapshot: snapshot,
+  };
+  air.update(state);
+  close(air.uniforms.airMieExtinction.value, 0.007);
+  close(air.uniforms.airFogDistance.value, 111);
+  assert.deepEqual(
+    air.uniforms.airSkyMean.value.toArray(),
+    snapshot.ambient.toArray(),
+  );
+  assert.equal(air.uniforms.airSkyFogActive.value, 1);
+  state.skyProbe.sh.coefficients[0].multiplyScalar(10);
+  air.update(state);
+  assert.deepEqual(
+    air.uniforms.airSkyMean.value.toArray(),
+    snapshot.ambient.toArray(),
+  );
+  air.update({ ...state, dimension: 'end' });
+  assert.equal(air.uniforms.airSkyFogActive.value, 0);
+  close(air.uniforms.airDensity.value, 0.004);
+});

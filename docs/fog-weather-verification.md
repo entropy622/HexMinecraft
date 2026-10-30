@@ -1,5 +1,7 @@
 # 0.112：随时段、天气与群系变化的空气雾
 
+0.113 已加入 [天空环境雾、原始入射光与远段空气](sky-fog-verification.md)。下文记录 0.112 当时的 58 单位限制与独立参数阻尼，当前运行路径已随天空快照发布并接续远段。
+
 基线为 0.111 `c824da47859f70ce1ca5835ef6e4d0303b0dd03f`。参考固定 Photon `6e67b36e818bacde0304edd49f28e2bb70e33f04` 的 [天气雾参数](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/include/weather/fog.glsl)、[默认设置](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/settings.glsl)、[时段权重](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/shaders.properties) 和 [空气散射](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/include/fog/overworld/raymarched.glsl)。改编部分保留 [Photon 声明](../public/licenses/PHOTON-NOTICE.md)。
 
 ## 改动

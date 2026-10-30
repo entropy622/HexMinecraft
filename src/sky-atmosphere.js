@@ -14,6 +14,7 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { createPhotonScattering, photonSkyGLSL } from './photon-sky.js';
 import { photonSkylightGLSL } from './photon-skylight.js';
 import { SkyClouds } from './sky-clouds.js';
+import { FogBiomes, photonFogParameters } from './photon-fog.js';
 
 import { SUN_RADIUS, transportGLSL, skyRadianceGLSL } from './sky-transport.js';
 export {
@@ -55,6 +56,8 @@ export class SkyAtmosphere {
     this.targets = [];
     this.generation = 0;
     this.pending = null;
+    this.fogBiomes = new FogBiomes();
+    this.fogSnapshot = null;
     this.uniforms = {
       skyRadianceMap: { value: null },
       skyEnvironmentMap: { value: null },
@@ -105,14 +108,14 @@ export class SkyAtmosphere {
         else if(index==14)result=photonTo709(photonSunColor()*skyDiskTransmittance2020(origin,skySunDirection,${SUN_RADIUS}))*(1.0-clamp((skyAerosol-1.0)/5.0,0.0,1.0));
         else if(index==15)result=10.0*photonTo709(photonMoonTint()*skyDiskTransmittance2020(origin,-skySunDirection,3.0*SKY_PI/180.0))*(1.0-clamp((skyAerosol-1.0)/5.0,0.0,1.0));
         else if(index==16)result=vec3(photonSunExposure(),photonMoonExposure(),photonSkylightBoost());
-        else {
+        else if(index<=18) {
           result=0.886227*photonSkyProject(0,skyRadianceMap)
             +(index==17?1.023328:-1.023328)*photonSkyProject(1,skyRadianceMap)
             -0.247708*photonSkyProject(6,skyRadianceMap)-0.429043*photonSkyProject(8,skyRadianceMap);
           // The source applies artistic skylight boost after sky composition.
           // Cloud incident light is raw irradiance, so it must not be boosted twice.
           result/=photonSkylightBoost();
-        }
+        } else result=1.13*max(vec3(0),textureLod(skyRadianceMap,skyUv(normalize(vec3(0,1,-0.8))),0.0).rgb);
         gl_FragColor = vec4(result, 1.0);
       }
     `,
@@ -144,7 +147,7 @@ export class SkyAtmosphere {
     this.targets = [
       new WebGLRenderTarget(width, width / 2),
       new WebGLRenderTarget(width, width / 2),
-      new WebGLRenderTarget(19, 1),
+      new WebGLRenderTarget(20, 1),
     ];
     for (const target of this.targets) {
       target.depthBuffer = false;
@@ -171,7 +174,11 @@ export class SkyAtmosphere {
     }
   }
 
-  async project(renderer, environmentMap = this.work.skyRadianceMap.value) {
+  async project(
+    renderer,
+    environmentMap = this.work.skyRadianceMap.value,
+    fog = null,
+  ) {
     this.work.skyEnvironmentMap.value = environmentMap;
     const generation = this.generation,
       previous = renderer.getRenderTarget(),
@@ -222,7 +229,10 @@ export class SkyAtmosphere {
     this.sourceExposures.fromArray(values, 64);
     this.clearIrradiance.up.fromArray(values, 68);
     this.clearIrradiance.down.fromArray(values, 72);
-    if (!this.captureQuality) this.cloudSky?.release();
+    this.fogSnapshot = fog
+      ? { ...fog, ambient: new Color().fromArray(values, 76) }
+      : null;
+    if (!this.captureQuality && !fog) this.cloudSky?.release();
   }
 
   update(
@@ -238,6 +248,7 @@ export class SkyAtmosphere {
       time,
       dt,
       position = new Vector3(0, height, 0),
+      fog = this.fogInput || null,
     },
   ) {
     this.probe.intensity = active ? 1 : 0;
@@ -246,6 +257,25 @@ export class SkyAtmosphere {
       return;
     }
     this.allocate(renderer, quality);
+    // A save/world switch invalidates its pending fog with the sky epoch.
+    if (this.fogInput?.world !== fog?.world) {
+      this.generation++;
+      this.key = this.updated = null;
+    }
+    this.fogInput = fog;
+    const fogState = fog
+      ? {
+          parameters: photonFogParameters({
+            sunDirection: direction,
+            humidity: fog.climate.humidity,
+            temperature: fog.climate.temperature,
+            rain,
+            biomes: this.fogBiomes.sample(fog.world, position),
+          }),
+          distance: fog.distance,
+          skylight: fog.skylight,
+        }
+      : null;
     const cloudMode = this.cloudSky?.mode || 'clear';
     if (this.cloudMode !== undefined && this.cloudMode !== cloudMode) {
       this.generation++;
@@ -272,6 +302,15 @@ export class SkyAtmosphere {
         moon,
         phase,
         this.cloudSky?.key(position) || 'clear',
+        fogState
+          ? [
+              position.y.toFixed(2),
+              fogState.distance.toFixed(2),
+              fogState.skylight.toFixed(3),
+              ...fogState.parameters.rayleigh.map((v) => v.toFixed(8)),
+              fogState.parameters.mieExtinction.toFixed(7),
+            ].join(',')
+          : 'no-fog',
       ].join(':');
     if (this.pending || this.key === key) return;
     const now = performance.now();
@@ -294,7 +333,7 @@ export class SkyAtmosphere {
     }
     this.work.skyEnvironmentMap.value = this.work.skyRadianceMap.value;
     let environmentMap = this.work.skyRadianceMap.value;
-    if (cloudMode !== 'clear' && this.captureQuality) {
+    if ((cloudMode !== 'clear' && this.captureQuality) || fogState) {
       this.quad.material = this.reduction;
       try {
         renderer.setRenderTarget(this.targets[2]);
@@ -308,10 +347,11 @@ export class SkyAtmosphere {
           this.work,
           this.targets[2].texture,
           position,
+          fogState,
         ) || environmentMap;
     }
     this.work.skyEnvironmentMap.value = environmentMap;
-    const pending = this.project(renderer, environmentMap)
+    const pending = this.project(renderer, environmentMap, fogState)
       .catch((error) => {
         if (
           generation === this.generation &&
@@ -339,6 +379,8 @@ export class SkyAtmosphere {
     this.uniforms.skyEnvironmentMap.value = null;
     this.work.skyEnvironmentMap.value = null;
     this.pending = null;
+    this.fogSnapshot = null;
+    this.fogInput = null;
     this.key = null;
     this.lastTime = null;
     this.updated = null;

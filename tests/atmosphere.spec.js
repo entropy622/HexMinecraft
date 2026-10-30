@@ -358,6 +358,8 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
       phases: {},
       maxEnergyError: 0,
       maxMoonUvError: 0,
+      maxFogError: 0,
+      fogEpochs: 0,
       invalid: 0,
     };
     app.graphics.frame = function (...args) {
@@ -393,6 +395,32 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
         Math.abs(offset.x - want[0]),
         Math.abs(offset.y - want[1]),
       );
+      if (a.fogSnapshot) {
+        const fog = a.fogSnapshot,
+          u = this.atmosphere.uniforms;
+        for (const [actual, expected] of [
+          [u.airRayleigh.value.toArray(), fog.parameters.rayleigh],
+          [u.airSkyMean.value.toArray(), fog.ambient.toArray()],
+          [
+            [
+              u.airMieExtinction.value,
+              u.airMieScattering.value,
+              u.airFogDistance.value,
+            ],
+            [
+              fog.parameters.mieExtinction,
+              fog.parameters.mieScattering,
+              fog.distance,
+            ],
+          ],
+        ])
+          for (let i = 0; i < actual.length; i++)
+            t.maxFogError = Math.max(
+              t.maxFogError,
+              Math.abs(actual[i] - expected[i]),
+            );
+        t.fogEpochs++;
+      }
       t.phases[phase] = (t.phases[phase] || 0) + 1;
       return result;
     };
@@ -494,6 +522,8 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
     expect(observed.rendered).toBeGreaterThan(30);
     expect(observed.maxEnergyError).toBeLessThan(1e-7);
     expect(observed.maxMoonUvError).toBeLessThan(1e-12);
+    expect(observed.maxFogError).toBeLessThan(1e-10);
+    expect(observed.fogEpochs).toBeGreaterThan(20);
     expect(observed.invalid).toBe(0);
     await writeFile(
       info.outputPath('live-clock-delayed-device.json'),

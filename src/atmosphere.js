@@ -31,6 +31,8 @@ export class Atmosphere {
       airAmbient: { value: 1 },
       airDirectMultiplier: { value: 1 },
       airScatterMultiplier: { value: 1 },
+      airFogDistance: { value: 118 },
+      airSkyFogActive: { value: 0 },
       airCameraSky: { value: 1 },
       airTime: { value: 0 },
       airVolume: { value: 0 },
@@ -50,6 +52,7 @@ export class Atmosphere {
     horizon,
     sun,
     skyProbe,
+    fogSnapshot = null,
     cameraSky,
     medium,
     volume,
@@ -59,7 +62,8 @@ export class Atmosphere {
       overworld = dimension === 'overworld',
       submerged = !!medium;
     const fog = overworld
-      ? photonFogParameters({
+      ? fogSnapshot?.parameters ||
+        photonFogParameters({
           sunDirection,
           humidity: climate.humidity,
           temperature: climate.temperature,
@@ -73,10 +77,10 @@ export class Atmosphere {
           direct: 1,
           glow: 1,
         };
-    // Render-time damping handles weather transitions. A new world/dimension
-    // starts from its own coefficients, never the previous dimension's mist.
+    // The game publishes fog with the completed sky epoch. Standalone callers
+    // retain render-time damping; dimensions never inherit each other's mist.
     const blend =
-      this.world !== world || this.dimension !== dimension
+      fogSnapshot || this.world !== world || this.dimension !== dimension
         ? 1
         : 1 - Math.exp(-2 * Math.max(0, dt));
     this.world = world;
@@ -104,7 +108,12 @@ export class Atmosphere {
     u.airFalloff.value = overworld ? 0.14 : 0.035;
     u.airRayleighBaseHeight.value = u.airBaseHeight.value;
     u.airRayleighFalloff.value = (u.airFalloff.value * 7) / 30;
-    if (overworld && skyProbe) {
+    u.airFogDistance.value = fogSnapshot?.distance || 118;
+    u.airSkyFogActive.value = overworld && fogSnapshot ? 1 : 0;
+    if (overworld && fogSnapshot) {
+      // Raw clear-sky incident light is independent of the fogged SH result.
+      u.airSkyMean.value.copy(fogSnapshot.ambient);
+    } else if (overworld && skyProbe) {
       const mean = skyProbe.sh.coefficients[0];
       u.airSkyMean.value
         .setRGB(Math.max(0, mean.x), Math.max(0, mean.y), Math.max(0, mean.z))
@@ -190,13 +199,21 @@ export class Atmosphere {
           // Keep the streaming boundary hidden in both rendering paths.
           float edgeDistance = mix(airDistance, length(vec3(airDelta.x, airDelta.y * 0.15, airDelta.z)), airFlight);
           float airEdge = smoothstep(fogNear, fogFar, edgeDistance);
-          outgoingLight = mix(outgoingLight, fogColor, airEdge);
+          vec3 boundary = fogColor;
+          if(airVolume<0.5 && airDensity>0.0 && airSkyFogActive>0.5 && airEdge>0.0) {
+            vec3 ray=airDelta/max(airDistance,0.001);
+            vec2 columns=airColumns(airCameraPosition,ray,airFogDistance);
+            boundary=boundary*exp(-airOpticalDepth(columns))+
+              airScattering(columns,airDirectPhase(dot(ray,airSunDirection)),airCameraSky,
+                vec3(0),airSunColor*airSunPower*airCameraSky);
+          }
+          outgoingLight = mix(outgoingLight, boundary, airEdge);
         #endif
         #include <opaque_fragment>`,
         );
     };
     material.customProgramCacheKey = () =>
-      cacheKey.call(material) + '-photon-weather-air-v4';
+      cacheKey.call(material) + '-photon-sky-air-v5';
     material.needsUpdate = true;
   }
 }

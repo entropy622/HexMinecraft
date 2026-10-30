@@ -5,6 +5,7 @@ import atmosphere from './atmosphere.playwright.config.js';
 export default defineConfig({
   ...atmosphere,
   testMatch: [
+    'sky-fog.spec.js',
     'photon-fog.spec.js',
     'sky-cloud-feedback.spec.js',
     'tree-shape.spec.js',
