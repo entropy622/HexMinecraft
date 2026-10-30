@@ -5,7 +5,14 @@ import {
   cloudNoiseData,
   cloudWorleyData,
 } from '../src/cloud-field.js';
-import { Scene, PerspectiveCamera, DirectionalLight, LightProbe } from 'three';
+import {
+  Color,
+  Vector3,
+  Scene,
+  PerspectiveCamera,
+  DirectionalLight,
+  LightProbe,
+} from 'three';
 import { HexClouds } from '../src/clouds.js';
 import { World } from '../src/world.js';
 
@@ -95,8 +102,11 @@ test('seeded tileable cloud fields have useful distribution without the old 127-
   }
 });
 
-test('production cloud frame derives all three layers and preserves low quality, dimension and toggle semantics', () => {
-  const clouds = new HexClouds(new Scene(), new LightProbe()),
+test('production cloud preparation derives all three layers and preserves low quality, dimension and toggle semantics', () => {
+  const clouds = new HexClouds(new Scene(), {
+      up: new Color(0),
+      down: new Color(0),
+    }),
     camera = new PerspectiveCamera(72, 1, 0.08, 220),
     sun = new DirectionalLight();
   sun.position.set(1, 2, 0);
@@ -112,7 +122,7 @@ test('production cloud frame derives all three layers and preserves low quality,
     quality: 1.7,
     enabled: true,
   };
-  clouds.frame(frame);
+  clouds.prepare(frame);
   const u = clouds.uniforms;
   assert.ok(u.cloudFar.value > camera.far);
   assert.equal(u.cloudVolumetric.value, 1);
@@ -130,33 +140,33 @@ test('production cloud frame derives all three layers and preserves low quality,
   );
   const wind = u.cloudLayerWind.value.map((v) => v.toArray());
   camera.position.set(Math.sqrt(3) / 2 - 0.00001, 25, 0);
-  clouds.frame(frame);
+  clouds.prepare(frame);
   const edge = u.cloudLayers.value.map((v) => v.z);
   camera.position.x += 0.00002;
-  clouds.frame(frame);
+  clouds.prepare(frame);
   assert.ok(
     u.cloudLayers.value.every((v, i) => Math.abs(v.z - edge[i]) < 1e-6),
   );
   camera.position.set(-400, 140, 200);
-  clouds.frame({ ...frame, rain: 1, storm: 1 });
+  clouds.prepare({ ...frame, rain: 1, storm: 1 });
   assert.deepEqual(
     u.cloudLayerWind.value.map((v) => v.toArray()),
     wind,
   );
   assert.deepEqual(u.cloudCurvatureOrigin.value.toArray(), [-400, 200]);
-  clouds.frame({ ...frame, quality: 1 });
+  clouds.prepare({ ...frame, quality: 1 });
   assert.ok(clouds.mesh.visible && clouds.mesh.count > 0);
   assert.equal(u.cloudVolumetric.value, 0);
   assert.equal(u.cloudEnabled.value, 1);
-  clouds.frame({ ...frame, quality: 0.65 });
+  clouds.prepare({ ...frame, quality: 0.65 });
   assert.equal(u.cloudEnabled.value, 0);
   assert.ok(clouds.mesh.visible);
-  clouds.frame({ ...frame, enabled: false });
+  clouds.prepare({ ...frame, enabled: false });
   assert.equal(u.cloudEnabled.value, 0);
   assert.equal(u.cloudVolumetric.value, 0);
   assert.equal(clouds.mesh.visible, false);
   world.dimension = 'nether';
-  clouds.frame(frame);
+  clouds.prepare(frame);
   assert.equal(u.cloudVolumetric.value, 0);
   assert.equal(clouds.mesh.visible, false);
   clouds.noise.dispose();
@@ -165,10 +175,11 @@ test('production cloud frame derives all three layers and preserves low quality,
   clouds.material.dispose();
 });
 
-test('cloud sky and ground incident radiance use both hemispheres of the same SH environment', () => {
+test('cloud sky and ground radiance use separate raw clear hemispheres without reading cloudy SH', () => {
   const probe = new LightProbe(),
     scene = new Scene(),
-    clouds = new HexClouds(scene, probe),
+    clear = { up: new Color(0), down: new Color(0) },
+    clouds = new HexClouds(scene, clear),
     camera = new PerspectiveCamera(72, 1, 0.08, 220),
     sun = new DirectionalLight(),
     world = new World(624, 'overworld', { load: false });
@@ -188,6 +199,14 @@ test('cloud sky and ground incident radiance use both hemispheres of the same SH
   probe.sh.coefficients[0]
     .fromArray(radiance)
     .multiplyScalar(Math.sqrt(4 * Math.PI));
+  for (const [normal, color] of [
+    [new Vector3(0, 1, 0), clear.up],
+    [new Vector3(0, -1, 0), clear.down],
+  ]) {
+    const v = probe.sh.getIrradianceAt(normal, new Vector3());
+    color.setRGB(v.x, v.y, v.z);
+  }
+  clouds.prepare(frame);
   clouds.frame(frame);
   const u = clouds.uniforms;
   for (let c = 0; c < 3; c++) {
@@ -196,6 +215,14 @@ test('cloud sky and ground incident radiance use both hemispheres of the same SH
   }
   // Analytic irradiance convolution of a first-order Y spherical harmonic.
   probe.sh.coefficients[1].setScalar(0.1);
+  for (const [normal, color] of [
+    [new Vector3(0, 1, 0), clear.up],
+    [new Vector3(0, -1, 0), clear.down],
+  ]) {
+    const v = probe.sh.getIrradianceAt(normal, new Vector3());
+    color.setRGB(v.x, v.y, v.z);
+  }
+  clouds.prepare(frame);
   clouds.frame(frame);
   const delta = 0.1 * (2 / 3) * Math.sqrt(3 / (4 * Math.PI));
   for (let c = 0; c < 3; c++) {
@@ -207,6 +234,7 @@ test('cloud sky and ground incident radiance use both hemispheres of the same SH
     );
   }
   assert.equal(u.cloudAlbedo.value, 0.995);
+  clouds.prepare({ ...frame, rain: 1, storm: 1 });
   clouds.frame({ ...frame, rain: 1, storm: 1 });
   assert.ok(u.cloudAlbedo.value > 0 && u.cloudAlbedo.value < 0.8);
   clouds.noise.dispose();

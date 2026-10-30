@@ -13,6 +13,7 @@ import {
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { createPhotonScattering, photonSkyGLSL } from './photon-sky.js';
 import { photonSkylightGLSL } from './photon-skylight.js';
+import { SkyClouds } from './sky-clouds.js';
 
 import { SUN_RADIUS, transportGLSL, skyRadianceGLSL } from './sky-transport.js';
 export {
@@ -42,6 +43,7 @@ function material(name, uniforms, fragmentShader) {
 export class SkyAtmosphere {
   constructor() {
     this.probe = new LightProbe();
+    this.clearIrradiance = { up: new Color(0), down: new Color(0) };
     this.zenith = new Color(0);
     this.horizon = new Color(0);
     this.sunTransmission = new Color(0);
@@ -55,6 +57,7 @@ export class SkyAtmosphere {
     this.pending = null;
     this.uniforms = {
       skyRadianceMap: { value: null },
+      skyEnvironmentMap: { value: null },
       skyObserverHeight: { value: 0.2 },
       skyAerosol: { value: 1 },
       skySunDirection: { value: new Vector3(0, 1, 0) },
@@ -80,11 +83,12 @@ export class SkyAtmosphere {
       /* glsl */ `
       ${skyRadianceGLSL}
       ${photonSkylightGLSL}
+      uniform sampler2D skyEnvironmentMap;
       void main() {
         int index = int(gl_FragCoord.x);
         vec3 result = vec3(0.0), origin = vec3(0.0, SKY_RADIUS + skyObserverHeight, 0.0);
         if (index < 9) {
-          result=photonSkyProject(index,skyRadianceMap);
+          result=photonSkyProject(index,skyEnvironmentMap);
         } else if (index == 9) result = hexSkyRadiance(vec3(0,1,0));
         else if (index == 10) {
           // These directions already have known azimuths. Avoid a cos/sin ->
@@ -100,7 +104,15 @@ export class SkyAtmosphere {
         else if(index==13)result=photonDirectLight();
         else if(index==14)result=photonTo709(photonSunColor()*skyDiskTransmittance2020(origin,skySunDirection,${SUN_RADIUS}))*(1.0-clamp((skyAerosol-1.0)/5.0,0.0,1.0));
         else if(index==15)result=10.0*photonTo709(photonMoonTint()*skyDiskTransmittance2020(origin,-skySunDirection,3.0*SKY_PI/180.0))*(1.0-clamp((skyAerosol-1.0)/5.0,0.0,1.0));
-        else result=vec3(photonSunExposure(),photonMoonExposure(),photonSkylightBoost());
+        else if(index==16)result=vec3(photonSunExposure(),photonMoonExposure(),photonSkylightBoost());
+        else {
+          result=0.886227*photonSkyProject(0,skyRadianceMap)
+            +(index==17?1.023328:-1.023328)*photonSkyProject(1,skyRadianceMap)
+            -0.247708*photonSkyProject(6,skyRadianceMap)-0.429043*photonSkyProject(8,skyRadianceMap);
+          // The source applies artistic skylight boost after sky composition.
+          // Cloud incident light is raw irradiance, so it must not be boosted twice.
+          result/=photonSkylightBoost();
+        }
         gl_FragColor = vec4(result, 1.0);
       }
     `,
@@ -108,17 +120,31 @@ export class SkyAtmosphere {
     this.quad = new FullScreenQuad(this.scatter);
   }
 
+  attachClouds(uniforms) {
+    this.cloudSky = new SkyClouds(uniforms);
+  }
+
   allocate(renderer, quality) {
-    const width = quality < 1 ? 96 : 192;
-    if (this.targets[0]?.width === width) return;
+    const width = quality < 1 ? 96 : 192,
+      volume = quality >= 1.7;
+    if (this.targets[0]?.width === width) {
+      if (this.captureQuality !== volume) {
+        this.captureQuality = volume;
+        this.generation++;
+        this.key = null;
+        this.updated = null;
+      }
+      return;
+    }
     this.dispose();
+    this.captureQuality = quality >= 1.7;
     this.multipleScattering = createPhotonScattering();
     this.uniforms.skyMultipleScatteringMap.value = this.multipleScattering;
     this.work.skyMultipleScatteringMap.value = this.multipleScattering;
     this.targets = [
       new WebGLRenderTarget(width, width / 2),
       new WebGLRenderTarget(width, width / 2),
-      new WebGLRenderTarget(17, 1),
+      new WebGLRenderTarget(19, 1),
     ];
     for (const target of this.targets) {
       target.depthBuffer = false;
@@ -130,6 +156,8 @@ export class SkyAtmosphere {
       RepeatWrapping;
     this.uniforms.skyRadianceMap.value = this.targets[0].texture;
     this.work.skyRadianceMap.value = this.targets[1].texture;
+    this.uniforms.skyEnvironmentMap.value = this.targets[0].texture;
+    this.work.skyEnvironmentMap.value = this.targets[1].texture;
     const previous = renderer.getRenderTarget(),
       clear = renderer.getClearColor(new Color()),
       alpha = renderer.getClearAlpha();
@@ -143,7 +171,8 @@ export class SkyAtmosphere {
     }
   }
 
-  async project(renderer) {
+  async project(renderer, environmentMap = this.work.skyRadianceMap.value) {
+    this.work.skyEnvironmentMap.value = environmentMap;
     const generation = this.generation,
       previous = renderer.getRenderTarget(),
       target = this.targets[2],
@@ -170,6 +199,8 @@ export class SkyAtmosphere {
     [this.targets[0], this.targets[1]] = [this.targets[1], this.targets[0]];
     this.uniforms.skyRadianceMap.value = this.targets[0].texture;
     this.work.skyRadianceMap.value = this.targets[1].texture;
+    this.cloudSky?.publish(environmentMap);
+    this.uniforms.skyEnvironmentMap.value = environmentMap;
     this.uniforms.skySunDirection.value.copy(this.work.skySunDirection.value);
     for (const name of [
       'skyObserverHeight',
@@ -189,11 +220,25 @@ export class SkyAtmosphere {
     this.sunDiskColor.fromArray(values, 56);
     this.moonDiskColor.fromArray(values, 60);
     this.sourceExposures.fromArray(values, 64);
+    this.clearIrradiance.up.fromArray(values, 68);
+    this.clearIrradiance.down.fromArray(values, 72);
+    if (!this.captureQuality) this.cloudSky?.release();
   }
 
   update(
     renderer,
-    { direction, height, rain, moon, phase = 0, quality, active, time, dt },
+    {
+      direction,
+      height,
+      rain,
+      moon,
+      phase = 0,
+      quality,
+      active,
+      time,
+      dt,
+      position = new Vector3(0, height, 0),
+    },
   ) {
     this.probe.intensity = active ? 1 : 0;
     if (!active) {
@@ -201,6 +246,13 @@ export class SkyAtmosphere {
       return;
     }
     this.allocate(renderer, quality);
+    const cloudMode = this.cloudSky?.mode || 'clear';
+    if (this.cloudMode !== undefined && this.cloudMode !== cloudMode) {
+      this.generation++;
+      this.key = null;
+      this.updated = null;
+    }
+    this.cloudMode = cloudMode;
     if (
       this.lastTime !== null &&
       (time < this.lastTime - 1e-5 || time - this.lastTime > dt + 1e-5)
@@ -219,6 +271,7 @@ export class SkyAtmosphere {
         Math.round(rain * 100),
         moon,
         phase,
+        this.cloudSky?.key(position) || 'clear',
       ].join(':');
     if (this.pending || this.key === key) return;
     const now = performance.now();
@@ -239,7 +292,26 @@ export class SkyAtmosphere {
     } finally {
       renderer.setRenderTarget(previous);
     }
-    const pending = this.project(renderer)
+    this.work.skyEnvironmentMap.value = this.work.skyRadianceMap.value;
+    let environmentMap = this.work.skyRadianceMap.value;
+    if (cloudMode !== 'clear' && this.captureQuality) {
+      this.quad.material = this.reduction;
+      try {
+        renderer.setRenderTarget(this.targets[2]);
+        this.quad.render(renderer);
+      } finally {
+        renderer.setRenderTarget(previous);
+      }
+      environmentMap =
+        this.cloudSky.render(
+          renderer,
+          this.work,
+          this.targets[2].texture,
+          position,
+        ) || environmentMap;
+    }
+    this.work.skyEnvironmentMap.value = environmentMap;
+    const pending = this.project(renderer, environmentMap)
       .catch((error) => {
         if (
           generation === this.generation &&
@@ -256,6 +328,7 @@ export class SkyAtmosphere {
   dispose() {
     this.generation++;
     for (const target of this.targets) target.dispose();
+    this.cloudSky?.dispose();
     this.targets = [];
     this.multipleScattering?.dispose();
     this.multipleScattering = null;
@@ -263,10 +336,16 @@ export class SkyAtmosphere {
     this.work.skyMultipleScatteringMap.value = null;
     this.uniforms.skyRadianceMap.value = null;
     this.work.skyRadianceMap.value = null;
+    this.uniforms.skyEnvironmentMap.value = null;
+    this.work.skyEnvironmentMap.value = null;
     this.pending = null;
     this.key = null;
     this.lastTime = null;
     this.updated = null;
+    this.cloudMode = undefined;
+    this.captureQuality = null;
+    this.clearIrradiance.up.setRGB(0, 0, 0);
+    this.clearIrradiance.down.setRGB(0, 0, 0);
     this.probe.sh.zero();
     for (const color of [
       this.zenith,

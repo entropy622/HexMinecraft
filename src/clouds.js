@@ -15,13 +15,10 @@ import {
 
 const CHUNK = 8,
   CAPACITY = 49 * CHUNK * CHUNK;
-const UP = new THREE.Vector3(0, 1, 0);
-const DOWN = new THREE.Vector3(0, -1, 0);
 export class HexClouds {
-  constructor(scene, skyProbe) {
+  constructor(scene, clearIrradiance) {
     this.scene = scene;
-    this.skyProbe = skyProbe;
-    this.skyIrradiance = new THREE.Vector3();
+    this.clearIrradiance = clearIrradiance;
     this.noiseSeed = 0;
     this.noise = new THREE.DataTexture(
       cloudNoiseData(0),
@@ -162,7 +159,7 @@ export class HexClouds {
     this.mesh.boundingSphere.center.y += 8;
     this.mesh.boundingSphere.radius += 20;
   }
-  frame({ world, camera, time, rain, storm, sun, flash, quality, enabled }) {
+  prepare({ world, camera, time, rain, storm, quality, enabled }) {
     const u = this.uniforms,
       active = world.dimension === 'overworld' && enabled;
     this.mesh.visible = active && quality < 1.7;
@@ -233,29 +230,7 @@ export class HexClouds {
         : quality < 1
           ? 87
           : 130;
-    u.cloudLightDirection.value
-      .subVectors(sun.position, sun.target.position)
-      .normalize();
-    u.cloudShade.value = (0.62 + rain * 0.12) * Math.min(1, sun.intensity * 2);
-    // Hemispherical irradiance / pi is the diffuse incident radiance used by
-    // the cloud integral. Share terrain's published SH snapshot and weather;
-    // an independent white floor otherwise overwhelms actual moonlight.
-    this.skyProbe.sh.getIrradianceAt(UP, this.skyIrradiance);
-    u.cloudAmbient.value
-      .setRGB(
-        Math.max(0, this.skyIrradiance.x) / Math.PI,
-        Math.max(0, this.skyIrradiance.y) / Math.PI,
-        Math.max(0, this.skyIrradiance.z) / Math.PI,
-      )
-      .addScalar(flash * 0.8);
-    this.skyProbe.sh.getIrradianceAt(DOWN, this.skyIrradiance);
-    u.cloudGround.value.setRGB(
-      Math.max(0, this.skyIrradiance.x) / Math.PI,
-      Math.max(0, this.skyIrradiance.y) / Math.PI,
-      Math.max(0, this.skyIrradiance.z) / Math.PI,
-    );
     u.cloudAlbedo.value = 0.995 - rain * 0.18 - storm * 0.05;
-    u.cloudDirect.value.copy(sun.color).multiplyScalar(sun.intensity);
     if (quality >= 1.7) return;
     this.mesh.position.set(
       u.cloudWind.value.x,
@@ -273,6 +248,29 @@ export class HexClouds {
       this.key = key;
       this.rebuild(q, r, world.seed, quality);
     }
+  }
+  frame({ sun, flash, rain }) {
+    const u = this.uniforms,
+      up = this.clearIrradiance.up,
+      down = this.clearIrradiance.down;
+    u.cloudLightDirection.value
+      .subVectors(sun.position, sun.target.position)
+      .normalize();
+    u.cloudShade.value = (0.62 + rain * 0.12) * Math.min(1, sun.intensity * 2);
+    // Cloud illumination uses clear-sky irradiance, never its own cloudy SH.
+    u.cloudAmbient.value
+      .setRGB(
+        Math.max(0, up.r) / Math.PI,
+        Math.max(0, up.g) / Math.PI,
+        Math.max(0, up.b) / Math.PI,
+      )
+      .addScalar(flash * 0.8);
+    u.cloudGround.value.setRGB(
+      Math.max(0, down.r) / Math.PI,
+      Math.max(0, down.g) / Math.PI,
+      Math.max(0, down.b) / Math.PI,
+    );
+    u.cloudDirect.value.copy(sun.color).multiplyScalar(sun.intensity);
   }
   attach(scene) {
     scene.traverseVisible((object) => {

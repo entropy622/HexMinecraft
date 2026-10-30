@@ -90,8 +90,20 @@ projection from `program/d4a_generate_sky_sh.csh` and the sampling/random/SH
 utilities. The host converts coefficient ordering and the last two source
 basis normalizations for Three.js's standard real-SH irradiance evaluator.
 Its clear-air sky map and shared asynchronous publication remain in use;
-cloud/analytic-fog feedback into the sky map is not yet included.
+Cloud feedback is added in 0.111 below; analytic-fog feedback remains separate work.
 These derived portions retain Photon's license.
+
+Since 0.111, sky composition follows the cloud-scattering/transmittance path
+in `program/d0_sky_map.fsh` and `include/sky/sky.glsl` before SH projection and
+sky reflections. `src/cloud-integral.js` moves the existing host ray integration
+out of `cloud-volume.js` so camera and environment captures share it.
+`sky-clouds.js` supplies a host WebGL capture, while `sky-atmosphere.js` keeps
+clear background and clouded radiance separate and publishes them with SH.
+Cloud incident light uses unboosted clear-sky irradiance; the existing adapted
+skylight boost is applied after sky composition. The cloud field, 96 x 48
+capture, 19-pixel reduction and resource lifecycle are host adaptations.
+No new Photon binary asset is included. Existing source-derived helper portions
+continue to retain Photon's license; this does not implement the complete sky.
 
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light

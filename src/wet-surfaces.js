@@ -67,7 +67,7 @@ export class WetSurfacePass extends Pass {
         surfaceGeometry: { value: null },
         surfaceSpecular: { value: null },
         surfaceSpecularEnabled: { value: 0 },
-        environmentSky: sky.skyRadianceMap,
+        environmentSky: sky.skyEnvironmentMap,
         environmentStrength: { value: 1 },
         environmentFrame: { value: 0 },
         environmentScene: { value: 1 },

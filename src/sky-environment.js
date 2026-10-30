@@ -193,6 +193,7 @@ export class SkyEnvironment {
       active,
       time,
       dt,
+      position: camera.position,
     });
     if (active) {
       direction.copy(this.uniforms.skySunDirection.value);

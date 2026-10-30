@@ -256,9 +256,10 @@ export class Graphics {
     this.stars = this.skyEnvironment.stars;
     this.cloudSystem = new HexClouds(
       this.scene,
-      this.skyEnvironment.atmosphere.probe,
+      this.skyEnvironment.atmosphere.clearIrradiance,
     );
     Object.assign(this.cloudSystem.uniforms, this.skyEnvironment.uniforms);
+    this.skyEnvironment.atmosphere.attachClouds(this.cloudSystem.uniforms);
     this.clouds = this.cloudSystem.mesh;
     this.decor = new THREE.Group();
     this.scene.add(this.decor);
@@ -1560,6 +1561,15 @@ export class Graphics {
       horizon = sky.clone();
     const overworld = this.world?.dimension === 'overworld';
     const elevation = Math.sin(phase * Math.PI * 2);
+    this.cloudSystem.prepare({
+      world: this.world,
+      camera: this.camera,
+      time,
+      rain,
+      storm,
+      quality: this.quality,
+      enabled: this.postOptions.clouds,
+    });
     // All consumers below share the atmospheric sky and direct-light source.
     this.skyEnvironment.frame(this.renderer, {
       time,
@@ -1675,15 +1685,9 @@ export class Graphics {
     }
     this.skyObjects.position.copy(this.camera.position);
     this.cloudSystem.frame({
-      world: this.world,
-      camera: this.camera,
-      time,
       rain,
-      storm,
       sun: this.sun,
       flash,
-      quality: this.quality,
-      enabled: this.postOptions.clouds,
     });
     this.moonDisk.material.transparent = true;
     this.moonDisk.material.opacity = 1 - rain * 0.93;
