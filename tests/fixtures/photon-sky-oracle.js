@@ -252,3 +252,31 @@ export function oracleLighting(group) {
     );
   return { sunColor, moonColor, sunExposure, moonExposure, boost, direct };
 }
+export function oracleCloudLight(s) {
+  const group = {
+      sun: [Math.sqrt(1 - s.sunY * s.sunY), s.sunY, 0],
+      rain: s.rain,
+      phase: s.phase,
+    },
+    light = oracleLighting(group),
+    raw = oracleTransmission(s.mu, s.height * 0.02).map(
+      (v, c) => v * [1.051, 0.985, 0.94][c],
+    ),
+    lum = dot(raw, [0.2627, 0.678, 0.0593]),
+    saturation =
+      (1.1 + 0.2 * Math.exp(-150 * (s.sunY + 0.07283) ** 2)) * (1 - s.rain),
+    rgb = raw.map(
+      (v, c) =>
+        (lum + (v - lum) * saturation) *
+        (s.moonlit ? light.moonColor : light.sunColor)[c],
+    );
+  const y = s.sunY,
+    fade = y < 0.18 ? 0.37 + 1.2 * Math.max(0, -y) : 1.7,
+    weight = clamp(1 - fade * Math.abs(y - 0.18)) ** 2,
+    noon = y > 0 ? 1 - weight : 0,
+    alto =
+      s.layer === 1
+        ? 1 + 0.4 * clamp((s.coverage - 0.5) / 0.1) * noon * (2 - noon)
+        : 1;
+  return matrix(matrix(rgb, toXyz), to709).map((v) => Math.max(0, v) * alto);
+}

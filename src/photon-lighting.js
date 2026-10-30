@@ -103,4 +103,16 @@ vec3 photonDirectLight() {
   color*=clamp(mu/0.02,0.0,1.0)*(1.0-0.25*photonPulse(mu,0.15,0.11));
   return photonTo709(color);
 }
+// Clouds receive light at their own altitude, without the surface horizon fade.
+// The caller supplies the local radial cosine and the layer's moonlit threshold.
+vec3 photonCloudLight(float mu,float height,bool moonlit) {
+  vec3 color=vec3(1.051,0.985,0.940)*photonAtmosphereTransmittance(mu,SKY_RADIUS+max(0.0,height)*0.02);
+  color=photonAtmospherePost(color);
+  return photonTo709(color*(moonlit?photonMoonColor():photonSunColor()));
+}
+float photonAltoLightBoost(float coverage) {
+  float edge=skySunDirection.x==0.0?0.0:photonMorningEveningWeight();
+  float noon=skySunDirection.y>0.0?1.0-edge:0.0;
+  return 1.0+0.4*photonLinear(0.5,0.6,coverage)*noon*(2.0-noon);
+}
 `;

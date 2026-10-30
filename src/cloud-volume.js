@@ -29,7 +29,7 @@ varying vec2 vUv;
 uniform sampler2D sceneDepth;
 uniform mat4 cloudInverseProjection, cloudCameraWorld;
 uniform vec3 cloudAmbient, cloudDirect, cloudGround, cloudFogColor;
-uniform float cloudPhase, cloudAlbedo;
+uniform float cloudPhase;
 layout(location = 0) out vec4 cloudColor;
 layout(location = 1) out vec4 cloudData;
 ${cloudIntegralGLSL}
@@ -285,18 +285,26 @@ export class CloudVolumePass {
         layers: [new Vector4(), new Vector4(), new Vector4()],
         light: new Color(),
         direction: new Vector3(),
+        illuminationMode: 0,
       };
       this.histories.set(source, state);
     }
     const c = this.camera,
       u = this.cloudUniforms,
-      p = c.projectionMatrix.elements;
+      p = c.projectionMatrix.elements,
+      // Cloud layers switch from sun to moon independently of the surface.
+      illuminationMode =
+        Number(u.skySunDirection.value.y < -0.04) +
+        2 * Number(u.skySunDirection.value.y < -0.045) +
+        4 * Number(u.skySunDirection.value.y < -0.049);
     this.light
       .copy(u.cloudAmbient.value)
       .add(u.cloudGround.value)
       .add(u.cloudFogColor.value)
       .add(u.cloudDirect.value)
-      .multiplyScalar(u.cloudAlbedo.value);
+      .multiplyScalar(
+        1.0 - 0.34 * Math.max(0, Math.min(1, (u.skyAerosol.value - 1) / 5)),
+      );
     if (
       state.frames &&
       (c.position.distanceToSquared(state.position) > 36 ||
@@ -313,6 +321,7 @@ export class CloudVolumePass {
             Math.abs(v.w - state.layers[i].w) > 0.08,
         ) ||
         u.cloudSeedNoise.value.version !== state.noise ||
+        state.illuminationMode !== illuminationMode ||
         (this.light.r - state.light.r) ** 2 +
           (this.light.g - state.light.g) ** 2 +
           (this.light.b - state.light.b) ** 2 >
@@ -367,6 +376,7 @@ export class CloudVolumePass {
       state.noise = u.cloudSeedNoise.value.version;
       state.light.copy(this.light);
       state.direction.copy(u.cloudLightDirection.value);
+      state.illuminationMode = illuminationMode;
     } catch (error) {
       this.reset();
       throw error;

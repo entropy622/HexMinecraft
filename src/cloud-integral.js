@@ -10,7 +10,8 @@ vec3 hexCloudWeatherAerial(vec3 scattering,float transmission,vec3 clearSky,
 `;
 export const cloudIntegralGLSL = /* glsl */ `
 ${cloudWeatherAerialGLSL}
-vec4 integrateLayer(vec3 origin, vec3 direction, vec2 span, int layer, vec2 angular, float jitter, out float apparent) {
+uniform float skyFlash;
+vec4 integrateLayer(vec3 origin, vec3 direction, vec2 span, int layer, float jitter, out float apparent) {
   apparent = 0.0;
   if (span.y <= span.x) return vec4(0.0, 0.0, 0.0, 1.0);
   float horizon = 1.0 - abs(direction.y);
@@ -23,16 +24,24 @@ vec4 integrateLayer(vec3 origin, vec3 direction, vec2 span, int layer, vec2 angu
   float stepLength = (span.y - span.x) / float(steps);
   float transmission = 1.0;
   vec3 scattering = vec3(0.0);
-  float cosine = angular.x, phase = angular.y;
-  // Coverage above the current band approximates the upper deck's average
-  // illumination loss. Visible layers and surface shadows use actual density.
-  float upper = 1.0;
-  for (int n = 0; n < 3; n++) if (n > layer) upper *= exp(-cloudLayers[n].z * (n == 1 ? 0.5 : 0.15));
-  vec3 sunlight = cloudDirect * upper;
-  // Two hemispheres of diffuse incident radiance. The attenuated upper deck
-  // also returns part of its intercepted sunlight into the lower cloud.
-  vec3 skylight = cloudAmbient * 0.5 + cloudDirect * ((1.0 - upper) * 0.5 / cloudPi);
-  vec3 groundlight = cloudGround * 0.5;
+  bool moonlit = skySunDirection.y < (layer == 0 ? -0.04 : (layer == 1 ? -0.045 : -0.049));
+  vec3 lightDirection = skySunDirection * (moonlit ? -1.0 : 1.0);
+  float cosine = dot(direction,lightDirection), phase = hexCloudPhase(cosine);
+  vec3 entry = origin + direction * span.x;
+  vec3 radial = normalize(vec3(entry.x-cloudCurvatureOrigin.x,
+    entry.y+hexCloudPlanet,entry.z-cloudCurvatureOrigin.y));
+  vec3 sunlight = photonCloudLight(dot(radial,lightDirection),hexCloudAltitude(entry),moonlit);
+  if(layer==1)sunlight*=photonAltoLightBoost(cloudLayers[1].z);
+  // sky_color in Photon is tau times the raw tilted-sky/weather mixture. It
+  // never reads the cloudy/fogged environment currently being constructed.
+  vec3 skylight = (cloudFogColor + vec3(skyFlash * 0.8)) * (2.0 * cloudPi);
+  float rain=clamp((skyAerosol-1.0)/5.0,0.0,1.0);
+  float day=smoothstep(0.0,0.3,abs(skySunDirection.y));
+  float shadow=clamp((cloudLayers[1].z*(1.0+cloudLayers[1].w)-0.7)/0.3,0.0,1.0)*day*(2.0-day);
+  vec4 optics=vec4(hexCloudExtinction/20.0,layer==2?1.0:mix(1.0,layer==0?0.66:0.75,rain),
+    cloudLayers[layer].w,layer==0?shadow:0.0);
+  float cirrusBoost=1.0+0.5*max(0.0,smoothstep(0.0,0.15,abs(skySunDirection.y))
+    -smoothstep(0.5,0.7,cloudLayers[2].z));
   for (int i = 0; i < 80; i++) {
     if (i >= steps) break;
     float distance = span.x + (float(i) + jitter) * stepLength;
@@ -40,19 +49,20 @@ vec4 integrateLayer(vec3 origin, vec3 direction, vec2 span, int layer, vec2 angu
     float fade = 1.0 - smoothstep(cloudFar * 0.72, cloudFar, length(position.xz - origin.xz));
     float density = hexCloudLayerDensity(position, layer) * fade;
     if (density < 0.0001) continue;
-    vec2 lightSpan = hexCloudInterval(position, cloudLightDirection, layer, cloudFar);
-    float depthSun = hexCloudLayerOpticalDepth(position, cloudLightDirection,
+    vec2 lightSpan = hexCloudInterval(position, lightDirection, layer, cloudFar);
+    float depthSun = hexCloudLayerOpticalDepth(position, lightDirection,
       min(cloudLayers[layer].y * 4.0, lightSpan.y), layer, 6);
     vec2 skySpan = hexCloudInterval(position, vec3(0,1,0), layer, cloudLayers[layer].y);
-    float depthSky = hexCloudLayerOpticalDepth(position, vec3(0,1,0), skySpan.y, layer, 2);
+    float depthSky = layer==2 ? 0.33*cloudLayers[2].y*density :
+      hexCloudLayerOpticalDepth(position, vec3(0,1,0), skySpan.y, layer, 2);
     float height = clamp(hexCloudAltitude(position) - cloudLayers[layer].x, 0.0, cloudLayers[layer].y);
     // A local-density estimate for ground escape avoids another secondary ray.
-    float depthGround = height * mix(density, 1.0, smoothstep(0.5, 1.0, height / cloudLayers[layer].y));
+    float depthGround = height * mix(density, 1.0, clamp(2.0 * height / cloudLayers[layer].y - 1.0, 0.0, 1.0));
     float attenuation = exp(-hexCloudExtinction * density * stepLength);
     float weight = transmission * (1.0 - attenuation);
-    scattering += transmission * hexCloudScatter(sunlight, skylight, groundlight,
-      hexCloudExtinction * vec3(depthSun, depthSky, depthGround), density, cosine,
-      phase, 1.0 - attenuation, cloudAlbedo, cloudLayers[layer].w);
+    vec2 light=hexCloudScatter(20.0*vec3(depthSun,depthSky,depthGround),density,cosine,
+      phase,1.0-attenuation,optics,layer,lightDirection.y,cirrusBoost);
+    scattering += transmission * (sunlight*light.x+skylight*light.y*(layer==2?1.41:1.0));
     apparent += weight * distance;
     transmission *= attenuation;
     if (transmission < cloudMinTransmission) break;
@@ -70,8 +80,6 @@ vec4 hexCloudRay(vec3 origin,vec3 direction,float distance,float jitter,out floa
     order[layer] = layer;
   }
   if (!hasCloudSpan) return result;
-  float cosine = dot(direction, cloudLightDirection);
-  vec2 angular = vec2(cosine, hexCloudPhase(cosine));
   float rain=clamp((skyAerosol-1.0)/5.0,0.0,1.0);
   float edge=skySunDirection.x==0.0?0.0:photonMorningEveningWeight();
   // The camera may be below, inside, between or above the bands.
@@ -83,7 +91,7 @@ vec4 hexCloudRay(vec3 origin,vec3 direction,float distance,float jitter,out floa
   for (int n = 0; n < 3; n++) {
     int layer = order[n];
     float apparent;
-    vec4 integral = integrateLayer(origin, direction, spans[layer], layer, angular, jitter, apparent);
+    vec4 integral = integrateLayer(origin, direction, spans[layer], layer, jitter, apparent);
     if (apparent <= 0.0) continue;
     // Transport each layer's premultiplied radiance through the same molecular
     // atmosphere as the visible sky. Air adds light only over cloud opacity;

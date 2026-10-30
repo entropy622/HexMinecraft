@@ -61,7 +61,6 @@ export class HexClouds {
       cloudFogColor: { value: new THREE.Color() },
       cloudGround: { value: new THREE.Color() },
       cloudDirect: { value: new THREE.Color() },
-      cloudAlbedo: { value: 0.995 },
       cloudFar: { value: 130 },
       cloudLayers: {
         value: [
@@ -235,7 +234,6 @@ export class HexClouds {
         : quality < 1
           ? 87
           : 130;
-    u.cloudAlbedo.value = 0.995 - rain * 0.18 - storm * 0.05;
     if (quality >= 1.7) return;
     this.mesh.position.set(
       u.cloudWind.value.x,

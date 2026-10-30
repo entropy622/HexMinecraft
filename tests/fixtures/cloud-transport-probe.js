@@ -39,8 +39,10 @@ export function probeCloudTransport(renderer) {
           mu=index==13?1.0:(index==14?cos(0.13962634):-1.0);
           gl_FragColor=vec4(hexCloudPhase(mu),cloudPointPhase(mu),0.0,1.0);return;
         }
-        gl_FragColor=vec4(hexCloudScatter(sun,sky,ground,tau,0.35,mu,
-          hexCloudPhase(mu),opacity,albedo,0.3),1.0);
+        vec4 optics=vec4(0.045,albedo,0.3,0.0);
+        vec2 lit=hexCloudScatter(tau/0.045,0.35,mu,hexCloudPhase(mu),opacity,optics,0,1.0,1.0);
+        vec2 unbounced=hexCloudScatter(tau/0.045,0.35,mu,hexCloudPhase(mu),opacity,optics,0,0.0,1.0);
+        gl_FragColor=vec4(sun*unbounced.x+sky*lit.y+ground*(lit.x-unbounced.x),1.0);
       }`,
   });
   const target = new WebGLRenderTarget(width, 2, {

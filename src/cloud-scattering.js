@@ -37,30 +37,49 @@ float hexCloudPhase(float cosine) {
   }
   return result * 0.25;
 }
-vec3 hexCloudScatter(vec3 sunlight, vec3 skylight, vec3 groundlight,
-  vec3 opticalDepth, float density, float cosine, float phase,
-  float opacity, float albedo, float stratus) {
-  vec3 tau = max(vec3(0.0), opticalDepth);
+// Photon cumulus/altocumulus/cirrus closures. Depth is metres before extinction;
+// in particular phase broadening must not use the extinguished optical depth.
+// parameters: extinction per metre, single-scattering albedo, stratus, upper shadow.
+// Returns coefficients for direct light (including planet/layer bounce) and sky.
+vec2 hexCloudScatter(vec3 depth, float density, float cosine, float phase,
+  float opacity, vec4 parameters, int layer, float lightElevation, float cirrusBoost) {
+  depth = max(vec3(0.0), depth);
+  float extinction = max(parameters.x, 0.000001);
+  float albedo = parameters.y, stratus = parameters.z, shadow = parameters.w;
   float forward = clamp(cosine * 0.5 + 0.5, 0.0, 1.0);
-  float packedDensity = density * (1.0 + stratus);
+  float packedDensity = density * (layer == 1 ? 1.5 + 3.5 * stratus : 1.0 + stratus);
   float powder = cloudPi * packedDensity / (packedDensity + 0.15);
   powder = mix(powder, 1.0, 0.8 * forward * forward);
-  float amount = albedo, extinction = 1.0;
-  vec3 g = pow(vec3(0.6, 0.9, 0.3), vec3(1.0 + tau.x));
-  vec3 scattered = vec3(0.0);
+  float ratio = clamp(extinction * albedo / (layer == 0 ? 0.1 : 0.05), 0.0, 1.0);
+  float lifted = ratio * 1.33 / (1.0 + 0.33 * ratio);
+  float falloff = (layer == 0 ? 0.55 : 0.5) * mix(lifted, 1.0, forward);
+  float amount = extinction * albedo, extinctAmount = extinction;
+  vec3 g = pow(vec3(0.6, 0.9, 0.3), vec3(1.0 + depth.x));
+  if (layer == 2) {
+    powder = mix(8.0 * (1.0 - exp(-40.0 * density)), 1.0, pow(forward, 1.5));
+    extinctAmount *= cirrusBoost;
+    g = vec3(0.6, 0.9, 0.3);
+  }
+  const float isotropic = 1.0 / (4.0 * cloudPi);
+  float bounced = 0.4 * lightElevation / cloudPi;
+  vec2 scattered = vec2(0.0);
   for (int order = 0; order < 8; order++) {
-    vec3 transmission = exp(-tau * extinction);
-    scattered += amount * (sunlight * (phase * transmission.x)
-      + skylight * transmission.y + groundlight * transmission.z);
-    // Later orders travel further, lose directionality and retain absorption.
-    // Powder is an artistic closure, not a spectral multiple-scattering solver.
-    amount *= albedo * 0.55 * powder;
-    extinction *= 0.4;
+    if (layer == 2 && order >= 4) break;
+    vec3 transmission = exp(-depth * extinctAmount);
+    scattered.x += amount * phase * transmission.x
+      * (layer == 0 ? 1.0 - 0.5 * shadow : 1.0) * (layer == 2 ? powder : 1.0);
+    if (layer < 2) {
+      scattered.x += amount * isotropic * transmission.z * bounced;
+      if (layer == 0) scattered.x += amount * isotropic * transmission.y * shadow * 0.5;
+    }
+    scattered.y += amount * isotropic * transmission.y;
+    amount *= layer == 2 ? 0.5 : falloff * powder;
+    extinctAmount *= layer == 0 ? 0.4 : (layer == 1 ? 0.45 : 0.25);
     powder = 0.5 * (powder + sqrt(powder));
-    g *= 0.8;
+    g *= layer == 0 ? 0.8 : (layer == 1 ? 0.7 : 0.5);
     phase = 0.65 * cloudHG(cosine, g.x) + 0.1 * cloudHG(cosine, g.y)
       + 0.25 * cloudHG(cosine, -g.z);
   }
-  return scattered * opacity;
+  return scattered * (opacity / extinction);
 }
 `;

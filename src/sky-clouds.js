@@ -42,7 +42,6 @@ export class SkyClouds {
         varying vec2 vUv;
         uniform sampler2D skyCloudSummary;
         uniform vec3 skyCloudOrigin;
-        uniform float cloudAlbedo;
         vec3 cloudAmbient,cloudDirect,cloudGround,cloudFogColor;
         ${cloudIntegralGLSL}
         ${skyFogGLSL}
@@ -86,7 +85,6 @@ export class SkyClouds {
       ...u.cloudLayerWind.value.flatMap((v) =>
         v.toArray().map((x) => Math.round(x * 4)),
       ),
-      Math.round(u.cloudAlbedo.value * 1000),
       Math.round(u.cloudShear.value * 100),
     ].join(':');
   }

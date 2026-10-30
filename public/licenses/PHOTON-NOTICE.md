@@ -28,6 +28,13 @@ profiles and local units, publishes fog with sky lighting, and composes a
 non-overlapping analytic far segment after the near-field volume march.
 Photon's license applies to these derived portions as well.
 
+Since 0.115, `src/cloud-scattering.js` adapts the distinct cumulus, altocumulus
+and cirrus scattering closures, powder responses, coefficient falloffs and
+planet/layer bounce from the pinned cloud includes. `src/cloud-integral.js`
+combines their coefficients with raw incident sky/weather light and light at
+cloud altitude. Geometry, shared extinction scale, quadrature and finite-disk
+phase sampling remain host adaptations.
+
 Since 0.114, `src/photon-lighting.js` adapts rain/snow colours, their day curves
 and the precipitation snow night floor from `lighting/colors/weather_color.glsl`.
 `src/sky-atmosphere.js` applies the source weather mixture to fog incident light;

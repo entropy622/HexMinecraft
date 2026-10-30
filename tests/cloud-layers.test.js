@@ -233,10 +233,6 @@ test('cloud sky and ground radiance use separate raw clear hemispheres without r
       Math.abs(u.cloudGround.value.toArray()[c] - radiance[c] + delta) < 1e-5,
     );
   }
-  assert.equal(u.cloudAlbedo.value, 0.995);
-  clouds.prepare({ ...frame, rain: 1, storm: 1 });
-  clouds.frame({ ...frame, rain: 1, storm: 1 });
-  assert.ok(u.cloudAlbedo.value > 0 && u.cloudAlbedo.value < 0.8);
   clouds.noise.dispose();
   clouds.worley.dispose();
   clouds.mesh.geometry.dispose();

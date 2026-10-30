@@ -293,6 +293,11 @@ async function cloudSample(page, phase = null) {
 test('wind and camera reprojection reject new buildings, reveal clouds promptly and recover after real WebGL loss', async ({
   page,
 }, info) => {
+  // Native setup/occlusion consumed 237 s on a cold run before loss was sent;
+  // retain every recovery/image check and allow the recovery itself to finish.
+  test.setTimeout(480000);
+  const started = Date.now(),
+    timing = {};
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (e) => {
@@ -506,6 +511,7 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
       }
     }
   }
+  timing.beforeRecovery = Date.now() - started;
   const supported = await page.evaluate(async () => {
     const g = window.__hexwild.graphics,
       extension = g.renderer.getContext().getExtension('WEBGL_lose_context');
@@ -533,6 +539,7 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
     });
     return true;
   });
+  timing.recoveryEvent = Date.now() - started;
   expect(supported).toBe(true);
   const restoredFrames = await page.evaluate(() => window.cloudRestoreFrames);
   // A recreated composer can have no views yet. Every retained view is cold;
@@ -540,6 +547,7 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
   expect(restoredFrames.every((n) => n === 0)).toBe(true);
   await frames(page, 32);
   const restored = await cloudSample(page);
+  timing.restoredImage = Date.now() - started;
   const restoredWeather = await page.evaluate(() => {
     const g = window.__hexwild.graphics,
       a = g.skyEnvironment.atmosphere;
@@ -588,6 +596,7 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
         occlusion,
         restoredFrames,
         restoredWeather,
+        timing,
         errors,
       },
       null,
