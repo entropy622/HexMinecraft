@@ -1,5 +1,7 @@
 # 0.90 RGB 空气输运与材质吸收
 
+0.112 已将近地空气参数替换为 [Photon 时段与天气参数](fog-weather-verification.md)。下文系数和对照数据记录 0.90 当时的实现，高度积分与 RGB 合成路径继续沿用。
+
 基线 `aee0205e2010ff4388433be6cabe4f976e19d3c2`（0.89），参考本地 Photon 固定提交 `6e67b36e818bacde0304edd49f28e2bb70e33f04` 的 [空气积分](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/include/fog/overworld/raymarched.glsl)、[解析雾](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/include/fog/overworld/analytic.glsl) 与 [漫反射/SSS](https://github.com/sixthsurge/photon/blob/6e67b36e818bacde0304edd49f28e2bb70e33f04/shaders/include/lighting/diffuse_lighting.glsl)。独立实现当前 WebGL2 的对应部分，完整迁移目标继续推进。
 
 ## 问题与变化

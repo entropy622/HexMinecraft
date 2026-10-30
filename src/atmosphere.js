@@ -1,11 +1,15 @@
 import { Color, MathUtils, Vector3 } from 'three';
-import { RAYLEIGH_PER_KM } from './sky-transport.js';
 import { airTransportGLSL } from './air-transport.js';
+import { FogBiomes, photonFogParameters } from './photon-fog.js';
 
 // Shared RGB height profiles and illumination for the marched and analytic
 // paths. The four direct orders remain an approximation, not a multiple-scattering LUT.
 export class Atmosphere {
   constructor(camera) {
+    this.biomes = new FogBiomes();
+    this.camera = camera;
+    this.targetRayleigh = new Vector3();
+    this.dimension = null;
     this.uniforms = {
       airCameraWorld: { value: camera.matrixWorld },
       airCameraPosition: { value: camera.position },
@@ -15,7 +19,7 @@ export class Atmosphere {
       airRayleighBaseHeight: { value: 8 },
       airRayleighFalloff: { value: (0.14 * 7) / 30 },
       airRayleigh: {
-        value: new Vector3(...RAYLEIGH_PER_KM).multiplyScalar(0.02),
+        value: new Vector3(),
       },
       airMieExtinction: { value: 0.009 },
       airMieScattering: { value: 0.0081 },
@@ -25,6 +29,8 @@ export class Atmosphere {
       airSunDirection: { value: new Vector3() },
       airSunPower: { value: 0 },
       airAmbient: { value: 1 },
+      airDirectMultiplier: { value: 1 },
+      airScatterMultiplier: { value: 1 },
       airCameraSky: { value: 1 },
       airTime: { value: 0 },
       airVolume: { value: 0 },
@@ -37,9 +43,10 @@ export class Atmosphere {
     time,
     dt,
     dimension,
-    biome,
+    world,
+    climate,
+    sunDirection,
     rain,
-    dusk,
     horizon,
     sun,
     skyProbe,
@@ -51,30 +58,52 @@ export class Atmosphere {
     const u = this.uniforms,
       overworld = dimension === 'overworld',
       submerged = !!medium;
-    let density = overworld
-      ? 0.008 + dusk * 0.006 + rain * 0.008
-      : dimension === 'nether'
-        ? 0.018
-        : 0.004;
-    if (biome === '沙漠') density *= 0.55;
-    if (biome === '雪原') density *= 1.15;
+    const fog = overworld
+      ? photonFogParameters({
+          sunDirection,
+          humidity: climate.humidity,
+          temperature: climate.temperature,
+          rain,
+          biomes: this.biomes.sample(world, this.camera.position),
+        })
+      : {
+          rayleigh: [0, 0, 0],
+          mieExtinction: dimension === 'nether' ? 0.018 : 0.004,
+          mieScattering: dimension === 'nether' ? 0.018 : 0.004,
+          direct: 1,
+          glow: 1,
+        };
+    // Render-time damping handles weather transitions. A new world/dimension
+    // starts from its own coefficients, never the previous dimension's mist.
+    const blend =
+      this.world !== world || this.dimension !== dimension
+        ? 1
+        : 1 - Math.exp(-2 * Math.max(0, dt));
+    this.world = world;
+    this.dimension = dimension;
+    u.airRayleigh.value.lerp(
+      this.targetRayleigh.fromArray(fog.rayleigh),
+      blend,
+    );
+    u.airMieExtinction.value = MathUtils.lerp(
+      u.airMieExtinction.value,
+      fog.mieExtinction,
+      blend,
+    );
+    u.airMieScattering.value = MathUtils.lerp(
+      u.airMieScattering.value,
+      fog.mieScattering,
+      blend,
+    );
     u.airDensity.value = submerged
       ? 0
-      : MathUtils.damp(u.airDensity.value, density, 2, dt);
+      : u.airRayleigh.value.y + u.airMieExtinction.value;
+    u.airDirectMultiplier.value = fog.direct;
+    u.airScatterMultiplier.value = fog.glow;
     u.airBaseHeight.value = dimension === 'end' ? 20 : 8;
     u.airFalloff.value = overworld ? 0.14 : 0.035;
     u.airRayleighBaseHeight.value = u.airBaseHeight.value;
     u.airRayleighFalloff.value = (u.airFalloff.value * 7) / 30;
-    // Keep base-height green extinction at the existing weather density. The
-    // molecular component uses the same spectrum as the sky, at 20 m/local unit.
-    u.airRayleigh.value
-      .set(...RAYLEIGH_PER_KM)
-      .multiplyScalar(overworld && !submerged ? 0.02 : 0);
-    u.airMieExtinction.value = Math.max(
-      0,
-      u.airDensity.value - u.airRayleigh.value.y,
-    );
-    u.airMieScattering.value = u.airMieExtinction.value * (overworld ? 0.9 : 1);
     if (overworld && skyProbe) {
       const mean = skyProbe.sh.coefficients[0];
       u.airSkyMean.value
@@ -167,7 +196,7 @@ export class Atmosphere {
         );
     };
     material.customProgramCacheKey = () =>
-      cacheKey.call(material) + '-rgb-height-air-v3';
+      cacheKey.call(material) + '-photon-weather-air-v4';
     material.needsUpdate = true;
   }
 }

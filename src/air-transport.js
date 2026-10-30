@@ -16,6 +16,8 @@ uniform vec3 airSunColor;
 uniform vec3 airSunDirection;
 uniform float airSunPower;
 uniform float airAmbient;
+uniform float airDirectMultiplier;
+uniform float airScatterMultiplier;
 
 // Exact integral of min(1, exp(-(height-base)*falloff)). Splitting at the
 // profile's ceiling avoids the horizontal-ray singularity and overflow when
@@ -45,7 +47,7 @@ vec2 airDirectPhase(float cosine) {
   vec2 phase=vec2(0.0);
   float amount=1.0, anisotropy=1.0;
   for(int i=0;i<4;i++) {
-    phase += amount*vec2(0.05968310366*(1.0+cosine*cosine),
+    phase += amount*vec2(0.07957747155,
       0.7*airHG(cosine,0.5*anisotropy)+0.3*airHG(cosine,-0.2*anisotropy));
     amount*=0.5; anisotropy*=0.7;
   }
@@ -57,7 +59,8 @@ vec3 airScattering(vec2 columns, vec2 phase, float sky, vec3 block, vec3 sun) {
   vec3 tau=airOpticalDepth(columns), integral=(1.0-exp(-tau))/max(tau,vec3(0.000001));
   vec3 ambient=airSkyMean*airAmbient*sky;
   vec3 local=mix(vec3(0.003,0.004,0.005),vec3(0.0),sky)+block*0.85;
-  return integral*(airRayleigh*columns.x*(ambient+sun*phase.x) +
-    airMieScattering*columns.y*(ambient+sun*phase.y) + tau*local);
+  sun *= airDirectMultiplier;
+  return integral*((airRayleigh*columns.x*(ambient+sun*phase.x) +
+    airMieScattering*columns.y*(ambient+sun*phase.y))*airScatterMultiplier + tau*local);
 }
 `;

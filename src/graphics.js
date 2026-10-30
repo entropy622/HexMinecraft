@@ -1589,7 +1589,6 @@ export class Graphics {
       this.usePost && overworld && this.sunDisk.position.y > 0 ? 1 : 0;
     this.dynamicLight.uniforms.glassSunlight.value =
       this.usePost && overworld ? 1 : 0;
-    const dusk = overworld ? Math.max(0, 1 - Math.abs(elevation) * 3.5) : 0;
     if (overworld) {
       sky.lerp(new THREE.Color('#c7d8eb'), flash * 0.5);
       horizon.lerp(new THREE.Color('#c7d8eb'), flash * 0.35);
@@ -1878,9 +1877,10 @@ export class Graphics {
       time,
       dt: renderDt,
       dimension: this.world.dimension,
-      biome: this.world.biome(cameraHex.q, cameraHex.r),
+      world: this.world,
+      climate: this.cloudSystem.climate,
+      sunDirection: this.skyEnvironment.uniforms.skySunDirection.value,
       rain,
-      dusk,
       horizon,
       sun: this.sun,
       skyProbe: this.skyEnvironment.atmosphere.probe,

@@ -69,6 +69,7 @@ export function cloudWeather(seed, time, heat, wet, rain, storm) {
   );
   const altoStratus = upperCold * upperCold * (3 - 2 * upperCold);
   return {
+    temperature,
     humidity,
     stratus,
     altoStratus,

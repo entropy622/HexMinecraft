@@ -199,31 +199,30 @@ test.describe('fractional DPR air volume', () => {
       released: 1,
       lowPost: false,
     });
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const g = window.__hexwild.graphics;
       g.setQuality(1.7);
       const gl = g.renderer.getContext(),
         ext = gl.getExtension('WEBGL_lose_context');
       if (!ext) throw Error('WEBGL_lose_context unavailable');
-      window.airRestored = false;
-      gl.canvas.addEventListener(
-        'webglcontextlost',
-        (e) => e.preventDefault(),
-        { once: true },
-      );
-      gl.canvas.addEventListener(
-        'webglcontextrestored',
-        () => (window.airRestored = true),
-        { once: true },
-      );
-      window.restoreAirContext = () => ext.restoreContext();
-      ext.loseContext();
+      // Restore after the actual lost event, then resolve in the restored
+      // event's microtask. Polling the page can otherwise queue behind the
+      // first expensive upload/compile frame and mistake that for no event.
+      await new Promise((resolve) => {
+        gl.canvas.addEventListener(
+          'webglcontextlost',
+          (e) => {
+            e.preventDefault();
+            setTimeout(() => ext.restoreContext(), 0);
+          },
+          { once: true },
+        );
+        gl.canvas.addEventListener('webglcontextrestored', () => resolve(), {
+          once: true,
+        });
+        ext.loseContext();
+      });
     });
-    await page.waitForTimeout(100);
-    await page.evaluate(() => window.restoreAirContext());
-    await expect
-      .poll(() => page.evaluate(() => window.airRestored), { timeout: 30000 })
-      .toBe(true);
     await page.evaluate(
       () =>
         new Promise((resolve) => {

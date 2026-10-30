@@ -11,6 +11,15 @@ The source binary is `src/assets/photon-scattering.dat`, 393216 bytes, SHA256
 It is embedded in the application bundle. Runtime RGB16F to RGBA16F packing
 preserves every source RGB bit, including signed residuals, and adds alpha 1.
 
+Since 0.112, `src/photon-fog.js` adapts the default biome/weather fog
+coefficients, time weights, blue-hour mist and evening glow from
+`include/weather/fog.glsl`, `shaders.properties`, `settings.glsl` and
+`include/fog/overworld/{analytic,raymarched}.glsl`. `src/air-transport.js`
+uses their isotropic Rayleigh direct phase and rain attenuation. The host
+retains linear-sRGB transport, local height profiles, a spatial hex biome
+filter, its shared cloud climate and local block-light scattering. Photon's
+license also covers these derived portions.
+
 `src/photon-sky.js` adapts the lookup mapping, finite-area RGB Mie phases,
 colour matrices and atmosphere saturation from Photon's `atmosphere.glsl`,
 `phase_functions.glsl`, `color.glsl`, settings and `shaders.properties`.

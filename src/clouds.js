@@ -165,6 +165,22 @@ export class HexClouds {
     this.mesh.visible = active && quality < 1.7;
     u.cloudEnabled.value = active && quality >= 1 ? 1 : 0;
     u.cloudVolumetric.value = active && quality >= 1.7 ? 1 : 0;
+    this.climate = null;
+    if (world.dimension !== 'overworld') return;
+    // Sample the existing biome noises in fractional axial coordinates, so
+    // crossing rounded biome/cell labels cannot move the sky in visible steps.
+    // Fog shares this climate even when the cloud drawing option is off.
+    const climateQ = camera.position.x / Math.sqrt(3) - camera.position.z / 3,
+      climateR = camera.position.z / 1.5,
+      climate = cloudWeather(
+        world.seed,
+        time,
+        noise(climateQ * 0.017, climateR * 0.017, world.seed + 140),
+        noise(climateQ * 0.019, climateR * 0.019, world.seed + 76),
+        rain,
+        storm,
+      );
+    this.climate = climate;
     if (!active) return;
     if (this.noiseSeed !== world.seed) {
       this.noiseSeed = world.seed;
@@ -176,19 +192,6 @@ export class HexClouds {
       this.worley.image.data.set(cloudWorleyData(world.seed));
       this.worley.needsUpdate = true;
     }
-    // Sample the biome's existing temperature/humidity noises in fractional
-    // axial coordinates. Rounded cell or biome labels would move the whole
-    // sky in visible steps when the player crosses an otherwise seamless edge.
-    const climateQ = camera.position.x / Math.sqrt(3) - camera.position.z / 3;
-    const climateR = camera.position.z / 1.5;
-    const climate = cloudWeather(
-      world.seed,
-      time,
-      noise(climateQ * 0.017, climateR * 0.017, world.seed + 140),
-      noise(climateQ * 0.019, climateR * 0.019, world.seed + 76),
-      rain,
-      storm,
-    );
     u.cloudLayers.value[0].set(
       CLOUD_BASE,
       60 + rain * 12 + storm * 8,
