@@ -248,4 +248,102 @@ test('FHD forest real WebGL stage costs', async ({ page }, info) => {
   expect(moved.busy).toBe(0);
   expect(messages.errors).toEqual([]);
   expect(messages.warnings).toEqual([]);
+  // The new default tone function also runs without a composer. Measure that
+  // real quality separately; no old balanced measurement is claimed here.
+  await page.evaluate(() => {
+    const a = window.__hexwild;
+    a.teleport(-120, 22.5, 4);
+    a.lookAt(-98, 17, -4);
+    a.graphics.stepOffset = 0;
+    a.graphics.setQuality(1);
+  });
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const g = window.__hexwild.graphics;
+          return !g.relightQueue.size && !g.skyEnvironment.atmosphere.pending;
+        }),
+      { timeout: 90000 },
+    )
+    .toBe(true);
+  const balancedAt = await page.evaluate(() => window.__cloudStages.rendered);
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.rendered), {
+      timeout: 90000,
+    })
+    .toBeGreaterThanOrEqual(balancedAt + 120);
+  const balanced = [];
+  for (const withGpu of [true, false]) {
+    await page.evaluate(
+      (withGpu) => window.__cloudStages.start(120, withGpu),
+      withGpu,
+    );
+    await expect
+      .poll(() => page.evaluate(() => window.__cloudStages.done), {
+        timeout: 90000,
+      })
+      .toBe(true);
+    const measured = await page.evaluate(() => window.__cloudStages.result());
+    expect(measured.frames).toHaveLength(120);
+    expect(measured.disjoint).toBe(0);
+    expect(measured.busy).toBe(0);
+    if (withGpu) expect(measured.gpu.length).toBeGreaterThan(0);
+    else expect(measured.gpu).toEqual([]);
+    balanced.push({
+      withGpu,
+      measured,
+      gpu: withGpu
+        ? distribution(
+            measured.frames.map((f) =>
+              measured.gpu
+                .filter((g) => g.index === f.index)
+                .reduce((sum, g) => sum + g.milliseconds, 0),
+            ),
+          )
+        : null,
+      cpu: distribution(measured.frames.map((f) => f.cpuSubmitMs)),
+      raf: distribution(
+        measured.frames
+          .slice(1)
+          .map((f, i) => f.timestamp - measured.frames[i].timestamp),
+      ),
+    });
+  }
+  const balancedFrame = await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    return {
+      quality: g.quality,
+      composer: !!g.composer,
+      toneMapping: g.renderer.toneMapping,
+      fog: [g.scene.fog.near, g.scene.fog.far],
+      renderedChunks: g.chunks.size,
+      gl: g.renderer.getContext().getError(),
+    };
+  });
+  await writeFile(
+    info.outputPath('balanced-stages.json'),
+    JSON.stringify(
+      {
+        balanced,
+        frame: balancedFrame,
+        messages,
+        scope:
+          'Actual FHD default quality=1, same seed/time/camera; GPU batches and a separate no-query CPU/RAF window. No old balanced control.',
+      },
+      null,
+      2,
+    ),
+  );
+  await page
+    .locator('#world')
+    .screenshot({ path: info.outputPath('balanced.png') });
+  expect(balancedFrame).toMatchObject({
+    quality: 1,
+    composer: false,
+    fog: [87.32, 118],
+    renderedChunks: 441,
+    gl: 0,
+  });
+  expect(messages).toEqual({ errors: [], warnings: [] });
 });

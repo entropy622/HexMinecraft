@@ -5,6 +5,9 @@ import atmosphere from './atmosphere.playwright.config.js';
 export default defineConfig({
   ...atmosphere,
   testMatch: [
+    'photon-grading.spec.js',
+    'bloom.spec.js',
+    'photon-forest-lighting.capture.js',
     'photon-sky.spec.js',
     'photon-lighting-controls.spec.js',
     'plant-lighting.spec.js',

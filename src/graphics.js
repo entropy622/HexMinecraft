@@ -41,6 +41,7 @@ import {
   disposePostprocessing,
 } from './postprocessing.js';
 import { postSettings } from './render-settings.js';
+import { installPhotonOutput } from './photon-output.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -88,7 +89,8 @@ export class Graphics {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    installPhotonOutput();
+    this.renderer.toneMapping = THREE.CustomToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;

@@ -10,9 +10,9 @@ import { BloomPass } from './bloom-pass.js';
 import { postSettings } from './render-settings.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { PhotonOutputPass } from './photon-output.js';
 
-// Allocated only for the opt-in light-effects preset. OutputPass owns display conversion.
+// Allocated only for the opt-in light-effects preset. One final output owns grading/transfer.
 export function createPostprocessing(
   renderer,
   scene,
@@ -45,6 +45,7 @@ export function createPostprocessing(
   const bloom = new BloomPass();
   const antialias = new SMAAPass();
   const exposure = new ExposurePass();
+  const output = new PhotonOutputPass();
   composer.addPass(frame);
   composer.addPass(protection);
   composer.addPass(contact);
@@ -64,7 +65,7 @@ export function createPostprocessing(
   composer.addPass(exposure);
   // Three.js SMAA operates in linear-sRGB, before the final display conversion.
   composer.addPass(antialias);
-  composer.addPass(new OutputPass());
+  composer.addPass(output);
   composer.effects = {
     contact,
     wet,
@@ -73,6 +74,7 @@ export function createPostprocessing(
     exposure,
     protection,
     temporal,
+    output,
   };
   setPostprocessingOptions(composer, settings);
   return composer;
@@ -93,6 +95,7 @@ export function setPostprocessingOptions(composer, settings) {
   effects.bloom.strength = values.bloom;
   if (effects.exposure.enabled !== values.exposure) effects.exposure.reset();
   effects.exposure.enabled = values.exposure;
+  effects.output.setOptions(values);
 }
 export function disposePostprocessing(composer) {
   for (const pass of composer.passes) pass.dispose();

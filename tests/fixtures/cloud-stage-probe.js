@@ -26,8 +26,9 @@ export function installCloudStageProbe() {
   }
   function stage() {
     const g = window.__hexwild.graphics,
-      f = g.composer.passes[0];
+      f = g.composer?.passes[0];
     const t = g.renderer.getRenderTarget();
+    if (!f) return t ? 'other' : 'output';
     if (f.clouds.coverage?.target && t === f.clouds.coverage.target)
       return 'cloud-coverage';
     if (t === f.clouds.target)
@@ -137,12 +138,16 @@ export function installCloudStageProbe() {
       if (measuring || pending.length)
         throw Error('GPU measurement is pending');
       const g = window.__hexwild.graphics,
-        f = g.composer.passes[0];
-      labels = new WeakMap([
-        [f.target, 'scene-main'],
-        [f.opaque, 'scene-water'],
-      ]);
-      for (const [source, h] of f.clouds.histories)
+        f = g.composer?.passes[0];
+      labels = new WeakMap(
+        f
+          ? [
+              [f.target, 'scene-main'],
+              [f.opaque, 'scene-water'],
+            ]
+          : [],
+      );
+      for (const [source, h] of f?.clouds.histories || [])
         for (const t of h.history)
           labels.set(
             t,

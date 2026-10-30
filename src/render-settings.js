@@ -1,4 +1,7 @@
+import { COLOR_SETTINGS, DEFAULT_COLOR_SETTINGS } from './photon-grading.js';
+
 export const DEFAULT_POST_SETTINGS = {
+  ...DEFAULT_COLOR_SETTINGS,
   occlusion: 0.6,
   antialias: true,
   bloom: 0.24,
@@ -17,5 +20,14 @@ export function postSettings(raw) {
   if (typeof raw.exposure === 'boolean') settings.exposure = raw.exposure;
   if (Number.isFinite(raw.bloom))
     settings.bloom = Math.max(0, Math.min(0.5, raw.bloom));
+  for (const [key, spec] of Object.entries(COLOR_SETTINGS))
+    if (Number.isFinite(raw[key]))
+      settings[key] = Number(
+        (
+          Math.round(
+            Math.max(spec.min, Math.min(spec.max, raw[key])) / spec.step,
+          ) * spec.step
+        ).toFixed(4),
+      );
   return settings;
 }

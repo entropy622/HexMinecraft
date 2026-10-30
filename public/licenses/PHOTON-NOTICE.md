@@ -27,6 +27,15 @@ and coefficients. These derived portions retain the same upstream licenses.
 The atmospheric coordinate mapping is based on Eric Bruneton's implementation.
 Its [BSD notice](bruneton.txt), also reproduced by Photon, is retained.
 
+Since 0.101, `src/photon-color.js`, `src/photon-grading.js` and
+`src/photon-output.js` adapt the Rec.2020 transforms, input/output grading,
+Lottes operator, selective hue adjustments, blackbody/Bradford white balance
+and display-transfer approximation from `utility/color.glsl`,
+`post_processing/tonemap_operators.glsl`, `post_processing/aces/utility.glsl`,
+`program/c19_color_grading.*`, `program/final.fsh`, `global.glsl` and
+`settings.glsl` at the same pinned revision. The upstream license also covers
+these derived portions. Three's input texture transfer remains the host model.
+
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
 snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;

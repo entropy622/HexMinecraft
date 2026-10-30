@@ -242,6 +242,23 @@ test('production UI imports and re-exports the reusable native forest save', asy
     await expect(page.locator('#pause-overlay')).toBeVisible();
     await expect(page.locator('#quality')).toHaveValue('1.7');
     await expect(page.locator('#exposure-toggle')).not.toBeChecked();
+    await expect(page.locator('#color-whiteBalance')).toHaveValue('6500');
+    await page.locator('#color-whiteBalance').focus();
+    await page.keyboard.press('End');
+    await expect(page.locator('#color-whiteBalance')).toHaveValue('9000');
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem('hexwild-settings')).post
+            .whiteBalance,
+      ),
+    ).toBe(9000);
+    await page.locator('#color-reset').click();
+    await expect(page.locator('#color-whiteBalance')).toHaveValue('6500');
+    await expect(page.locator('#exposure-toggle')).not.toBeChecked();
+    await page
+      .locator('#color-settings')
+      .screenshot({ path: info.outputPath('production-color-settings.png') });
     const download = page.waitForEvent('download');
     await page.locator('#export').click();
     const result = JSON.parse(
