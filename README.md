@@ -4,6 +4,10 @@
 
 [在线游玩](https://entropy622.github.io/HexMinecraft/) · [操作说明](#操作) · [本地开发](#开发与验证)
 
+## 0.108：Photon 上半球天光
+
+环境天光改用 Photon 的 256 点上半球采样，并将源球谐排列及权重转换到 Three 的照明通道；天空、树叶、云与空气仍共用已发布的照明快照，无新增渲染目标。固定晨景里的颜色变化有限，森林整体光色与冠层形态继续校准。[来源与同镜头对照](docs/hemisphere-skylight-verification.md)。
+
 ## 0.107：导入方块资源包与 labPBR 材质
 
 暂停菜单支持导入 Minecraft 方块 ZIP，并在本浏览器保存。颜色、法线、材质 AO、粗糙度、金属与发光通道进入实际地形着色，镜面参数和法线同时用于环境反射；缺失贴图回退默认材质，支持恢复默认。保留原始数值通道及 labPBR 特殊金属 Fresnel，最高 64×，动画暂取首帧。独立实体、POM、通用 SSS 和整体森林参考图继续完善。[支持范围与真实方块验证](docs/material-pack-verification.md)。

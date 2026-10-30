@@ -290,7 +290,7 @@ test('GPU contracts: production sky transport and SH drive real Lambert surfaces
     JSON.stringify({ result, diagnostics }, null, 2),
   );
   for (const field of result.fields) {
-    // 16 latitude midpoint rings: <=0.245% DC quadrature error, plus FP16.
+    // Source R2 hemisphere quadrature, sampled map interpolation and FP16.
     expect(field.maxError).toBeLessThan(0.004);
     expect(field.invalid).toBe(0);
   }

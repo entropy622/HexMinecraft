@@ -12,6 +12,7 @@ import {
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { createPhotonScattering, photonSkyGLSL } from './photon-sky.js';
+import { photonSkylightGLSL } from './photon-skylight.js';
 
 import { SUN_RADIUS, transportGLSL, skyRadianceGLSL } from './sky-transport.js';
 export {
@@ -78,30 +79,12 @@ export class SkyAtmosphere {
       this.work,
       /* glsl */ `
       ${skyRadianceGLSL}
-      float basis(int index, vec3 d) {
-        if (index == 0) return 0.282094792;
-        if (index == 1) return 0.488602512 * d.y;
-        if (index == 2) return 0.488602512 * d.z;
-        if (index == 3) return 0.488602512 * d.x;
-        if (index == 4) return 1.092548431 * d.x * d.y;
-        if (index == 5) return 1.092548431 * d.y * d.z;
-        if (index == 6) return 0.315391565 * (3.0 * d.z * d.z - 1.0);
-        if (index == 7) return 1.092548431 * d.x * d.z;
-        return 0.546274215 * (d.x * d.x - d.y * d.y);
-      }
+      ${photonSkylightGLSL}
       void main() {
         int index = int(gl_FragCoord.x);
         vec3 result = vec3(0.0), origin = vec3(0.0, SKY_RADIUS + skyObserverHeight, 0.0);
         if (index < 9) {
-          // Equal-solid-angle full-sphere quadrature, excluding the direct disks.
-          for (int i = 0; i < 512; i++) {
-            float y = 1.0 - 2.0 * (float(i / 32) + 0.5) / 16.0;
-            float phi = (float(i - (i / 32) * 32) + 0.5) * (2.0 * SKY_PI / 32.0);
-            vec3 d = vec3(cos(phi) * sqrt(1.0 - y * y), y, sin(phi) * sqrt(1.0 - y * y));
-            // Irradiance still sees the complete environment, including ground.
-            vec3 radiance = textureLod(skyRadianceMap, skyUv(d), 0.0).rgb;
-            result += radiance * basis(index, d) * (4.0 * SKY_PI / 512.0) * photonSkylightBoost();
-          }
+          result=photonSkyProject(index,skyRadianceMap);
         } else if (index == 9) result = hexSkyRadiance(vec3(0,1,0));
         else if (index == 10) {
           // These directions already have known azimuths. Avoid a cos/sin ->

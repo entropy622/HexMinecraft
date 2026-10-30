@@ -85,10 +85,18 @@ The host retains linear-sRGB lighting, its atlas, tangent-frame derivatives,
 and its shared reflection buffers. POM and generic material SSS remain separate
 work. These derived portions retain Photon's license.
 
+Since 0.108, `src/photon-skylight.js` adapts the 256-point R2 hemisphere
+projection from `program/d4a_generate_sky_sh.csh` and the sampling/random/SH
+utilities. The host converts coefficient ordering and the last two source
+basis normalizations for Three.js's standard real-SH irradiance evaluator.
+Its clear-air sky map and shared asynchronous publication remain in use;
+cloud/analytic-fog feedback into the sky map is not yet included.
+These derived portions retain Photon's license.
+
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
 snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;
 direct sunlight uses the source analytic Chapman approximation. Local air retains
-the host's linear-sRGB integration and weather aerosol multiplier. Full-sphere
-SH and the existing celestial artwork/geometry remain host adaptations. This is
+the host's linear-sRGB integration and weather aerosol multiplier. WebGL SH
+reduction and the existing celestial artwork/geometry remain host adaptations. This is
 not a port of the whole Photon shader pack.

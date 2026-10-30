@@ -6,6 +6,11 @@ import {
   skyRadianceGLSL,
 } from '../../src/sky-atmosphere.js';
 import { applySkylight } from '../../src/skylight.js';
+import {
+  sampleSkyMap,
+  sourceSkyProject,
+  sourceSkyIrradiance,
+} from './photon-skylight-oracle.js';
 
 export function createSkySampler(graphics) {
   const renderer = graphics.renderer,
@@ -197,6 +202,13 @@ export async function skyContracts(graphics) {
       renderer.setRenderTarget(atmosphere.targets[1]);
       quad.render(renderer);
       renderer.setRenderTarget(previous);
+      const map = atmosphere.targets[1],
+        rawMap = new Uint16Array(map.width * map.height * 4);
+      renderer.readRenderTargetPixels(map, 0, 0, map.width, map.height, rawMap);
+      const mapValues = Array.from(rawMap, THREE.DataUtils.fromHalfFloat);
+      const source = sourceSkyProject((d) =>
+        sampleSkyMap(mapValues, map.width, map.height, d),
+      );
       await atmosphere.project(renderer);
       const samples = [];
       let maxError = 0,
@@ -212,11 +224,8 @@ export async function skyContracts(graphics) {
           renderer.setRenderTarget(output);
           renderer.render(scene, camera);
           const rgb = read(),
-            cosine = normal.reduce((sum, v, i) => sum + v * spec.axis[i], 0),
-            expected = spec.base.map(
-              (base, i) =>
-                0.025 / Math.PI +
-                gate * (base + (2 / 3) * spec.slope[i] * cosine),
+            expected = sourceSkyIrradiance(source, normal).map(
+              (v) => (0.025 + gate * Math.max(0, v)) / Math.PI,
             );
           rgb.forEach((v, c) => {
             if (!Number.isFinite(v) || v < 0) invalid++;
