@@ -25,6 +25,7 @@ export function createPostprocessing(
   fluids,
   weatherUniforms,
   foliageUniforms,
+  skyUniforms,
 ) {
   const target = new WebGLRenderTarget(innerWidth, innerHeight, {
     type: HalfFloatType,
@@ -38,7 +39,7 @@ export function createPostprocessing(
     cloudUniforms,
     foliageUniforms,
   );
-  const wet = new WetSurfacePass(camera, frame, weatherUniforms);
+  const wet = new WetSurfacePass(camera, frame, weatherUniforms, skyUniforms);
   const protection = new SurfaceProtectionPass(scene, camera, frame, wet);
   const contact = new ContactOcclusionPass(camera, frame, protection);
   const temporal = new TemporalResolvePass(renderer, camera, frame, protection);

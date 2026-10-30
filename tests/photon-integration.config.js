@@ -5,6 +5,9 @@ import atmosphere from './atmosphere.playwright.config.js';
 export default defineConfig({
   ...atmosphere,
   testMatch: [
+    'surface-reflections.spec.js',
+    'wet-surfaces.spec.js',
+    'water-interface.spec.js',
     'photon-specular.spec.js',
     'native-surface-optics.spec.js',
     'surface-diffuse.spec.js',

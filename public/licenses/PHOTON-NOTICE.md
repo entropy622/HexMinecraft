@@ -59,6 +59,15 @@ finite degenerate/smooth limits. `surface-optics.js` maps native block IDs;
 no upstream material-mask or labPBR texture decoder is assumed. These derived
 portions retain Photon's license.
 
+Since 0.105, `src/surface-reflection.js` adapts the visible-normal GGX sampler,
+Smith reflection weights, interleaved gradient noise, fixed-material reflection
+mask and skylight fallback from `lighting/specular_lighting.glsl` and
+`utility/dithering.glsl`. The host extends its existing same-frame wet-surface
+tracer to eligible opaque surfaces, with four rough rays and shared sky radiance.
+It uses compact material attachments in the existing protection draw; source
+history reprojection, reflected fog correction and color mip filtering are not
+included. These derived portions retain Photon's license.
+
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
 snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;

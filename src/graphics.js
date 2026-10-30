@@ -6,7 +6,10 @@ import {
   plantMaterials,
 } from './foliage-shader.js';
 import { LeafParticles } from './leaf-particles.js';
-import { surfaceOpticsClass } from './surface-optics.js';
+import {
+  surfaceOpticsClass,
+  reflectiveSurfaceClass,
+} from './surface-optics.js';
 import { SUN_RADIUS, MOON_RADIUS } from './sky-transport.js';
 import { CaveAmbience } from './cave-ambience.js';
 import { DripstoneEffects } from './dripstone-effects.js';
@@ -362,6 +365,7 @@ export class Graphics {
         this.fluidRenderer,
         this.weatherUniforms,
         this.leafUniforms,
+        this.skyEnvironment.uniforms,
       );
     if (!this.usePost && this.composer) {
       disposePostprocessing(this.composer);
@@ -676,7 +680,10 @@ export class Graphics {
         out.sky.push(1);
         out.rain.push(rainExposure);
         out.porosity.push(porosity);
-        if (out.optics) out.optics.push(opticalClass);
+        if (out.optics) {
+          out.optics.push(opticalClass);
+          out.reflections ||= reflectiveSurfaceClass(opticalClass);
+        }
         out.uv.push(...this.textures.uv(tile, ...uvs[i]));
         const color = out.ao ? shade : shade * ao[i];
         out.c.push(color, color, color);
@@ -999,6 +1006,7 @@ export class Graphics {
     }
     mesh.geometry = geometry(solid);
     mesh.material = this.material;
+    mesh.userData.surfaceReflection = !!solid.reflections;
     mesh.position.set(origin.x, 0, origin.z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -1816,7 +1824,11 @@ export class Graphics {
         this.composer.effects.contact.enabled =
           this.postOptions.occlusion > 0 && !submerged;
         this.composer.effects.wet.enabled =
-          this.weatherUniforms.terrainWetness.value > 0.001 && !submerged;
+          (this.weatherUniforms.terrainWetness.value > 0.001 ||
+            this.world.dimension === 'overworld') &&
+          !submerged;
+        this.composer.effects.wet.material.uniforms.environmentStrength.value =
+          this.world.dimension === 'overworld' && !submerged ? 1 : 0;
         temporal = this.composer.effects.temporal;
         this.composer.effects.protection.enabled =
           this.composer.effects.contact.enabled ||

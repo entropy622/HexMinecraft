@@ -1,6 +1,8 @@
 import { ShaderMaterial } from 'three';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { BLOCKS } from './core.js';
+import { photonSpecularGLSL } from './photon-specular.js';
+import { surfaceReflectionGLSL } from './surface-reflection.js';
 
 export function wetPorosity(type) {
   if (['snow', 'powderSnow'].includes(type) || BLOCKS[type]?.light) return 1;
@@ -36,7 +38,7 @@ float wetCoverage(vec3 world, float upward, float exposure, float porosity, floa
 
 // Same-frame screen-space reflection, sharing the protection mask's B channel.
 export class WetSurfacePass extends Pass {
-  constructor(camera, frame, weather) {
+  constructor(camera, frame, weather, sky) {
     super();
     this.weather = weather;
     this.material = new ShaderMaterial({
@@ -55,15 +57,23 @@ export class WetSurfacePass extends Pass {
         wetSky: weather.wetSky,
         rain: weather.terrainRain,
         wetTime: weather.waterTime,
+        surfaceAlbedo: { value: null },
+        surfaceGeometry: { value: null },
+        environmentSky: sky.skyRadianceMap,
+        environmentStrength: { value: 1 },
+        environmentFrame: { value: 0 },
       },
       vertexShader: /* glsl */ `varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
       fragmentShader: /* glsl */ `
       varying vec2 vUv;
       uniform sampler2D sceneColor, sceneDepth, surfaceMask;
+      uniform sampler2D surfaceAlbedo,surfaceGeometry,environmentSky;
       uniform mat4 wetProjection, wetInverse, wetView, wetWorld;
       uniform vec3 wetSky;
       uniform float rain, wetTime;
+      uniform float environmentStrength,environmentFrame;
       ${wetCoverageGLSL}
+      ${photonSpecularGLSL}
       vec3 wetViewPosition(vec2 uv, float depth) {
         vec4 p=wetInverse*vec4(uv*2.0-1.0,depth*2.0-1.0,1.0);return p.xyz/p.w;
       }
@@ -117,15 +127,22 @@ export class WetSurfacePass extends Pass {
         }
         return vec4(0.0);
       }
+      ${surfaceReflectionGLSL}
       void main() {
-        vec4 base=texture2D(sceneColor,vUv);float coverage=texture2D(surfaceMask,vUv).b;
-        if(coverage<0.001){gl_FragColor=base;return;}
+        vec4 base=texture2D(sceneColor,vUv),mask=texture2D(surfaceMask,vUv);
+        float coverage=mask.b;
+        vec4 optical=texture2D(surfaceAlbedo,vUv);
+        if(mask.r>0.5||(coverage<0.001&&(environmentStrength<=0.0||optical.a<0.001))){gl_FragColor=base;return;}
         float depth=texture2D(sceneDepth,vUv).r;
         if(depth>=0.999999){gl_FragColor=base;return;}
         vec3 position=wetViewPosition(vUv,depth);
+        vec3 view=normalize(-position);
+        vec3 environment=surfaceEnvironment(position,view,optical,texture2D(surfaceGeometry,vUv));
+        base.rgb+=environment*(1.0-coverage);
+        if(coverage<0.001){gl_FragColor=base;return;}
         vec3 world=(wetWorld*vec4(position,1.0)).xyz;
         vec3 normalWorld=puddleNormal(world.xz);
-        vec3 normal=normalize(mat3(wetView)*normalWorld),view=normalize(-position);
+        vec3 normal=normalize(mat3(wetView)*normalWorld);
         vec3 ray=reflect(-view,normal),rayWorld=mat3(wetWorld)*ray;
         vec3 sky=wetSky*mix(0.65,1.3,smoothstep(0.0,0.75,rayWorld.y));
         vec4 hit=reflectedScene(position+normal*0.045,ray);
@@ -137,6 +154,8 @@ export class WetSurfacePass extends Pass {
     this.quad = new FullScreenQuad(this.material);
   }
   render(renderer, writeBuffer, readBuffer) {
+    this.material.uniforms.environmentFrame.value =
+      (this.material.uniforms.environmentFrame.value + 1) % 64;
     this.material.uniforms.sceneColor.value = readBuffer.texture;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     this.quad.render(renderer);

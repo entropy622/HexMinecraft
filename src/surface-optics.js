@@ -21,3 +21,6 @@ export function surfaceOpticsClass(type, definition = {}) {
   if (definition.shape === 'flower') return 2;
   return classes[base] ?? 0;
 }
+
+export const reflectiveSurfaceClass = (category) =>
+  category === 8 || category === 11 || category === 12 || category === 13;
