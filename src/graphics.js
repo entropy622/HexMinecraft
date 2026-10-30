@@ -11,6 +11,7 @@ import {
   reflectiveSurfaceClass,
 } from './surface-optics.js';
 import { SUN_RADIUS, MOON_RADIUS } from './sky-transport.js';
+import { biomeTintKind } from './biome-colors.js';
 import { CaveAmbience } from './cave-ambience.js';
 import { DripstoneEffects } from './dripstone-effects.js';
 import { pillarFace } from './pillar-faces.js';
@@ -419,8 +420,29 @@ export class Graphics {
       this.scene,
       this.renderer.capabilities.maxTextureSize,
     );
+    this.refreshBiomeTints();
     this.renderer.shadowMap.needsUpdate = true;
     this.composer?.effects.temporal.reset();
+  }
+  refreshBiomeTints() {
+    if (!this.world) return;
+    this.scene.traverse((object) => {
+      const geometry = object.geometry,
+        ranges = geometry?.userData.biomeRanges,
+        tint = geometry?.attributes.biomeTint;
+      if (!ranges || !tint) return;
+      for (let i = 0; i < ranges.length; i += 5) {
+        const rgba = this.textures.biomes.tint(
+          this.world,
+          ranges[i],
+          ranges[i + 1],
+          ranges[i + 4],
+        );
+        for (let vertex = ranges[i + 2]; vertex < ranges[i + 3]; vertex++)
+          tint.array.set(rgba, vertex * 4);
+      }
+      tint.needsUpdate = true;
+    });
   }
   chunkKey(q, r) {
     return `${Math.floor(q / 8)},${Math.floor(r / 8)}`;
@@ -641,6 +663,8 @@ export class Graphics {
       world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
     const solid = {
+        biome: [],
+        biomeRanges: [],
         p: [],
         optics: [],
         c: [],
@@ -651,6 +675,8 @@ export class Graphics {
         porosity: [],
       },
       leaves = {
+        biome: [],
+        biomeRanges: [],
         p: [],
         c: [],
         ao: [],
@@ -662,6 +688,8 @@ export class Graphics {
       },
       glass = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
       plants = {
+        biome: [],
+        biomeRanges: [],
         p: [],
         c: [],
         leafRanges: [],
@@ -675,7 +703,9 @@ export class Graphics {
     let out = solid,
       rainExposure = 0,
       porosity = 1,
-      opticalClass = 0;
+      opticalClass = 0,
+      biomeQ = 0,
+      biomeR = 0;
     const shaped = [];
     const chestCells = [];
     const enchantCells = [];
@@ -693,11 +723,31 @@ export class Graphics {
         }
       }
     const tri = (verts, uvs, tile, shade = 1, ao = [1, 1, 1]) => {
+      let tint = null;
+      if (out.biome) {
+        const kind = biomeTintKind(tile);
+        tint = this.textures.biomes.tint(world, biomeQ, biomeR, kind);
+        if (kind) {
+          const ranges = out.biomeRanges,
+            start = out.p.length / 3,
+            n = ranges.length;
+          if (
+            n &&
+            ranges[n - 5] === biomeQ &&
+            ranges[n - 4] === biomeR &&
+            ranges[n - 2] === start &&
+            ranges[n - 1] === kind
+          )
+            ranges[n - 2] = start + 3;
+          else ranges.push(biomeQ, biomeR, start, start + 3, kind);
+        }
+      }
       for (let i = 0; i < 3; i++) {
         out.p.push(...verts[i]);
         out.sky.push(1);
         out.rain.push(rainExposure);
         out.porosity.push(porosity);
+        if (tint) out.biome.push(...tint);
         if (out.optics) {
           out.optics.push(opticalClass);
           out.reflections ||= reflectiveSurfaceClass(opticalClass);
@@ -727,6 +777,8 @@ export class Graphics {
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
           if (!type) continue;
+          biomeQ = q;
+          biomeR = r;
           if (isStorage(type) && !BLOCKS[type].shape) {
             chestCells.push([q, y, r]);
             continue;
@@ -822,6 +874,8 @@ export class Graphics {
           const axis = BLOCKS[type].pillar ? world.state(q, y, r).axis || 0 : 0;
           const blockFace = (vertices, uv, side, shade = 1, ao = [1, 1, 1]) => {
             let tile = type + (side < 0 ? ':top' : ':side');
+            if (type === 'grass' && side < 0 && vertices[0][1] === y)
+              tile = 'dirt:side';
             if (type === 'redstoneLamp' && world.state(q, y, r).powered)
               tile = 'redstoneLampOn' + (side < 0 ? ':top' : ':side');
             if (axis) {
@@ -978,6 +1032,13 @@ export class Graphics {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(data.p, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(data.c, 3));
+      if (data.biome) {
+        g.setAttribute(
+          'biomeTint',
+          new THREE.Uint8BufferAttribute(data.biome, 4, true),
+        );
+        g.userData.biomeRanges = new Int32Array(data.biomeRanges);
+      }
       if (data.optics)
         g.setAttribute(
           'surfaceOptics',

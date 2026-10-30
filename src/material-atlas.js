@@ -1,6 +1,8 @@
 import { DataTexture, NearestFilter, RGBAFormat, Vector2 } from 'three';
 import { materialNames } from './material-pack.js';
 import { BLOCKS } from './core.js';
+import { effectImage } from './texture-pack.js';
+import { BiomeColors, TINT_BASES, biomeTintKind } from './biome-colors.js';
 
 export function installMaterialAtlas(textures, tiles, names) {
   const rows = Math.ceil(names.length / 8),
@@ -18,7 +20,63 @@ export function installMaterialAtlas(textures, tiles, names) {
     surfacePackSpecular: { value: null },
     surfacePackFlags: { value: null },
     surfacePackGrid: { value: new Vector2(8, rows) },
+    biomeGrassOverlay: { value: null },
+    biomeTileSize: { value: 16 },
   };
+  const readImage = (image) => {
+    if (!image) return null;
+    const c = document.createElement('canvas');
+    c.width = image.width;
+    c.height = image.height;
+    c.getContext('2d').drawImage(image, 0, 0);
+    return {
+      width: c.width,
+      height: c.height,
+      data: c.getContext('2d').getImageData(0, 0, c.width, c.height).data,
+    };
+  };
+  const nativeOverlay = readImage(
+    effectImage('mcl_core_grass_block_side_overlay'),
+  ) || { width: 1, height: 1, data: new Uint8Array(4) };
+  textures.biomes = new BiomeColors({
+    grass: readImage(effectImage('mcl_core_palette_grass')),
+    foliage: readImage(effectImage('mcl_core_palette_foliage')),
+  });
+  let overlayTexture = null,
+    overlaySource = nativeOverlay;
+  function prepareOverlay(image) {
+    const size = Math.min(64, image.width),
+      raw = new Uint8Array(size * size * 4),
+      tinted = new Uint8ClampedArray(raw.length),
+      canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const sx = Math.floor((x * image.width) / size),
+          sy = Math.floor((y * image.width) / size),
+          pixel = image.data.subarray(
+            (sy * image.width + sx) * 4,
+            (sy * image.width + sx) * 4 + 4,
+          );
+        raw.set(pixel, ((size - 1 - y) * size + x) * 4);
+        tinted.set(
+          [
+            (pixel[0] * TINT_BASES[4][0]) / 255,
+            (pixel[1] * TINT_BASES[4][1]) / 255,
+            (pixel[2] * TINT_BASES[4][2]) / 255,
+            pixel[3],
+          ],
+          (y * size + x) * 4,
+        );
+      }
+    canvas
+      .getContext('2d')
+      .putImageData(new ImageData(tinted, size, size), 0, 0);
+    const texture = new DataTexture(raw, size, size, RGBAFormat);
+    texture.minFilter = texture.magFilter = NearestFilter;
+    texture.needsUpdate = true;
+    return { texture, canvas };
+  }
   const index = new Map(names.map((name, i) => [name, i]));
   const imageFor = (next, name, channel) =>
     materialNames(name)
@@ -125,6 +183,9 @@ export function installMaterialAtlas(textures, tiles, names) {
       color.height = nextLayout.height;
       const ctx = color.getContext('2d');
       ctx.imageSmoothingEnabled = false;
+      const nextOverlay =
+        next?.images.get('grass_block_side_overlay:color') || nativeOverlay;
+      const overlay = prepareOverlay(nextOverlay);
       const nData = next?.hasNormals
           ? new Uint8Array(color.width * color.height * 4)
           : null,
@@ -136,7 +197,9 @@ export function installMaterialAtlas(textures, tiles, names) {
         sourceCanvases = new Map();
       names.forEach((name, i) => {
         const image = imageFor(next, name, 'color');
-        let tile = tiles.get(name).canvas;
+        let tile =
+          (name === 'grass:side' ? tiles.get(name).bare : null) ||
+          tiles.get(name).canvas;
         if (image) {
           if (!sourceCanvases.has(image))
             sourceCanvases.set(image, canvasFor(image));
@@ -145,19 +208,22 @@ export function installMaterialAtlas(textures, tiles, names) {
         const x = (i % 8) * size * 2 + size / 2,
           y = Math.floor(i / 8) * size * 2 + size / 2;
         ctx.drawImage(tile, 0, 0, tile.width, tile.height, x, y, size, size);
+        if (name === 'grass:side')
+          ctx.drawImage(overlay.canvas, x, y, size, size);
         const [id, face] = name.split(':'),
           tint =
             id === 'leaves'
               ? '#79a94d'
               : BLOCKS[id]?.leafTint ||
                 (id === 'grass' && face === 'top' ? '#91b95d' : null);
-        if (image && tint) {
+        const importTint = tint || (id === 'tuft' ? '#91b95d' : null);
+        if (image && importTint) {
           const tinted = document.createElement('canvas');
           tinted.width = tinted.height = size;
           const t = tinted.getContext('2d');
           t.drawImage(tile, 0, 0, tile.width, tile.height, 0, 0, size, size);
           t.globalCompositeOperation = 'multiply';
-          t.fillStyle = tint;
+          t.fillStyle = importTint;
           t.fillRect(0, 0, size, size);
           t.globalCompositeOperation = 'destination-in';
           t.drawImage(tile, 0, 0, tile.width, tile.height, 0, 0, size, size);
@@ -221,6 +287,12 @@ export function installMaterialAtlas(textures, tiles, names) {
           geometries.add(o.geometry);
       });
       for (const geometry of geometries) {
+        if (layout.size === nextLayout.size) {
+          if (!next)
+            for (const name of ['uv', 'sawNextUV', 'sawLastUV'])
+              delete geometry.userData['packBase_' + name];
+          continue;
+        }
         for (const name of ['uv', 'sawNextUV', 'sawLastUV']) {
           const uv = geometry.attributes[name];
           if (!uv) continue;
@@ -269,6 +341,12 @@ export function installMaterialAtlas(textures, tiles, names) {
       textures.atlas.image = color;
       textures.atlas.needsUpdate = true;
       textures.canvas = color;
+      overlayTexture?.dispose();
+      overlayTexture = overlay.texture;
+      overlaySource = nextOverlay;
+      uniforms.biomeGrassOverlay.value = overlayTexture;
+      uniforms.biomeTileSize.value = size;
+      textures.biomes.setPack(next);
       revision++;
       normal?.dispose();
       specular?.dispose();
@@ -322,6 +400,41 @@ export function installMaterialAtlas(textures, tiles, names) {
         layout.size,
         layout.size,
       );
+      const kind = biomeTintKind(name);
+      if (kind) {
+        const ctx = c.getContext('2d'),
+          pixels = ctx.getImageData(0, 0, c.width, c.height),
+          target = textures.biomes.color(
+            '青翠平原',
+            kind === 2 || kind === 3 ? 'foliage' : 'grass',
+          ),
+          base = TINT_BASES[kind];
+        for (let y = 0; y < c.height; y++)
+          for (let x = 0; x < c.width; x++) {
+            const p = (y * c.width + x) * 4,
+              ox = Math.min(
+                overlaySource.width - 1,
+                Math.floor((x * overlaySource.width) / c.width),
+              ),
+              oy = Math.min(
+                overlaySource.width - 1,
+                Math.floor((y * overlaySource.width) / c.height),
+              ),
+              op = (oy * overlaySource.width + ox) * 4;
+            for (let channel = 0; channel < 3; channel++)
+              pixels.data[p + channel] =
+                kind === 4
+                  ? pixels.data[p + channel] +
+                    (((overlaySource.data[op + channel] *
+                      overlaySource.data[op + 3]) /
+                      255) *
+                      (target[channel] - base[channel])) /
+                      255
+                  : (pixels.data[p + channel] * target[channel]) /
+                    base[channel];
+          }
+        ctx.putImageData(pixels, 0, 0);
+      }
       return c;
     },
     uv(name, u, v) {

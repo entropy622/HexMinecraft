@@ -4,6 +4,12 @@
 
 [在线游玩](https://entropy622.github.io/HexMinecraft/) · [操作说明](#操作) · [本地开发](#开发与验证)
 
+## 0.109：群系植被颜色
+
+平原、森林、丛林、沙漠和雪原的草地、草丛及橡树/丛林树叶开始使用群系颜色，相邻群系在六边形半径 2 内混合。暂停菜单的资源包导入同时支持草地/树叶颜色表，包括只有颜色表的 ZIP；白桦与云杉保留固定树种颜色。草侧只改绿色覆盖层，底面使用泥土。
+
+同一颜色进入叶片透光与材质反射，固定森林比原先统一的叶色更绿。晨景时刻、曝光、视距 10 和晴天雾 87.32～118 保持；云型、冠层结构及完整 Photon 参考效果继续完善。[支持范围、来源与画面对照](docs/biome-colors-verification.md)。
+
 ## 0.108：Photon 上半球天光
 
 环境天光改用 Photon 的 256 点上半球采样，并将源球谐排列及权重转换到 Three 的照明通道；天空、树叶、云与空气仍共用已发布的照明快照，无新增渲染目标。固定晨景里的颜色变化有限，森林整体光色与冠层形态继续校准。[来源与同镜头对照](docs/hemisphere-skylight-verification.md)。
@@ -1037,6 +1043,6 @@ Pages 使用 GitHub Actions，产物目录为 `dist/`。Vite 使用相对路径�
 
 ## 许可
 
-项目原创代码为 [MIT](LICENSE)。0.99 的 Photon 散射表和改编天空函数保留 [Photon 原许可](public/licenses/photon.txt)，映射部分保留 [Bruneton BSD 许可](public/licenses/bruneton.txt)，具体范围见 [天空来源说明](public/licenses/PHOTON-NOTICE.md)。291 张已打包的像素材质与物品图标来自 XSSheep / VoxeLibre 的 Pixel Perfection 素材（270 张使用 CC BY-SA 3.0，21 张生物、村民与生物投射物皮肤使用 CC BY-SA 4.0），来源、作者与运行时改动见 [素材署名](public/textures/NOTICE.md)。奇幻材质保留程序绘制，其他物品图标使用 Lucide（ISC 许可）。所有素材随应用打包，无外部 CDN 请求。Three.js、Vite、Playwright、Prettier 的许可归各项目所有。界面使用系统字体，无字体 CDN 依赖。
+项目原创代码为 [MIT](LICENSE)。0.99 的 Photon 散射表和改编天空函数保留 [Photon 原许可](public/licenses/photon.txt)，映射部分保留 [Bruneton BSD 许可](public/licenses/bruneton.txt)，具体范围见 [天空来源说明](public/licenses/PHOTON-NOTICE.md)。293 张已打包的像素材质与物品图标来自 XSSheep / VoxeLibre 的 Pixel Perfection 素材（272 张使用 CC BY-SA 3.0，21 张生物、村民与生物投射物皮肤使用 CC BY-SA 4.0），来源、作者与运行时改动见 [素材署名](public/textures/NOTICE.md)。奇幻材质保留程序绘制，其他物品图标使用 Lucide（ISC 许可）。所有素材随应用打包，无外部 CDN 请求。Three.js、Vite、Playwright、Prettier 的许可归各项目所有。界面使用系统字体，无字体 CDN 依赖。
 
 与 Mojang、Microsoft 无关联。

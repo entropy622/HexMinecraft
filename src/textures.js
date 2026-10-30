@@ -321,7 +321,13 @@ export function createTextures(maxTextureSize = 16384) {
           h = 4 + Math.floor(rand(i, 3) * 9);
         for (let y = 15; y > 15 - h; y--)
           fill(
-            i % 2 ? '#619c35' : '#37732c',
+            id === 'tuft'
+              ? i % 2
+                ? '#91b95d'
+                : '#668241'
+              : i % 2
+                ? '#619c35'
+                : '#37732c',
             x + Math.floor((15 - y) / 5) * (i % 2 ? 1 : -1),
             y,
             2,
@@ -508,7 +514,15 @@ export function createTextures(maxTextureSize = 16384) {
         PAD,
         PAD,
       );
-    tiles.set(name, { x: ox, y: oy, canvas: tile });
+    let bare = null;
+    if (id === 'grass' && !top) {
+      bare = document.createElement('canvas');
+      bare.width = bare.height = 16;
+      const b = bare.getContext('2d');
+      b.drawImage(tile, 0, 0);
+      paintPackTile(b, id, top, false);
+    }
+    tiles.set(name, { x: ox, y: oy, canvas: tile, bare });
   });
   const setup = (t) => {
     t.colorSpace = THREE.SRGBColorSpace;
@@ -543,7 +557,6 @@ export function createTextures(maxTextureSize = 16384) {
       texture.needsUpdate = true;
     }
   };
-  if (currentMaterialPack())
-    materials.apply(currentMaterialPack(), null, maxTextureSize);
+  materials.apply(currentMaterialPack(), null, maxTextureSize);
   return result;
 }

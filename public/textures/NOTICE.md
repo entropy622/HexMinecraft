@@ -19,6 +19,15 @@ at runtime to fit the hexagonal world. Those derived texture tiles retain the
 same CC BY-SA 3.0 license. Source images are supplied alongside the application.
 Original procedural fantasy tiles and application code remain MIT licensed.
 
+Version 0.109 adds two unmodified 16 x 16 indexed palette images from the
+same pinned VoxeLibre revision: `mcl_core_palette_grass.png` and
+`mcl_core_palette_foliage.png`. These follow the upstream general CC BY-SA 3.0
+media terms. Runtime grass, foliage, atlas tiles and projected inventory icons
+derived from these palettes retain CC BY-SA 3.0. Native biome palette indices
+are independently mapped to this game's biomes; no upstream gameplay code is
+bundled. Selected media now totals 293 PNGs: 272 under CC BY-SA 3.0 and 21
+under CC BY-SA 4.0.
+
 Version 0.82 reuses the existing white wool and sheep skin images. Runtime
 colored wool tiles and their hex-projected icons retain CC BY-SA 3.0;
 colored sheep coat and undercoat views retain the mob media's CC BY-SA 4.0.

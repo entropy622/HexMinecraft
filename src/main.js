@@ -251,7 +251,7 @@ const materialControls = document.createElement('fieldset');
 materialControls.className = 'post-settings';
 materialControls.id = 'material-pack-settings';
 materialControls.innerHTML =
-  '<legend>方块资源包</legend><div class="two-col"><button id="material-pack-import">导入 ZIP</button><button id="material-pack-reset">恢复默认材质</button></div><input class="hidden" id="material-pack-file" type="file" accept=".zip,application/zip"><p id="material-pack-status" class="panel-note" role="status"></p><p class="panel-note">支持 Minecraft 方块颜色与 labPBR 法线、镜面贴图。缺失部分沿用默认材质；最高 64×，动画暂取首帧。资源包保存在本浏览器。</p>';
+  '<legend>方块资源包</legend><div class="two-col"><button id="material-pack-import">导入 ZIP</button><button id="material-pack-reset">恢复默认材质</button></div><input class="hidden" id="material-pack-file" type="file" accept=".zip,application/zip"><p id="material-pack-status" class="panel-note" role="status"></p><p class="panel-note">支持 Minecraft 方块、群系颜色表与 labPBR 法线、镜面贴图。缺失部分沿用默认材质；最高 64×，动画暂取首帧。资源包保存在本浏览器。</p>';
 $('#post-settings').after(materialControls);
 const packStatus = $('#material-pack-status'),
   packImport = $('#material-pack-import'),

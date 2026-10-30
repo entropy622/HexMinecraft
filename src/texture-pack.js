@@ -495,6 +495,8 @@ export async function loadTexturePack() {
     ...Object.values(plantTextures).flat(),
     ...mobTextures,
     'mcl_core_grass_block_side_overlay',
+    'mcl_core_palette_grass',
+    'mcl_core_palette_foliage',
     'mcl_bows_bow_0',
     'mcl_bows_bow_1',
     'mcl_bows_bow_2',
@@ -522,7 +524,7 @@ export async function loadTexturePack() {
     ),
   );
 }
-export function paintPackTile(ctx, id, top) {
+export function paintPackTile(ctx, id, top, grassOverlay = true) {
   if (paintJungle(ctx, id, top)) return;
   if (id === 'powderSnow') {
     paintPackTile(ctx, 'snow', top);
@@ -591,7 +593,7 @@ export function paintPackTile(ctx, id, top) {
     }
     ctx.globalCompositeOperation = 'source-over';
   }
-  if (id === 'grass' && !top) {
+  if (id === 'grass' && !top && grassOverlay) {
     const overlay = images.get('mcl_core_grass_block_side_overlay');
     if (!overlay) return;
     const tint = document.createElement('canvas');

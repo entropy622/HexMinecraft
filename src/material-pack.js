@@ -169,27 +169,38 @@ export async function decodeMaterialPack(file) {
       ['top', 'side'].flatMap((face) => materialNames(id + ':' + face)),
     ),
   );
-  for (const stem of ['short_grass', 'dandelion', 'water_still', 'lava_still'])
+  for (const stem of [
+    'short_grass',
+    'dandelion',
+    'water_still',
+    'lava_still',
+    'grass_block_side_overlay',
+  ])
     wanted.add(stem);
   const chosen = new Map();
   let total = 0;
   const entries = unzipSync(new Uint8Array(await file.arrayBuffer()), {
     filter(entry) {
-      const match = entry.name
-        .toLowerCase()
-        .replaceAll('\\', '/')
-        .match(
-          /(?:^|\/)assets\/minecraft\/textures\/blocks?\/([a-z0-9_]+)\.png$/,
-        );
-      if (!match) return false;
-      const stem = match[1].replace(/_[ns]$/, ''),
-        channel = match[1].endsWith('_n')
-          ? 'normal'
-          : match[1].endsWith('_s')
-            ? 'specular'
-            : 'color';
-      if (!wanted.has(stem)) return false;
-      const key = stem + ':' + channel;
+      const path = entry.name.toLowerCase().replaceAll('\\', '/');
+      const colorMap = path.match(
+        /(?:^|\/)assets\/minecraft\/textures\/colormap\/(grass|foliage)\.png$/,
+      );
+      const match = path.match(
+        /(?:^|\/)assets\/minecraft\/textures\/blocks?\/([a-z0-9_]+)\.png$/,
+      );
+      if (!match && !colorMap) return false;
+      const stem = colorMap ? colorMap[1] : match[1].replace(/_[ns]$/, ''),
+        channel = colorMap
+          ? 'palette'
+          : match[1].endsWith('_n')
+            ? 'normal'
+            : match[1].endsWith('_s')
+              ? 'specular'
+              : 'color';
+      if (!colorMap && !wanted.has(stem)) return false;
+      if (stem === 'grass_block_side_overlay' && channel !== 'color')
+        return false;
+      const key = colorMap ? 'colormap:' + stem : stem + ':' + channel;
       if (chosen.has(key)) throw Error('资源包有重复方块贴图：' + stem);
       if (
         entry.originalSize > 8 * 1024 * 1024 ||
@@ -233,11 +244,14 @@ export async function decodeMaterialPack(file) {
       )
         throw Error('方块贴图尺寸不受支持：' + path);
       const image = decodeMaterialPNG(bytes);
+      if (key.startsWith('colormap:') && (w !== 256 || h !== 256))
+        throw Error('群系颜色表必须为 256×256：' + path);
       images.set(key, image);
-      resolution = Math.max(
-        resolution,
-        2 ** Math.ceil(Math.log2(Math.min(64, w))),
-      );
+      if (!key.startsWith('colormap:'))
+        resolution = Math.max(
+          resolution,
+          2 ** Math.ceil(Math.log2(Math.min(64, w))),
+        );
     }
     // The same atlas cell must describe the same pixel grid for all channels.
     for (const [key, image] of images) {

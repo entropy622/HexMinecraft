@@ -69,17 +69,23 @@ function subsurfaceMaterials(atlas, weather, uniforms, thin) {
   // shadow depth without adding a second main/capture draw for every flower.
   material.userData.foliageDepthPrepass = !thin;
   material.defaultAttributeValues.leafAmbient = [0];
-  material.defaultAttributeValues.surfaceOptics = [thin ? 2 : 5];
   applyFoliageWind(material, uniforms, thin);
   const previous = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {
     previous.call(material, shader, renderer);
     shader.vertexShader =
       'attribute float leafAmbient; varying float vLeafAmbient;\n' +
-      shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
-      );
+      shader.vertexShader
+        // Generic vertex constants are shared GL state, not stored in a VAO.
+        // Cached draws can otherwise inherit the last plant/leaf class.
+        .replace(
+          'vSurfaceOptics=surfaceOptics;',
+          `vSurfaceOptics=${thin ? 2 : 5}.0;`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
+        );
     shader.fragmentShader =
       `#define HEX_LEAF_PRIMARY_SSS\n${thin ? '#define HEX_THIN_PLANT\n' : ''}varying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen; uniform float leafDepthOnly;\n${leafLightingGLSL}\n` +
       shader.fragmentShader

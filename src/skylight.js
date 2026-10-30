@@ -1,4 +1,4 @@
-import { ShaderChunk } from 'three';
+import { ShaderChunk, Vector2 } from 'three';
 import { waterLightingGLSL } from './water-lighting.js';
 import { surfaceIndirectGLSL } from './surface-indirect.js';
 import { photonSpecularGLSL } from './photon-specular.js';
@@ -6,6 +6,7 @@ import {
   materialPackGLSL,
   materialPackFragment,
 } from './material-pack-shader.js';
+import { biomeTintGLSL } from './biome-tint-shader.js';
 export const visionUniforms = { nightVision: { value: 0 } };
 
 // Both static surfaces and moving models use the same response to voxel light.
@@ -111,6 +112,7 @@ export function applySkylight(
       ...material.defaultAttributeValues,
       ambientOcclusion: [1],
       surfaceOptics: [0],
+      biomeTint: [0, 0, 0, 0],
     };
   const uniforms = sharedUniforms || {
     terrainWetness: { value: 0 },
@@ -120,16 +122,19 @@ export function applySkylight(
   uniforms.surfaceSpecular ??= { value: 1 };
   uniforms.surfaceLightRadius ??= { value: Math.PI / 90 };
   uniforms.surfacePackEnabled ??= { value: 0 };
+  uniforms.surfacePackGrid ??= { value: new Vector2(1, 1) };
+  uniforms.biomeGrassOverlay ??= { value: null };
+  uniforms.biomeTileSize ??= { value: 16 };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, visionUniforms);
     shader.vertexShader =
-      `${geometricShade ? 'attribute float ambientOcclusion; varying float vAmbientOcclusion; attribute float surfaceOptics; varying float vSurfaceOptics;\n' : ''}
+      `${geometricShade ? 'attribute vec4 biomeTint;varying vec4 vBiomeTint;attribute float ambientOcclusion; varying float vAmbientOcclusion; attribute float surfaceOptics; varying float vSurfaceOptics;\n' : ''}
       attribute float skylight; attribute float rainExposure; attribute float surfacePorosity; attribute vec3 blocklight;
       varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vSkylight = skylight;
-        ${geometricShade ? 'vAmbientOcclusion=clamp(ambientOcclusion,0.0,1.0);vSurfaceOptics=surfaceOptics;' : ''}
+        ${geometricShade ? 'vBiomeTint=biomeTint;vAmbientOcclusion=clamp(ambientOcclusion,0.0,1.0);vSurfaceOptics=surfaceOptics;' : ''}
         vBlockLight = blocklight;
         vPorosity = surfacePorosity;
         vWetTop = rainExposure * max(0.0, normal.y);
@@ -144,7 +149,10 @@ export function applySkylight(
           '#include <lights_pars_begin>',
           '#include <lights_pars_begin>\n' +
             (geometricShade
-              ? surfaceIndirectGLSL + photonSpecularGLSL + materialPackGLSL
+              ? surfaceIndirectGLSL +
+                photonSpecularGLSL +
+                materialPackGLSL +
+                biomeTintGLSL
               : ''),
         )
         .replace(
@@ -154,7 +162,10 @@ export function applySkylight(
         .replace(
           '#include <emissivemap_fragment>',
           '#include <emissivemap_fragment>\n' +
-            (geometricShade ? materialPackFragment : ''),
+            (geometricShade
+              ? '#ifdef USE_MAP\n diffuseColor.rgb=biomeSurfaceTint(diffuseColor.rgb,vMapUv);\n#endif\n' +
+                materialPackFragment
+              : ''),
         )
         .replace(
           '#include <color_fragment>',
@@ -195,6 +206,6 @@ export function applySkylight(
         );
   };
   material.customProgramCacheKey = () =>
-    'hex-colored-voxel-wet-sky-v12-labpbr-' + Number(geometricShade);
+    'hex-colored-voxel-wet-sky-v13-biome-' + Number(geometricShade);
   return uniforms;
 }
