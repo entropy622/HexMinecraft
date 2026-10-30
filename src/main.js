@@ -209,6 +209,7 @@ const isTouch = matchMedia('(pointer:coarse)').matches;
 $('#app').innerHTML = `
  <canvas id="world" aria-label="六野三维世界"></canvas>
  <div id="loading"><span class="brand-icon"></span><span>正在生成你的六边形世界</span></div>
+ <div id="render-recovery" class="hidden" role="status" aria-live="polite"><span id="render-recovery-message">正在恢复画面…</span><button id="render-recovery-retry" class="hidden">重试</button></div>
  <section id="landing">
   <header class="topline"><div class="brand"><span class="brand-icon"></span> HEXWILD</div><div class="pill"><i class="dot"></i> A HEXAGONAL SANDBOX</div></header>
   <div class="intro"><div class="eyebrow">SIX SIDES. ENDLESS POSSIBILITIES.</div><h1>HEXWILD</h1><h2 class="cn">六 野</h2><p class="desc">世界，换一个角度。<br>在六边形的旷野里，采集、创造、安一个家。<br>穿过森林、余烬与虚空。你的世界，没有终点。</p>
@@ -1362,6 +1363,7 @@ function readSave() {
   }
 }
 function lock() {
+  if (graphics.recovering) return;
   if (isTouch) {
     playing = true;
     return;
@@ -6694,6 +6696,28 @@ $('#sound-toggle').onclick = () => {
   soundFX.enabled = sound;
   $('#sound-toggle').textContent = sound ? '开启' : '关闭';
 };
+$('#render-recovery-retry').onclick = () => graphics.prepareRecovery();
+$('#world').addEventListener('renderrecoverychange', () => {
+  $('#render-recovery').classList.toggle('hidden', !graphics.recovering);
+  $('#render-recovery-message').textContent = graphics.recoveryError
+    ? '画面恢复失败，请重试。'
+    : '正在恢复画面…';
+  $('#render-recovery-retry').classList.toggle(
+    'hidden',
+    !graphics.recoveryError,
+  );
+  if (graphics.recovering) {
+    if (hasGame && !overlay) openOverlay('#pause-overlay');
+    else {
+      playing = false;
+      leftDown = false;
+      keys.clear();
+      motion.reset();
+      document.exitPointerLock?.();
+    }
+    soundFX.weather(0, false, false, false);
+  }
+});
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement === $('#world')) {
     playing = true;
@@ -6939,6 +6963,7 @@ function frame(now) {
   const dt =
     last === null ? 0 : Math.max(0, Math.min((now - last) / 1000, 0.25));
   last = now;
+  if (graphics.recovering) return;
   if (!hasGame) {
     soundFX.weather(0, false, false, false);
     menuTime += dt;

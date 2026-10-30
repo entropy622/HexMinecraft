@@ -48,6 +48,7 @@ import {
 } from './postprocessing.js';
 import { postSettings } from './render-settings.js';
 import { installPhotonOutput } from './photon-output.js';
+import { prepareRecoveredRenderer } from './render-recovery.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -85,6 +86,10 @@ function setFoliageAmbient(geometry, ranges) {
 // Counter-clockwise axial neighbors correspond to the outward side normals.
 export class Graphics {
   constructor(canvas) {
+    this.recovering = false;
+    this.recoveryGeneration = 0;
+    this.recovery = Promise.resolve(true);
+    this.recoveryError = null;
     this.quality = 1;
     this.postOptions = postSettings();
     this.renderer = new THREE.WebGLRenderer({
@@ -314,6 +319,10 @@ export class Graphics {
     this.camera.add(this.mainShield);
     this.scene.add(this.camera);
     canvas.addEventListener('webglcontextlost', () => {
+      this.recoveryGeneration++;
+      this.recovering = true;
+      this.recoveryError = null;
+      this.recoveryChanged();
       this.skyEnvironment.atmosphere.dispose();
       // Release the old context's disposal callbacks while it is still lost.
       // CPU geometry/images remain available for Three's next upload; otherwise
@@ -359,6 +368,34 @@ export class Graphics {
       this.resizeRendering();
     });
   }
+  recoveryChanged() {
+    this.renderer.domElement.dispatchEvent(new Event('renderrecoverychange'));
+  }
+  prepareRecovery() {
+    const generation = ++this.recoveryGeneration,
+      current = () =>
+        generation === this.recoveryGeneration &&
+        !this.renderer.getContext().isContextLost();
+    this.recovering = true;
+    this.recoveryError = null;
+    this.recoveryChanged();
+    this.recovery = prepareRecoveredRenderer(this, current)
+      .then((ready) => {
+        if (!ready || !current()) return false;
+        this.recovering = false;
+        this.recoveryChanged();
+        return true;
+      })
+      .catch((error) => {
+        if (current()) {
+          this.recoveryError = error;
+          console.error('Renderer recovery failed', error);
+          this.recoveryChanged();
+        }
+        return false;
+      });
+    return this.recovery;
+  }
   setQuality(value) {
     value = [0.65, 1, 1.7].includes(value) ? value : 1;
     this.quality = value;
@@ -402,6 +439,8 @@ export class Graphics {
       for (const material of materials)
         if (material) material.needsUpdate = true;
     });
+    if (this.recovering && !this.renderer.getContext().isContextLost())
+      this.prepareRecovery();
   }
   resizeRendering() {
     // Keep the canvas and every post-process buffer at the same pixel density.
@@ -418,6 +457,8 @@ export class Graphics {
     this.postOptions = postSettings(settings);
     if (this.composer)
       setPostprocessingOptions(this.composer, this.postOptions);
+    if (this.recovering && !this.renderer.getContext().isContextLost())
+      this.prepareRecovery();
   }
   applyMaterialPack(pack) {
     this.textures.materials.apply(
@@ -428,6 +469,8 @@ export class Graphics {
     this.refreshBiomeTints();
     this.renderer.shadowMap.needsUpdate = true;
     this.composer?.effects.temporal.reset();
+    if (this.recovering && !this.renderer.getContext().isContextLost())
+      this.prepareRecovery();
   }
   refreshBiomeTints() {
     if (!this.world) return;
@@ -512,6 +555,8 @@ export class Graphics {
     this.moonDisk.visible = world.dimension === 'overworld';
     this.scene.fog.near = world.dimension === 'nether' ? 15 : terrainFogNear;
     this.scene.fog.far = world.dimension === 'nether' ? 39 : terrainFogFar;
+    if (this.recovering && !this.renderer.getContext().isContextLost())
+      this.prepareRecovery();
   }
   sync(q, r, immediate = false) {
     const cq = Math.floor(q / 8),
@@ -1534,7 +1579,7 @@ export class Graphics {
     heldLight = playing ? this.heldKey : null,
     offhandLight = playing ? this.offhandKey : null,
   ) {
-    if (this.renderer.getContext().isContextLost()) return;
+    if (this.recovering || this.renderer.getContext().isContextLost()) return;
     sawClock.value = time;
     this.voxelLight.setHeld([heldLight, offhandLight], this.camera.position);
     this.updateVoxelLight(renderDt);

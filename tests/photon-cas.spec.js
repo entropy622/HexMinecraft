@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 import { oracleGrade } from './fixtures/photon-grading-oracle.js';
 import { oracleCas } from './fixtures/photon-cas-oracle.js';
@@ -240,6 +240,7 @@ test('CAS controls persist independently of temporal AA and color reset through 
     )
     .toBe(true);
   await page.evaluate(() => window.__casRestore.restoreContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(
       () =>

@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 import { assertFoliageRange } from './fixtures/far-sss-assert.js';
 
@@ -529,6 +529,7 @@ test('plant scattering follows native clouds, moon and wind and survives quality
   });
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restorePlantContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.plantRestored), { timeout: 30000 })
     .toBe(true);

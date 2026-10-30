@@ -222,6 +222,7 @@ test.describe('fractional DPR air volume', () => {
         });
         ext.loseContext();
       });
+      if (!(await g.recovery)) throw Error('Renderer recovery failed');
     });
     await page.evaluate(
       () =>

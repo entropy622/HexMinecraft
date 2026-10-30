@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 import {
   referenceScenes,
@@ -252,6 +252,7 @@ test('real quality controls, native seed import and device restoration rebuild c
   });
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restoreCoverageContext());
+  await waitForRecoveredRenderer(page);
   await ready(page);
   const restored = await sample(page);
   stages.push({

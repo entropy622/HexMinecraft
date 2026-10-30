@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { encode } from 'fast-png';
 import { zipSync } from 'three/addons/libs/fflate.module.js';
 import { writeFile } from 'node:fs/promises';
@@ -207,6 +207,7 @@ test('ZIP controls apply raw labPBR to native surfaces, persist, recover and rel
     r.forceContextLoss();
     setTimeout(() => r.forceContextRestore(), 500);
   });
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(
       () =>

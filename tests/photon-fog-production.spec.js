@@ -81,6 +81,54 @@ test('production rain and snow scenes render through native v16 imports and reta
         document.querySelector('#world').getContext('webgl2').getError(),
       ),
     ).toBe(0);
+    if (label === 'rain') {
+      // Exercise the shipped bundle through the canvas and visible UI only;
+      // the development API remains absent throughout restoration.
+      await page.evaluate(async () => {
+        const canvas = document.querySelector('#world'),
+          extension = canvas
+            .getContext('webgl2')
+            .getExtension('WEBGL_lose_context');
+        if (!extension) throw Error('WEBGL_lose_context unavailable');
+        window.productionRecoveryExtension = extension;
+        await new Promise((resolve) => {
+          canvas.addEventListener('webglcontextlost', resolve, { once: true });
+          extension.loseContext();
+        });
+      });
+      await expect(page.locator('#render-recovery')).toBeVisible();
+      await page.evaluate(async () => {
+        await new Promise((resolve) => {
+          document
+            .querySelector('#world')
+            .addEventListener('webglcontextrestored', resolve, { once: true });
+          window.productionRecoveryExtension.restoreContext();
+        });
+      });
+      await expect(page.locator('#render-recovery')).toBeHidden({
+        timeout: 120000,
+      });
+      await expect(page.locator('#pause-overlay')).toBeVisible();
+      expect(await page.evaluate(() => !!document.pointerLockElement)).toBe(
+        false,
+      );
+      const restoredAt = await page.evaluate(
+        () => window.__photonProbe.rendered,
+      );
+      await expect
+        .poll(() => page.evaluate(() => window.__photonProbe.rendered), {
+          timeout: 90000,
+        })
+        .toBeGreaterThan(restoredAt + 35);
+      expect(await page.evaluate(() => typeof window.__hexwild)).toBe(
+        'undefined',
+      );
+      expect(
+        await page.evaluate(() =>
+          document.querySelector('#world').getContext('webgl2').getError(),
+        ),
+      ).toBe(0);
+    }
     const [download] = await Promise.all([
       page.waitForEvent('download'),
       page.locator('#export').click(),

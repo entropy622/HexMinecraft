@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { writeFile } from 'node:fs/promises';
 
@@ -392,6 +392,7 @@ test('real water, building and mob materials survive quality, resize and graphic
   expect(supported).toBe(true);
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restoreSoftShadowContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.softShadowRestored), {
       timeout: 30000,

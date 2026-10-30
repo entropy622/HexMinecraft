@@ -1,4 +1,11 @@
-import { GLSL3, Matrix3, ShaderChunk, Vector4 } from 'three';
+import {
+  ColorManagement,
+  GLSL3,
+  Matrix3,
+  ShaderChunk,
+  SRGBTransfer,
+  Vector4,
+} from 'three';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { photonGradingGLSL, photonWhiteBalance } from './photon-grading.js';
 import { photonCasGLSL } from './photon-cas.js';
@@ -94,6 +101,14 @@ export class PhotonOutputPass extends OutputPass {
         #endif
         outputColor=color;
       }`;
+  }
+  prepare(renderer) {
+    // Match OutputPass's defines for this renderer's fixed CustomToneMapping.
+    // Its ordinary render() still owns and checks the output configuration.
+    this.material.defines = { CUSTOM_TONE_MAPPING: '' };
+    if (ColorManagement.getTransfer(renderer.outputColorSpace) === SRGBTransfer)
+      this.material.defines.SRGB_TRANSFER = '';
+    this.material.needsUpdate = true;
   }
   setOptions(s) {
     this.uniforms.photonCasEnabled.value = s.sharpening;

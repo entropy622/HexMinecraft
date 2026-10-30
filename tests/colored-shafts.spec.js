@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { readFile, writeFile } from 'node:fs/promises';
 import { World } from '../src/world.js';
@@ -493,6 +493,7 @@ test('emissive liquids bind glass-shadow lighting before and after device restor
   });
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restoreNativeSamplers());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.nativeSamplersRestored), {
       timeout: 30000,
@@ -613,6 +614,7 @@ test('colored air shafts follow oblique moonlight at negative coordinates throug
   ).toBe(true);
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restoreShaftContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.shaftRestored), { timeout: 30000 })
     .toBe(true);
@@ -620,7 +622,8 @@ test('colored air shafts follow oblique moonlight at negative coordinates throug
   const restored = await volume(page);
   result.restored = ratio(restored, before);
   for (const v of result.restored) expect(Math.abs(v - 1)).toBeLessThan(0.03);
-  await page.keyboard.press('Escape');
+  // Device recovery now leaves the ordinary pause menu open.
+  await expect(page.locator('#pause-overlay')).toBeVisible();
   await page.locator('[data-dimension="nether"]').click();
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.state.dimension))

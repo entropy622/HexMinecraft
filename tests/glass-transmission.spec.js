@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { writeFile } from 'node:fs/promises';
 import { GLASS_TYPES } from '../src/dye-data.js';
@@ -450,6 +450,7 @@ test('glass filtering follows moonlight and oblique negative-coordinate rays, su
   expect(supported).toBe(true);
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restoreGlassContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.glassContextRestored), {
       timeout: 30000,

@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { writeFile } from 'node:fs/promises';
 import { assertFoliageRange } from './fixtures/far-sss-assert.js';
@@ -838,6 +838,7 @@ test('a real canopy and water capture survive quality, context restoration and d
   expect(supported).toBe(true);
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restoreLeafContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.leafContextRestored), {
       timeout: 30000,
@@ -911,6 +912,7 @@ test('a real canopy and water capture survive quality, context restoration and d
   });
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restoreLeafContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.leafContextRestored), {
       timeout: 30000,

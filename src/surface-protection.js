@@ -212,7 +212,13 @@ export class SurfaceProtectionPass extends Pass {
     this.variants = new WeakMap();
     old.dispose();
   }
+  compile(renderer) {
+    this.draw(renderer, true);
+  }
   render(renderer) {
+    this.draw(renderer, false);
+  }
+  draw(renderer, compiling) {
     this.setSpecular(!!this.wet.weather.surfacePackSpecular?.value);
     const scene = this.scene,
       camera = this.camera,
@@ -243,6 +249,7 @@ export class SurfaceProtectionPass extends Pass {
         this.saved.push(object, object.layers.mask, object.material);
         if (!object.isMesh) {
           object.layers.mask = 0;
+          if (compiling) object.material = null;
           return;
         }
         let overlay = false,
@@ -278,8 +285,8 @@ export class SurfaceProtectionPass extends Pass {
           moved = !previous;
         if (previous) {
           moved = !previous.equals(object.matrixWorld);
-          previous.copy(object.matrixWorld);
-        } else {
+          if (!compiling) previous.copy(object.matrixWorld);
+        } else if (!compiling) {
           previous = new Matrix4().copy(object.matrixWorld);
           this.previous.set(object, previous);
         }
@@ -307,6 +314,7 @@ export class SurfaceProtectionPass extends Pass {
                 this.opticalMaterial(m, flags, receivesOptics),
               )
             : this.opticalMaterial(object.material, flags, receivesOptics);
+        else if (compiling) object.material = null;
         if (
           receivesOptics &&
           object.layers.mask &&
@@ -325,9 +333,12 @@ export class SurfaceProtectionPass extends Pass {
       renderer.shadowMap.enabled = false;
       renderer.autoClear = false;
       renderer.setRenderTarget(this.target);
-      renderer.setClearColor(0x000000, 0);
-      renderer.clear(true, false, false);
-      renderer.render(scene, camera);
+      if (compiling) renderer.compile(scene, camera);
+      else {
+        renderer.setClearColor(0x000000, 0);
+        renderer.clear(true, false, false);
+        renderer.render(scene, camera);
+      }
     } finally {
       for (let i = 0; i < this.saved.length; i += 3) {
         this.saved[i].layers.mask = this.saved[i + 1];

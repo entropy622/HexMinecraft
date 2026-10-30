@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 
 test.setTimeout(240000);
@@ -600,6 +600,7 @@ test('a player places a downward piston and its real geometry survives quality, 
   expect(supported).toBe(true);
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restorePistonContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.pistonRestored), { timeout: 30000 })
     .toBe(true);

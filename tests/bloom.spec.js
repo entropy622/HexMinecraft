@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 
 async function frames(page, count = 4) {
@@ -666,6 +666,7 @@ test('bloom lifecycle follows zero amount, physical size, quality and context re
   });
   await page.waitForTimeout(100);
   await page.evaluate(() => window.restoreBloom());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(() => page.evaluate(() => window.bloomRestored), { timeout: 30000 })
     .toBe(true);

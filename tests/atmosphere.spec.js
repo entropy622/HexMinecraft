@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
@@ -602,6 +602,7 @@ test.describe('fractional device DPR', () => {
     });
     await page.waitForTimeout(100);
     await page.evaluate(() => window.restoreSkyContext());
+    await waitForRecoveredRenderer(page);
     await expect
       .poll(() => page.evaluate(() => window.skyRestored), { timeout: 30000 })
       .toBe(true);

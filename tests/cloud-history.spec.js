@@ -1,11 +1,14 @@
 import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 import { DataUtils } from 'three';
+import { installRecoveryDeviceProbe } from './fixtures/recovery-device-probe.js';
 
 test.setTimeout(240000);
 test.beforeEach(async ({ page }) => {
   await page.route('https://fonts.googleapis.com/**', (r) => r.abort());
   await page.setViewportSize({ width: 640, height: 480 });
+  if (process.env.PHOTON_RECOVERY_PROFILE === '1')
+    await page.addInitScript(installRecoveryDeviceProbe);
 });
 async function setup(page) {
   await page.goto('/');
@@ -512,6 +515,10 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
     }
   }
   timing.beforeRecovery = Date.now() - started;
+  if (process.env.PHOTON_RECOVERY_PROFILE === '1')
+    await page.evaluate(() =>
+      window.__recoveryDevice.arm(window.__hexwild.graphics),
+    );
   const supported = await page.evaluate(async () => {
     const g = window.__hexwild.graphics,
       extension = g.renderer.getContext().getExtension('WEBGL_lose_context');
@@ -545,9 +552,29 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
   // A recreated composer can have no views yet. Every retained view is cold;
   // actual accumulation age and the recovered image are checked after drawing.
   expect(restoredFrames.every((n) => n === 0)).toBe(true);
+  // rAF continues while shader preparation is pending; counting callbacks is
+  // not evidence of a restored frame. Wait for the renderer's actual barrier.
+  expect(await page.evaluate(() => window.__hexwild.graphics.recovery)).toBe(
+    true,
+  );
+  await expect(page.locator('#render-recovery')).toBeHidden();
+  await expect(page.locator('#pause-overlay')).toBeVisible();
+  await page.locator('#resume').evaluate((button) => {
+    // Activate the actual button handler, then freeze the scenario in the
+    // same browser task; a separate API call can run after a physics frame.
+    button.click();
+    window.__hexwild.setPlaying(false);
+  });
   await frames(page, 32);
   const restored = await cloudSample(page);
   timing.restoredImage = Date.now() - started;
+  if (process.env.PHOTON_RECOVERY_PROFILE === '1') {
+    const profile = await page.evaluate(() => window.__recoveryDevice.finish());
+    await writeFile(
+      info.outputPath('recovery-device.json'),
+      JSON.stringify(profile, null, 2),
+    );
+  }
   const restoredWeather = await page.evaluate(() => {
     const g = window.__hexwild.graphics,
       a = g.skyEnvironment.atmosphere;

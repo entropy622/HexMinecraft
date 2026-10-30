@@ -1,4 +1,4 @@
-import { test, expect } from './browser-fixture.js';
+import { test, expect, waitForRecoveredRenderer } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 import {
   oracleGrade,
@@ -226,6 +226,7 @@ test('native color controls persist, reset independently and survive quality and
     )
     .toBe(true);
   await page.evaluate(() => window.__gradingRestore.restoreContext());
+  await waitForRecoveredRenderer(page);
   await expect
     .poll(
       () =>

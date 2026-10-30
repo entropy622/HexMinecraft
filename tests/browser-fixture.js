@@ -24,3 +24,23 @@ export const test = base.extend({
   },
 });
 export { expect };
+
+// Context restoration and completed shader preparation are separate events.
+// Scenario checks must wait for both before counting restored render frames.
+export async function waitForRecoveredRenderer(page) {
+  const ready = await page.evaluate(async () => {
+    const g = window.__hexwild.graphics;
+    if (g.renderer.getContext().isContextLost())
+      await new Promise((resolve) =>
+        g.renderer.domElement.addEventListener(
+          'webglcontextrestored',
+          resolve,
+          {
+            once: true,
+          },
+        ),
+      );
+    return g.recovery;
+  });
+  expect(ready).toBe(true);
+}
