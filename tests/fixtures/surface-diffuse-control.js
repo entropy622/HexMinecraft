@@ -20,6 +20,25 @@ export function setSurfaceDiffuseControl(enabled) {
   return window.__hexwild.graphics.weatherUniforms.surfaceDiffuse.value;
 }
 
+export function setSurfaceSpecularControl(enabled) {
+  if (enabled) {
+    window.__restoreSurfaceSpecular?.();
+    delete window.__restoreSurfaceSpecular;
+  } else if (!window.__restoreSurfaceSpecular) {
+    const uniform = window.__hexwild.graphics.weatherUniforms.surfaceSpecular;
+    const descriptor = Object.getOwnPropertyDescriptor(uniform, 'value');
+    window.__restoreSurfaceSpecular = () =>
+      Object.defineProperty(uniform, 'value', descriptor);
+    Object.defineProperty(uniform, 'value', {
+      configurable: true,
+      enumerable: true,
+      get: () => 0,
+      set() {},
+    });
+  }
+  return window.__hexwild.graphics.weatherUniforms.surfaceSpecular.value;
+}
+
 // A uniform bypass still executes the mixed arithmetic. For timing, compile
 // native material copies with just the new arithmetic removed, then dispose
 // those copies and restore every original material/callback/cache identity.

@@ -4,6 +4,7 @@ import { effectImage } from './texture-pack.js';
 import {
   SkyAtmosphere,
   SUN_RADIUS,
+  MOON_RADIUS,
   skyRadianceGLSL,
 } from './sky-atmosphere.js';
 import { PHOTON_SUN_SCALE } from './photon-lighting.js';
@@ -91,7 +92,7 @@ export class SkyEnvironment {
     // moon fills the hexagon, while preserving the original phase artwork.
     this.moonMap.repeat.set(32 / 256, 32 / 128);
     this.moonDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(3.2, 6),
+      new THREE.CircleGeometry(Math.tan(MOON_RADIUS) * Math.hypot(78, 45), 6),
       new THREE.MeshBasicMaterial({
         map: this.moonMap,
         color: '#d8e5ff',

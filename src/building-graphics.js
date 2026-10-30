@@ -3,6 +3,7 @@ import { BLOCKS, axialToWorld } from './core.js';
 import { buildingParts } from './building-shapes.js';
 import { cutItemWorld } from './cut-blocks.js';
 import { isGlass } from './dye-data.js';
+import { surfaceOpticsClass } from './surface-optics.js';
 
 // Held blocks and loose items must select the same real partial-block model.
 export const usesBuildingItemMesh = (type) =>
@@ -176,6 +177,16 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     geometry.setAttribute(name, new THREE.Float32BufferAttribute(data, size));
   geometry.computeBoundingSphere();
   const mesh = new THREE.Mesh(geometry, material);
+  if (material.userData?.geometricShade)
+    geometry.setAttribute(
+      'surfaceOptics',
+      new THREE.Uint8BufferAttribute(
+        new Uint8Array(geometry.attributes.position.count).fill(
+          surfaceOpticsClass(type, BLOCKS[type]),
+        ),
+        1,
+      ),
+    );
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.userData.shaped = { q, y, r, type };
   return mesh;

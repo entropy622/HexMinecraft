@@ -1,7 +1,7 @@
 import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
 
-test('geometric shade changes reflected light without changing physical albedo or emission', async ({
+test('geometric shade changes diffuse light without changing physical albedo or emission', async ({
   page,
 }, info) => {
   const errors = [],

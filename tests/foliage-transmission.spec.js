@@ -291,7 +291,7 @@ async function backlight(page, time) {
   await frames(page);
 }
 
-test('leaf SSS reduces only directional diffuse while local point illumination stays intact', async ({
+test('leaf SSS reduces only directional diffuse while specular and local point illumination stay intact', async ({
   page,
 }, info) => {
   const errors = [],
@@ -323,7 +323,7 @@ test('leaf SSS reduces only directional diffuse while local point illumination s
         expect(Math.abs(pair.b[c] - expected)).toBeLessThanOrEqual(
           ulp * 1.01 + 1e-7,
         );
-        if (row.source === 'point') expect(pair.b[c]).toBe(pair.a[c]);
+        if (row.weight === 1) expect(pair.b[c]).toBe(pair.a[c]);
       }
   }
   expect(result.gl).toBe(0);

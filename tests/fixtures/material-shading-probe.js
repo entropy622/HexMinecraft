@@ -59,6 +59,7 @@ export function probeMaterialShading(g) {
         '#include <opaque_fragment>',
         `
       if(shadingProbeMode==0)outgoingLight=diffuseColor.rgb;
+      if(shadingProbeMode==1)outgoingLight=reflectedLight.directDiffuse+reflectedLight.indirectDiffuse+totalEmissiveRadiance;
       #include <opaque_fragment>`,
       );
   };

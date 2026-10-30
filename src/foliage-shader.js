@@ -69,6 +69,7 @@ function subsurfaceMaterials(atlas, weather, uniforms, thin) {
   // shadow depth without adding a second main/capture draw for every flower.
   material.userData.foliageDepthPrepass = !thin;
   material.defaultAttributeValues.leafAmbient = [0];
+  material.defaultAttributeValues.surfaceOptics = [thin ? 2 : 5];
   applyFoliageWind(material, uniforms, thin);
   const previous = material.onBeforeCompile;
   material.onBeforeCompile = (shader, renderer) => {

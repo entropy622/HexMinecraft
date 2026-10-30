@@ -50,6 +50,15 @@ and `global.glsl` at the same pinned revision. The finite incident multiplier
 preserves separate transmission, shadow bounce, and local-light energy.
 These derived portions retain Photon's license.
 
+Since 0.104, `src/photon-specular.js` adapts the hardcoded optical classes,
+dielectric Fresnel, GGX/Smith visibility, spherical light-disk approximation,
+and source highlight limit from `surface/material.glsl`, `lighting/bsdf.glsl`
+and `lighting/specular_lighting.glsl` at the pinned revision. The host uses
+linear-sRGB albedo, reconstructs the texture-space brightness, and defines
+finite degenerate/smooth limits. `surface-optics.js` maps native block IDs;
+no upstream material-mask or labPBR texture decoder is assumed. These derived
+portions retain Photon's license.
+
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
 snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;

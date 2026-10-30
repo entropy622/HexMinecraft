@@ -14,19 +14,23 @@ export function probeLeafDirectionalDiffuse(g) {
     intensity = g.sun.intensity,
     direction = g.sun.position.clone().sub(g.sun.target.position).normalize(),
     root = new Vector3(0, 45.5, 0),
+    component = { value: 0 },
     rows = [];
   let point;
   clone.defaultAttributeValues = { ...original.defaultAttributeValues };
   clone.toneMapped = clone.fog = false;
   clone.onBeforeCompile = (shader, renderer) => {
     compile.call(clone, shader, renderer);
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <opaque_fragment>',
-      '#include <opaque_fragment>\ngl_FragColor.rgb=reflectedLight.directDiffuse;gl_FragColor.a=2.0;',
-    );
+    shader.uniforms.leafProbeComponent = component;
+    shader.fragmentShader =
+      'uniform float leafProbeComponent;\n' +
+      shader.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        '#include <opaque_fragment>\ngl_FragColor.rgb=leafProbeComponent>0.5?reflectedLight.directSpecular:reflectedLight.directDiffuse;gl_FragColor.a=2.0;',
+      );
   };
   clone.customProgramCacheKey = () =>
-    original.customProgramCacheKey() + '-direct-sss-probe';
+    original.customProgramCacheKey() + '-direct-sss-specular-probe';
   g.scene.traverse((o) => {
     if (o.material === original) {
       changed.push(o);
@@ -71,6 +75,11 @@ export function probeLeafDirectionalDiffuse(g) {
     const solar = read(0);
     compare('sun', solar, read(0.5), 0.75);
     compare('sun', solar, read(1), 0.5);
+    component.value = 1;
+    const specular = read(0);
+    compare('sun-specular', specular, read(0.5), 1);
+    compare('sun-specular', specular, read(1), 1);
+    component.value = 0;
     g.sun.intensity = 0;
     point = new PointLight('#ffffff', 4, 12);
     point.position.copy(root).addScaledVector(direction, 4);

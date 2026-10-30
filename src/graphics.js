@@ -6,6 +6,8 @@ import {
   plantMaterials,
 } from './foliage-shader.js';
 import { LeafParticles } from './leaf-particles.js';
+import { surfaceOpticsClass } from './surface-optics.js';
+import { SUN_RADIUS, MOON_RADIUS } from './sky-transport.js';
 import { CaveAmbience } from './cave-ambience.js';
 import { DripstoneEffects } from './dripstone-effects.js';
 import { pillarFace } from './pillar-faces.js';
@@ -618,6 +620,7 @@ export class Graphics {
       origin = axialToWorld(cq * 8, cr * 8);
     const solid = {
         p: [],
+        optics: [],
         c: [],
         ao: [],
         uv: [],
@@ -649,7 +652,8 @@ export class Graphics {
       lamps = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] };
     let out = solid,
       rainExposure = 0,
-      porosity = 1;
+      porosity = 1,
+      opticalClass = 0;
     const shaped = [];
     const chestCells = [];
     const enchantCells = [];
@@ -672,6 +676,7 @@ export class Graphics {
         out.sky.push(1);
         out.rain.push(rainExposure);
         out.porosity.push(porosity);
+        if (out.optics) out.optics.push(opticalClass);
         out.uv.push(...this.textures.uv(tile, ...uvs[i]));
         const color = out.ao ? shade : shade * ao[i];
         out.c.push(color, color, color);
@@ -721,6 +726,7 @@ export class Graphics {
             continue;
           }
           porosity = wetPorosity(type);
+          opticalClass = surfaceOpticsClass(type, BLOCKS[type]);
           rainExposure =
             porosity < 1 &&
             world.dimension === 'overworld' &&
@@ -947,6 +953,11 @@ export class Graphics {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(data.p, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(data.c, 3));
+      if (data.optics)
+        g.setAttribute(
+          'surfaceOptics',
+          new THREE.Uint8BufferAttribute(data.optics, 1),
+        );
       if (data.ao)
         g.setAttribute(
           'ambientOcclusion',
@@ -1493,6 +1504,17 @@ export class Graphics {
       this.world.dimension === 'nether' ? 0 : 1;
     this.weatherUniforms.surfaceDiffuse.value =
       this.world.dimension === 'nether' ? 0 : 1;
+    const sourceNight =
+      overworld && this.skyEnvironment.uniforms.skySunDirection.value.y < 0;
+    const sourceNewMoon =
+      sourceNight &&
+      Math.round(this.skyEnvironment.uniforms.skyMoonPhase.value) === 4;
+    // Photon retains diffuse earthshine at new moon, but suppresses its glint.
+    this.weatherUniforms.surfaceSpecular.value =
+      this.world.dimension === 'nether' || sourceNewMoon ? 0 : 1;
+    this.weatherUniforms.surfaceLightRadius.value = sourceNight
+      ? MOON_RADIUS
+      : SUN_RADIUS;
     this.weatherUniforms.wetSky.value.copy(horizon);
     this.weatherUniforms.terrainRain.value = rain;
     if (!overworld) this.sun.color.set('#dac4ff');

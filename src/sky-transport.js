@@ -6,6 +6,7 @@ import {
 } from './photon-lighting.js';
 
 export const SUN_RADIUS = (2 * Math.PI) / 180;
+export const MOON_RADIUS = (3 * Math.PI) / 180;
 export const RAYLEIGH_PER_KM = PHOTON_RAYLEIGH_PER_KM;
 // Source coefficients/density in kilometres; local distance remains 20 m/unit.
 export const transportGLSL = /* glsl */ `

@@ -16,6 +16,7 @@ import { createPhotonScattering, photonSkyGLSL } from './photon-sky.js';
 import { SUN_RADIUS, transportGLSL, skyRadianceGLSL } from './sky-transport.js';
 export {
   SUN_RADIUS,
+  MOON_RADIUS,
   RAYLEIGH_PER_KM,
   skyRadianceGLSL,
 } from './sky-transport.js';

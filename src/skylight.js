@@ -1,6 +1,7 @@
 import { ShaderChunk } from 'three';
 import { waterLightingGLSL } from './water-lighting.js';
 import { surfaceIndirectGLSL } from './surface-indirect.js';
+import { photonSpecularGLSL } from './photon-specular.js';
 export const visionUniforms = { nightVision: { value: 0 } };
 
 // Both static surfaces and moving models use the same response to voxel light.
@@ -52,6 +53,18 @@ const geometricLightingChunk = voxelLightingChunk
   .replace(
     directionalLoop,
     (_, setup, draw) => `${setup}
+    // Specular receives the filtered, shadowed incident light before the
+    // artistic diffuse response or SSS energy allocation changes it.
+    if(surfaceSpecular>0.5){
+      float surfaceLoV=clamp(dot(directLight.direction,geometryViewDir),-1.0,1.0);
+      reflectedLight.directSpecular+=directLight.color*
+      photonSurfaceHighlight(material.diffuseColor,surfaceOptical,
+        dot(geometryNormal,directLight.direction),max(0.0,dot(geometryNormal,geometryViewDir)),
+        surfaceLoV,sqrt(max(0.0,0.5+0.5*surfaceLoV)),surfaceLightRadius);
+    }
+    #ifdef HEX_LEAF_PRIMARY_SSS
+      directLight.color*=1.0-0.5*clamp(leafSssAmount,0.0,1.0);
+    #endif
     // lift(NoL, 0.25) / NoL has this finite form, including grazing NoL=0.
     // The common geometry attenuation below supplies one AO factor already.
     float surfaceNoL=clamp(dot(geometryNormal,directLight.direction),0.0,1.0);
@@ -75,11 +88,6 @@ const geometricLightingChunk = voxelLightingChunk
       (0.033*surfaceBounce*(1.0-geometricShadow)*(1.0-0.1*geometricUp)*
         // The vertex attribute already contains (voxel sky level / 15)^2.
         sqrt(geometricAO)*pow(clamp(vSkylight,0.0,1.0),2.0));
-    #ifdef HEX_LEAF_PRIMARY_SSS
-      // Reduce only the ordinary directional diffuse after capturing the full
-      // incident energy for transmission and bounce. Local RGB stays unchanged.
-      directLight.color*=1.0-0.5*clamp(leafSssAmount,0.0,1.0);
-    #endif
   `,
   );
 
@@ -96,40 +104,46 @@ export function applySkylight(
     material.defaultAttributeValues = {
       ...material.defaultAttributeValues,
       ambientOcclusion: [1],
+      surfaceOptics: [0],
     };
   const uniforms = sharedUniforms || {
     terrainWetness: { value: 0 },
   };
   uniforms.surfaceBounce ??= { value: 0 };
   uniforms.surfaceDiffuse ??= { value: 1 };
+  uniforms.surfaceSpecular ??= { value: 1 };
+  uniforms.surfaceLightRadius ??= { value: Math.PI / 90 };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, visionUniforms);
     shader.vertexShader =
-      `${geometricShade ? 'attribute float ambientOcclusion; varying float vAmbientOcclusion;\n' : ''}
+      `${geometricShade ? 'attribute float ambientOcclusion; varying float vAmbientOcclusion; attribute float surfaceOptics; varying float vSurfaceOptics;\n' : ''}
       attribute float skylight; attribute float rainExposure; attribute float surfacePorosity; attribute vec3 blocklight;
       varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
         vSkylight = skylight;
-        ${geometricShade ? 'vAmbientOcclusion=clamp(ambientOcclusion,0.0,1.0);' : ''}
+        ${geometricShade ? 'vAmbientOcclusion=clamp(ambientOcclusion,0.0,1.0);vSurfaceOptics=surfaceOptics;' : ''}
         vBlockLight = blocklight;
         vPorosity = surfacePorosity;
         vWetTop = rainExposure * max(0.0, normal.y);
         vLightPosition = (modelMatrix * vec4(position, 1.0)).xyz;`,
       );
     shader.fragmentShader =
-      `${geometricShade ? '#define HEX_GEOMETRIC_SHADE\nvarying float vAmbientOcclusion;\n' : ''}
+      `${geometricShade ? '#define HEX_GEOMETRIC_SHADE\nvarying float vAmbientOcclusion; varying float vSurfaceOptics; uniform float surfaceSpecular,surfaceLightRadius;\n' : ''}
       ${!material.transparent ? '#define HEX_WATER_RECEIVER\n' + waterLightingGLSL : ''}
       varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;
       uniform float terrainWetness; uniform float nightVision; uniform float surfaceDiffuse;\n${shader.fragmentShader}`
         .replace(
           '#include <lights_pars_begin>',
           '#include <lights_pars_begin>\n' +
-            (geometricShade ? surfaceIndirectGLSL : ''),
+            (geometricShade ? surfaceIndirectGLSL + photonSpecularGLSL : ''),
         )
         .replace(
           '#include <lights_fragment_begin>',
-          geometricShade ? geometricLightingChunk : voxelLightingChunk,
+          geometricShade
+            ? 'PhotonSurfaceOptics surfaceOptical=photonSurfaceOptics(material.diffuseColor,vSurfaceOptics);\n' +
+                geometricLightingChunk
+            : voxelLightingChunk,
         )
         .replace(
           '#include <color_fragment>',
@@ -152,7 +166,11 @@ export function applySkylight(
             reflectedLight.indirectDiffuse *= vColor.rgb;
           #endif
           reflectedLight.directDiffuse *= vAmbientOcclusion;
-          reflectedLight.indirectDiffuse *= vAmbientOcclusion;`
+          reflectedLight.indirectDiffuse *= vAmbientOcclusion;
+          // Photon keeps half the diffuse on metals in its default SSR model.
+          float surfaceMetalDiffuse=mix(1.0,0.5,surfaceOptical.metal);
+          reflectedLight.directDiffuse*=surfaceMetalDiffuse;
+          reflectedLight.indirectDiffuse*=surfaceMetalDiffuse;`
               : ''
           }`,
         )
@@ -161,10 +179,11 @@ export function applySkylight(
           `
         float wet = terrainWetness * vWetTop;
         outgoingLight *= 1.0 - wet * (0.12 + 0.18 * vPorosity);
+        ${geometricShade ? 'outgoingLight+=reflectedLight.directSpecular;' : ''}
         #include <opaque_fragment>`,
         );
   };
   material.customProgramCacheKey = () =>
-    'hex-colored-voxel-wet-sky-v10-' + Number(geometricShade);
+    'hex-colored-voxel-wet-sky-v11-optics-' + Number(geometricShade);
   return uniforms;
 }

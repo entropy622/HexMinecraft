@@ -134,8 +134,16 @@ export function readReferenceFrame(layout) {
         0,
       ) * (texture.generateMipmaps ? 4 / 3 : 1);
   }
-  const buffers = new Set();
+  const buffers = new Set(),
+    opticsBuffers = new Set();
   for (const geometry of geometries) {
+    const optical = geometry.attributes.surfaceOptics;
+    if (optical)
+      opticsBuffers.add(
+        optical.isInterleavedBufferAttribute
+          ? optical.data.array
+          : optical.array,
+      );
     for (const attr of [
       ...Object.values(geometry.attributes),
       geometry.index,
@@ -186,6 +194,8 @@ export function readReferenceFrame(layout) {
     settings: {
       quality: g.quality,
       surfaceDiffuse: g.weatherUniforms.surfaceDiffuse.value,
+      surfaceSpecular: g.weatherUniforms.surfaceSpecular.value,
+      surfaceLightRadius: g.weatherUniforms.surfaceLightRadius.value,
       post: g.postOptions,
       toneMapping: g.renderer.toneMapping,
       exposure: g.renderer.toneMappingExposure,
@@ -240,6 +250,10 @@ export function readReferenceFrame(layout) {
       standaloneTextureBytes: Math.ceil(standaloneTextureBytes),
       unknownTextures,
       geometryAttributeBytes: [...buffers].reduce(
+        (n, b) => n + b.byteLength,
+        0,
+      ),
+      surfaceOpticsBytes: [...opticsBuffers].reduce(
         (n, b) => n + b.byteLength,
         0,
       ),
