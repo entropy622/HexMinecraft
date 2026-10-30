@@ -3,3 +3,5 @@
 *.jpg binary
 *.webp binary
 *.dat binary
+# Keep upstream license text verbatim, including its final blank line.
+public/licenses/IOBUFFER-LICENSE.txt -whitespace

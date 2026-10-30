@@ -6,6 +6,7 @@ import { cutItemWorld } from './cut-blocks.js';
 import { buildingParts } from './building-shapes.js';
 import { blockTextures, textureURL, itemImage } from './texture-pack.js';
 import { HEX_POLYGON } from './cut-blocks.js';
+import { materialIconURL } from './material-icons.js';
 
 // Small isometric projections reuse the same cut polygons and licensed tiles
 // as the world. SVG remains crisp in slots without a second WebGL renderer.
@@ -91,6 +92,9 @@ export function cutBlockIcon(id) {
     }
   }
   const pattern = (name, tile) => {
+    const custom = materialIconURL(tile, name);
+    if (custom)
+      return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><image href="${custom}" width="16" height="16"/></pattern>`;
     if (isGlass(tile))
       return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="${BLOCKS[tile].color}" opacity="0.65"/><path d="M1 1h14v14H1zM3 11l6-6" fill="none" stroke="#f4faff" stroke-width="0.7" opacity="0.7"/></pattern>`;
     const tiles = blockTextures[tile];

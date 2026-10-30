@@ -65,6 +65,8 @@ export class WetSurfacePass extends Pass {
         wetTime: weather.waterTime,
         surfaceAlbedo: { value: null },
         surfaceGeometry: { value: null },
+        surfaceSpecular: { value: null },
+        surfaceSpecularEnabled: { value: 0 },
         environmentSky: sky.skyRadianceMap,
         environmentStrength: { value: 1 },
         environmentFrame: { value: 0 },
@@ -79,6 +81,7 @@ export class WetSurfacePass extends Pass {
       varying vec2 vUv;
       uniform sampler2D sceneColor, sceneDepth, surfaceMask;
       uniform sampler2D surfaceAlbedo,surfaceGeometry,environmentSky;
+      uniform sampler2D surfaceSpecular;uniform float surfaceSpecularEnabled;
       uniform sampler2D reflectionColor;
       uniform mat4 wetProjection, wetInverse, wetView, wetWorld;
       uniform vec3 wetSky;

@@ -132,7 +132,7 @@ export class ContactOcclusionPass extends Pass {
         sceneColor: { value: null },
         sceneDepth: { value: frame.depthTexture },
         occlusion: { value: this.denoised.texture },
-        protection: { value: this.protection.target.texture },
+        protection: this.protection.textureUniform,
         aoResolution: { value: new Vector2(1, 1) },
         cameraNear: { value: camera.near },
         cameraFar: { value: camera.far },

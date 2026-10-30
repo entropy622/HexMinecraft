@@ -5,6 +5,8 @@ import { woodKey } from './wood-data.js';
 import { WEB_STRANDS } from './cobwebs.js';
 import { isGlass } from './dye-data.js';
 import { paintPigment } from './pigment-art.js';
+import { installMaterialAtlas } from './material-atlas.js';
+import { currentMaterialPack } from './material-pack.js';
 
 // Pixel Perfection tiles with procedural fallbacks and original fantasy materials.
 // Wide gutters prevent color bleeding between mipmapped tiles.
@@ -12,7 +14,7 @@ const SIZE = 16,
   CELL = 32,
   PAD = 8,
   COLS = 8;
-export function createTextures() {
+export function createTextures(maxTextureSize = 16384) {
   const names = Object.keys(BLOCKS).flatMap((id) => [
     id + ':top',
     id + ':side',
@@ -516,18 +518,32 @@ export function createTextures() {
     return t;
   };
   const atlas = setup(new THREE.CanvasTexture(canvas));
-  const uv = (name, u, v) => {
-    const t = tiles.get(name);
-    return [
-      (t.x + 0.5 + u * 15) / canvas.width,
-      1 - (t.y + 0.5 + (1 - v) * 15) / canvas.height,
-    ];
-  };
   const singles = new Map();
   const single = (name) => {
     if (!singles.has(name))
-      singles.set(name, setup(new THREE.CanvasTexture(tiles.get(name).canvas)));
+      singles.set(name, setup(new THREE.CanvasTexture(materials.tile(name))));
     return singles.get(name);
   };
-  return { atlas, uv, single, canvas };
+  const result = {
+    atlas,
+    uv: (name, u, v) => materials.uv(name, u, v),
+    single,
+    canvas,
+  };
+  const materials = installMaterialAtlas(result, tiles, names);
+  result.refreshSingles = () => {
+    for (const [name, texture] of singles) {
+      const next = materials.tile(name);
+      if (
+        texture.image.width !== next.width ||
+        texture.image.height !== next.height
+      )
+        texture.dispose();
+      texture.image = next;
+      texture.needsUpdate = true;
+    }
+  };
+  if (currentMaterialPack())
+    materials.apply(currentMaterialPack(), null, maxTextureSize);
+  return result;
 }

@@ -29,6 +29,8 @@ export class SurfaceProtectionPass extends Pass {
       minFilter: NearestFilter,
       magFilter: NearestFilter,
     });
+    this.textureUniform = { value: this.target.texture };
+    this.specularEnabled = false;
     this.clearColor = new Color();
     this.saved = [];
     this.previous = new WeakMap();
@@ -52,6 +54,9 @@ export class SurfaceProtectionPass extends Pass {
       fragmentShader: /* glsl */ `
       layout(location=1) out highp vec4 reflectionAlbedo;
       layout(location=2) out highp vec4 reflectionGeometry;
+      #ifdef HEX_PACK_SPECULAR_OUTPUT
+        layout(location=3) out highp vec4 reflectionSpecular;
+      #endif
       uniform sampler2D surfaceDepth;
       uniform vec2 surfaceResolution;
       uniform vec3 surfaceChannels;
@@ -65,6 +70,9 @@ export class SurfaceProtectionPass extends Pass {
         float coverage=surfaceChannels.z>0.5 ? wetCoverage(wetWorldPosition,surfaceNormal.y,wetMaterial.x,wetMaterial.y,terrainWetness) : 0.0;
         gl_FragColor=vec4(surfaceChannels.x,max(surfaceChannels.y,step(0.025,coverage)),coverage,1.0);
         reflectionAlbedo=vec4(0.0);reflectionGeometry=vec4(0.0);
+        #ifdef HEX_PACK_SPECULAR_OUTPUT
+          reflectionSpecular=vec4(0.0);
+        #endif
       }`,
       uniforms: {
         surfaceDepth: { value: frame.depthTexture },
@@ -79,7 +87,7 @@ export class SurfaceProtectionPass extends Pass {
     });
     this.material.defaultAttributeValues.rainExposure = [0];
     this.material.defaultAttributeValues.surfacePorosity = [1];
-    wet.material.uniforms.surfaceMask.value = this.target.texture;
+    wet.material.uniforms.surfaceMask = this.textureUniform;
     wet.material.uniforms.surfaceAlbedo.value = this.target.textures[1];
     wet.material.uniforms.surfaceGeometry.value = this.target.textures[2];
     this.material.onBeforeRender = (
@@ -127,6 +135,9 @@ export class SurfaceProtectionPass extends Pass {
         /* glsl */ `
         layout(location=1) out highp vec4 reflectionAlbedo;
         layout(location=2) out highp vec4 reflectionGeometry;
+        #ifdef HEX_PACK_SPECULAR_OUTPUT
+          layout(location=3) out highp vec4 reflectionSpecular;
+        #endif
         varying float surfaceRain;
         uniform sampler2D surfaceDepth;uniform vec2 surfaceResolution;
         uniform vec3 surfaceChannels;
@@ -142,21 +153,28 @@ export class SurfaceProtectionPass extends Pass {
         }
       ` +
         shader.fragmentShader.replace(
-          '#include <alphatest_fragment>',
-          /* glsl */ `#include <alphatest_fragment>
+          '// HEX_SURFACE_DATA_READY',
+          /* glsl */ `// HEX_SURFACE_DATA_READY
         float surfaceDepthValue=texture2D(surfaceDepth,gl_FragCoord.xy/surfaceResolution).r;
         if(gl_FragCoord.z>surfaceDepthValue+0.000001)discard;
-        vec3 surfaceWorldNormal=normalize(cross(dFdx(vLightPosition),dFdy(vLightPosition)));
+        vec3 surfaceWorldNormal=normalize(inverseTransformDirection(normal,viewMatrix));
         float coverage=surfaceChannels.z>0.5?wetCoverage(vLightPosition,surfaceWorldNormal.y,
-          surfaceRain,vPorosity,terrainWetness):0.0;
+          surfaceRain,surfacePorosity,terrainWetness):0.0;
         gl_FragColor=vec4(surfaceChannels.x,max(surfaceChannels.y,step(0.025,coverage)),coverage,1.0);
         reflectionAlbedo=vec4(surfaceEncodeAlbedo(diffuseColor.rgb),(floor(vSurfaceOptics+0.5)+1.0)/255.0);
-        reflectionGeometry=vec4(surfaceOctEncode(surfaceWorldNormal),sqrt(clamp(vSkylight,0.0,1.0)),1.0);
+        reflectionGeometry=vec4(surfaceOctEncode(surfaceWorldNormal),sqrt(clamp(surfaceSkyLevel,0.0,1.0)),surfaceHasSpec);
+        #ifdef HEX_PACK_SPECULAR_OUTPUT
+          reflectionSpecular=surfacePackSpec;
+        #endif
         return;`,
         );
     };
     material.customProgramCacheKey = () =>
-      original.customProgramCacheKey() + '-reflection-gbuffer-v1';
+      original.customProgramCacheKey() +
+      '-reflection-gbuffer-v2-' +
+      Number(this.specularEnabled);
+    if (this.specularEnabled)
+      material.defines = { ...material.defines, HEX_PACK_SPECULAR_OUTPUT: 1 };
     variants.set(key, material);
     this.ownedMaterials.add(material);
     return material;
@@ -171,7 +189,31 @@ export class SurfaceProtectionPass extends Pass {
       this.target.height,
     );
   }
+  setSpecular(enabled) {
+    if (this.specularEnabled === enabled) return;
+    this.specularEnabled = enabled;
+    const old = this.target;
+    this.target = new WebGLRenderTarget(old.width, old.height, {
+      count: enabled ? 4 : 3,
+      depthBuffer: false,
+      minFilter: NearestFilter,
+      magFilter: NearestFilter,
+    });
+    this.textureUniform.value = this.target.texture;
+    const u = this.wet.material.uniforms;
+    u.surfaceAlbedo.value = this.target.textures[1];
+    u.surfaceGeometry.value = this.target.textures[2];
+    u.surfaceSpecular.value = enabled ? this.target.textures[3] : null;
+    u.surfaceSpecularEnabled.value = Number(enabled);
+    this.material.defines = enabled ? { HEX_PACK_SPECULAR_OUTPUT: 1 } : {};
+    this.material.needsUpdate = true;
+    for (const material of this.ownedMaterials) material.dispose();
+    this.ownedMaterials.clear();
+    this.variants = new WeakMap();
+    old.dispose();
+  }
   render(renderer) {
+    this.setSpecular(!!this.wet.weather.surfacePackSpecular?.value);
     const scene = this.scene,
       camera = this.camera,
       cameraMask = camera.layers.mask,
@@ -219,7 +261,10 @@ export class SurfaceProtectionPass extends Pass {
           receivesOptics =
             this.wet.enabled &&
             this.wet.material.uniforms.environmentStrength.value > 0 &&
-            !!object.userData.surfaceReflection,
+            (!!object.userData.surfaceReflection ||
+              materials.some((m) =>
+                m?.surfaceAtlas?.reflective(object.geometry),
+              )),
           protection =
             overlay ||
             materials.some(

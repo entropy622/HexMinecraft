@@ -170,6 +170,14 @@ import { enchantingPanel } from './enchanting-ui.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
 import { SAVE_KEY, validateSave } from './save.js';
 import { loadTexturePack, textureURL } from './texture-pack.js';
+import {
+  currentMaterialPack,
+  restoreMaterialPack,
+  materialPackRestoreError,
+  decodeMaterialPack,
+  storeMaterialPack,
+  setMaterialPack,
+} from './material-pack.js';
 import { Equipment, miningStats, wearStack } from './equipment.js';
 import { miningRate } from './mining.js';
 import { miningLoot } from './mining-loot.js';
@@ -192,7 +200,8 @@ import { END_GATEWAYS } from './flight-data.js';
 import { GameAudio } from './audio.js';
 import { growChorus, harvestChorus } from './chorus.js';
 import { isChorus, isChorusFlower } from './chorus-data.js';
-import { itemIcon as icon } from './icons.js';
+import { itemIcon as icon, clearItemIcons } from './icons.js';
+import { configureMaterialIcons } from './material-icons.js';
 const soundFX = new GameAudio();
 
 const $ = (s) => document.querySelector(s);
@@ -227,6 +236,7 @@ let graphics,
   villagerTarget = null,
   tradingWith = null;
 await loadTexturePack();
+await restoreMaterialPack();
 try {
   graphics = new Graphics($('#world'));
   villagers = new Villagers(graphics.scene);
@@ -236,6 +246,60 @@ try {
   throw error;
 }
 const camera = graphics.camera;
+configureMaterialIcons(graphics.textures);
+const materialControls = document.createElement('fieldset');
+materialControls.className = 'post-settings';
+materialControls.id = 'material-pack-settings';
+materialControls.innerHTML =
+  '<legend>方块资源包</legend><div class="two-col"><button id="material-pack-import">导入 ZIP</button><button id="material-pack-reset">恢复默认材质</button></div><input class="hidden" id="material-pack-file" type="file" accept=".zip,application/zip"><p id="material-pack-status" class="panel-note" role="status"></p><p class="panel-note">支持 Minecraft 方块颜色与 labPBR 法线、镜面贴图。缺失部分沿用默认材质；最高 64×，动画暂取首帧。资源包保存在本浏览器。</p>';
+$('#post-settings').after(materialControls);
+const packStatus = $('#material-pack-status'),
+  packImport = $('#material-pack-import'),
+  packReset = $('#material-pack-reset');
+function updateMaterialPackStatus() {
+  const pack = currentMaterialPack();
+  packStatus.textContent = pack
+    ? `${pack.name} · ${pack.count} 张贴图 · ${graphics.textures.materials.layout.size}×`
+    : materialPackRestoreError() || '正在使用默认材质。';
+  packReset.disabled = !pack;
+}
+updateMaterialPackStatus();
+packImport.onclick = () => $('#material-pack-file').click();
+async function changeMaterialPack(file) {
+  packImport.disabled = packReset.disabled = true;
+  packStatus.textContent = '正在读取材质…';
+  try {
+    const next = file ? await decodeMaterialPack(file) : null;
+    // Stage and validate the pack before changing persistent or active data.
+    graphics.applyMaterialPack(next);
+    setMaterialPack(next);
+    configureMaterialIcons(graphics.textures);
+    clearItemIcons();
+    hudSignature = '';
+    updateHUD();
+    refreshInventoryPanel();
+    try {
+      await storeMaterialPack(file);
+    } catch {
+      updateMaterialPackStatus();
+      packStatus.textContent +=
+        ' · 本次已应用，但浏览器无法保存，刷新后需重新导入。';
+      return;
+    }
+    updateMaterialPackStatus();
+  } catch (error) {
+    packStatus.textContent = '未能导入：' + error.message;
+  } finally {
+    packImport.disabled = false;
+    packReset.disabled = !currentMaterialPack();
+    $('#material-pack-file').value = '';
+  }
+}
+$('#material-pack-file').onchange = (e) => {
+  const file = e.target.files[0];
+  if (file) void changeMaterialPack(file);
+};
+packReset.onclick = () => void changeMaterialPack(null);
 const motion = new Movement();
 const glider = new Glider();
 const flightEffects = new FlightEffects(graphics.scene, (event) =>

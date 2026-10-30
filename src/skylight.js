@@ -2,6 +2,10 @@ import { ShaderChunk } from 'three';
 import { waterLightingGLSL } from './water-lighting.js';
 import { surfaceIndirectGLSL } from './surface-indirect.js';
 import { photonSpecularGLSL } from './photon-specular.js';
+import {
+  materialPackGLSL,
+  materialPackFragment,
+} from './material-pack-shader.js';
 export const visionUniforms = { nightVision: { value: 0 } };
 
 // Both static surfaces and moving models use the same response to voxel light.
@@ -89,7 +93,9 @@ const geometricLightingChunk = voxelLightingChunk
         // The vertex attribute already contains (voxel sky level / 15)^2.
         sqrt(geometricAO)*pow(clamp(vSkylight,0.0,1.0),2.0));
   `,
-  );
+  )
+  .replaceAll('vSkylight', 'surfaceSkyLevel')
+  .replaceAll('vBlockLight', 'surfaceBlockLevel');
 
 // Shared weather uniforms; terrain receives persistent voxel light instead of
 // static point-light pools. Two short-range moving fireball lights supplement it.
@@ -113,6 +119,7 @@ export function applySkylight(
   uniforms.surfaceDiffuse ??= { value: 1 };
   uniforms.surfaceSpecular ??= { value: 1 };
   uniforms.surfaceLightRadius ??= { value: Math.PI / 90 };
+  uniforms.surfacePackEnabled ??= { value: 0 };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, visionUniforms);
     shader.vertexShader =
@@ -136,14 +143,18 @@ export function applySkylight(
         .replace(
           '#include <lights_pars_begin>',
           '#include <lights_pars_begin>\n' +
-            (geometricShade ? surfaceIndirectGLSL + photonSpecularGLSL : ''),
+            (geometricShade
+              ? surfaceIndirectGLSL + photonSpecularGLSL + materialPackGLSL
+              : ''),
         )
         .replace(
           '#include <lights_fragment_begin>',
-          geometricShade
-            ? 'PhotonSurfaceOptics surfaceOptical=photonSurfaceOptics(material.diffuseColor,vSurfaceOptics);\n' +
-                geometricLightingChunk
-            : voxelLightingChunk,
+          geometricShade ? geometricLightingChunk : voxelLightingChunk,
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          '#include <emissivemap_fragment>\n' +
+            (geometricShade ? materialPackFragment : ''),
         )
         .replace(
           '#include <color_fragment>',
@@ -178,12 +189,12 @@ export function applySkylight(
           '#include <opaque_fragment>',
           `
         float wet = terrainWetness * vWetTop;
-        outgoingLight *= 1.0 - wet * (0.12 + 0.18 * vPorosity);
+        outgoingLight *= 1.0 - wet * (0.12 + 0.18 * ${geometricShade ? 'surfacePorosity' : 'vPorosity'});
         ${geometricShade ? 'outgoingLight+=reflectedLight.directSpecular;' : ''}
         #include <opaque_fragment>`,
         );
   };
   material.customProgramCacheKey = () =>
-    'hex-colored-voxel-wet-sky-v11-optics-' + Number(geometricShade);
+    'hex-colored-voxel-wet-sky-v12-labpbr-' + Number(geometricShade);
   return uniforms;
 }

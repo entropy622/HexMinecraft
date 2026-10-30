@@ -89,9 +89,9 @@ function subsurfaceMaterials(atlas, weather, uniforms, thin) {
           if (leafDepthOnly > 0.5) { gl_FragColor=vec4(0.0); return; }`,
         )
         .replace(
-          'irradiance += vSkylight * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);',
+          'irradiance += surfaceSkyLevel * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);',
           `vec3 leafSkyUp=max(vec3(0.0),shGetIrradianceAt(vec3(0.0,1.0,0.0),lightProbe));
-          ${thin ? 'irradiance += vSkylight * mix(surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion),0.5*leafSkyUp,leafSssAmount);' : 'irradiance += 0.5 * vSkylight * leafSkyUp;'}`,
+          ${thin ? 'irradiance += surfaceSkyLevel * mix(surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion),0.5*leafSkyUp,leafSssAmount);' : 'irradiance += 0.5 * surfaceSkyLevel * leafSkyUp;'}`,
         )
         .replace(
           'reflectedLight.indirectDiffuse *= vAmbientOcclusion;',
@@ -105,7 +105,7 @@ function subsurfaceMaterials(atlas, weather, uniforms, thin) {
             // vSkylight is already raw sky squared. Visibility is a normalized
             // byte from the real local canopy, not an exposure multiplier.
             reflectedLight.indirectDiffuse += BRDF_Lambert(material.diffuseColor) *
-              leafSkyUp * vSkylight * clamp(vLeafAmbient,0.0,1.0)${thin ? ' * leafSssAmount' : ''} * leafFaceShade;
+              leafSkyUp * surfaceSkyLevel * clamp(vLeafAmbient,0.0,1.0)${thin ? ' * leafSssAmount' : ''} * leafFaceShade;
           #endif`,
         )
         .replace(
@@ -121,7 +121,7 @@ function subsurfaceMaterials(atlas, weather, uniforms, thin) {
           '#include <opaque_fragment>',
           /* glsl */ `
         // Photon gates at raw sky 0.1; vSkylight already contains raw sky squared.
-        if (leafSssAmount >= 0.000001 && max(max(leafSunColor.r, leafSunColor.g), leafSunColor.b) > 0.00001 && vSkylight >= 0.01) {
+        if (leafSssAmount >= 0.000001 && max(max(leafSunColor.r, leafSunColor.g), leafSunColor.b) > 0.00001 && surfaceSkyLevel >= 0.01) {
           float leafMu = dot(normalize(vLightPosition - cameraPosition), leafSunDirection);
           float leafNoL = dot(inverseTransformDirection(geometryNormal,viewMatrix),leafSunDirection);
           outgoingLight += leafSunColor * clamp(leafLightTransmission, vec3(0.0), vec3(1.0)) *

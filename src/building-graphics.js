@@ -183,6 +183,8 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
   mesh.userData.surfaceReflection = reflectiveSurfaceClass(
     surfaceOpticsClass(type, BLOCKS[type]),
   );
+  mesh.userData.baseSurfaceReflection = mesh.userData.surfaceReflection;
+  mesh.userData.surfaceReflection ||= textures.materials?.reflective(geometry);
   if (material.userData?.geometricShade)
     geometry.setAttribute(
       'surfaceOptics',

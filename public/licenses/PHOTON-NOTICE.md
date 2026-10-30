@@ -77,6 +77,14 @@ wet surfaces. `reflection-radiance.js` uses standard Three.js HDR copying and
 GPU mip generation; source history/fog correction remains separate work.
 These derived portions retain Photon's license.
 
+Since 0.107, `src/photon-specular.js` also adapts labPBR specular decoding,
+the eight source metal F0/F82 pairs and the Lazanyi Fresnel approximation from
+`surface/material.glsl` and `lighting/bsdf.glsl`. Normal XY reconstruction and
+material-AO light-level adjustment follow `program/gbuffers_all_solid.fsh`.
+The host retains linear-sRGB lighting, its atlas, tangent-frame derivatives,
+and its shared reflection buffers. POM and generic material SSS remain separate
+work. These derived portions retain Photon's license.
+
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
 snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;

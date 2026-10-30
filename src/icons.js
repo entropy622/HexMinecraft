@@ -48,6 +48,7 @@ import { cutBlockIcon } from './shape-icons.js';
 import { MINERAL_ICON_BLOCKS } from './mineral-data.js';
 
 import { PROCESSING_BLOCKS } from './processing-data.js';
+import { materialIconURL } from './material-icons.js';
 import { CAVE_BLOCKS } from './cave-data.js';
 import { CIRCUIT_BLOCKS } from './redstone-data.js';
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
@@ -110,8 +111,13 @@ const symbols = {
   cooked: Beef,
 };
 const cache = new Map();
+export const clearItemIcons = () => cache.clear();
 export function itemIcon(id) {
   if (!cache.has(id)) {
+    if (materialIconURL(id, 'top') || materialIconURL(id, 'side')) {
+      cache.set(id, cutBlockIcon(id));
+      return cache.get(id);
+    }
     if (
       DYE_ITEMS[id] ||
       isPigmentPlant(id) ||

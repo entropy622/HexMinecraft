@@ -131,7 +131,7 @@ export class Graphics {
     this.sun.shadow.bias = -0.0002;
     this.softShadows = new SoftShadows(this.sun, this.dynamicLight.uniforms);
     this.scene.add(this.sun, this.sun.target);
-    this.textures = createTextures();
+    this.textures = createTextures(this.renderer.capabilities.maxTextureSize);
     this.leafParticles = new LeafParticles(this.scene, this.textures);
     this.caveAmbience = new CaveAmbience(this.scene);
     this.dripstoneEffects = new DripstoneEffects(this.scene);
@@ -174,6 +174,7 @@ export class Graphics {
       this.material,
       {
         ...this.dynamicLight.uniforms,
+        ...this.textures.materials.uniforms,
         terrainWetness: { value: 0 },
         terrainRain: { value: 0 },
         surfaceBounce: { value: 1 },
@@ -209,6 +210,12 @@ export class Graphics {
       this.plantUniforms,
     );
     this.foliageMaterial = this.plantMaterials.material;
+    for (const material of [
+      this.material,
+      this.leafMaterials.material,
+      this.foliageMaterial,
+    ])
+      material.surfaceAtlas = this.textures.materials;
     this.glassMaterial = new THREE.MeshPhongMaterial({
       vertexColors: true,
       map: this.textures.atlas,
@@ -331,6 +338,8 @@ export class Graphics {
       });
       const volume = this.dynamicLight.uniforms.entityLightVolume.value;
       if (volume) resources.add(volume);
+      for (const uniform of Object.values(this.textures.materials.uniforms))
+        if (uniform.value?.isTexture) resources.add(uniform.value);
       for (const resource of resources) resource.dispose();
       this.sun.shadow.map?.dispose();
       this.sun.shadow.map = null;
@@ -403,6 +412,15 @@ export class Graphics {
     this.postOptions = postSettings(settings);
     if (this.composer)
       setPostprocessingOptions(this.composer, this.postOptions);
+  }
+  applyMaterialPack(pack) {
+    this.textures.materials.apply(
+      pack,
+      this.scene,
+      this.renderer.capabilities.maxTextureSize,
+    );
+    this.renderer.shadowMap.needsUpdate = true;
+    this.composer?.effects.temporal.reset();
   }
   chunkKey(q, r) {
     return `${Math.floor(q / 8)},${Math.floor(r / 8)}`;
@@ -1006,7 +1024,9 @@ export class Graphics {
     }
     mesh.geometry = geometry(solid);
     mesh.material = this.material;
-    mesh.userData.surfaceReflection = !!solid.reflections;
+    mesh.userData.baseSurfaceReflection = !!solid.reflections;
+    mesh.userData.surfaceReflection =
+      !!solid.reflections || this.textures.materials.reflective(mesh.geometry);
     mesh.position.set(origin.x, 0, origin.z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;

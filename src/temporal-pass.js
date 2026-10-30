@@ -59,7 +59,7 @@ export class TemporalResolvePass extends Pass {
       uniforms: {
         sceneColor: { value: null },
         sceneDepth: { value: frame.depthTexture },
-        protection: { value: protection.target.texture },
+        protection: protection.textureUniform,
         historyColor: { value: null },
         resolution: { value: new Vector2(1, 1) },
         jitter: { value: this.jitter },
