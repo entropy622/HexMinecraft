@@ -36,6 +36,14 @@ and display-transfer approximation from `utility/color.glsl`,
 `settings.glsl` at the same pinned revision. The upstream license also covers
 these derived portions. Three's input texture transfer remains the host model.
 
+Since 0.102, `src/photon-cas.js` and `src/photon-output.js` adapt Photon's
+FidelityFX CAS filter from `program/final.fsh`: display-space 3x3 soft extrema,
+the source weight shaping, intensity mapping and clamp/division order. Host
+changes repeat image edges, define zero-signal channels as zero amplification,
+and fuse pointwise grading with the taps instead of storing the source's packed
+R11F_G11F_B10F intermediate. Photon's license still applies to these portions.
+The [AMD FidelityFX CAS MIT notice](fidelityfx-cas.txt) is also retained.
+
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
 snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;

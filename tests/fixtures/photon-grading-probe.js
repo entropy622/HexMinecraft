@@ -27,7 +27,12 @@ export function probePhotonGrading(g, colors, cases) {
   pass.renderToScreen = false;
   try {
     for (const entry of cases) {
-      pass.setOptions({ ...g.postOptions, ...entry.settings });
+      // Isolate the pointwise grade; CAS's spatial output is tested separately.
+      pass.setOptions({
+        ...g.postOptions,
+        ...entry.settings,
+        sharpening: false,
+      });
       r.toneMappingExposure = entry.exposure ?? 1;
       pass.render(r, target, { texture });
       const data = new Float32Array(colors.length * 4);

@@ -151,17 +151,13 @@ export class TemporalResolvePass extends Pass {
       vertexShader,
       uniforms: {
         sceneColor: { value: null },
-        resolution: { value: this.material.uniforms.resolution.value },
       },
       fragmentShader: /* glsl */ `
-        varying vec2 vUv;uniform sampler2D sceneColor;uniform vec2 resolution;
+        uniform sampler2D sceneColor;
         void main(){
-          vec2 pixel=1.0/resolution;
-          vec3 center=texture2D(sceneColor,vUv).rgb;
-          vec3 a=texture2D(sceneColor,vUv+vec2(pixel.x,0.0)).rgb,b=texture2D(sceneColor,vUv-vec2(pixel.x,0.0)).rgb;
-          vec3 c=texture2D(sceneColor,vUv+vec2(0.0,pixel.y)).rgb,d=texture2D(sceneColor,vUv-vec2(0.0,pixel.y)).rgb;
-          vec3 detail=center+.18*(center-(a+b+c+d)*.25);
-          gl_FragColor=vec4(clamp(detail,min(center,min(min(a,b),min(c,d))),max(center,max(max(a,b),max(c,d)))),1.0);
+          // History alpha is depth/reactivity, not scene opacity. Sharpen only
+          // once, after grading, in the final Photon output.
+          gl_FragColor=vec4(texelFetch(sceneColor,ivec2(gl_FragCoord.xy),0).rgb,1.0);
         }`,
     });
     this.quad = new FullScreenQuad();

@@ -9,6 +9,8 @@ export const DEFAULT_POST_SETTINGS = {
   // Photon defaults to manual EV 0; its light controller compensates the day.
   // Explicit saved choices still override this default in postSettings().
   exposure: false,
+  sharpening: true,
+  sharpness: 0.5,
 };
 export function postSettings(raw) {
   const settings = { ...DEFAULT_POST_SETTINGS };
@@ -18,6 +20,10 @@ export function postSettings(raw) {
   if (typeof raw.antialias === 'boolean') settings.antialias = raw.antialias;
   if (typeof raw.clouds === 'boolean') settings.clouds = raw.clouds;
   if (typeof raw.exposure === 'boolean') settings.exposure = raw.exposure;
+  if (typeof raw.sharpening === 'boolean') settings.sharpening = raw.sharpening;
+  if (Number.isFinite(raw.sharpness))
+    settings.sharpness =
+      Math.round(Math.max(0, Math.min(1, raw.sharpness)) * 100) / 100;
   if (Number.isFinite(raw.bloom))
     settings.bloom = Math.max(0, Math.min(0.5, raw.bloom));
   for (const [key, spec] of Object.entries(COLOR_SETTINGS))

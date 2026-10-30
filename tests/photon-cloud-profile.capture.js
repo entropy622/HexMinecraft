@@ -113,6 +113,70 @@ test('FHD forest real WebGL stage costs', async ({ page }, info) => {
   expect(measured.busy).toBe(0);
   expect(messages.errors).toEqual([]);
   expect(messages.warnings).toEqual([]);
+  // Same source/scene/history, with only the final CAS switch changed. The old
+  // temporal sharpen has already been removed in both conditions.
+  const casOffAt = await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    g.setPostOptions({ ...g.postOptions, sharpening: false });
+    return window.__cloudStages.rendered;
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.rendered), {
+      timeout: 90000,
+    })
+    .toBeGreaterThanOrEqual(casOffAt + 24);
+  await page.evaluate(() => window.__cloudStages.start(120));
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.done), {
+      timeout: 90000,
+    })
+    .toBe(true);
+  const casOff = await page.evaluate(() => window.__cloudStages.result()),
+    casOffFrame = await page.evaluate(readReferenceFrame, resourceLayout);
+  await writeFile(
+    info.outputPath('cas-off-control.json'),
+    JSON.stringify(
+      {
+        measured: casOff,
+        frame: casOffFrame,
+        gpu: distribution(
+          casOff.frames.map((f) =>
+            casOff.gpu
+              .filter((g) => g.index === f.index)
+              .reduce((sum, g) => sum + g.milliseconds, 0),
+          ),
+        ),
+        output: distribution(
+          casOff.frames.map((f) =>
+            casOff.gpu
+              .filter((g) => g.index === f.index && g.stage === 'output')
+              .reduce((sum, g) => sum + g.milliseconds, 0),
+          ),
+        ),
+        cpu: distribution(casOff.frames.map((f) => f.cpuSubmitMs)),
+        messages,
+      },
+      null,
+      2,
+    ),
+  );
+  await page
+    .locator('#world')
+    .screenshot({ path: info.outputPath('forest-cas-off.png') });
+  expect(casOffFrame.settings.post.sharpening).toBe(false);
+  expect(casOff.frames).toHaveLength(120);
+  expect(casOff.disjoint).toBe(0);
+  expect(casOff.busy).toBe(0);
+  const casOnAt = await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    g.setPostOptions({ ...g.postOptions, sharpening: true });
+    return window.__cloudStages.rendered;
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.rendered), {
+      timeout: 90000,
+    })
+    .toBeGreaterThanOrEqual(casOnAt + 24);
   // Same-process control retains the complete current lighting algorithm.
   // Disable only early leaf depth, warm it, and measure the same fixed view.
   const controlAt = await page.evaluate(() => {

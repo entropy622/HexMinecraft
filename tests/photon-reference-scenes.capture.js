@@ -242,6 +242,12 @@ test('production UI imports and re-exports the reusable native forest save', asy
     await expect(page.locator('#pause-overlay')).toBeVisible();
     await expect(page.locator('#quality')).toHaveValue('1.7');
     await expect(page.locator('#exposure-toggle')).not.toBeChecked();
+    await expect(page.locator('#sharpening-toggle')).toBeChecked();
+    await expect(page.locator('#sharpness-strength')).toHaveValue('0.5');
+    await page.locator('#sharpness-strength').focus();
+    await page.keyboard.press('End');
+    await page.locator('#sharpening-toggle').uncheck();
+    await expect(page.locator('#sharpness-strength')).toBeDisabled();
     await expect(page.locator('#color-whiteBalance')).toHaveValue('6500');
     await page.locator('#color-whiteBalance').focus();
     await page.keyboard.press('End');
@@ -256,6 +262,13 @@ test('production UI imports and re-exports the reusable native forest save', asy
     await page.locator('#color-reset').click();
     await expect(page.locator('#color-whiteBalance')).toHaveValue('6500');
     await expect(page.locator('#exposure-toggle')).not.toBeChecked();
+    await expect(page.locator('#sharpening-toggle')).not.toBeChecked();
+    await expect(page.locator('#sharpness-strength')).toHaveValue('1');
+    await page.locator('#sharpening-toggle').check();
+    await expect(page.locator('#sharpness-strength')).toBeEnabled();
+    await page
+      .locator('#post-settings')
+      .screenshot({ path: info.outputPath('production-cas-settings.png') });
     await page
       .locator('#color-settings')
       .screenshot({ path: info.outputPath('production-color-settings.png') });

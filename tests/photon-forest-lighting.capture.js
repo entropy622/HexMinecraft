@@ -53,6 +53,25 @@ test('natural forest lighting provenance at a fixed native camera', async ({
   await page
     .locator('#world')
     .screenshot({ path: info.outputPath('forest.png') });
+  // Same native camera/time/exposure. Let the existing temporal sampling settle
+  // at each setting; these screenshots are not exact frozen-HDR pixel pairs.
+  for (const enabled of [false, true]) {
+    const at = await page.evaluate((enabled) => {
+      const g = window.__hexwild.graphics;
+      g.setPostOptions({ ...g.postOptions, sharpening: enabled });
+      return window.__photonProbe.rendered;
+    }, enabled);
+    await expect
+      .poll(() => page.evaluate(() => window.__photonProbe.rendered), {
+        timeout: 60000,
+      })
+      .toBeGreaterThanOrEqual(at + 16);
+    await page.locator('#world').screenshot({
+      path: info.outputPath(
+        enabled ? 'forest-cas-on.png' : 'forest-cas-off.png',
+      ),
+    });
+  }
   const result = await page.evaluate(async () => {
     const { readForestLighting } =
       await import('/tests/fixtures/forest-lighting-probe.js');

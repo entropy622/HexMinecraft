@@ -61,13 +61,19 @@ async function frames(page, count) {
 test('temporal accumulation improves real voxel edges against a supersampled reference', async ({
   page,
 }, info) => {
-  test.setTimeout(120000);
+  test.setTimeout(240000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (e) => {
     if (e.type() === 'error') errors.push(e.text());
   });
   await scene(page);
+  // Keep the supersampled ground truth unsharpened. A physical-pixel CAS
+  // neighborhood must not be halved by applying it to the 2x reference.
+  await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    g.setPostOptions({ ...g.postOptions, sharpening: false });
+  });
   expect(
     await page.evaluate(
       () => !!window.__hexwild.graphics.composer.effects.temporal,
@@ -85,16 +91,25 @@ test('temporal accumulation improves real voxel edges against a supersampled ref
   const reference = await page.screenshot({
     path: info.outputPath('reference-2x.png'),
   });
-  // Ablate only the actual temporal pass: this is the old SMAA-only renderer,
-  // not a fake of the shader or its colour/depth inputs.
+  // Record both spatial-only candidates; CAS can accentuate aliased gradients.
+  // The final default must beat the better spatial result against ground truth.
   await page.evaluate(() => {
     const g = window.__hexwild.graphics;
     g.resizeRendering();
-    g.setPostOptions({ ...g.postOptions, antialias: true });
+    g.setPostOptions({ ...g.postOptions, antialias: true, sharpening: false });
     g.composer.effects.temporal.enabled = false;
   });
   await frames(page, 4);
   const smaa = await page.screenshot({ path: info.outputPath('smaa.png') });
+  await page.evaluate(() => {
+    const g = window.__hexwild.graphics;
+    g.setPostOptions({ ...g.postOptions, sharpening: true });
+    g.composer.effects.temporal.enabled = false;
+  });
+  await frames(page, 4);
+  const smaaCas = await page.screenshot({
+    path: info.outputPath('smaa-cas.png'),
+  });
   await page.evaluate(() => {
     const g = window.__hexwild.graphics;
     g.setPostOptions({ ...g.postOptions, antialias: true });
@@ -126,12 +141,15 @@ test('temporal accumulation improves real voxel edges against a supersampled ref
             }),
         ),
       );
-      const [reference, smaa, taa, settled] = pixels,
+      const [reference, smaa, smaaCas, taa, settled] = pixels,
         w = innerWidth,
         h = innerHeight;
       let smaaError = 0,
+        smaaCasError = 0,
         taaError = 0,
+        gradientReference = 0,
         gradientSmaa = 0,
+        gradientSmaaCas = 0,
         gradientTaa = 0,
         flicker = 0,
         n = 0,
@@ -151,7 +169,14 @@ test('temporal accumulation improves real voxel edges against a supersampled ref
             n++;
             if (edge > 30) {
               smaaError += (smaa[i + c] - reference[i + c]) ** 2;
+              smaaCasError += (smaaCas[i + c] - reference[i + c]) ** 2;
               taaError += (taa[i + c] - reference[i + c]) ** 2;
+              gradientReference +=
+                Math.abs(reference[i + c] - reference[ix + c]) +
+                Math.abs(reference[i + c] - reference[iy + c]);
+              gradientSmaaCas +=
+                Math.abs(smaaCas[i + c] - smaaCas[ix + c]) +
+                Math.abs(smaaCas[i + c] - smaaCas[iy + c]);
               gradientSmaa +=
                 Math.abs(smaa[i + c] - smaa[ix + c]) +
                 Math.abs(smaa[i + c] - smaa[iy + c]);
@@ -164,14 +189,21 @@ test('temporal accumulation improves real voxel edges against a supersampled ref
         }
       return {
         smaaError: smaaError / edges,
+        smaaCasError: smaaCasError / edges,
         taaError: taaError / edges,
-        errorRatio: taaError / smaaError,
+        errorRatio: taaError / Math.min(smaaError, smaaCasError),
         gradientRatio: gradientTaa / gradientSmaa,
+        referenceGradientRatio: gradientTaa / gradientReference,
+        spatialCasGradientRatio: gradientSmaaCas / gradientReference,
+        nativeSettings: {
+          sharpening: window.__hexwild.graphics.postOptions.sharpening,
+          sharpness: window.__hexwild.graphics.postOptions.sharpness,
+        },
         settledDifference: flicker / n / 255,
         edgeSamples: edges,
       };
     },
-    [reference, smaa, temporal, settled].map(
+    [reference, smaa, smaaCas, temporal, settled].map(
       (p) => 'data:image/png;base64,' + p.toString('base64'),
     ),
   );
@@ -182,6 +214,8 @@ test('temporal accumulation improves real voxel edges against a supersampled ref
   expect(metrics.edgeSamples).toBeGreaterThan(1000);
   expect(metrics.errorRatio).toBeLessThan(0.95);
   expect(metrics.gradientRatio).toBeGreaterThan(0.75);
+  expect(metrics.referenceGradientRatio).toBeGreaterThan(0.75);
+  expect(metrics.referenceGradientRatio).toBeLessThan(1.25);
   expect(metrics.settledDifference).toBeLessThan(0.015);
   expect(errors).toEqual([]);
 });
@@ -304,7 +338,7 @@ test('a moving production mob rejects history and clears its vacated silhouette'
 test('camera cuts, failed GPU draws, viewport changes and real quality controls reset history', async ({
   page,
 }, info) => {
-  test.setTimeout(150000);
+  test.setTimeout(240000);
   const errors = [];
   page.on('pageerror', (e) => {
     if (!e.message.includes('temporal GPU boundary failure'))
