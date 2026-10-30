@@ -9,7 +9,7 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { cloudFieldGLSL } from './cloud-field.js';
+import { cloudShadowGLSL } from './cloud-field.js';
 import { glassTransmissionGLSL } from './glass-transmission.js';
 import { waterExtinctionGLSL, waterScatteringGLSL } from './water-shader.js';
 import { airTransportGLSL } from './air-transport.js';
@@ -19,7 +19,7 @@ varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
 `;
 const volumeShader = /* glsl */ `
-${cloudFieldGLSL}
+${cloudShadowGLSL}
 ${waterExtinctionGLSL}
 ${waterScatteringGLSL}
 uniform float waterCamera;

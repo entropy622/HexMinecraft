@@ -51,6 +51,16 @@ in the test fixture also retain Photon's license. No new binary asset is added.
 The source attributes its Perlin-gradient routine to Inigo Quilez's
 gradient-noise article: https://iquilezles.org/articles/gradientnoise/ .
 
+Since 0.121, cloud-shadow preparation, light-plane radial projection, per-layer
+shadow coefficients, primary-only transmission, horizon/altitude fades and the
+0.8 intensity follow `lighting/cloud_shadows.glsl`. Preparation uses the source
+`PROGRAM_PREPARE` constant Worley detail. The B-spline weights derive from
+`utility/bicubic.glsl`, which credits
+https://stackoverflow.com/questions/13501081/efficient-bicubic-filtering-code-in-glsl .
+The host packs a logical 512 x 512 RG map into spare RGBA atlas space and
+unpacks before filtering. Stable factored sphere roots preserve WebGL precision.
+These derived portions retain Photon's license. Congestus is not implemented.
+
 The source binary is `src/assets/photon-scattering.dat`, 393216 bytes, SHA256
 `d4834ef3babc1376f923f39d495d69dd9d7099f56feb40335a184af8a6b98fc6`.
 It is embedded in the application bundle. Runtime RGB16F to RGBA16F packing

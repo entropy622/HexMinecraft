@@ -375,6 +375,21 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
     observations.push({ name: `world-${q}`, ...distant });
     await page.screenshot({ path: info.outputPath(`world-${q}.png`) });
     const anchored = await fieldProbe(page);
+    const groundPoints = Array.from({ length: 64 }, (_, i) => [
+      distant.camera[0] + ((i % 8) - 3.5) * 24,
+      10,
+      distant.camera[2] + (Math.floor(i / 8) - 3.5) * 24,
+    ]);
+    const groundBefore = await fieldProbe(page, groundPoints);
+    const fixedClimateShadow = await page.evaluate(async (points) => {
+      const { comparePreparedShadowCamera } =
+        await import('/tests/fixtures/cloud-shadow-probe.js');
+      return comparePreparedShadowCamera(window.__hexwild.graphics, points, [
+        12 * Math.sqrt(3),
+        0,
+        0,
+      ]);
+    }, groundPoints);
     const before = distant.camera;
     await page.evaluate((q) => {
       const g = window.__hexwild;
@@ -385,23 +400,31 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
     await frames(page, 16);
     const translated = await sample(page);
     const fixed = await fieldProbe(page, anchored.points);
+    const groundAfter = await fieldProbe(page, groundPoints);
+    const groundShadowErrors = groundBefore.density
+      .filter((_, i) => i % 4 === 3)
+      .map((v, i) => Math.abs(v - groundAfter.density[i * 4 + 3]));
     const delta = translated.camera.map((v, i) => v - before[i]);
     const moved = await fieldProbe(
       page,
       anchored.points.map((p) => p.map((v, i) => v + delta[i])),
     );
+    // Mean L1 density-vector error per point. The fourth channel is a
+    // separately filtered, camera-centred shadow map, not cloud density.
+    // Its useful terrain range is checked independently on the same points.
     const error = (a, b) =>
-      a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0) / a.length;
+      a.reduce((sum, v, i) => sum + (i % 4 < 3 ? Math.abs(v - b[i]) : 0), 0) /
+      (a.length / 4);
     const fixedError = error(anchored.density, fixed.density),
       followingError = error(anchored.density, moved.density);
-    const productErrors = [];
+    const preparedErrors = [];
     const upperInfluence = [];
     for (let i = 0; i < fixed.transmission.length; i += 4) {
       const t = fixed.transmission.slice(i, i + 4);
-      productErrors.push(
-        Math.abs(fixed.density[i + 3] - (1 - t[3] + t[3] * t[0] * t[1] * t[2])),
+      preparedErrors.push(
+        Math.abs(fixed.density[i + 3] - (1 - t[3] + t[3] * t[0])),
       );
-      upperInfluence.push(t[3] * t[0] * (1 - t[1] * t[2]));
+      upperInfluence.push(t[3] * (t[1] - t[0]));
     }
     const upperGrid = await page.evaluate(async () => {
       const { probeCloudShadowGrid } =
@@ -415,9 +438,14 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
       moved,
       fixedError,
       followingError,
-      productErrors,
+      preparedErrors,
       upperInfluence,
       upperGrid,
+      groundPoints,
+      groundBefore,
+      groundAfter,
+      groundShadowErrors,
+      fixedClimateShadow,
     });
     await writeFile(
       info.outputPath('cloud-layers.json'),
@@ -425,7 +453,12 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
     );
     expect(followingError).toBeGreaterThan(0.008);
     expect(fixedError).toBeLessThan(followingError * 0.6 + 0.002);
-    expect(Math.max(...productErrors)).toBeLessThan(0.002);
+    expect(Math.max(...preparedErrors)).toBeLessThan(0.002);
+    expect(Math.max(...fixedClimateShadow.errors)).toBeLessThan(0.08);
+    expect(
+      fixedClimateShadow.errors.reduce((sum, v) => sum + v, 0) /
+        fixedClimateShadow.errors.length,
+    ).toBeLessThan(0.03);
     expect(upperGrid.finite).toBe(true);
     expect(upperGrid.gl).toBe(0);
     expect(Math.max(...upperInfluence, upperGrid.maximum)).toBeGreaterThan(

@@ -298,5 +298,26 @@ test('fixed forest and sky show actual cloud detail at unchanged camera, light a
     expect(cirrusPeak).toBeGreaterThan(0.000001);
     expect(cellsPeak).toBeGreaterThan(0.000001);
   }
+  if (!baseline) {
+    const shadow = await page.evaluate(async () => {
+      const { readPreparedCloudShadows } =
+        await import('/tests/fixtures/cloud-shadow-probe.js');
+      return readPreparedCloudShadows(window.__hexwild.graphics);
+    });
+    await writeFile(
+      info.outputPath('prepared-cloud-shadows.json'),
+      JSON.stringify(shadow, null, 2),
+    );
+    expect(shadow.ready).toBe(1);
+    expect(shadow.gl).toBe(0);
+    expect(shadow.invalid).toBe(0);
+    expect(shadow.outsideErrors).toBe(0);
+    expect(shadow.minimum).toBeLessThan(0.95);
+    expect(shadow.maximum).toBe(1);
+    expect(shadow.upper).toBeGreaterThan(0.005);
+    expect(shadow.mapError).toBeLessThan(0.001);
+    expect(shadow.filterError).toBeLessThan(0.00001);
+    expect(shadow.shadowError).toBeLessThan(0.00001);
+  }
   expect(messages).toEqual([]);
 });

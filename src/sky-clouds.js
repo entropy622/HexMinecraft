@@ -78,6 +78,7 @@ export class SkyClouds {
     return [
       this.mode,
       u.cloudCoverageReady.value,
+      u.cloudShadowReady.value,
       ...u.cloudNoiseOffset.value.toArray(),
       ...u.cloudCoverageRange.value.flatMap((v) =>
         v.toArray().map((x) => Math.round(x * 100)),

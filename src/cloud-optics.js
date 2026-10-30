@@ -5,6 +5,7 @@ import { Vector4 } from 'three';
 export const CLOUD_METRES_PER_UNIT = 20;
 export const CIRRUS_DENSITY = 0.5;
 export const CIRROCUMULUS_DENSITY = 1;
+export const ALTOCUMULUS_DENSITY = 0.1;
 const clamp = (x) => Math.max(0, Math.min(1, x));
 const linear = (a, b, x) => clamp((x - a) / (b - a));
 const smooth = (a, b, x) => {
@@ -47,7 +48,7 @@ export function setCloudOptics(
       0.5 * Math.max(0, smooth(0, 0.15, Math.abs(y)) - smooth(0.5, 0.7, c2));
   target[0].set(extinction, 1 - 0.34 * r, s0, shadow);
   target[1].set(
-    (0.08 + 0.08 * day) * 0.1 * (2 - s1),
+    (0.08 + 0.08 * day) * ALTOCUMULUS_DENSITY * (2 - s1),
     1 - 0.25 * r,
     s1,
     altoBoost,

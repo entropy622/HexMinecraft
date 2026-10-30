@@ -2,7 +2,10 @@ import {
   GLSL3,
   HalfFloatType,
   LinearFilter,
+  Matrix4,
   ShaderMaterial,
+  Vector3,
+  Vector4,
   WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
@@ -12,7 +15,13 @@ import {
   CLOUD_COVERAGE_SPANS,
   CLOUD_COVERAGE_HEADER,
   cloudMacroGLSL,
+  cloudFieldGLSL,
 } from './cloud-field.js';
+import {
+  cloudShadowPrepareGLSL,
+  CLOUD_SHADOW_X,
+  CLOUD_SHADOW_SIZE,
+} from './cloud-shadow.js';
 
 // One atlas preserves the exact seed lattice and caches both volume layers.
 // Reusing cloudNoise avoids another fragment sampler on terrain/water materials.
@@ -22,6 +31,11 @@ export class CloudCoverage {
     this.seed = uniforms.cloudSeedNoise.value;
     this.target = null;
     this.key = null;
+    this.shadowKey = null;
+    this.shadowFrame = new Matrix4();
+    this.shadowEye = new Vector3();
+    this.shadowTarget = new Vector3();
+    this.shadowUp = new Vector3(0, 1, 0);
     this.material = new ShaderMaterial({
       glslVersion: GLSL3,
       depthTest: false,
@@ -52,12 +66,37 @@ export class CloudCoverage {
         }`,
     });
     this.quad = new FullScreenQuad(this.material);
+    this.shadowMaterial = new ShaderMaterial({
+      glslVersion: GLSL3,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+      defines: { HEX_CLOUD_PREPARE: 1 },
+      uniforms: {
+        ...uniforms,
+        cloudNoise: { value: this.seed },
+        cloudNoiseScale: { value: CLOUD_NOISE_SCALE },
+        cloudCoverageReady: { value: 0 },
+      },
+      vertexShader: 'void main(){gl_Position=vec4(position.xy,0.0,1.0);}',
+      fragmentShader: `${cloudFieldGLSL}
+        ${cloudShadowPrepareGLSL}
+        out vec4 shadowValue;
+        void main(){
+          vec2 cell=vec2((floor(gl_FragCoord.x)-768.0)*2.0,floor(gl_FragCoord.y));
+          shadowValue=vec4(hexCloudPrepareShadow((cell+0.5)/512.0),
+            hexCloudPrepareShadow((cell+vec2(1.5,0.5))/512.0));
+        }`,
+    });
+    this.shadowQuad = new FullScreenQuad(this.shadowMaterial);
   }
   reset() {
     this.key = null;
+    this.shadowKey = null;
     this.uniforms.cloudNoise.value = this.seed;
     this.uniforms.cloudNoiseScale.value = CLOUD_NOISE_SCALE;
     this.uniforms.cloudCoverageReady.value = 0;
+    this.uniforms.cloudShadowReady.value = 0;
   }
   release() {
     this.reset();
@@ -94,7 +133,26 @@ export class CloudCoverage {
       ...u.cloudNoiseOffset.value.toArray(),
       ...u.cloudCoverageOrigin.value.flatMap((v) => v.toArray()),
     ].join(',');
-    if (this.key !== key) {
+    this.shadowTarget.copy(d).negate();
+    this.shadowFrame
+      .lookAt(this.shadowEye, this.shadowTarget, this.shadowUp)
+      .setPosition(camera.position);
+    u.cloudShadowInverse.value.copy(this.shadowFrame);
+    u.cloudShadowView.value.copy(this.shadowFrame).invert();
+    const shadowKey = [
+      this.seed.version,
+      ...u.cloudShadowInverse.value.elements,
+      ...d.toArray(),
+      ...u.cloudNoiseOffset.value.toArray(),
+      ...u.cloudCurvatureOrigin.value.toArray(),
+      ...u.cloudLayers.value.flatMap((v) => v.toArray()),
+      ...u.cloudCoverageRange.value.flatMap((v) => v.toArray()),
+      ...u.cloudLayerWind.value.flatMap((v) => v.toArray()),
+      ...u.cloudDetailDrift.value.flatMap((v) => v.toArray()),
+      ...u.cloudDetailShape.value.toArray(),
+      ...u.cloudOptics.value.flatMap((v) => v.toArray()),
+    ].join(',');
+    if (this.key !== key || this.shadowKey !== shadowKey) {
       this.target ??= new WebGLRenderTarget(
         CLOUD_COVERAGE_SIZE,
         CLOUD_COVERAGE_SIZE + CLOUD_COVERAGE_HEADER,
@@ -105,29 +163,55 @@ export class CloudCoverage {
           depthBuffer: false,
         },
       );
-      this.target.texture.name = 'Cloud coverage and seed lattice';
+      this.target.texture.name =
+        'Cloud coverage, source noise and prepared shadows';
       const previous = renderer.getRenderTarget(),
-        autoClear = renderer.autoClear;
+        face = renderer.getActiveCubeFace(),
+        level = renderer.getActiveMipmapLevel(),
+        autoClear = renderer.autoClear,
+        viewport = renderer.getViewport(new Vector4()),
+        scissor = renderer.getScissor(new Vector4()),
+        scissorTest = renderer.getScissorTest();
       try {
-        renderer.autoClear = true;
         renderer.setRenderTarget(this.target);
-        this.quad.render(renderer);
+        renderer.setViewport(0, 0, this.target.width, this.target.height);
+        renderer.setScissorTest(false);
+        if (this.key !== key) {
+          renderer.autoClear = true;
+          this.quad.render(renderer);
+        }
+        renderer.autoClear = false;
+        renderer.setScissor(
+          CLOUD_SHADOW_X,
+          0,
+          CLOUD_SHADOW_SIZE / 2,
+          CLOUD_SHADOW_SIZE,
+        );
+        renderer.setScissorTest(true);
+        this.shadowQuad.render(renderer);
         this.key = key;
+        this.shadowKey = shadowKey;
       } catch (error) {
         this.reset();
         throw error;
       } finally {
         renderer.autoClear = autoClear;
-        renderer.setRenderTarget(previous);
+        renderer.setRenderTarget(previous, face, level);
+        renderer.setViewport(viewport);
+        renderer.setScissor(scissor);
+        renderer.setScissorTest(scissorTest);
       }
     }
     u.cloudNoise.value = this.target.texture;
     u.cloudNoiseScale.value = 1 / 126;
     u.cloudCoverageReady.value = 1;
+    u.cloudShadowReady.value = 1;
   }
   dispose() {
     this.release();
     this.material.dispose();
     this.quad.dispose();
+    this.shadowMaterial.dispose();
+    this.shadowQuad.dispose();
   }
 }

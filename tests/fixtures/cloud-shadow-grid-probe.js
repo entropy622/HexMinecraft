@@ -2,22 +2,19 @@ import {
   FloatType,
   GLSL3,
   ShaderMaterial,
-  Vector2,
+  Vector3,
   WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { cloudFieldGLSL } from '../../src/cloud-field.js';
+import { cloudShadowGLSL } from '../../src/cloud-field.js';
+import { CLOUD_SHADOW_EXTENT } from '../../src/cloud-shadow.js';
 
 // Find a real upper-deck shadow through a lower-deck opening. Selecting only
-// the nearest visible cumulus bodies often puts every ground ray under opaque
-// low cloud, which cannot establish whether the upper decks affect shadows.
+// the nearest visible bodies or a small horizontal patch can miss every thin
+// upper cloud. Inspect the prepared map's radial light plane, not a different
+// full-ray optical-depth approximation.
 export function probeCloudShadowGrid(graphics) {
   const size = 64,
-    span = 512,
-    center = new Vector2(
-      graphics.camera.position.x,
-      graphics.camera.position.z,
-    ),
     renderer = graphics.renderer,
     target = new WebGLRenderTarget(size, size, {
       type: FloatType,
@@ -28,23 +25,18 @@ export function probeCloudShadowGrid(graphics) {
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
-      uniforms: {
-        ...graphics.cloudSystem.uniforms,
-        probeCenter: { value: center },
-      },
+      uniforms: graphics.cloudSystem.uniforms,
       vertexShader: 'void main(){gl_Position=vec4(position.xy,0,1);}',
-      fragmentShader: `${cloudFieldGLSL}
-        uniform vec2 probeCenter;out vec4 transmission;
+      fragmentShader: `${cloudShadowGLSL}
+        out vec4 transmission;
         void main(){
-          vec2 p=probeCenter+(gl_FragCoord.xy/${size.toFixed(1)}-0.5)*${span.toFixed(1)};
-          vec3 ground=vec3(p.x,10.0,p.y),t=vec3(1.0);
-          for(int layer=0;layer<3;layer++){
-            vec2 interval=hexCloudInterval(ground,cloudLightDirection,layer,cloudFar);
-            if(interval.y>interval.x)t[layer]=exp(-20.0*cloudOptics[layer].x*
-              hexCloudLayerOpticalDepth(ground+cloudLightDirection*interval.x,
-                cloudLightDirection,interval.y-interval.x,layer,4));
-          }
-          transmission=vec4(t,cloudShade*smoothstep(0.04,0.18,cloudLightDirection.y));
+          vec2 p=gl_FragCoord.xy/${size.toFixed(1)}*2.0-1.0;
+          float radius=length(p);
+          if(radius>=0.97){transmission=vec4(1.0,1.0,1.0,0.0);return;}
+          p*=${CLOUD_SHADOW_EXTENT.toFixed(1)}/(1.0-radius);
+          vec3 origin=(cloudShadowInverse*vec4(p,1.0,1.0)).xyz;
+          vec3 ground=origin+cloudLightDirection*((10.0-origin.y)/cloudLightDirection.y);
+          transmission=vec4(hexCloudPreparedShadow(ground),hexCloudShadow(ground),hexCloudShadowWeight(ground));
         }`,
     }),
     quad = new FullScreenQuad(material),
@@ -58,22 +50,29 @@ export function probeCloudShadowGrid(graphics) {
       witness = null;
     for (let i = 0; i < size * size; i++) {
       const t = Array.from(data.subarray(i * 4, i * 4 + 4)),
-        upper = t[3] * t[0] * (1 - t[1] * t[2]);
+        upper = t[3] * (t[1] - t[0]);
       if (upper > maximum) {
         maximum = upper;
+        const x = (((i % size) + 0.5) / size) * 2 - 1,
+          y = ((Math.floor(i / size) + 0.5) / size) * 2 - 1,
+          extent = CLOUD_SHADOW_EXTENT / (1 - Math.hypot(x, y)),
+          u = graphics.cloudSystem.uniforms,
+          point = new Vector3(x * extent, y * extent, 1).applyMatrix4(
+            u.cloudShadowInverse.value,
+          );
+        point.addScaledVector(
+          u.cloudLightDirection.value,
+          (10 - point.y) / u.cloudLightDirection.value.y,
+        );
         witness = {
-          point: [
-            center.x + (((i % size) + 0.5) / size - 0.5) * span,
-            10,
-            center.y + ((Math.floor(i / size) + 0.5) / size - 0.5) * span,
-          ],
+          point: point.toArray(),
           transmission: t,
         };
       }
     }
     return {
       size,
-      span,
+      projection: 'source radial light plane',
       maximum,
       witness,
       finite: data.every(Number.isFinite),

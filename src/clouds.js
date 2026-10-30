@@ -21,7 +21,7 @@ import {
   cloudDensity,
   cloudNoiseData,
   cloudWeather,
-  cloudFieldGLSL,
+  cloudShadowGLSL,
 } from './cloud-field.js';
 
 const CHUNK = 8,
@@ -75,6 +75,9 @@ export class HexClouds {
       cloudCoverageRange: { value: [new THREE.Vector2(), new THREE.Vector2()] },
       cloudNoiseScale: { value: CLOUD_NOISE_SCALE },
       cloudCoverageReady: { value: 0 },
+      cloudShadowReady: { value: 0 },
+      cloudShadowView: { value: new THREE.Matrix4() },
+      cloudShadowInverse: { value: new THREE.Matrix4() },
       cloudCoverageOrigin: {
         value: [new THREE.Vector2(), new THREE.Vector2()],
       },
@@ -122,7 +125,7 @@ export class HexClouds {
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
       vertexShader: /* glsl */ `
-        ${cloudFieldGLSL}
+        ${cloudShadowGLSL}
         attribute float cloudDensityValue;
         varying vec3 vCloudWorld;
         varying vec3 vCloudNormal;
@@ -142,7 +145,7 @@ export class HexClouds {
         }
       `,
       fragmentShader: /* glsl */ `
-        ${cloudFieldGLSL}
+        ${cloudShadowGLSL}
         ${skyRadianceGLSL}
         uniform vec3 cloudAmbient; uniform vec3 cloudDirect;
         varying vec3 vCloudWorld; varying vec3 vCloudNormal;
@@ -355,7 +358,7 @@ export class HexClouds {
           `,
             );
           shader.fragmentShader =
-            cloudFieldGLSL +
+            cloudShadowGLSL +
             '\nvarying vec3 vCloudShadowPoint;\n' +
             shader.fragmentShader
               .replace(
@@ -368,7 +371,7 @@ export class HexClouds {
               );
         };
         material.customProgramCacheKey = () =>
-          cache.call(material) + '-hex-cloud-shadow-v7';
+          cache.call(material) + '-hex-cloud-shadow-v8';
         material.needsUpdate = true;
       }
     });

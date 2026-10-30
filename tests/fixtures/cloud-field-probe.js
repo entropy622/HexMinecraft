@@ -42,9 +42,9 @@ export function probeCloudField(
         history.height,
         color,
       );
-    points = [];
-    for (let y = 2; y < history.height - 2 && points.length < 32; y += 7)
-      for (let x = 2; x < history.width - 2 && points.length < 32; x += 7) {
+    const candidates = [];
+    for (let y = 2; y < history.height - 2; y += 7)
+      for (let x = 2; x < history.width - 2; x += 7) {
         const i = (y * history.width + x) * 4,
           distance = DataUtils.fromHalfFloat(data[i]);
         if (!(distance > 0 && distance < (layer === null ? 3000 : 60000)))
@@ -63,13 +63,20 @@ export function probeCloudField(
           .unproject(g.camera)
           .sub(g.camera.position)
           .normalize();
-        points.push(
+        candidates.push(
           g.camera.position
             .clone()
             .addScaledVector(direction, distance)
             .toArray(),
         );
       }
+    // Cover the actual visible field, rather than stopping at the first raster
+    // row, where distant/near-empty cloud fragments dominate the old sample.
+    const count = Math.min(32, candidates.length);
+    points = Array.from(
+      { length: count },
+      (_, i) => candidates[Math.floor(((i + 0.5) * candidates.length) / count)],
+    );
   }
   if (points.length === 0)
     throw Error(
@@ -94,12 +101,8 @@ export function probeCloudField(
       vec3 p=probePoints[int(gl_FragCoord.x)];
       vec3 ground=vec3(p.x,probeGroundHeight,p.z);
       if(gl_FragCoord.y<1.0){value=vec4(hexCloudLayerDensity(p,0),hexCloudLayerDensity(p,1),hexCloudLayerDensity(p,2),hexCloudShadow(ground));return;}
-      vec3 transmission=vec3(1.0);
-      for(int layer=0;layer<3;layer++){
-        vec2 span=hexCloudInterval(ground,cloudLightDirection,layer,cloudFar);
-        if(span.y>span.x)transmission[layer]=exp(-20.0*cloudOptics[layer].x*hexCloudLayerOpticalDepth(ground+cloudLightDirection*span.x,cloudLightDirection,span.y-span.x,layer,4));
-      }
-      value=vec4(transmission,cloudShade*smoothstep(0.04,0.18,cloudLightDirection.y));
+      vec2 transmission=hexCloudPreparedShadow(ground);
+      value=vec4(transmission,hexCloudShadow(ground),hexCloudShadowWeight(ground));
     }`,
   });
   const target = new WebGLRenderTarget(points.length, 2, {

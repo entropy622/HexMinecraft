@@ -1,6 +1,10 @@
 import { CLOUD_METRES_PER_UNIT } from './cloud-optics.js';
 import { cloudDetailGLSL } from './cloud-detail-data.js';
 import { cloudCirrusGLSL } from './cloud-cirrus.js';
+import {
+  cloudShadowUniformsGLSL,
+  cloudShadowLookupGLSL,
+} from './cloud-shadow.js';
 import { photonWeather } from './photon-weather.js';
 import {
   cloudCoverageNoiseGLSL,
@@ -197,6 +201,8 @@ uniform float cloudShear;
 uniform float cloudCoverageReady;
 uniform vec2 cloudCoverageOrigin[2];
 const float hexCloudPlanet = ${CLOUD_PLANET_RADIUS.toFixed(1)};
+${cloudShadowUniformsGLSL}
+#ifndef HEX_CLOUD_SHADOW_ONLY
 ${cloudDetailGLSL}
 ${cloudCirrusGLSL}
 vec2 hexCloudMacro(vec2 drifting, int layer) {
@@ -222,6 +228,7 @@ vec2 hexCloudMacro(vec2 drifting, int layer) {
   }
   return result;
 }
+#endif
 vec2 hexCloudCell(vec2 p) {
   p /= cloudRadius;
   vec3 cube = vec3(p.x / 1.732050808 - p.y / 3.0, 0.0, p.y / 1.5);
@@ -242,6 +249,7 @@ float hexCloudAltitude(vec3 position) {
 }
 // Intersect a curved sky shell. Real terrain still truncates the resulting
 // interval; the planet is virtual and never changes world collision or depth.
+#ifndef HEX_CLOUD_SHADOW_ONLY
 vec2 hexCloudInterval(vec3 origin, vec3 direction, int layer, float limit) {
   vec3 p = vec3(origin.xz - cloudCurvatureOrigin, origin.y + hexCloudPlanet);
   vec3 d = vec3(direction.xz, direction.y);
@@ -301,7 +309,11 @@ float hexCloudLayerDensity(vec3 position, int layer) {
     if (upperDensity <= 0.0) return 0.0;
     vec3 detailPosition = position * 0.06;
     detailPosition.xz -= cloudDetailDrift[layer].xy;
+    #ifdef HEX_CLOUD_PREPARE
+    float erosion = 0.5;
+    #else
     float erosion = hexCloudDetail(detailPosition, 1.0);
+    #endif
     upperDensity = max(0.0, upperDensity - 0.2 * erosion * erosion * (1.0 - upperDensity * upperDensity) * (1.0 - 0.85 * band.w));
     vec2 edge = mix(vec2(3.0, 14.0), vec2(2.0, 7.0), band.w);
     float sharp = mix(edge.x, edge.y, fraction);
@@ -326,9 +338,13 @@ float hexCloudLayerDensity(vec3 position, int layer) {
   fine.xz -= drift.zw;
   // Fold the planet's constant periodic y offset on the CPU, preserving fine
   // texture-coordinate precision instead of multiplying a ~6.4e6 m float.
+  #ifdef HEX_CLOUD_PREPARE
+  vec2 erosionNoise = vec2(0.5);
+  #else
   vec2 erosionNoise = vec2(
     hexCloudDetail(coarse + vec3(0, 0.9, 0), 0.0),
     hexCloudDetail(fine, 1.0));
+  #endif
   vec2 erosion = cloudDetailShape.xy;
   float fineWeight = 0.2 * smoothstep(0.85, 1.0, 1.0 - fraction) - 0.35 * smoothstep(0.05, 0.5, fraction) + 0.6;
   float edge = clamp(1.0 - density, 0.0, 1.0);
@@ -352,28 +368,8 @@ float hexCloudLayerOpticalDepth(vec3 origin, vec3 direction, float reach, int la
   }
   return depth;
 }
-float hexCloudShadow(vec3 point) {
-  if (cloudEnabled < 0.5 || cloudLightDirection.y < 0.04) return 1.0;
-  if (cloudVolumetric > 0.5) {
-    float opticalDepth = 0.0;
-    for (int layer = 0; layer < 3; layer++) {
-      vec2 span = hexCloudInterval(point, cloudLightDirection, layer, cloudFar);
-      if (span.y > span.x) opticalDepth += ${CLOUD_METRES_PER_UNIT.toFixed(1)} * cloudOptics[layer].x * hexCloudLayerOpticalDepth(point + cloudLightDirection * span.x, cloudLightDirection, span.y - span.x, layer, 4);
-    }
-    float transmission = exp(-opticalDepth);
-    return mix(1.0, transmission, cloudShade * smoothstep(0.04, 0.18, cloudLightDirection.y));
-  }
-  if (point.y >= cloudBase) return 1.0;
-  float reach = (cloudBase + 3.0 - point.y) / max(0.04, cloudLightDirection.y);
-  vec2 p = point.xz + cloudLightDirection.xz * reach - cloudWind;
-  vec2 h = hexCloudCell(p);
-  vec2 center = vec2(1.732050808 * (h.x + h.y * 0.5), 1.5 * h.y) * cloudRadius;
-  vec2 delta = p - center;
-  float edge = max(abs(delta.x), abs(dot(delta, vec2(0.5, 0.866025404))));
-  edge = max(edge, abs(dot(delta, vec2(-0.5, 0.866025404))));
-  edge /= cloudRadius * 0.866025404;
-  float presence = hexCloudPresence(hexCloudDensity(h));
-  float coverage = (1.0 - smoothstep(presence - 0.12, presence + 0.12, edge)) * smoothstep(0.0, 0.1, presence);
-  return 1.0 - coverage * cloudShade * smoothstep(0.04, 0.18, cloudLightDirection.y);
-}
+#endif
+${cloudShadowLookupGLSL}
 `;
+export const cloudShadowGLSL =
+  '#define HEX_CLOUD_SHADOW_ONLY\n' + cloudFieldGLSL;
