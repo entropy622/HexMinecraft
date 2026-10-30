@@ -23,22 +23,6 @@ export function createPhotonScattering() {
 
 export const photonSkyGLSL = /* glsl */ `
 uniform highp sampler3D skyMultipleScatteringMap;
-uniform float skyMoonPhase;
-// Photon matrices are used with row vectors. Convert only after its Rec.2020
-// scattering, illuminants and saturation have been combined.
-const mat3 photon2020ToXyz = mat3(
-  0.6369736,0.1446172,0.1688585,
-  0.2627066,0.6779996,0.0592938,
-  0.0,0.0280728,1.0608437);
-const mat3 photonXyzTo709 = mat3(
-  3.2406,-1.5372,-0.4986,
-  -0.9689,1.8758,0.0415,
-  0.0557,-0.2040,1.0570);
-const mat3 photon709ToXyz = mat3(
-  0.4124,0.3576,0.1805,0.2126,0.7152,0.0722,0.0193,0.1192,0.9505);
-const mat3 photonXyzTo2020 = mat3(
-  1.7166084,-0.3556621,-0.2533601,-0.6666829,1.6164776,0.0157685,
-  0.0176422,-0.0427763,0.94222867);
 float photonTexel(float x, float size) { return (0.5+x*(size-1.0))/size; }
 vec3 photonScatteringUv(float nu, float mu, float mus) {
   float range=sqrt(max(0.0,(1.0-mu*mu)*(1.0-mus*mus)));
@@ -93,15 +77,8 @@ vec3 photonScattering(vec3 direction,vec3 light,bool moon) {
   return rayleighMultiple+mie*phase;
 }
 vec3 photonSkyRadiance(vec3 direction) {
-  // Keep the host's existing 7-unit scattered HDR scale and playable moon
-  // brightness. Photon's time-of-day exposure/tints are a separate migration.
-  vec3 moonTint=vec3(0.72,0.84,1.0)*photon709ToXyz*photonXyzTo2020;
-  vec3 rgb=7.0*(photonScattering(direction,skySunDirection,false)+
-    photonScattering(direction,-skySunDirection,true)*moonTint*(0.015+0.025*skyMoonIllumination));
-  float blueHeight=skySunDirection.y+0.09604;
-  float blue=clamp((exp(-190.0*(blueHeight*blueHeight))-0.05)/0.95,0.0,1.0);
-  float saturation=(1.1+0.2*blue)*(1.0-clamp((skyAerosol-1.0)/5.0,0.0,1.0));
-  rgb=mix(vec3(dot(rgb,vec3(0.2627,0.6780,0.0593))),rgb,saturation);
-  return max(rgb*photon2020ToXyz*photonXyzTo709,vec3(0.0));
+  vec3 rgb=photonScattering(direction,skySunDirection,false)*photonSunColor()+
+    photonScattering(direction,-skySunDirection,true)*photonMoonColor();
+  return photonTo709(photonAtmospherePost(rgb));
 }
 `;

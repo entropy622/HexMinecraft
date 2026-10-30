@@ -9,11 +9,12 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 export function readForestExposure(g) {
   const pass = g.composer.effects.exposure,
     pixels = new Uint16Array(4);
-  g.renderer.readRenderTargetPixels(pass.history[0], 0, 0, 1, 1, pixels);
+  if (pass.enabled)
+    g.renderer.readRenderTargetPixels(pass.history[0], 0, 0, 1, 1, pixels);
   return {
     enabled: pass.enabled,
-    ready: pass.meter.uniforms.ready.value,
-    exposure: DataUtils.fromHalfFloat(pixels[0]),
+    ready: pass.enabled && pass.meter.uniforms.ready.value,
+    exposure: pass.enabled ? DataUtils.fromHalfFloat(pixels[0]) : 1,
     quality: g.quality,
     gl: g.renderer.getContext().getError(),
   };

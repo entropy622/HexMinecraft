@@ -1,5 +1,6 @@
 import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
+import { DataUtils } from 'three';
 import {
   referenceScenes,
   referenceSave,
@@ -74,8 +75,7 @@ test('natural forest lighting provenance at a fixed native camera', async ({
   for (const m of result.maps) if (m.stats) expect(m.stats.finite).toBe(true);
   expect(messages.errors).toEqual([]);
   expect(messages.warnings).toEqual([]);
-  // Keep the fixed-exposure comparison above intact. Also observe the shipped
-  // default adaptation, which referenceSettings intentionally disables.
+  // Observe the shipped default separately, then exercise optional adaptation.
   const adaptAt = await page.evaluate(async () => {
     const { DEFAULT_POST_SETTINGS } = await import('/src/render-settings.js');
     window.__hexwild.graphics.setPostOptions({
@@ -100,11 +100,44 @@ test('natural forest lighting provenance at a fixed native camera', async ({
     info.outputPath('default-exposure.json'),
     JSON.stringify({ adapted, messages }, null, 2),
   );
-  expect(adapted.enabled).toBe(true);
-  expect(adapted.ready).toBe(true);
-  expect(adapted.exposure).toBeGreaterThanOrEqual(0.72);
-  expect(adapted.exposure).toBeLessThanOrEqual(2.8);
+  expect(adapted.enabled).toBe(false);
+  expect(adapted.ready).toBe(false);
+  expect(adapted.exposure).toBe(1);
   expect(adapted.gl).toBe(0);
+  expect(messages.errors).toEqual([]);
+  expect(messages.warnings).toEqual([]);
+  const autoAt = await page.evaluate(() => {
+    window.__hexwild.graphics.setPostOptions({ exposure: true });
+    return window.__photonProbe.rendered;
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__photonProbe.rendered), {
+      timeout: 60000,
+    })
+    .toBeGreaterThanOrEqual(autoAt + 16);
+  const automatic = await page.evaluate(async () => {
+    const { readForestExposure } =
+      await import('/tests/fixtures/forest-lighting-probe.js');
+    return readForestExposure(window.__hexwild.graphics);
+  });
+  await page
+    .locator('#world')
+    .screenshot({ path: info.outputPath('optional-adaptation.png') });
+  await writeFile(
+    info.outputPath('optional-adaptation.json'),
+    JSON.stringify({ automatic, messages }, null, 2),
+  );
+  expect(automatic.enabled).toBe(true);
+  expect(automatic.ready).toBe(true);
+  // The history is RGBA16F. Bound its representable interval, including a
+  // round-down at the configured 0.72 lower limit; keep the runtime limits.
+  expect(automatic.exposure).toBeGreaterThanOrEqual(
+    DataUtils.fromHalfFloat(DataUtils.toHalfFloat(0.72)),
+  );
+  expect(automatic.exposure).toBeLessThanOrEqual(
+    DataUtils.fromHalfFloat(DataUtils.toHalfFloat(2.8) + 1),
+  );
+  expect(automatic.gl).toBe(0);
   expect(messages.errors).toEqual([]);
   expect(messages.warnings).toEqual([]);
 });

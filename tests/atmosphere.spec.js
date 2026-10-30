@@ -334,11 +334,14 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
     const app = window.__hexwild,
       renderer = app.graphics.renderer,
       original = renderer.readRenderTargetPixelsAsync,
+      originalFrame = app.graphics.frame,
       { createSkySampler } =
         await import('/tests/fixtures/atmosphere-probe.js');
     window.liveSkySampler = createSkySampler(app.graphics);
-    window.restoreSkyDevice = () =>
-      (renderer.readRenderTargetPixelsAsync = original);
+    window.restoreSkyDevice = () => {
+      renderer.readRenderTargetPixelsAsync = original;
+      app.graphics.frame = originalFrame;
+    };
     renderer.readRenderTargetPixelsAsync = function (...args) {
       return original
         .apply(this, args)
@@ -348,7 +351,51 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
         );
     };
     const sample = { time: app.state.time, ...window.liveSkySampler.sample() };
-    window.liveSkyTrace = { frames: 0, publications: [] };
+    window.liveSkyTrace = {
+      frames: 0,
+      publications: [],
+      rendered: 0,
+      phases: {},
+      maxEnergyError: 0,
+      maxMoonUvError: 0,
+      invalid: 0,
+    };
+    app.graphics.frame = function (...args) {
+      const result = originalFrame.apply(this, args),
+        a = this.skyEnvironment.atmosphere,
+        t = window.liveSkyTrace,
+        phase = a.uniforms.skyMoonPhase.value,
+        expected = a.directLight.toArray(),
+        colors = [
+          this.sun.color.toArray().map((v) => v * this.sun.intensity),
+          this.leafUniforms.leafSunColor.value.toArray(),
+          this.cloudSystem.uniforms.cloudDirect.value.toArray(),
+          this.atmosphere.uniforms.airSunColor.value
+            .toArray()
+            .map((v) => v * this.atmosphere.uniforms.airSunPower.value),
+        ];
+      t.rendered++;
+      for (const rgb of colors)
+        for (let c = 0; c < 3; c++) {
+          if (!Number.isFinite(rgb[c])) t.invalid++;
+          t.maxEnergyError = Math.max(
+            t.maxEnergyError,
+            Math.abs(rgb[c] - expected[c]),
+          );
+        }
+      const offset = this.skyEnvironment.moonMap.offset,
+        want = [
+          ((phase % 4) * 64 + 16) / 256,
+          1 - (Math.floor(phase / 4) * 64 + 48) / 128,
+        ];
+      t.maxMoonUvError = Math.max(
+        t.maxMoonUvError,
+        Math.abs(offset.x - want[0]),
+        Math.abs(offset.y - want[1]),
+      );
+      t.phases[phase] = (t.phases[phase] || 0) + 1;
+      return result;
+    };
     let key = '';
     const observe = () => {
       const a = app.graphics.skyEnvironment.atmosphere,
@@ -395,8 +442,45 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
       publications = new Set(samples.map((s) => s.direction.join(','))).size;
     expect(change).toBeGreaterThan(0.012);
     expect(publications).toBeGreaterThanOrEqual(3);
+    const phaseSamples = [];
+    for (const [time, phase] of [
+      [2850, 4],
+      [4650, 7],
+    ]) {
+      await page.evaluate((time) => {
+        const a = window.__hexwild;
+        a.setPlaying(false);
+        a.step(time - a.state.time);
+      }, time);
+      await expect
+        .poll(
+          () =>
+            page.evaluate((phase) => {
+              const a = window.__hexwild.graphics.skyEnvironment.atmosphere;
+              return (
+                !a.pending &&
+                a.uniforms.skyMoonPhase.value === phase &&
+                window.liveSkyTrace.phases[phase] > 0
+              );
+            }, phase),
+          { timeout: 30000 },
+        )
+        .toBe(true);
+      phaseSamples.push(
+        await page.evaluate(() => ({
+          sample: window.liveSkySampler.sample(),
+          exposures:
+            window.__hexwild.graphics.skyEnvironment.atmosphere.sourceExposures.toArray(),
+        })),
+      );
+    }
+    expect(
+      phaseSamples[1].exposures[1] / phaseSamples[0].exposures[1],
+    ).toBeCloseTo(2, 2);
+    for (const s of phaseSamples) samples.push(s.sample);
     for (const sample of samples) {
       expect(sample.mismatch).toBeLessThan(0.002);
+      expect(sample.directError).toBeLessThan(0.002);
       expect(sample.gl).toBe(0);
     }
   } finally {
@@ -407,6 +491,10 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
       window.liveSkySampler.dispose();
       return window.liveSkyTrace;
     });
+    expect(observed.rendered).toBeGreaterThan(30);
+    expect(observed.maxEnergyError).toBeLessThan(1e-7);
+    expect(observed.maxMoonUvError).toBeLessThan(1e-12);
+    expect(observed.invalid).toBe(0);
     await writeFile(
       info.outputPath('live-clock-delayed-device.json'),
       JSON.stringify({ start, samples, observed, diagnostics }, null, 2),

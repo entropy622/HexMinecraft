@@ -6,6 +6,8 @@ import {
   readTable,
   tableFilterBounds,
   oracleSky,
+  oracleLighting,
+  oracleTransmission,
 } from './fixtures/photon-sky-oracle.js';
 import { referenceSettings } from './fixtures/photon-reference-scenes.js';
 
@@ -40,7 +42,7 @@ test('pinned Photon 3D scattering, sun/moon phases and Rec2020 conversion reach 
   const groups = [];
   for (const y of [-1, -0.35, -0.09604, 0, 0.015, 0.2678, 0.8, 1])
     for (const rain of [0, 0.6, 1])
-      for (const phase of [0, 2, 4, 7]) {
+      for (const phase of [0, 1, 2, 3, 4, 5, 6, 7]) {
         const sun = [Math.sqrt(Math.max(0, 1 - y * y)), y, 0],
           views = [];
         for (const v of [-1, -0.04, -0.01772, -0.0177, 0, 0.03, 0.35, 1])
@@ -59,6 +61,7 @@ test('pinned Photon 3D scattering, sun/moon phases and Rec2020 conversion reach 
           sun,
           rain,
           phase,
+          height: [0, 0.02, 1, 5, 90][phase % 5],
           moon: [1, 0.85, 0.5, 0.15, 0, 0.15, 0.5, 0.85][phase],
           views,
         });
@@ -77,6 +80,8 @@ test('pinned Photon 3D scattering, sun/moon phases and Rec2020 conversion reach 
     invalid = 0,
     badRaw = 0,
     maxRawExcess = -Infinity,
+    kernelError = 0,
+    transmissionError = 0,
     worst = null;
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i],
@@ -106,6 +111,27 @@ test('pinned Photon 3D scattering, sun/moon phases and Rec2020 conversion reach 
         }
       }
       const expected = oracleSky(bytes, view, group);
+      const lighting = oracleLighting(group),
+        T = oracleTransmission(view[1], group.height);
+      for (const [actual, want] of [
+        [got.direct[j], lighting.direct],
+        [
+          got.exposures[j],
+          [lighting.sunExposure, lighting.moonExposure, lighting.boost],
+        ],
+        [got.sunColor[j], lighting.sunColor],
+        [got.moonColor[j], lighting.moonColor],
+      ])
+        for (let c = 0; c < 3; c++)
+          kernelError = Math.max(
+            kernelError,
+            Math.abs(actual[c] - want[c]) / Math.max(0.01, Math.abs(want[c])),
+          );
+      for (let c = 0; c < 3; c++)
+        transmissionError = Math.max(
+          transmissionError,
+          Math.abs(got.transmission[j][c] - T[c]),
+        );
       for (let c = 0; c < 3; c++) {
         const actual = got.radiance[j][c];
         if (!Number.isFinite(actual) || actual < 0) invalid++;
@@ -126,6 +152,8 @@ test('pinned Photon 3D scattering, sun/moon phases and Rec2020 conversion reach 
     badRaw,
     maxRawExcess,
     radianceError,
+    kernelError,
+    transmissionError,
     invalid,
     worst,
     result,
@@ -140,6 +168,8 @@ test('pinned Photon 3D scattering, sun/moon phases and Rec2020 conversion reach 
   // Independent CPU RGB16F trilinear vs native texture filtering and float32
   // phase/mapping; the 0.01 denominator keeps tiny twilight residuals bounded.
   expect(radianceError).toBeLessThan(0.015);
+  expect(kernelError).toBeLessThan(0.0001);
+  expect(transmissionError).toBeLessThan(0.00005);
   expect(invalid).toBe(0);
   expect(result.gl).toBe(0);
   expect(result.texture).toEqual({

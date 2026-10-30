@@ -9,21 +9,21 @@ import { applySkylight } from '../../src/skylight.js';
 
 export function createSkySampler(graphics) {
   const renderer = graphics.renderer,
-    target = new THREE.WebGLRenderTarget(1, 1, {
+    target = new THREE.WebGLRenderTarget(2, 1, {
       type: THREE.HalfFloatType,
       depthBuffer: false,
     }),
     material = new THREE.ShaderMaterial({
       uniforms: graphics.skyEnvironment.uniforms,
       vertexShader: 'void main(){ gl_Position=vec4(position.xy,0,1); }',
-      fragmentShader: `${skyRadianceGLSL}\nvoid main(){gl_FragColor=vec4(hexSkyRadiance(vec3(0,1,0)),1);}`,
+      fragmentShader: `${skyRadianceGLSL}\nvoid main(){gl_FragColor=vec4(gl_FragCoord.x<1.0 ? hexSkyRadiance(vec3(0,1,0)) : photonDirectLight(),1);}`,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
     }),
     quad = new FullScreenQuad(material),
     a = graphics.skyEnvironment.atmosphere,
-    pixels = new Uint16Array(4);
+    pixels = new Uint16Array(8);
   return {
     sample() {
       const started = performance.now(),
@@ -31,17 +31,31 @@ export function createSkySampler(graphics) {
       try {
         renderer.setRenderTarget(target);
         quad.render(renderer);
-        renderer.readRenderTargetPixels(target, 0, 0, 1, 1, pixels);
+        renderer.readRenderTargetPixels(target, 0, 0, 2, 1, pixels);
         const gpuZenith = Array.from(
             pixels,
             THREE.DataUtils.fromHalfFloat,
           ).slice(0, 3),
           cpuZenith = a.zenith.toArray();
+        const gpuDirect = Array.from(
+            pixels.slice(4, 7),
+            THREE.DataUtils.fromHalfFloat,
+          ),
+          cpuDirect = a.directLight.toArray();
         return {
           direction: a.uniforms.skySunDirection.value.toArray(),
           coefficients: a.probe.sh.toArray(),
           gpuZenith,
           cpuZenith,
+          gpuDirect,
+          cpuDirect,
+          directError: Math.max(
+            ...gpuDirect.map(
+              (v, c) =>
+                Math.abs(v - cpuDirect[c]) /
+                Math.max(0.01, Math.abs(cpuDirect[c])),
+            ),
+          ),
           mismatch: Math.max(
             ...gpuZenith.map((v, i) => Math.abs(v - cpuZenith[i])),
           ),
@@ -152,6 +166,8 @@ export async function skyContracts(graphics) {
     );
     atmosphere.dispose();
     atmosphere.allocate(renderer, 1.7);
+    // Isolate SH quadrature from the newly ported early-night source boost.
+    atmosphere.work.skySunDirection.value.set(0, 1, 0);
     for (const spec of [
       { name: 'zero', base: [0, 0, 0], slope: [0, 0, 0], axis: [1, 0, 0] },
       {
@@ -178,7 +194,7 @@ export async function skyContracts(graphics) {
       input.uniforms.slope.value.fromArray(spec.slope);
       input.uniforms.axis.value.fromArray(spec.axis);
       quad.material = input;
-      renderer.setRenderTarget(atmosphere.targets[2]);
+      renderer.setRenderTarget(atmosphere.targets[1]);
       quad.render(renderer);
       renderer.setRenderTarget(previous);
       await atmosphere.project(renderer);

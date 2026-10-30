@@ -132,7 +132,7 @@ const toXyz = [
 export function oracleSky(bytes, view, group) {
   const sun = group.sun,
     moon = sun.map((v) => -v),
-    tint = matrix(matrix([0.72, 0.84, 1], from709), to2020);
+    lighting = oracleLighting(group);
   const single = (light, lunar) => {
     const uv = photonUv(view, light),
       r = readTable(bytes, uv, false),
@@ -156,11 +156,11 @@ export function oracleSky(bytes, view, group) {
   const s = single(sun, false),
     m = single(moon, true),
     rgb = s.map(
-      (v, c) => 7 * (v + m[c] * tint[c] * (0.015 + 0.025 * group.moon)),
+      (v, c) => v * lighting.sunColor[c] + m[c] * lighting.moonColor[c],
     ),
     lum = dot(rgb, [0.2627, 0.678, 0.0593]),
-    blue = clamp((Math.exp(-190 * (sun[1] + 0.09604) ** 2) - 0.05) / 0.95),
-    sat = (1.1 + 0.2 * blue) * (1 - group.rain),
+    sat =
+      (1.1 + 0.2 * Math.exp(-150 * (sun[1] + 0.07283) ** 2)) * (1 - group.rain),
     result = matrix(
       matrix(
         rgb.map((v) => lum + (v - lum) * sat),
@@ -169,4 +169,76 @@ export function oracleSky(bytes, view, group) {
       to709,
     );
   return result.map((v) => Math.max(0, v));
+}
+
+const pulse = (x, c, w) => {
+  const t = clamp(Math.abs(x - c) / w);
+  return 1 - t * t * (3 - 2 * t);
+};
+export function oracleTransmission(mu, height) {
+  const r = 6371 + height,
+    probe = Math.max(r, 6371.01);
+  if (mu < 0 && (probe * mu) ** 2 - probe ** 2 + 6371 ** 2 >= 0)
+    return [0, 0, 0];
+  const chapman = (x) => {
+    const c = Math.sqrt((Math.PI * x) / 2);
+    if (mu >= 0) return c / ((c - 1) * mu + 1);
+    const s = Math.sqrt(clamp(1 - mu * mu));
+    return c / ((c - 1) * mu - 1) + 2 * c * Math.exp(x - x * s) * Math.sqrt(s);
+  };
+  const columns = [8.4, 1.25].map(
+      (H) => H * Math.exp(-height / H) * chapman(r / H),
+    ),
+    coeffs = [
+      [0.008059375432, 0.01671209429, 0.04080133294],
+      [0.001666442358, 0.001812685127, 0.001958927896],
+      [0.0008304280072, 0.00131491197, 0.00005440679729],
+    ].map((v) => matrix(matrix(v, from709), to2020));
+  return [0, 1, 2].map((c) =>
+    Math.exp(
+      -(coeffs[0][c] + coeffs[2][c]) * columns[0] - coeffs[1][c] * columns[1],
+    ),
+  );
+}
+export function oracleLighting(group) {
+  const y = group.sun[1],
+    fade = y < 0.18 ? 0.37 + 1.2 * Math.max(0, -y) : 1.7,
+    weight = clamp(1 - fade * Math.abs(y - 0.18)) ** 2,
+    blue = clamp((Math.exp(-190 * (y + 0.09604) ** 2) - 0.05) / 0.95),
+    sunExposure = 7 * (1 + 0.5 * (group.sun[0] === 0 ? 0 : weight) + 40 * blue),
+    phaseBrightness = [1, 0.875, 0.75, 0.625, 0.5, 0.75, 0.875, 1][group.phase],
+    moonExposure =
+      0.66 * phaseBrightness * (1 + 0.33 / clamp(1.25 * Math.max(-y, 0.1))),
+    white = matrix(matrix([1, 1, 1], from709), to2020),
+    p = pulse(y, 0.17, 0.4) ** 2,
+    sunColor = [1.05, 0.84, 0.93].map(
+      (v, c) =>
+        (1 + (v * 1.2 - 1) * p) *
+        (1 + ([0.95, 0.8, 1][c] - 1) * blue) *
+        white[c] *
+        sunExposure,
+    ),
+    moonColor = matrix(
+      matrix(
+        [0.75, 0.83, 1].map((v) => v ** 2.2),
+        from709,
+      ),
+      to2020,
+    ).map((v) => v * moonExposure),
+    boost = 1 + 0.5 * clamp((Math.exp(-25 * (y + 0.3) ** 2) - 0.05) / 0.95),
+    T = oracleTransmission(Math.abs(y), 0),
+    raw = T.map((v, c) => v * [1.051, 0.985, 0.94][c]),
+    lum = dot(raw, [0.2627, 0.678, 0.0593]),
+    sat = (1.1 + 0.2 * Math.exp(-150 * (y + 0.07283) ** 2)) * (1 - group.rain),
+    direct2020 = raw.map(
+      (v, c) =>
+        (lum + (v - lum) * sat) *
+        (y >= 0 ? sunColor : moonColor)[c] *
+        clamp(Math.abs(y) / 0.02) *
+        (1 - 0.25 * pulse(Math.abs(y), 0.15, 0.11)),
+    ),
+    direct = matrix(matrix(direct2020, toXyz), to709).map((v) =>
+      Math.max(0, v),
+    );
+  return { sunColor, moonColor, sunExposure, moonExposure, boost, direct };
 }

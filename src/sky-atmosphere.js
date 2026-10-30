@@ -13,15 +13,9 @@ import {
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { createPhotonScattering, photonSkyGLSL } from './photon-sky.js';
 
-import {
-  SUN_RADIUS,
-  SOLAR_IRRADIANCE,
-  transportGLSL,
-  skyRadianceGLSL,
-} from './sky-transport.js';
+import { SUN_RADIUS, transportGLSL, skyRadianceGLSL } from './sky-transport.js';
 export {
   SUN_RADIUS,
-  SOLAR_IRRADIANCE,
   RAYLEIGH_PER_KM,
   skyRadianceGLSL,
 } from './sky-transport.js';
@@ -50,11 +44,14 @@ export class SkyAtmosphere {
     this.horizon = new Color(0);
     this.sunTransmission = new Color(0);
     this.moonTransmission = new Color(0);
+    this.directLight = new Color(0);
+    this.sunDiskColor = new Color(0);
+    this.moonDiskColor = new Color(0);
+    this.sourceExposures = new Vector3(0, 0, 1);
     this.targets = [];
     this.generation = 0;
     this.pending = null;
     this.uniforms = {
-      skyOpticalDepthMap: { value: null },
       skyRadianceMap: { value: null },
       skyObserverHeight: { value: 0.2 },
       skyAerosol: { value: 1 },
@@ -64,28 +61,6 @@ export class SkyAtmosphere {
       skyMultipleScatteringMap: { value: null },
     };
     this.work = UniformsUtils.clone(this.uniforms);
-    this.optical = material(
-      'SkyOpticalColumns',
-      this.work,
-      /* glsl */ `
-      ${transportGLSL}
-      void main() {
-        vec2 unit = (gl_FragCoord.xy - 0.5) / (vec2(128.0, 64.0) - 1.0);
-        float v = unit.x * 2.0 - 1.0, mu = sign(v) * v * v;
-        vec3 position = vec3(0.0, SKY_RADIUS + max(0.001, unit.y * unit.y * 100.0), 0.0);
-        vec3 direction = vec3(sqrt(max(0.0, 1.0 - mu * mu)), mu, 0.0);
-        float distance = skyBoundary(position, direction);
-        vec3 columns = vec3(0.0);
-        for (int i = 0; i < 64; i++) {
-          float a = float(i) / 64.0, b = float(i + 1) / 64.0;
-          float stepLength = (b * b - a * a) * distance;
-          vec3 p = position + direction * ((a * a + b * b) * 0.5 * distance);
-          columns += skyDensity(length(p) - SKY_RADIUS) * stepLength;
-        }
-        gl_FragColor = vec4(columns, 1.0);
-      }
-    `,
-    );
     this.scatter = material(
       'SkySphericalScattering',
       this.work,
@@ -124,7 +99,7 @@ export class SkyAtmosphere {
             vec3 d = vec3(cos(phi) * sqrt(1.0 - y * y), y, sin(phi) * sqrt(1.0 - y * y));
             // Irradiance still sees the complete environment, including ground.
             vec3 radiance = textureLod(skyRadianceMap, skyUv(d), 0.0).rgb;
-            result += radiance * basis(index, d) * (4.0 * SKY_PI / 512.0);
+            result += radiance * basis(index, d) * (4.0 * SKY_PI / 512.0) * photonSkylightBoost();
           }
         } else if (index == 9) result = hexSkyRadiance(vec3(0,1,0));
         else if (index == 10) {
@@ -137,26 +112,29 @@ export class SkyAtmosphere {
             vec2 uv = vec2(fract(0.5 + float(i) / 32.0), v);
             result += textureLod(skyRadianceMap, uv, 0.0).rgb / 32.0;
           }
-        } else result = skyLightTransmittance(origin, index == 11 ? skySunDirection : -skySunDirection, ${SUN_RADIUS});
+        } else if(index<=12) result = skyLightTransmittance(origin,index==11 ? skySunDirection : -skySunDirection,${SUN_RADIUS});
+        else if(index==13)result=photonDirectLight();
+        else if(index==14)result=photonTo709(photonSunColor()*skyDiskTransmittance2020(origin,skySunDirection,${SUN_RADIUS}))*(1.0-clamp((skyAerosol-1.0)/5.0,0.0,1.0));
+        else if(index==15)result=10.0*photonTo709(photonMoonTint()*skyDiskTransmittance2020(origin,-skySunDirection,3.0*SKY_PI/180.0))*(1.0-clamp((skyAerosol-1.0)/5.0,0.0,1.0));
+        else result=vec3(photonSunExposure(),photonMoonExposure(),photonSkylightBoost());
         gl_FragColor = vec4(result, 1.0);
       }
     `,
     );
-    this.quad = new FullScreenQuad(this.optical);
+    this.quad = new FullScreenQuad(this.scatter);
   }
 
   allocate(renderer, quality) {
     const width = quality < 1 ? 96 : 192;
-    if (this.targets[1]?.width === width) return;
+    if (this.targets[0]?.width === width) return;
     this.dispose();
     this.multipleScattering = createPhotonScattering();
     this.uniforms.skyMultipleScatteringMap.value = this.multipleScattering;
     this.work.skyMultipleScatteringMap.value = this.multipleScattering;
     this.targets = [
-      new WebGLRenderTarget(128, 64),
       new WebGLRenderTarget(width, width / 2),
       new WebGLRenderTarget(width, width / 2),
-      new WebGLRenderTarget(13, 1),
+      new WebGLRenderTarget(17, 1),
     ];
     for (const target of this.targets) {
       target.depthBuffer = false;
@@ -164,20 +142,15 @@ export class SkyAtmosphere {
       target.texture.minFilter = target.texture.magFilter = LinearFilter;
       target.texture.generateMipmaps = false;
     }
-    this.targets[1].texture.wrapS = this.targets[2].texture.wrapS =
+    this.targets[0].texture.wrapS = this.targets[1].texture.wrapS =
       RepeatWrapping;
-    this.uniforms.skyOpticalDepthMap.value = this.targets[0].texture;
-    this.uniforms.skyRadianceMap.value = this.targets[1].texture;
-    this.work.skyOpticalDepthMap.value = this.targets[0].texture;
-    this.work.skyRadianceMap.value = this.targets[2].texture;
+    this.uniforms.skyRadianceMap.value = this.targets[0].texture;
+    this.work.skyRadianceMap.value = this.targets[1].texture;
     const previous = renderer.getRenderTarget(),
       clear = renderer.getClearColor(new Color()),
       alpha = renderer.getClearAlpha();
-    this.quad.material = this.optical;
     try {
       renderer.setRenderTarget(this.targets[0]);
-      this.quad.render(renderer);
-      renderer.setRenderTarget(this.targets[1]);
       renderer.setClearColor(0, 1);
       renderer.clear();
     } finally {
@@ -189,7 +162,7 @@ export class SkyAtmosphere {
   async project(renderer) {
     const generation = this.generation,
       previous = renderer.getRenderTarget(),
-      target = this.targets[3],
+      target = this.targets[2],
       data = new Uint16Array(target.width * 4);
     this.quad.material = this.reduction;
     try {
@@ -210,9 +183,9 @@ export class SkyAtmosphere {
     const values = Array.from(data, DataUtils.fromHalfFloat);
     // Publish a complete snapshot. The displayed map and CPU lighting never
     // expose a newer, in-flight atmosphere while its SH still belongs to an old map.
-    [this.targets[1], this.targets[2]] = [this.targets[2], this.targets[1]];
-    this.uniforms.skyRadianceMap.value = this.targets[1].texture;
-    this.work.skyRadianceMap.value = this.targets[2].texture;
+    [this.targets[0], this.targets[1]] = [this.targets[1], this.targets[0]];
+    this.uniforms.skyRadianceMap.value = this.targets[0].texture;
+    this.work.skyRadianceMap.value = this.targets[1].texture;
     this.uniforms.skySunDirection.value.copy(this.work.skySunDirection.value);
     for (const name of [
       'skyObserverHeight',
@@ -228,6 +201,10 @@ export class SkyAtmosphere {
     this.horizon.fromArray(values, 40);
     this.sunTransmission.fromArray(values, 44);
     this.moonTransmission.fromArray(values, 48);
+    this.directLight.fromArray(values, 52);
+    this.sunDiskColor.fromArray(values, 56);
+    this.moonDiskColor.fromArray(values, 60);
+    this.sourceExposures.fromArray(values, 64);
   }
 
   update(
@@ -273,7 +250,7 @@ export class SkyAtmosphere {
       generation = this.generation;
     this.quad.material = this.scatter;
     try {
-      renderer.setRenderTarget(this.targets[2]);
+      renderer.setRenderTarget(this.targets[1]);
       this.quad.render(renderer);
     } finally {
       renderer.setRenderTarget(previous);
@@ -300,17 +277,25 @@ export class SkyAtmosphere {
     this.multipleScattering = null;
     this.uniforms.skyMultipleScatteringMap.value = null;
     this.work.skyMultipleScatteringMap.value = null;
-    this.uniforms.skyOpticalDepthMap.value = null;
     this.uniforms.skyRadianceMap.value = null;
-    this.work.skyOpticalDepthMap.value = null;
     this.work.skyRadianceMap.value = null;
     this.pending = null;
     this.key = null;
     this.lastTime = null;
     this.updated = null;
     this.probe.sh.zero();
-    for (const shader of [this.optical, this.scatter, this.reduction])
-      shader.dispose();
+    for (const color of [
+      this.zenith,
+      this.horizon,
+      this.sunTransmission,
+      this.moonTransmission,
+      this.directLight,
+      this.sunDiskColor,
+      this.moonDiskColor,
+    ])
+      color.setRGB(0, 0, 0);
+    this.sourceExposures.set(0, 0, 1);
+    for (const shader of [this.scatter, this.reduction]) shader.dispose();
     this.quad.dispose();
   }
 }

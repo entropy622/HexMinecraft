@@ -3,7 +3,9 @@ export const DEFAULT_POST_SETTINGS = {
   antialias: true,
   bloom: 0.24,
   clouds: true,
-  exposure: true,
+  // Photon defaults to manual EV 0; its light controller compensates the day.
+  // Explicit saved choices still override this default in postSettings().
+  exposure: false,
 };
 export function postSettings(raw) {
   const settings = { ...DEFAULT_POST_SETTINGS };

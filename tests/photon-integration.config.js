@@ -6,6 +6,7 @@ export default defineConfig({
   ...atmosphere,
   testMatch: [
     'photon-sky.spec.js',
+    'photon-lighting-controls.spec.js',
     'plant-lighting.spec.js',
     'foliage-depth.spec.js',
     'leaf-range.spec.js',

@@ -25,7 +25,7 @@ export function probePhotonSky(graphics, groups) {
         .replace(
           'void main() {',
           `
-        uniform sampler2D probeDirections; uniform int probeMode;
+        uniform sampler2D probeDirections; uniform int probeMode; uniform float probeHeight;
         void main() {`,
         )
         .replace(
@@ -39,6 +39,11 @@ export function probePhotonSky(graphics, groups) {
           if(probeMode==1)value=mu;
           if(probeMode==2)value=textureLod(skyMultipleScatteringMap,vec3(su.x*0.5,su.yz),0.0).rgb;
           if(probeMode==3)value=textureLod(skyMultipleScatteringMap,vec3(su.x*0.5+0.5,su.yz),0.0).rgb;
+          if(probeMode==5)value=photonDirectLight();
+          if(probeMode==6)value=vec3(photonSunExposure(),photonMoonExposure(),photonSkylightBoost());
+          if(probeMode==7)value=photonAtmosphereTransmittance(d.y,SKY_RADIUS+probeHeight);
+          if(probeMode==8)value=photonSunColor();
+          if(probeMode==9)value=photonMoonColor();
           gl_FragColor=vec4(value,1.0);`,
         ),
       uniforms: {
@@ -49,6 +54,7 @@ export function probePhotonSky(graphics, groups) {
         skyAerosol: { value: 1 },
         probeDirections: { value: directions },
         probeMode: mode,
+        probeHeight: { value: 0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -67,8 +73,9 @@ export function probePhotonSky(graphics, groups) {
       material.uniforms.skyAerosol.value = 1 + 5 * group.rain;
       material.uniforms.skyMoonIllumination.value = group.moon;
       material.uniforms.skyMoonPhase.value = group.phase;
+      material.uniforms.probeHeight.value = group.height;
       const maps = [];
-      for (mode.value = 0; mode.value < 5; mode.value++) {
+      for (mode.value = 0; mode.value < 10; mode.value++) {
         r.setRenderTarget(target);
         quad.render(r);
         const pixels = new Float32Array(group.views.length * 4);
@@ -85,6 +92,11 @@ export function probePhotonSky(graphics, groups) {
         rayleighMultiple: maps[2],
         mie: maps[3],
         radiance: maps[4],
+        direct: maps[5],
+        exposures: maps[6],
+        transmission: maps[7],
+        sunColor: maps[8],
+        moonColor: maps[9],
       });
     }
     return {

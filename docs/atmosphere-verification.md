@@ -2,6 +2,8 @@
 
 本文保留 0.86 的原始实现与验收记录；0.99 已将天空散射生成器替换为 [Photon 实际 3D 散射表](photon-sky-verification.md)，直接日月/局部空气输运与 SH 快照机制继续使用宿主路径。
 
+0.100 进一步替换为 [Photon 解析透射与共享日月光源](photon-lighting-verification.md)，并移除原始光学柱长图；本页下文仍按 0.86 历史记录阅读。
+
 基线是 HexMinecraft `3edc8ea0f07716671fbe756f41acdad46d91125b`（0.85）；目标参考为用户森林图及 Photon `6e67b36e818bacde0304edd49f28e2bb70e33f04` 的天空与 SH 行为。此批只做迁移矩阵批次 1，多层云已在本轮整合，后续由主代理继续，不把单次散射近似写成完整 Photon 大气复刻。
 
 ## 修改前五判断

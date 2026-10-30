@@ -1,6 +1,6 @@
 # Photon atmosphere
 
-Hexwild 0.99 bundles the unmodified `shaders/image/atmosphere/scattering.dat`
+Hexwild 0.99 and later bundle the unmodified `shaders/image/atmosphere/scattering.dat`
 from Photon Shaders by Benjamin Stott (SixthSurge), commit
 `6e67b36e818bacde0304edd49f28e2bb70e33f04`.
 
@@ -17,12 +17,20 @@ colour matrices and atmosphere saturation from Photon's `atmosphere.glsl`,
 Photon's original [license](photon.txt) applies to these portions and the table;
 the project's MIT license does not replace it.
 
+Since 0.100, `src/photon-lighting.js` also adapts the default sun/moon exposure,
+tints, phase brightness table, early-night skylight boost, Chapman approximation,
+coefficients and atmosphere saturation from `lighting/colors/light_color.glsl`,
+`sky/atmosphere.glsl`, `global.glsl`, `color.glsl`, `settings.glsl` and
+`shaders.properties`. `src/sky-transport.js` uses the source density profiles
+and coefficients. These derived portions retain the same upstream licenses.
+
 The atmospheric coordinate mapping is based on Eric Bruneton's implementation.
 Its [BSD notice](bruneton.txt), also reproduced by Photon, is retained.
 
 Host changes include kilometres with stable sphere products, a WebGL2 3D
-half-float texture, linear sRGB output, the existing host scattered-light and
-moon brightness scales, a shared asynchronous sky/SH snapshot, and explicit
-resource lifetime. The table uses Photon's fixed ground-level atmosphere;
-host direct sunlight and local air transport retain their separate spherical
-model. This is not a port of the whole Photon shader pack.
+half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
+snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;
+direct sunlight uses the source analytic Chapman approximation. Local air retains
+the host's linear-sRGB integration and weather aerosol multiplier. Full-sphere
+SH and the existing celestial artwork/geometry remain host adaptations. This is
+not a port of the whole Photon shader pack.

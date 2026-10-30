@@ -3,10 +3,10 @@ import { hash } from './core.js';
 import { effectImage } from './texture-pack.js';
 import {
   SkyAtmosphere,
-  SOLAR_IRRADIANCE,
   SUN_RADIUS,
   skyRadianceGLSL,
 } from './sky-atmosphere.js';
+import { PHOTON_SUN_SCALE } from './photon-lighting.js';
 
 const PHASES = [
   '满月',
@@ -176,9 +176,6 @@ export class SkyEnvironment {
   }
   frame(renderer, { time, dt, rain, flash, camera, sun, quality, dimension }) {
     const phase = moonPhase(time);
-    const col = phase.index % 4,
-      row = Math.floor(phase.index / 4);
-    this.moonMap.offset.set((col * 64 + 16) / 256, 1 - (row * 64 + 48) / 128);
     const angle = ((time % 600) / 600) * Math.PI * 2,
       active = dimension === 'overworld';
     this.sunDisk.position.set(Math.cos(angle) * 78, Math.sin(angle) * 78, -45);
@@ -200,32 +197,33 @@ export class SkyEnvironment {
       direction.copy(this.uniforms.skySunDirection.value);
       this.sunDisk.position.copy(direction).multiplyScalar(Math.hypot(78, 45));
       this.moonDisk.position.copy(this.sunDisk.position).multiplyScalar(-1);
-      const day = direction.y >= 0,
-        transmission = day
-          ? this.atmosphere.sunTransmission
-          : this.atmosphere.moonTransmission;
+      const day = direction.y >= 0;
       sun.position
         .copy(camera.position)
         .addScaledVector(direction, day ? 90 : -90);
       sun.target.position.copy(camera.position);
-      sun.color.copy(SOLAR_IRRADIANCE).multiply(transmission);
-      sun.intensity = day
-        ? 1
-        : 0.015 + 0.025 * this.uniforms.skyMoonIllumination.value;
-      if (!day) sun.color.multiply(new THREE.Color(0.72, 0.84, 1));
+      sun.intensity =
+        (day
+          ? this.atmosphere.sourceExposures.x
+          : this.atmosphere.sourceExposures.y) / PHOTON_SUN_SCALE;
+      sun.color.copy(this.atmosphere.directLight);
+      if (sun.intensity > 0) sun.color.multiplyScalar(1 / sun.intensity);
       this.sunDisk.material.uniforms.diskRadiance.value
-        .copy(SOLAR_IRRADIANCE)
-        .multiply(this.atmosphere.sunTransmission)
+        .copy(this.atmosphere.sunDiskColor)
         .multiplyScalar(1 / (2 * Math.PI * (1 - Math.cos(SUN_RADIUS))));
-      this.moonDisk.material.color
-        .copy(this.atmosphere.moonTransmission)
-        .multiply(new THREE.Color('#d8e5ff'));
+      this.moonDisk.material.color.copy(this.atmosphere.moonDiskColor);
     } else {
       this.sunDisk.material.uniforms.diskRadiance.value
         .set('#dac4ff')
         .multiplyScalar(2.5);
       this.moonDisk.material.color.set('#d8e5ff');
     }
+    const displayedPhase = active
+        ? this.uniforms.skyMoonPhase.value
+        : phase.index,
+      col = displayedPhase % 4,
+      row = Math.floor(displayedPhase / 4);
+    this.moonMap.offset.set((col * 64 + 16) / 256, 1 - (row * 64 + 48) / 128);
     this.sunDisk.visible =
       dimension === 'end' || (active && direction.y > -Math.sin(SUN_RADIUS));
     this.starClock.value = time;

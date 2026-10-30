@@ -86,7 +86,8 @@ export class Atmosphere {
     u.airSunDirection.value
       .subVectors(sun.position, sun.target.position)
       .normalize();
-    u.airSunPower.value = overworld ? sun.intensity * (1 + dusk * 0.65) : 0;
+    // The shared Photon controller already applies the source's time curve.
+    u.airSunPower.value = overworld ? sun.intensity : 0;
     u.airAmbient.value = overworld ? 1 : dimension === 'nether' ? 0.18 : 0.65;
     u.airCameraSky.value = cameraSky;
     u.airTime.value = time;
