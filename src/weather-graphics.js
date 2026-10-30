@@ -185,4 +185,10 @@ export class WeatherEffects {
     }
     this.rain.material.opacity = 0.28 + weather.storm * 0.12;
   }
+  light(colors) {
+    this.rain.material.color.copy(colors.rain);
+    this.snow.material.color.copy(colors.snow);
+    // The host's ground splashes share rain's incident colour.
+    this.splashes.material.color.copy(colors.rain);
+  }
 }

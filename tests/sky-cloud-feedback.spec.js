@@ -311,7 +311,7 @@ test('real clouds enter SH and reflection sky while clear background and cloud f
     [96, 48],
     [96, 48],
   ]);
-  expect(resources.reduction).toEqual([20, 1]);
+  expect(resources.reduction).toEqual([22, 1]);
   const clearIds = await page.evaluate(() =>
     window.__hexwild.graphics.skyEnvironment.atmosphere.targets
       .slice(0, 2)

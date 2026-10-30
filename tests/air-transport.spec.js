@@ -260,7 +260,7 @@ test.describe('fractional DPR air volume', () => {
       columnBinding: true,
       skyFogActive: 1,
       skyFogTargets: 2,
-      summary: [20, 1],
+      summary: [22, 1],
       gl: 0,
     });
     expect(errors).toEqual([]);

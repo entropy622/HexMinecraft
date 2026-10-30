@@ -260,6 +260,7 @@ export class Graphics {
     this.cloudSystem = new HexClouds(
       this.scene,
       this.skyEnvironment.atmosphere.clearIrradiance,
+      this.skyEnvironment.atmosphere.fogAmbient,
     );
     Object.assign(this.cloudSystem.uniforms, this.skyEnvironment.uniforms);
     this.skyEnvironment.atmosphere.attachClouds(this.cloudSystem.uniforms);
@@ -1609,6 +1610,7 @@ export class Graphics {
           }
         : null,
     });
+    this.weatherEffects.light(this.skyEnvironment.atmosphere.weatherColors);
     if (overworld) {
       sky.copy(this.skyEnvironment.atmosphere.zenith);
       horizon.copy(this.skyEnvironment.atmosphere.horizon);

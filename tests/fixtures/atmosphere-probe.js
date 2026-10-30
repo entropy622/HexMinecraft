@@ -14,21 +14,21 @@ import {
 
 export function createSkySampler(graphics) {
   const renderer = graphics.renderer,
-    target = new THREE.WebGLRenderTarget(2, 1, {
+    target = new THREE.WebGLRenderTarget(4, 1, {
       type: THREE.HalfFloatType,
       depthBuffer: false,
     }),
     material = new THREE.ShaderMaterial({
       uniforms: graphics.skyEnvironment.uniforms,
       vertexShader: 'void main(){ gl_Position=vec4(position.xy,0,1); }',
-      fragmentShader: `${skyRadianceGLSL}\nvoid main(){gl_FragColor=vec4(gl_FragCoord.x<1.0 ? hexSkyRadiance(vec3(0,1,0)) : photonDirectLight(),1);}`,
+      fragmentShader: `${skyRadianceGLSL}\nvoid main(){gl_FragColor=vec4(gl_FragCoord.x<1.0 ? hexSkyRadiance(vec3(0,1,0)) : gl_FragCoord.x<2.0 ? photonDirectLight() : photonWeatherColor(skySunDirection.y,gl_FragCoord.x<3.0?0.0:1.0,true),1);}`,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
     }),
     quad = new FullScreenQuad(material),
     a = graphics.skyEnvironment.atmosphere,
-    pixels = new Uint16Array(8);
+    pixels = new Uint16Array(16);
   return {
     sample() {
       const started = performance.now(),
@@ -36,7 +36,7 @@ export function createSkySampler(graphics) {
       try {
         renderer.setRenderTarget(target);
         quad.render(renderer);
-        renderer.readRenderTargetPixels(target, 0, 0, 2, 1, pixels);
+        renderer.readRenderTargetPixels(target, 0, 0, 4, 1, pixels);
         const gpuZenith = Array.from(
             pixels,
             THREE.DataUtils.fromHalfFloat,
@@ -47,6 +47,13 @@ export function createSkySampler(graphics) {
             THREE.DataUtils.fromHalfFloat,
           ),
           cpuDirect = a.directLight.toArray();
+        const weather = [pixels.slice(8, 11), pixels.slice(12, 15)].map((v) =>
+            Array.from(v, THREE.DataUtils.fromHalfFloat),
+          ),
+          expectedWeather = [
+            a.weatherColors.rain.toArray(),
+            a.weatherColors.snow.toArray(),
+          ];
         return {
           direction: a.uniforms.skySunDirection.value.toArray(),
           coefficients: a.probe.sh.toArray(),
@@ -54,6 +61,15 @@ export function createSkySampler(graphics) {
           cpuZenith,
           gpuDirect,
           cpuDirect,
+          weatherError: Math.max(
+            ...weather.flatMap((rgb, i) =>
+              rgb.map(
+                (v, c) =>
+                  Math.abs(v - expectedWeather[i][c]) /
+                  Math.max(1, Math.abs(expectedWeather[i][c])),
+              ),
+            ),
+          ),
           directError: Math.max(
             ...gpuDirect.map(
               (v, c) =>

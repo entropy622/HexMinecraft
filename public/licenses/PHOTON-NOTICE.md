@@ -28,6 +28,14 @@ profiles and local units, publishes fog with sky lighting, and composes a
 non-overlapping analytic far segment after the near-field volume march.
 Photon's license applies to these derived portions as well.
 
+Since 0.114, `src/photon-lighting.js` adapts rain/snow colours, their day curves
+and the precipitation snow night floor from `lighting/colors/weather_color.glsl`.
+`src/sky-atmosphere.js` applies the source weather mixture to fog incident light;
+`src/cloud-integral.js` adapts the rain tint, morning/evening weight and aerial
+transmission desaturation from `sky/clouds/common.glsl`. Native rain/snow/splash
+materials use the published linear-sRGB colours. These derived portions retain
+Photon's license; the host particle geometry and opacity model remain original.
+
 `src/photon-sky.js` adapts the lookup mapping, finite-area RGB Mie phases,
 colour matrices and atmosphere saturation from Photon's `atmosphere.glsl`,
 `phase_functions.glsl`, `color.glsl`, settings and `shaders.properties`.

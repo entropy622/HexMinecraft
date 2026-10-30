@@ -16,8 +16,9 @@ import {
 const CHUNK = 8,
   CAPACITY = 49 * CHUNK * CHUNK;
 export class HexClouds {
-  constructor(scene, clearIrradiance) {
+  constructor(scene, clearIrradiance, fogAmbient = null) {
     this.scene = scene;
+    this.fogAmbient = fogAmbient;
     this.clearIrradiance = clearIrradiance;
     this.noiseSeed = 0;
     this.noise = new THREE.DataTexture(
@@ -57,6 +58,7 @@ export class HexClouds {
       cloudHeight: { value: 3 },
       cloudVolumetric: { value: 0 },
       cloudAmbient: { value: new THREE.Color() },
+      cloudFogColor: { value: new THREE.Color() },
       cloudGround: { value: new THREE.Color() },
       cloudDirect: { value: new THREE.Color() },
       cloudAlbedo: { value: 0.995 },
@@ -274,6 +276,7 @@ export class HexClouds {
       Math.max(0, down.b) / Math.PI,
     );
     u.cloudDirect.value.copy(sun.color).multiplyScalar(sun.intensity);
+    u.cloudFogColor.value.copy(this.fogAmbient || u.cloudAmbient.value);
   }
   attach(scene) {
     scene.traverseVisible((object) => {

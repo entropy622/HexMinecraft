@@ -129,6 +129,16 @@ const toXyz = [
     [0.0176422, -0.0427763, 0.94222867],
   ],
   matrix = (v, m) => m.map((row) => dot(row, v));
+export function oracleWeatherColor(sunHeight, snow, precipitation) {
+  const x = clamp((sunHeight + 0.1) / 0.6),
+    day = x * x * (3 - 2 * x),
+    rain = 0.033 + (0.66 - 0.033) * day,
+    floor = precipitation ? 0.5 : 0.06,
+    snowfall = floor + (1.6 - floor) * day,
+    brightness = rain * (1 - clamp(snow)) + snowfall * clamp(snow),
+    rgb = [1.051 * 0.49, 0.985 * 0.65, 0.94].map((v) => v * brightness);
+  return matrix(matrix(rgb, toXyz), to709).map((v) => Math.max(0, v));
+}
 export function oracleSky(bytes, view, group) {
   const sun = group.sun,
     moon = sun.map((v) => -v),

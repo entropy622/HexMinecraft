@@ -58,6 +58,8 @@ export class SkyAtmosphere {
     this.pending = null;
     this.fogBiomes = new FogBiomes();
     this.fogSnapshot = null;
+    this.fogAmbient = new Color(0);
+    this.weatherColors = { rain: new Color(0), snow: new Color(0) };
     this.uniforms = {
       skyRadianceMap: { value: null },
       skyEnvironmentMap: { value: null },
@@ -66,6 +68,7 @@ export class SkyAtmosphere {
       skySunDirection: { value: new Vector3(0, 1, 0) },
       skyMoonIllumination: { value: 1 },
       skyMoonPhase: { value: 0 },
+      skySnowFraction: { value: 0 },
       skyMultipleScatteringMap: { value: null },
     };
     this.work = UniformsUtils.clone(this.uniforms);
@@ -87,6 +90,7 @@ export class SkyAtmosphere {
       ${skyRadianceGLSL}
       ${photonSkylightGLSL}
       uniform sampler2D skyEnvironmentMap;
+      uniform float skySnowFraction;
       void main() {
         int index = int(gl_FragCoord.x);
         vec3 result = vec3(0.0), origin = vec3(0.0, SKY_RADIUS + skyObserverHeight, 0.0);
@@ -115,7 +119,10 @@ export class SkyAtmosphere {
           // The source applies artistic skylight boost after sky composition.
           // Cloud incident light is raw irradiance, so it must not be boosted twice.
           result/=photonSkylightBoost();
-        } else result=1.13*max(vec3(0),textureLod(skyRadianceMap,skyUv(normalize(vec3(0,1,-0.8))),0.0).rgb);
+        } else if(index==19){
+          vec3 clear=1.13*max(vec3(0),textureLod(skyRadianceMap,skyUv(normalize(vec3(0,1,-0.8))),0.0).rgb);
+          result=mix(clear,photonWeatherColor(skySunDirection.y,skySnowFraction,false),clamp((skyAerosol-1.0)/5.0,0.0,1.0));
+        } else result=photonWeatherColor(skySunDirection.y,index==20?0.0:1.0,true);
         gl_FragColor = vec4(result, 1.0);
       }
     `,
@@ -147,7 +154,7 @@ export class SkyAtmosphere {
     this.targets = [
       new WebGLRenderTarget(width, width / 2),
       new WebGLRenderTarget(width, width / 2),
-      new WebGLRenderTarget(20, 1),
+      new WebGLRenderTarget(22, 1),
     ];
     for (const target of this.targets) {
       target.depthBuffer = false;
@@ -214,6 +221,7 @@ export class SkyAtmosphere {
       'skyAerosol',
       'skyMoonIllumination',
       'skyMoonPhase',
+      'skySnowFraction',
     ])
       this.uniforms[name].value = this.work[name].value;
     this.probe.sh.fromArray(
@@ -232,6 +240,9 @@ export class SkyAtmosphere {
     this.fogSnapshot = fog
       ? { ...fog, ambient: new Color().fromArray(values, 76) }
       : null;
+    this.fogAmbient.fromArray(values, 76);
+    this.weatherColors.rain.fromArray(values, 80);
+    this.weatherColors.snow.fromArray(values, 84);
     if (!this.captureQuality && !fog) this.cloudSky?.release();
   }
 
@@ -263,6 +274,9 @@ export class SkyAtmosphere {
       this.key = this.updated = null;
     }
     this.fogInput = fog;
+    const biomes = fog
+      ? this.fogBiomes.sample(fog.world, position)
+      : [1, 0, 0, 0];
     const fogState = fog
       ? {
           parameters: photonFogParameters({
@@ -270,7 +284,7 @@ export class SkyAtmosphere {
             humidity: fog.climate.humidity,
             temperature: fog.climate.temperature,
             rain,
-            biomes: this.fogBiomes.sample(fog.world, position),
+            biomes,
           }),
           distance: fog.distance,
           skylight: fog.skylight,
@@ -301,6 +315,7 @@ export class SkyAtmosphere {
         Math.round(rain * 100),
         moon,
         phase,
+        biomes[2].toFixed(3),
         this.cloudSky?.key(position) || 'clear',
         fogState
           ? [
@@ -322,6 +337,7 @@ export class SkyAtmosphere {
     this.work.skyAerosol.value = 1 + rain * 5;
     this.work.skyMoonIllumination.value = moon;
     this.work.skyMoonPhase.value = phase;
+    this.work.skySnowFraction.value = biomes[2];
     const previous = renderer.getRenderTarget(),
       generation = this.generation;
     this.quad.material = this.scatter;
@@ -380,6 +396,9 @@ export class SkyAtmosphere {
     this.work.skyEnvironmentMap.value = null;
     this.pending = null;
     this.fogSnapshot = null;
+    this.fogAmbient.setRGB(0, 0, 0);
+    this.weatherColors.rain.setRGB(0, 0, 0);
+    this.weatherColors.snow.setRGB(0, 0, 0);
     this.fogInput = null;
     this.key = null;
     this.lastTime = null;

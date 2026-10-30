@@ -506,35 +506,63 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
       }
     }
   }
-  const supported = await page.evaluate(() => {
+  const supported = await page.evaluate(async () => {
     const g = window.__hexwild.graphics,
       extension = g.renderer.getContext().getExtension('WEBGL_lose_context');
     if (!extension) return false;
-    g.renderer.domElement.addEventListener(
-      'webglcontextrestored',
-      () => {
-        window.cloudRestoreFrames = [
-          ...g.composer.passes[0].clouds.histories.values(),
-        ].map((s) => s.frames);
-      },
-      { once: true },
-    );
-    window.restoreCloudContext = () => extension.restoreContext();
-    extension.loseContext();
+    await new Promise((resolve) => {
+      g.renderer.domElement.addEventListener(
+        'webglcontextlost',
+        (e) => {
+          e.preventDefault();
+          setTimeout(() => extension.restoreContext(), 0);
+        },
+        { once: true },
+      );
+      g.renderer.domElement.addEventListener(
+        'webglcontextrestored',
+        () => {
+          window.cloudRestoreFrames = [
+            ...g.composer.passes[0].clouds.histories.values(),
+          ].map((s) => s.frames);
+          resolve();
+        },
+        { once: true },
+      );
+      extension.loseContext();
+    });
     return true;
   });
   expect(supported).toBe(true);
-  await page.waitForTimeout(100);
-  await page.evaluate(() => window.restoreCloudContext());
-  await expect
-    .poll(() => page.evaluate(() => window.cloudRestoreFrames))
-    .toBeTruthy();
   const restoredFrames = await page.evaluate(() => window.cloudRestoreFrames);
   // A recreated composer can have no views yet. Every retained view is cold;
   // actual accumulation age and the recovered image are checked after drawing.
   expect(restoredFrames.every((n) => n === 0)).toBe(true);
   await frames(page, 32);
   const restored = await cloudSample(page);
+  const restoredWeather = await page.evaluate(() => {
+    const g = window.__hexwild.graphics,
+      a = g.skyEnvironment.atmosphere;
+    return {
+      summary: a.targets[2].width,
+      rain: a.weatherColors.rain.toArray(),
+      snow: a.weatherColors.snow.toArray(),
+      rainMaterial: g.weatherEffects.rain.material.color.toArray(),
+      snowMaterial: g.weatherEffects.snow.material.color.toArray(),
+      cloudFog: g.cloudSystem.uniforms.cloudFogColor.value.toArray(),
+      ambient: a.fogSnapshot.ambient.toArray(),
+    };
+  });
+  expect(restoredWeather.summary).toBe(22);
+  expect(restoredWeather.rain.every((v) => Number.isFinite(v) && v > 0)).toBe(
+    true,
+  );
+  expect(restoredWeather.snow.every((v) => Number.isFinite(v) && v > 0)).toBe(
+    true,
+  );
+  expect(restoredWeather.rainMaterial).toEqual(restoredWeather.rain);
+  expect(restoredWeather.snowMaterial).toEqual(restoredWeather.snow);
+  expect(restoredWeather.cloudFog).toEqual(restoredWeather.ambient);
   expect(restored.finite).toBe(true);
   expect(restored.age).toBeGreaterThan(4);
   expect(restored.error).toBe(0);
@@ -559,6 +587,7 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
         restoredFieldError: restoredError,
         occlusion,
         restoredFrames,
+        restoredWeather,
         errors,
       },
       null,

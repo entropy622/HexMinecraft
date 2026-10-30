@@ -509,6 +509,7 @@ test('live clock: delayed GPU delivery coalesces without starving or mixing sky 
     for (const sample of samples) {
       expect(sample.mismatch).toBeLessThan(0.002);
       expect(sample.directError).toBeLessThan(0.002);
+      expect(sample.weatherError).toBeLessThan(0.003);
       expect(sample.gl).toBe(0);
     }
   } finally {

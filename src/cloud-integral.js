@@ -1,6 +1,15 @@
 // Shared production cloud transport for the camera and omnidirectional sky.
 // Callers provide the same cloud field, clear atmosphere and lighting inputs.
+export const cloudWeatherAerialGLSL = /* glsl */ `
+vec3 hexCloudWeatherAerial(vec3 scattering,float transmission,vec3 clearSky,
+  vec3 airTransmission,vec3 weatherSky,float rain,float morningEvening){
+  vec3 clear=mix(clearSky,weatherSky,rain*mix(1.0,0.9,morningEvening));
+  vec3 airT=mix(airTransmission,vec3(airTransmission.r),0.8*rain);
+  return scattering*airT+clear*(1.0-airT)*(1.0-transmission);
+}
+`;
 export const cloudIntegralGLSL = /* glsl */ `
+${cloudWeatherAerialGLSL}
 vec4 integrateLayer(vec3 origin, vec3 direction, vec2 span, int layer, vec2 angular, float jitter, out float apparent) {
   apparent = 0.0;
   if (span.y <= span.x) return vec4(0.0, 0.0, 0.0, 1.0);
@@ -63,6 +72,8 @@ vec4 hexCloudRay(vec3 origin,vec3 direction,float distance,float jitter,out floa
   if (!hasCloudSpan) return result;
   float cosine = dot(direction, cloudLightDirection);
   vec2 angular = vec2(cosine, hexCloudPhase(cosine));
+  float rain=clamp((skyAerosol-1.0)/5.0,0.0,1.0);
+  float edge=skySunDirection.x==0.0?0.0:photonMorningEveningWeight();
   // The camera may be below, inside, between or above the bands.
   for (int a = 0; a < 2; a++) for (int b = 0; b < 2; b++) {
     if (spans[order[b]].x > spans[order[b + 1]].x) {
@@ -78,7 +89,8 @@ vec4 hexCloudRay(vec3 origin,vec3 direction,float distance,float jitter,out floa
     // atmosphere as the visible sky. Air adds light only over cloud opacity;
     // cloud transmission still composites the already atmospheric background.
     vec3 airT = hexAirTransmittance(apparent, direction);
-    integral.rgb = integral.rgb * airT + hexSkyRadiance(direction) * (1.0 - airT) * (1.0 - integral.a);
+    integral.rgb=hexCloudWeatherAerial(integral.rgb,integral.a,hexSkyRadiance(direction),
+      airT,cloudFogColor,rain,edge);
     if (firstDistance <= 0.0) { firstDistance = apparent; firstLayer = float(layer); }
     result.rgb += result.a * integral.rgb;
     result.a *= integral.a;

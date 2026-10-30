@@ -28,7 +28,7 @@ ${cloudScatteringGLSL}
 varying vec2 vUv;
 uniform sampler2D sceneDepth;
 uniform mat4 cloudInverseProjection, cloudCameraWorld;
-uniform vec3 cloudAmbient, cloudDirect, cloudGround;
+uniform vec3 cloudAmbient, cloudDirect, cloudGround, cloudFogColor;
 uniform float cloudPhase, cloudAlbedo;
 layout(location = 0) out vec4 cloudColor;
 layout(location = 1) out vec4 cloudData;
@@ -294,6 +294,7 @@ export class CloudVolumePass {
     this.light
       .copy(u.cloudAmbient.value)
       .add(u.cloudGround.value)
+      .add(u.cloudFogColor.value)
       .add(u.cloudDirect.value)
       .multiplyScalar(u.cloudAlbedo.value);
     if (

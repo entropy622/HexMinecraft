@@ -57,6 +57,15 @@ float photonMoonExposure() {
 vec3 photonMoonTint() { return photonTo2020(pow(vec3(0.75,0.83,1.0),vec3(2.2))); }
 vec3 photonSunColor() { return photonSunExposure()*photonSunTint(); }
 vec3 photonMoonColor() { return photonMoonExposure()*photonMoonTint(); }
+// Source weather_color.glsl constants are already in the working Rec.2020
+// space. Precipitation uses the brighter PROGRAM_WEATHER snow night floor.
+vec3 photonWeatherColor(float sunHeight,float snow,bool precipitation) {
+  float day=smoothstep(-0.1,0.5,sunHeight);
+  float rain=mix(0.033,0.66,day);
+  float snowfall=mix(precipitation?0.5:0.060,1.60,day);
+  return photonTo709(mix(rain,snowfall,clamp(snow,0.0,1.0))
+    *vec3(1.051,0.985,0.940)*vec3(0.49,0.65,1.00));
+}
 vec3 photonAtmospherePost(vec3 rgb) {
   // This curve differs from the 190/0.09604 light-exposure blue hour above.
   float h=skySunDirection.y+0.07283;

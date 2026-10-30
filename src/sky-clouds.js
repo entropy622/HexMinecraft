@@ -43,7 +43,7 @@ export class SkyClouds {
         uniform sampler2D skyCloudSummary;
         uniform vec3 skyCloudOrigin;
         uniform float cloudAlbedo;
-        vec3 cloudAmbient,cloudDirect,cloudGround;
+        vec3 cloudAmbient,cloudDirect,cloudGround,cloudFogColor;
         ${cloudIntegralGLSL}
         ${skyFogGLSL}
         out vec4 environmentColor;
@@ -51,6 +51,7 @@ export class SkyClouds {
           cloudAmbient=max(vec3(0),texelFetch(skyCloudSummary,ivec2(17,0),0).rgb)/cloudPi;
           cloudGround=max(vec3(0),texelFetch(skyCloudSummary,ivec2(18,0),0).rgb)/cloudPi;
           cloudDirect=texelFetch(skyCloudSummary,ivec2(13,0),0).rgb;
+          cloudFogColor=max(vec3(0),texelFetch(skyCloudSummary,ivec2(19,0),0).rgb);
           vec3 direction=skyDirection(vUv);
           vec3 radiance=textureLod(skyRadianceMap,skyUv(direction),0.0).rgb;
           #if SKY_CAPTURE_CLOUDS
@@ -61,7 +62,7 @@ export class SkyClouds {
           // only the displayed background extends its horizon below the world.
           radiance=radiance*cloud.a+cloud.rgb;
           #endif
-          vec3 ambient=max(vec3(0),texelFetch(skyCloudSummary,ivec2(19,0),0).rgb);
+          vec3 ambient=cloudFogColor;
           environmentColor=vec4(skyFogCompose(radiance,skyCloudOrigin,direction,ambient,cloudDirect,cloudLightDirection),1);
         }`,
     });
