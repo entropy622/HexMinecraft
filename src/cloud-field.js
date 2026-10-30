@@ -1,3 +1,4 @@
+import { CLOUD_METRES_PER_UNIT, CIRRUS_DENSITY } from './cloud-optics.js';
 export const CLOUD_RADIUS = 4;
 export const CLOUD_BASE = 52;
 export const CLOUD_NOISE_SCALE = 255 / 126;
@@ -5,7 +6,7 @@ export const CLOUD_COVERAGE_SIZE = 1024;
 export const CLOUD_COVERAGE_SPANS = [512, 256];
 export const CLOUD_COVERAGE_HEADER = 128;
 // Shared with the atmosphere's conversion of 20 metres per local world unit.
-export const CLOUD_PLANET_RADIUS = 6371000 / 20;
+export const CLOUD_PLANET_RADIUS = 6371000 / CLOUD_METRES_PER_UNIT;
 const mod = (x, n) => ((x % n) + n) % n;
 const random = (x, y, seed) => {
   x = mod(x, 127);
@@ -188,6 +189,7 @@ uniform vec3 cloudLightDirection;
 uniform float cloudShade;
 uniform float cloudEnabled;
 uniform vec4 cloudLayers[3]; // base, thickness, coverage, stratus blend
+uniform vec4 cloudOptics[3]; // extinction / metre, albedo, stratus, layer response
 uniform vec2 cloudLayerWind[3];
 uniform vec2 cloudCurvatureOrigin;
 uniform float cloudShear;
@@ -242,7 +244,6 @@ vec2 hexCloudCell(vec2 p) {
 float hexCloudPresence(float density) {
   return smoothstep(cloudThreshold - 0.035, cloudThreshold + 0.035, density);
 }
-const float hexCloudExtinction = 0.9;
 float hexCloudAltitude(vec3 position) {
   vec2 offset = position.xz - cloudCurvatureOrigin;
   float y = position.y + hexCloudPlanet, horizontal = dot(offset, offset);
@@ -302,7 +303,7 @@ float hexCloudLayerDensity(vec3 position, int layer) {
     float cells = smoothstep(0.45, 0.8, hexCloudNoise(drifting * 0.256 + curl * 13.5));
     cells = max(0.0, cells - 0.6 * hexCloudNoise(drifting * 0.512 + curl * 1.5));
     float cirrocumulus = cells * cells * cells * cells * patches * height * (0.12 + band.w * 0.15);
-    return wisps + cirrocumulus;
+    return (wisps + cirrocumulus) * ${CIRRUS_DENSITY.toFixed(1)};
   }
   vec2 coverage = hexCloudMacro(drifting, layer);
   float macro = coverage.x, regional = coverage.y;
@@ -373,12 +374,12 @@ float hexCloudLayerOpticalDepth(vec3 origin, vec3 direction, float reach, int la
 float hexCloudShadow(vec3 point) {
   if (cloudEnabled < 0.5 || cloudLightDirection.y < 0.04) return 1.0;
   if (cloudVolumetric > 0.5) {
-    float depth = 0.0;
+    float opticalDepth = 0.0;
     for (int layer = 0; layer < 3; layer++) {
       vec2 span = hexCloudInterval(point, cloudLightDirection, layer, cloudFar);
-      if (span.y > span.x) depth += hexCloudLayerOpticalDepth(point + cloudLightDirection * span.x, cloudLightDirection, span.y - span.x, layer, 4);
+      if (span.y > span.x) opticalDepth += ${CLOUD_METRES_PER_UNIT.toFixed(1)} * cloudOptics[layer].x * hexCloudLayerOpticalDepth(point + cloudLightDirection * span.x, cloudLightDirection, span.y - span.x, layer, 4);
     }
-    float transmission = exp(-hexCloudExtinction * depth);
+    float transmission = exp(-opticalDepth);
     return mix(1.0, transmission, cloudShade * smoothstep(0.04, 0.18, cloudLightDirection.y));
   }
   if (point.y >= cloudBase) return 1.0;

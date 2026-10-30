@@ -28,6 +28,12 @@ profiles and local units, publishes fog with sky lighting, and composes a
 non-overlapping analytic far segment after the near-field volume march.
 Photon's license applies to these derived portions as well.
 
+Since 0.116, `src/cloud-optics.js` adapts the source per-layer extinction,
+albedo and illumination-response parameters from `weather/clouds.glsl`,
+`clouds/altocumulus.glsl`, `clouds/cirrus.glsl` and default density settings.
+Their published snapshot drives both cloud transport and the shared cloud
+shadow field. Noise shapes and optical-depth quadrature remain host adaptations.
+
 Since 0.115, `src/cloud-scattering.js` adapts the distinct cumulus, altocumulus
 and cirrus scattering closures, powder responses, coefficient falloffs and
 planet/layer bounce from the pinned cloud includes. `src/cloud-integral.js`

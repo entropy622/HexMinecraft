@@ -15,6 +15,7 @@ import { createPhotonScattering, photonSkyGLSL } from './photon-sky.js';
 import { photonSkylightGLSL } from './photon-skylight.js';
 import { SkyClouds } from './sky-clouds.js';
 import { FogBiomes, photonFogParameters } from './photon-fog.js';
+import { createCloudOptics, setCloudOptics } from './cloud-optics.js';
 
 import { SUN_RADIUS, transportGLSL, skyRadianceGLSL } from './sky-transport.js';
 export {
@@ -69,6 +70,7 @@ export class SkyAtmosphere {
       skyMoonIllumination: { value: 1 },
       skyMoonPhase: { value: 0 },
       skySnowFraction: { value: 0 },
+      cloudOptics: { value: createCloudOptics() },
       skyMultipleScatteringMap: { value: null },
     };
     this.work = UniformsUtils.clone(this.uniforms);
@@ -224,6 +226,9 @@ export class SkyAtmosphere {
       'skySnowFraction',
     ])
       this.uniforms[name].value = this.work[name].value;
+    this.uniforms.cloudOptics.value.forEach((v, i) =>
+      v.copy(this.work.cloudOptics.value[i]),
+    );
     this.probe.sh.fromArray(
       values.flatMap((v, i) => (i < 36 && i % 4 < 3 ? [v] : [])),
     );
@@ -338,6 +343,13 @@ export class SkyAtmosphere {
     this.work.skyMoonIllumination.value = moon;
     this.work.skyMoonPhase.value = phase;
     this.work.skySnowFraction.value = biomes[2];
+    if (this.cloudSky)
+      setCloudOptics(
+        this.work.cloudOptics.value,
+        direction,
+        rain,
+        this.cloudSky.uniforms.cloudLayers.value,
+      );
     const previous = renderer.getRenderTarget(),
       generation = this.generation;
     this.quad.material = this.scatter;
@@ -399,6 +411,9 @@ export class SkyAtmosphere {
     this.fogAmbient.setRGB(0, 0, 0);
     this.weatherColors.rain.setRGB(0, 0, 0);
     this.weatherColors.snow.setRGB(0, 0, 0);
+    const defaults = createCloudOptics();
+    for (const u of [this.uniforms, this.work])
+      u.cloudOptics.value.forEach((v, i) => v.copy(defaults[i]));
     this.fogInput = null;
     this.key = null;
     this.lastTime = null;

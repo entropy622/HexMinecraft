@@ -5,11 +5,13 @@ import {
   NearestFilter,
   ShaderMaterial,
   Vector3,
+  Vector4,
   WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { cloudScatteringGLSL } from '../../src/cloud-scattering.js';
 import { transportGLSL } from '../../src/sky-transport.js';
+import { createCloudOptics, setCloudOptics } from '../../src/cloud-optics.js';
 
 export function probeCloudLighting(g, cases, lights) {
   const r = g.renderer,
@@ -57,7 +59,7 @@ export function probeCloudLighting(g, cases, lights) {
     probeHeight: { value: 0 },
     probeMoon: { value: false },
     probeAlto: { value: false },
-    probeCoverage: { value: 0 },
+    probeAltoBoost: { value: 1 },
   };
   const material = new ShaderMaterial({
     uniforms: u,
@@ -67,8 +69,8 @@ export function probeCloudLighting(g, cases, lights) {
     vertexShader: 'void main(){gl_Position=vec4(position.xy,0,1);}',
     fragmentShader: `${transportGLSL}\n${cloudScatteringGLSL}
       uniform sampler2D probeCases;uniform int probeMode;
-      uniform float probeMu,probeHeight,probeCoverage;uniform bool probeMoon,probeAlto;
-      void main(){if(probeMode==1){gl_FragColor=vec4(photonCloudLight(probeMu,probeHeight,probeMoon)*(probeAlto?photonAltoLightBoost(probeCoverage):1.0),1);return;}
+      uniform float probeMu,probeHeight,probeAltoBoost;uniform bool probeMoon,probeAlto;
+      void main(){if(probeMode==1){gl_FragColor=vec4(photonCloudLight(probeMu,probeHeight,probeMoon)*(probeAlto?probeAltoBoost:1.0),1);return;}
         int i=int(gl_FragCoord.x);vec4 a=texelFetch(probeCases,ivec2(0,i),0),
           b=texelFetch(probeCases,ivec2(1,i),0),c=texelFetch(probeCases,ivec2(2,i),0);
         float boost=texelFetch(probeCases,ivec2(3,i),0).x;
@@ -88,6 +90,12 @@ export function probeCloudLighting(g, cases, lights) {
     r.readRenderTargetPixels(target, 0, 0, cases.length, 1, kernels);
     u.probeMode.value = 1;
     const light = [];
+    const optics = createCloudOptics(),
+      layers = [
+        new Vector4(52, 60, 0.5, 0),
+        new Vector4(160, 24, 0.4, 0),
+        new Vector4(300, 3.5, 0.4, 0),
+      ];
     for (const s of lights) {
       u.skySunDirection.value.set(Math.sqrt(1 - s.sunY * s.sunY), s.sunY, 0);
       u.skyAerosol.value = 1 + 5 * s.rain;
@@ -96,7 +104,9 @@ export function probeCloudLighting(g, cases, lights) {
       u.probeHeight.value = s.height;
       u.probeMoon.value = s.moonlit;
       u.probeAlto.value = s.layer === 1;
-      u.probeCoverage.value = s.coverage || 0;
+      layers[1].z = s.coverage || 0;
+      setCloudOptics(optics, u.skySunDirection.value, s.rain, layers);
+      u.probeAltoBoost.value = optics[1].w;
       quad.render(r);
       const rgb = new Float32Array(4);
       r.readRenderTargetPixels(target, 0, 0, 1, 1, rgb);

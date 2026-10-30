@@ -559,9 +559,17 @@ test('wind and camera reprojection reject new buildings, reveal clouds promptly 
       snowMaterial: g.weatherEffects.snow.material.color.toArray(),
       cloudFog: g.cloudSystem.uniforms.cloudFogColor.value.toArray(),
       ambient: a.fogSnapshot.ambient.toArray(),
+      optics: a.uniforms.cloudOptics.value.map((v) => v.toArray()),
+      sharedOptics:
+        g.cloudSystem.uniforms.cloudOptics === a.uniforms.cloudOptics,
     };
   });
   expect(restoredWeather.summary).toBe(22);
+  expect(restoredWeather.sharedOptics).toBe(true);
+  expect(restoredWeather.optics).toHaveLength(3);
+  expect(
+    restoredWeather.optics.every((v) => v.every(Number.isFinite) && v[0] > 0),
+  ).toBe(true);
   expect(restoredWeather.rain.every((v) => Number.isFinite(v) && v > 0)).toBe(
     true,
   );

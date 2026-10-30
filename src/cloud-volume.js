@@ -283,6 +283,7 @@ export class CloudVolumePass {
         scale: new Vector2(),
         wind: [new Vector2(), new Vector2(), new Vector2()],
         layers: [new Vector4(), new Vector4(), new Vector4()],
+        optics: [new Vector4(), new Vector4(), new Vector4()],
         light: new Color(),
         direction: new Vector3(),
         illuminationMode: 0,
@@ -321,6 +322,13 @@ export class CloudVolumePass {
             Math.abs(v.w - state.layers[i].w) > 0.08,
         ) ||
         u.cloudSeedNoise.value.version !== state.noise ||
+        u.cloudOptics.value.some(
+          (v, i) =>
+            Math.abs(v.x / state.optics[i].x - 1) > 0.03 ||
+            Math.abs(v.y - state.optics[i].y) > 0.02 ||
+            Math.abs(v.z - state.optics[i].z) > 0.08 ||
+            Math.abs(v.w - state.optics[i].w) > 0.05,
+        ) ||
         state.illuminationMode !== illuminationMode ||
         (this.light.r - state.light.r) ** 2 +
           (this.light.g - state.light.g) ** 2 +
@@ -373,6 +381,7 @@ export class CloudVolumePass {
       state.scale.set(p[0], p[5]);
       state.wind.forEach((v, i) => v.copy(u.cloudLayerWind.value[i]));
       state.layers.forEach((v, i) => v.copy(u.cloudLayers.value[i]));
+      state.optics.forEach((v, i) => v.copy(u.cloudOptics.value[i]));
       state.noise = u.cloudSeedNoise.value.version;
       state.light.copy(this.light);
       state.direction.copy(u.cloudLightDirection.value);

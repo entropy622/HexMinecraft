@@ -15,6 +15,65 @@ import {
 } from 'three';
 import { HexClouds } from '../src/clouds.js';
 import { World } from '../src/world.js';
+import {
+  createCloudOptics,
+  setCloudOptics,
+  CLOUD_METRES_PER_UNIT,
+} from '../src/cloud-optics.js';
+
+test('Photon default cloud coefficients match noon, horizon, rain, overcast and stratus source limits', () => {
+  const optics = createCloudOptics(),
+    layers = [
+      { z: 0.5, w: 0 },
+      { z: 0.4, w: 0 },
+      { z: 0.4, w: 0 },
+    ],
+    sun = { x: 0.6, y: 0.8 };
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} != ${b}`);
+  setCloudOptics(optics, sun, 0, layers);
+  optics.forEach((v, i) => close(v.x, [0.1, 0.032, 0.15][i]));
+  close(optics[0].x * CLOUD_METRES_PER_UNIT, 2);
+  setCloudOptics(optics, sun, 1, layers);
+  close(optics[0].x, 0.067);
+  close(optics[1].x, 0.032);
+  optics.forEach((v, i) => close(v.y, [0.66, 0.75, 1][i]));
+  setCloudOptics(optics, { x: 1, y: 0 }, 0, layers);
+  close(optics[0].x, 0.05);
+  close(optics[1].x, 0.016);
+  close(optics[2].w, 1);
+  layers[0].z = 0.95;
+  setCloudOptics(optics, sun, 0, layers);
+  close(optics[0].x, 0.07);
+  layers[0].w = 1;
+  layers[1].z = 0.6;
+  layers[1].w = 1;
+  setCloudOptics(optics, sun, 0, layers);
+  close(optics[0].x, 0.02);
+  close(optics[0].w, 1);
+  close(optics[1].x, 0.016);
+  close(optics[1].w, 1.4);
+});
+
+test('cloud optical updates retain published vector identities and are continuous at the solar density knee', () => {
+  const optics = createCloudOptics(),
+    refs = [...optics],
+    layers = [
+      { z: 0.5, w: 0.2 },
+      { z: 0.4, w: 0.3 },
+      { z: 0.6, w: 0 },
+    ];
+  setCloudOptics(optics, { x: 1, y: 0.3 - 1e-6 }, 0.5, layers);
+  const before = optics.map((v) => v.toArray());
+  setCloudOptics(optics, { x: 1, y: 0.3 + 1e-6 }, 0.5, layers);
+  for (let i = 0; i < 3; i++) {
+    assert.equal(optics[i], refs[i]);
+    optics[i]
+      .toArray()
+      .forEach((v, c) =>
+        assert.ok(Number.isFinite(v) && Math.abs(v - before[i][c]) < 1e-5),
+      );
+  }
+});
 
 test('derived cloud climate is bounded, deterministic and varies continuously without a saved weather clock', () => {
   for (const seed of [0, 624, 751, 999999])

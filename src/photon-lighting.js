@@ -110,9 +110,4 @@ vec3 photonCloudLight(float mu,float height,bool moonlit) {
   color=photonAtmospherePost(color);
   return photonTo709(color*(moonlit?photonMoonColor():photonSunColor()));
 }
-float photonAltoLightBoost(float coverage) {
-  float edge=skySunDirection.x==0.0?0.0:photonMorningEveningWeight();
-  float noon=skySunDirection.y>0.0?1.0-edge:0.0;
-  return 1.0+0.4*photonLinear(0.5,0.6,coverage)*noon*(2.0-noon);
-}
 `;

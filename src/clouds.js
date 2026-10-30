@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { axialToWorld, worldToAxial, noise } from './core.js';
 import { skyRadianceGLSL } from './sky-transport.js';
+import { createCloudOptics } from './cloud-optics.js';
 import {
   CLOUD_RADIUS,
   CLOUD_BASE,
@@ -61,6 +62,7 @@ export class HexClouds {
       cloudFogColor: { value: new THREE.Color() },
       cloudGround: { value: new THREE.Color() },
       cloudDirect: { value: new THREE.Color() },
+      cloudOptics: { value: createCloudOptics() },
       cloudFar: { value: 130 },
       cloudLayers: {
         value: [

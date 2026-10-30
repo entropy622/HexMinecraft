@@ -1,3 +1,4 @@
+import { CLOUD_METRES_PER_UNIT } from './cloud-optics.js';
 // Shared production cloud transport for the camera and omnidirectional sky.
 // Callers provide the same cloud field, clear atmosphere and lighting inputs.
 export const cloudWeatherAerialGLSL = /* glsl */ `
@@ -31,17 +32,12 @@ vec4 integrateLayer(vec3 origin, vec3 direction, vec2 span, int layer, float jit
   vec3 radial = normalize(vec3(entry.x-cloudCurvatureOrigin.x,
     entry.y+hexCloudPlanet,entry.z-cloudCurvatureOrigin.y));
   vec3 sunlight = photonCloudLight(dot(radial,lightDirection),hexCloudAltitude(entry),moonlit);
-  if(layer==1)sunlight*=photonAltoLightBoost(cloudLayers[1].z);
+  if(layer==1)sunlight*=cloudOptics[1].w;
   // sky_color in Photon is tau times the raw tilted-sky/weather mixture. It
   // never reads the cloudy/fogged environment currently being constructed.
   vec3 skylight = (cloudFogColor + vec3(skyFlash * 0.8)) * (2.0 * cloudPi);
-  float rain=clamp((skyAerosol-1.0)/5.0,0.0,1.0);
-  float day=smoothstep(0.0,0.3,abs(skySunDirection.y));
-  float shadow=clamp((cloudLayers[1].z*(1.0+cloudLayers[1].w)-0.7)/0.3,0.0,1.0)*day*(2.0-day);
-  vec4 optics=vec4(hexCloudExtinction/20.0,layer==2?1.0:mix(1.0,layer==0?0.66:0.75,rain),
-    cloudLayers[layer].w,layer==0?shadow:0.0);
-  float cirrusBoost=1.0+0.5*max(0.0,smoothstep(0.0,0.15,abs(skySunDirection.y))
-    -smoothstep(0.5,0.7,cloudLayers[2].z));
+  vec4 optics=cloudOptics[layer];
+  float cirrusBoost=cloudOptics[2].w;
   for (int i = 0; i < 80; i++) {
     if (i >= steps) break;
     float distance = span.x + (float(i) + jitter) * stepLength;
@@ -58,9 +54,9 @@ vec4 integrateLayer(vec3 origin, vec3 direction, vec2 span, int layer, float jit
     float height = clamp(hexCloudAltitude(position) - cloudLayers[layer].x, 0.0, cloudLayers[layer].y);
     // A local-density estimate for ground escape avoids another secondary ray.
     float depthGround = height * mix(density, 1.0, clamp(2.0 * height / cloudLayers[layer].y - 1.0, 0.0, 1.0));
-    float attenuation = exp(-hexCloudExtinction * density * stepLength);
+    float attenuation = exp(-${CLOUD_METRES_PER_UNIT.toFixed(1)} * optics.x * density * stepLength);
     float weight = transmission * (1.0 - attenuation);
-    vec2 light=hexCloudScatter(20.0*vec3(depthSun,depthSky,depthGround),density,cosine,
+    vec2 light=hexCloudScatter(${CLOUD_METRES_PER_UNIT.toFixed(1)}*vec3(depthSun,depthSky,depthGround),density,cosine,
       phase,1.0-attenuation,optics,layer,lightDirection.y,cirrusBoost);
     scattering += transmission * (sunlight*light.x+skylight*light.y*(layer==2?1.41:1.0));
     apparent += weight * distance;
