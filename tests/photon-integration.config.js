@@ -5,6 +5,7 @@ import atmosphere from './atmosphere.playwright.config.js';
 export default defineConfig({
   ...atmosphere,
   testMatch: [
+    'photon-cloud-noise.spec.js',
     'render-recovery.spec.js',
     'cloud-optics.spec.js',
     'cloud-lighting.spec.js',

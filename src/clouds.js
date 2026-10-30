@@ -3,13 +3,17 @@ import { axialToWorld, worldToAxial, noise } from './core.js';
 import { skyRadianceGLSL } from './sky-transport.js';
 import { createCloudOptics } from './cloud-optics.js';
 import {
+  setCloudDetail,
+  CLOUD_DETAIL_BYTES,
+  CLOUD_DETAIL_DEPTH,
+} from './cloud-detail-data.js';
+import {
   CLOUD_RADIUS,
   CLOUD_BASE,
   CLOUD_NOISE_SCALE,
   CLOUD_PLANET_RADIUS,
   cloudDensity,
   cloudNoiseData,
-  cloudWorleyData,
   cloudWeather,
   cloudFieldGLSL,
 } from './cloud-field.js';
@@ -17,7 +21,14 @@ import {
 const CHUNK = 8,
   CAPACITY = 49 * CHUNK * CHUNK;
 export class HexClouds {
-  constructor(scene, clearIrradiance, fogAmbient = null) {
+  constructor(scene, clearIrradiance, detailNoise, fogAmbient = null) {
+    if (
+      !(detailNoise instanceof Uint8Array) ||
+      detailNoise.length !== CLOUD_DETAIL_BYTES
+    )
+      throw new RangeError(
+        'Cloud detail requires the complete guarded noise atlas',
+      );
     this.scene = scene;
     this.fogAmbient = fogAmbient;
     this.clearIrradiance = clearIrradiance;
@@ -30,14 +41,18 @@ export class HexClouds {
       THREE.UnsignedByteType,
     );
     this.noise.needsUpdate = true;
-    this.worley = new THREE.Data3DTexture(new Uint8Array(64 ** 3), 64, 64, 64);
+    this.worley = new THREE.Data3DTexture(
+      detailNoise,
+      64,
+      64,
+      CLOUD_DETAIL_DEPTH,
+    );
+    this.worley.name = 'PhotonBubblySwirley';
     this.worley.format = THREE.RedFormat;
     this.worley.type = THREE.UnsignedByteType;
     this.worley.minFilter = this.worley.magFilter = THREE.LinearFilter;
-    this.worley.wrapS =
-      this.worley.wrapT =
-      this.worley.wrapR =
-        THREE.RepeatWrapping;
+    this.worley.wrapS = this.worley.wrapT = THREE.RepeatWrapping;
+    this.worley.wrapR = THREE.ClampToEdgeWrapping;
     this.worley.unpackAlignment = 1;
     this.worley.needsUpdate = true;
     this.uniforms = {
@@ -49,6 +64,8 @@ export class HexClouds {
         value: [new THREE.Vector2(), new THREE.Vector2()],
       },
       cloudWorley: { value: this.worley },
+      cloudDetailDrift: { value: [new THREE.Vector4(), new THREE.Vector4()] },
+      cloudDetailShape: { value: new THREE.Vector4(0.33, 0.4, 3, 12) },
       cloudRadius: { value: CLOUD_RADIUS },
       cloudBase: { value: CLOUD_BASE },
       cloudWind: { value: new THREE.Vector2() },
@@ -185,15 +202,11 @@ export class HexClouds {
       );
     this.climate = climate;
     if (!active) return;
+    setCloudDetail(u.cloudDetailDrift.value, u.cloudDetailShape.value, climate);
     if (this.noiseSeed !== world.seed) {
       this.noiseSeed = world.seed;
       this.noise.image.data.set(cloudNoiseData(this.noiseSeed));
       this.noise.needsUpdate = true;
-    }
-    if (quality >= 1.7 && this.worleySeed !== world.seed) {
-      this.worleySeed = world.seed;
-      this.worley.image.data.set(cloudWorleyData(world.seed));
-      this.worley.needsUpdate = true;
     }
     u.cloudLayers.value[0].set(
       CLOUD_BASE,

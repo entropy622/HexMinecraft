@@ -49,6 +49,7 @@ import {
 import { postSettings } from './render-settings.js';
 import { installPhotonOutput } from './photon-output.js';
 import { prepareRecoveredRenderer } from './render-recovery.js';
+import { photonCloudDetail } from './photon-cloud-noise.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -265,6 +266,7 @@ export class Graphics {
     this.cloudSystem = new HexClouds(
       this.scene,
       this.skyEnvironment.atmosphere.clearIrradiance,
+      photonCloudDetail,
       this.skyEnvironment.atmosphere.fogAmbient,
     );
     Object.assign(this.cloudSystem.uniforms, this.skyEnvironment.uniforms);

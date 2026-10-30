@@ -1,4 +1,5 @@
 import { CLOUD_METRES_PER_UNIT, CIRRUS_DENSITY } from './cloud-optics.js';
+import { cloudDetailGLSL } from './cloud-detail-data.js';
 export const CLOUD_RADIUS = 4;
 export const CLOUD_BASE = 52;
 export const CLOUD_NOISE_SCALE = 255 / 126;
@@ -95,60 +96,6 @@ export function cloudWeather(seed, time, heat, wet, rain, storm) {
   };
 }
 
-// A small, periodic, independently generated Worley field. No upstream texture
-// is shipped; both density erosion octaves sample this same R8 volume.
-export function cloudWorleyData(seed) {
-  const size = 64,
-    cells = 8,
-    data = new Uint8Array(size ** 3);
-  const points = new Float32Array(cells ** 3 * 3);
-  for (let i = 0; i < cells ** 3; i++) {
-    const x = i % cells,
-      y = Math.floor(i / cells) % cells,
-      z = Math.floor(i / cells ** 2);
-    points.set(
-      [
-        random(x + z * 11, y + z * 7, seed),
-        random(y + z * 3, x + 37, seed + 17),
-        random(x + y * 5, z + 61, seed + 43),
-      ],
-      i * 3,
-    );
-  }
-  for (let z = 0; z < size; z++)
-    for (let y = 0; y < size; y++)
-      for (let x = 0; x < size; x++) {
-        const px = ((x + 0.5) * cells) / size,
-          py = ((y + 0.5) * cells) / size,
-          pz = ((z + 0.5) * cells) / size;
-        const cx = Math.floor(px),
-          cy = Math.floor(py),
-          cz = Math.floor(pz);
-        let nearest = 3;
-        for (let dz = -1; dz <= 1; dz++)
-          for (let dy = -1; dy <= 1; dy++)
-            for (let dx = -1; dx <= 1; dx++) {
-              const x1 = cx + dx,
-                y1 = cy + dy,
-                z1 = cz + dz;
-              const i =
-                (mod(z1, cells) * cells ** 2 +
-                  mod(y1, cells) * cells +
-                  mod(x1, cells)) *
-                3;
-              const d =
-                (x1 + points[i] - px) ** 2 +
-                (y1 + points[i + 1] - py) ** 2 +
-                (z1 + points[i + 2] - pz) ** 2;
-              nearest = Math.min(nearest, d);
-            }
-        data[(z * size + y) * size + x] = Math.round(
-          Math.max(0, 1 - Math.sqrt(nearest) / 1.25) * 255,
-        );
-      }
-  return data;
-}
-
 // Integer-sized arithmetic stays below the float exact-integer limit. CPU
 // geometry and GPU shadows sample the same seeded field and drifting hex grid.
 export const cloudMacroGLSL = /* glsl */ `
@@ -191,11 +138,14 @@ uniform float cloudEnabled;
 uniform vec4 cloudLayers[3]; // base, thickness, coverage, stratus blend
 uniform vec4 cloudOptics[3]; // extinction / metre, albedo, stratus, layer response
 uniform vec2 cloudLayerWind[3];
+uniform vec4 cloudDetailDrift[2]; // scaled coarse xz, fine xz advection
+uniform vec4 cloudDetailShape; // cumulus erosion weights, edge sharpening
 uniform vec2 cloudCurvatureOrigin;
 uniform float cloudShear;
 uniform float cloudCoverageReady;
 uniform vec2 cloudCoverageOrigin[2];
 const float hexCloudPlanet = ${CLOUD_PLANET_RADIUS.toFixed(1)};
+${cloudDetailGLSL}
 // Rotate the analytic gradient of a C2 scalar field. Each octave needs only
 // four seed fetches, and the flow remains continuous across lattice cells.
 vec2 hexCloudCurl(vec2 p) {
@@ -331,7 +281,9 @@ float hexCloudLayerDensity(vec3 position, int layer) {
     deck = deck / (1.0 + deck) * sheet;
     float upperDensity = mix(ac, deck, band.w);
     if (upperDensity <= 0.0) return 0.0;
-    float erosion = 1.0 - textureLod(cloudWorley, vec3(drifting.x, y, drifting.y) * 0.06, 0.0).r;
+    vec3 detailPosition = position * 0.06;
+    detailPosition.xz -= cloudDetailDrift[layer].xy;
+    float erosion = hexCloudDetail(detailPosition, 1.0);
     upperDensity = max(0.0, upperDensity - 0.2 * erosion * erosion * (1.0 - upperDensity * upperDensity) * (1.0 - 0.85 * band.w));
     vec2 edge = mix(vec2(3.0, 14.0), vec2(2.0, 7.0), band.w);
     float sharp = mix(edge.x, edge.y, fraction);
@@ -343,19 +295,25 @@ float hexCloudLayerDensity(vec3 position, int layer) {
   float crown = smoothstep(0.2, 1.0, fraction) * mix(0.6, 0.3, band.w);
   float density = max(0.0, mix(fill, fill * sheet, band.w) - crown) * bottom;
   if (density <= 0.0) return 0.0;
-  // ~139 m cells at the shared 20 m/local scale. The former ~416 m cells
-  // gave a deep cloud too few independent billows along its vertical axis.
-  vec3 detailPosition = vec3(drifting.x, y, drifting.y) * 0.018;
-  detailPosition.xz += fraction * vec2(0.12, -0.06) * cloudShear;
-  vec2 erosionNoise = 1.0 - vec2(textureLod(cloudWorley, detailPosition, 0.0).r,
-    textureLod(cloudWorley, detailPosition * 5.4 + 0.31, 0.0).r);
-  // Erode the envelope with independent coarse billows and smaller wisps.
-  // Dense interiors survive; fragmented edges retain detail with two samples.
-  vec2 erosion = mix(vec2(0.33, 0.40), vec2(0.07, 0.10), vec2(band.w * band.w, band.w));
+  // Photon uses different bubbly/swirl volumes, physical frequencies and
+  // secondary wind advection. The R8 atlas keeps the existing sampler count.
+  vec4 drift = cloudDetailDrift[layer];
+  vec3 coarse = position * 0.018, fine = position * 0.1;
+  coarse.xz -= drift.xy;
+  fine.xz -= drift.zw;
+  // Fold the planet's constant periodic y offset on the CPU, preserving fine
+  // texture-coordinate precision instead of multiplying a ~6.4e6 m float.
+  vec2 erosionNoise = vec2(
+    hexCloudDetail(coarse + vec3(0, 0.9, 0), 0.0),
+    hexCloudDetail(fine, 1.0));
+  vec2 erosion = cloudDetailShape.xy;
   float fineWeight = 0.2 * smoothstep(0.85, 1.0, 1.0 - fraction) - 0.35 * smoothstep(0.05, 0.5, fraction) + 0.6;
-  float edge = 1.0 - density * density;
-  density = max(0.0, density - dot(erosionNoise * erosionNoise, erosion * vec2(1.0, fineWeight)) * edge);
-  vec2 sharpness = mix(vec2(3.0, 12.0), vec2(2.0, 7.0), band.w * band.w);
+  float edge = clamp(1.0 - density, 0.0, 1.0);
+  density -= erosion.x * erosionNoise.x * erosionNoise.x * edge * (2.0 - edge);
+  edge = clamp(1.0 - density, 0.0, 1.0);
+  density -= erosion.y * erosionNoise.y * erosionNoise.y * edge * (2.0 - edge) * fineWeight;
+  density = max(0.0, density);
+  vec2 sharpness = cloudDetailShape.zw;
   float sharpening = mix(sharpness.x, sharpness.y, fraction);
   density = density * (1.0 + sharpening) / (1.0 + density * sharpening);
   density *= mix(0.1, 1.0, smoothstep(0.2, 0.7, fraction));

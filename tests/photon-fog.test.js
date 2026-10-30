@@ -4,6 +4,7 @@ import { PerspectiveCamera, DirectionalLight, Color, Vector3 } from 'three';
 import { FogBiomes, photonFogParameters } from '../src/photon-fog.js';
 import { Atmosphere } from '../src/atmosphere.js';
 import { HexClouds } from '../src/clouds.js';
+import { cloudDetailData } from './fixtures/cloud-detail-data.js';
 import { Scene } from 'three';
 
 const parameters = (extra = {}) =>
@@ -80,7 +81,11 @@ test('fog biome weights are continuous across negative cell boundaries and inval
 test('fog uses shared climate with clouds hidden, disables inside liquids and starts clean across dimensions', () => {
   const camera = new PerspectiveCamera(),
     scene = new Scene(),
-    clouds = new HexClouds(scene, { up: new Color(), down: new Color() }),
+    clouds = new HexClouds(
+      scene,
+      { up: new Color(), down: new Color() },
+      cloudDetailData,
+    ),
     air = new Atmosphere(camera),
     sun = new DirectionalLight(),
     world = { dimension: 'overworld', seed: 624, biome: () => '森林' };

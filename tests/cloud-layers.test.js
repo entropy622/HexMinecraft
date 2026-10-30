@@ -1,10 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  cloudWeather,
-  cloudNoiseData,
-  cloudWorleyData,
-} from '../src/cloud-field.js';
+import { cloudWeather, cloudNoiseData } from '../src/cloud-field.js';
 import {
   Color,
   Vector3,
@@ -12,8 +8,11 @@ import {
   PerspectiveCamera,
   DirectionalLight,
   LightProbe,
+  RedFormat,
+  UnsignedByteType,
 } from 'three';
 import { HexClouds } from '../src/clouds.js';
+import { cloudDetailData } from './fixtures/cloud-detail-data.js';
 import { World } from '../src/world.js';
 import {
   createCloudOptics,
@@ -130,42 +129,21 @@ test('warm humid weather keeps cumulus while cold upper sheets vary independentl
   assert.deepEqual(storm.winds, cool.winds);
 });
 
-test('seeded tileable cloud fields have useful distribution without the old 127-seed alias', () => {
+test('world cloud coverage keeps distinct seed identities without the old 127-seed alias', () => {
   const a = cloudNoiseData(624),
     b = cloudNoiseData(751);
   assert.notDeepEqual(a, b);
-  const field = cloudWorleyData(624),
-    other = cloudWorleyData(751);
-  assert.equal(field.length, 64 ** 3);
-  assert.deepEqual(field, cloudWorleyData(624));
-  assert.notDeepEqual(field, other);
-  const mean = field.reduce((n, v) => n + v, 0) / field.length;
-  const variance =
-    field.reduce((n, v) => n + (v - mean) ** 2, 0) / field.length;
-  assert.ok(mean > 60 && mean < 200);
-  assert.ok(variance > 500);
-  for (let axis = 0; axis < 3; axis++) {
-    let seam = 0,
-      adjacent = 0;
-    for (let u = 0; u < 64; u++)
-      for (let v = 0; v < 64; v++) {
-        const sample = (n) => {
-          const p = [u, v];
-          p.splice(axis, 0, n);
-          return field[(p[2] * 64 + p[1]) * 64 + p[0]];
-        };
-        seam += Math.abs(sample(0) - sample(63));
-        adjacent += Math.abs(sample(31) - sample(32));
-      }
-    assert.ok(seam < adjacent * 1.6 && seam > adjacent * 0.5);
-  }
 });
 
 test('production cloud preparation derives all three layers and preserves low quality, dimension and toggle semantics', () => {
-  const clouds = new HexClouds(new Scene(), {
-      up: new Color(0),
-      down: new Color(0),
-    }),
+  const clouds = new HexClouds(
+      new Scene(),
+      {
+        up: new Color(0),
+        down: new Color(0),
+      },
+      cloudDetailData,
+    ),
     camera = new PerspectiveCamera(72, 1, 0.08, 220),
     sun = new DirectionalLight();
   sun.position.set(1, 2, 0);
@@ -183,6 +161,9 @@ test('production cloud preparation derives all three layers and preserves low qu
   };
   clouds.prepare(frame);
   const u = clouds.uniforms;
+  assert.equal(clouds.worley.format, RedFormat);
+  assert.equal(clouds.worley.type, UnsignedByteType);
+  assert.equal(clouds.worley.image.data, cloudDetailData);
   assert.ok(u.cloudFar.value > camera.far);
   assert.equal(u.cloudVolumetric.value, 1);
   assert.ok(
@@ -224,6 +205,13 @@ test('production cloud preparation derives all three layers and preserves low qu
   assert.equal(u.cloudEnabled.value, 0);
   assert.equal(u.cloudVolumetric.value, 0);
   assert.equal(clouds.mesh.visible, false);
+  const detailVersion = clouds.worley.version;
+  clouds.prepare({
+    ...frame,
+    world: new World(751, 'overworld', { load: false }),
+  });
+  assert.equal(clouds.worley.image.data, cloudDetailData);
+  assert.equal(clouds.worley.version, detailVersion);
   world.dimension = 'nether';
   clouds.prepare(frame);
   assert.equal(u.cloudVolumetric.value, 0);
@@ -238,7 +226,7 @@ test('cloud sky and ground radiance use separate raw clear hemispheres without r
   const probe = new LightProbe(),
     scene = new Scene(),
     clear = { up: new Color(0), down: new Color(0) },
-    clouds = new HexClouds(scene, clear),
+    clouds = new HexClouds(scene, clear, cloudDetailData),
     camera = new PerspectiveCamera(72, 1, 0.08, 220),
     sun = new DirectionalLight(),
     world = new World(624, 'overworld', { load: false });

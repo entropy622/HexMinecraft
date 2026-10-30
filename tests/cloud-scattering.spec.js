@@ -106,7 +106,8 @@ async function cloudScene(page) {
         page.evaluate(() => {
           const g = window.__hexwild.graphics;
           return (
-            !g.relightQueue.size && g.cloudSystem.worleySeed === g.world.seed
+            !g.relightQueue.size &&
+            g.cloudSystem.worley.image.data.byteLength === 64 * 64 * 132
           );
         }),
       { timeout: 90000 },

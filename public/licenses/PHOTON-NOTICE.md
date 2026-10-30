@@ -1,10 +1,24 @@
-# Photon atmosphere
+# Photon rendering assets and optics
 
 Hexwild 0.99 and later bundle the unmodified `shaders/image/atmosphere/scattering.dat`
 from Photon Shaders by Benjamin Stott (SixthSurge), commit
 `6e67b36e818bacde0304edd49f28e2bb70e33f04`.
 
 Source: https://github.com/sixthsurge/photon/tree/6e67b36e818bacde0304edd49f28e2bb70e33f04
+
+Since 0.118, the unmodified `shaders/image/worley_bubbly.dat` and
+`worley_swirley.dat` are also bundled as `src/assets/photon-worley-*.dat`.
+Each is an R8 64 x 64 x 64 volume, 262144 bytes. Their SHA256 hashes are
+`39f2d27cfe0dbbb2222cc9e2f7c37f3b93a0c7dd2567e6f6685b60dc16cefdf9` and
+`6e13f05304287ae28efbcf73a44903a1dea77104617a8e591e4617a4bb1b0d8d`.
+Runtime stacking into one guarded R8 64 x 64 x 132 atlas preserves every source
+byte and periodic filtering. The two volumes supply cumulus bubbly/swirl erosion and altocumulus
+swirl detail, including distinct physical frequencies, secondary wind and
+sequential edge erosion from `sky/clouds/{cumulus,altocumulus}.glsl`.
+Weather detail weights and sharpening from `weather/clouds.glsl` are prepared
+once per frame and shared with all cloud-density consumers.
+These assets and derived portions retain Photon's license. Local coverage,
+height envelopes, weather and integration remain host adaptations.
 
 The source binary is `src/assets/photon-scattering.dat`, 393216 bytes, SHA256
 `d4834ef3babc1376f923f39d495d69dd9d7099f56feb40335a184af8a6b98fc6`.
