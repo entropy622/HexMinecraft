@@ -758,6 +758,7 @@ test('a real canopy and water capture survive quality, context restoration and d
       const g = window.__hexwild.graphics;
       return {
         quality: g.quality,
+        surfaceDiffuse: g.weatherUniforms.surfaceDiffuse.value,
         leafLight: g.leafUniforms.leafSunColor.value.toArray(),
         textures: g.renderer.info.memory.textures,
         capture: g.fluidRenderer.waterUniforms.waterSceneReady.value,
@@ -766,6 +767,7 @@ test('a real canopy and water capture survive quality, context restoration and d
     });
     states.push(state);
     expect(state.gl).toBe(0);
+    expect(state.surfaceDiffuse).toBe(1);
     if (quality < 1.7) expect(state.leafLight).toEqual([0, 0, 0]);
     else expect(state.capture).toBe(1);
   }
@@ -874,6 +876,10 @@ test('a real canopy and water capture survive quality, context restoration and d
   const netherGl = await page.evaluate(() =>
     window.__hexwild.graphics.renderer.getContext().getError(),
   );
+  const netherDiffuse = await page.evaluate(
+    () => window.__hexwild.graphics.weatherUniforms.surfaceDiffuse.value,
+  );
+  expect(netherDiffuse).toBe(0);
   expect(
     await page.evaluate(() =>
       window.__hexwild.graphics.leafUniforms.leafSunColor.value.toArray(),
@@ -884,6 +890,10 @@ test('a real canopy and water capture survive quality, context restoration and d
   const finalGl = await page.evaluate(() =>
     window.__hexwild.graphics.renderer.getContext().getError(),
   );
+  const returnedDiffuse = await page.evaluate(
+    () => window.__hexwild.graphics.weatherUniforms.surfaceDiffuse.value,
+  );
+  expect(returnedDiffuse).toBe(1);
   await page.evaluate(() => {
     const g = window.__hexwild.graphics,
       e = g.renderer.getContext().getExtension('WEBGL_lose_context');
@@ -909,6 +919,10 @@ test('a real canopy and water capture survive quality, context restoration and d
   const secondRestorationGl = await page.evaluate(() =>
     window.__hexwild.graphics.renderer.getContext().getError(),
   );
+  const endDiffuse = await page.evaluate(
+    () => window.__hexwild.graphics.weatherUniforms.surfaceDiffuse.value,
+  );
+  expect(endDiffuse).toBe(1);
   await writeFile(
     info.outputPath('canopy-lifecycle.json'),
     JSON.stringify(
@@ -923,6 +937,9 @@ test('a real canopy and water capture survive quality, context restoration and d
         outsideMapGl: outside.gl,
         netherGl,
         secondRestorationGl,
+        netherDiffuse,
+        returnedDiffuse,
+        endDiffuse,
       },
       null,
       2,

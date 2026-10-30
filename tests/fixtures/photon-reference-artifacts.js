@@ -185,6 +185,7 @@ export function readReferenceFrame(layout) {
     },
     settings: {
       quality: g.quality,
+      surfaceDiffuse: g.weatherUniforms.surfaceDiffuse.value,
       post: g.postOptions,
       toneMapping: g.renderer.toneMapping,
       exposure: g.renderer.toneMappingExposure,

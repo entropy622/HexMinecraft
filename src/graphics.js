@@ -1491,6 +1491,8 @@ export class Graphics {
       : 0;
     this.weatherUniforms.surfaceBounce.value =
       this.world.dimension === 'nether' ? 0 : 1;
+    this.weatherUniforms.surfaceDiffuse.value =
+      this.world.dimension === 'nether' ? 0 : 1;
     this.weatherUniforms.wetSky.value.copy(horizon);
     this.weatherUniforms.terrainRain.value = rain;
     if (!overworld) this.sun.color.set('#dac4ff');

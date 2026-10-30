@@ -44,6 +44,12 @@ and fuse pointwise grading with the taps instead of storing the source's packed
 R11F_G11F_B10F intermediate. Photon's license still applies to these portions.
 The [AMD FidelityFX CAS MIT notice](fidelityfx-cas.txt) is also retained.
 
+Since 0.103, the geometric directional diffuse response in `src/skylight.js`
+adapts `lift(NoL, 0.25)` and `AO_IN_SUNLIGHT` from `lighting/diffuse_lighting.glsl`
+and `global.glsl` at the same pinned revision. The finite incident multiplier
+preserves separate transmission, shadow bounce, and local-light energy.
+These derived portions retain Photon's license.
+
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
 snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;

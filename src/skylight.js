@@ -42,7 +42,22 @@ if (!directionalShadow.test(voxelLightingChunk))
   throw Error(
     'Directional shadow chunk changed; update surface indirect lighting.',
   );
+// Only the directional-light invocation gets Photon's direct diffuse response.
+// Leave the incident energy used by SSS/bounce and every local light unchanged.
+const directionalLoop =
+  /(getDirectionalLightInfo\( directionalLight, directLight \);[\s\S]*?)(RE_Direct\( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight \);)/;
+if (!directionalLoop.test(voxelLightingChunk))
+  throw Error('Directional light loop changed; update Photon surface diffuse.');
 const geometricLightingChunk = voxelLightingChunk
+  .replace(
+    directionalLoop,
+    (_, setup, draw) => `${setup}
+    // lift(NoL, 0.25) / NoL has this finite form, including grazing NoL=0.
+    // The common geometry attenuation below supplies one AO factor already.
+    float surfaceNoL=clamp(dot(geometryNormal,directLight.direction),0.0,1.0);
+    directLight.color*=mix(1.0,1.25/(1.0+0.25*surfaceNoL)*clamp(vAmbientOcclusion,0.0,1.0),surfaceDiffuse);
+    ${draw}`,
+  )
   .replace(
     'vSkylight * max(vec3(0.0), getLightProbeIrradiance( lightProbe, geometryNormal ))',
     'vSkylight * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion)',
@@ -86,6 +101,7 @@ export function applySkylight(
     terrainWetness: { value: 0 },
   };
   uniforms.surfaceBounce ??= { value: 0 };
+  uniforms.surfaceDiffuse ??= { value: 1 };
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, visionUniforms);
     shader.vertexShader =
@@ -105,7 +121,7 @@ export function applySkylight(
       `${geometricShade ? '#define HEX_GEOMETRIC_SHADE\nvarying float vAmbientOcclusion;\n' : ''}
       ${!material.transparent ? '#define HEX_WATER_RECEIVER\n' + waterLightingGLSL : ''}
       varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;
-      uniform float terrainWetness; uniform float nightVision;\n${shader.fragmentShader}`
+      uniform float terrainWetness; uniform float nightVision; uniform float surfaceDiffuse;\n${shader.fragmentShader}`
         .replace(
           '#include <lights_pars_begin>',
           '#include <lights_pars_begin>\n' +
@@ -149,6 +165,6 @@ export function applySkylight(
         );
   };
   material.customProgramCacheKey = () =>
-    'hex-colored-voxel-wet-sky-v9-' + Number(geometricShade);
+    'hex-colored-voxel-wet-sky-v10-' + Number(geometricShade);
   return uniforms;
 }

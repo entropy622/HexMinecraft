@@ -7,6 +7,7 @@ import {
   referenceSettings,
 } from './fixtures/photon-reference-scenes.js';
 import { installFrameProbe } from './fixtures/photon-frame-probe.js';
+import { setSurfaceDiffuseControl } from './fixtures/surface-diffuse-control.js';
 
 test('natural forest lighting provenance at a fixed native camera', async ({
   page,
@@ -69,6 +70,22 @@ test('natural forest lighting provenance at a fixed native camera', async ({
     await page.locator('#world').screenshot({
       path: info.outputPath(
         enabled ? 'forest-cas-on.png' : 'forest-cas-off.png',
+      ),
+    });
+  }
+  for (const enabled of [false, true]) {
+    expect(await page.evaluate(setSurfaceDiffuseControl, enabled)).toBe(
+      enabled ? 1 : 0,
+    );
+    const at = await page.evaluate(() => window.__photonProbe.rendered);
+    await expect
+      .poll(() => page.evaluate(() => window.__photonProbe.rendered), {
+        timeout: 60000,
+      })
+      .toBeGreaterThanOrEqual(at + 120);
+    await page.locator('#world').screenshot({
+      path: info.outputPath(
+        enabled ? 'forest-diffuse-on.png' : 'forest-diffuse-off.png',
       ),
     });
   }

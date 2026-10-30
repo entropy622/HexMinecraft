@@ -7,6 +7,10 @@ import {
 } from './fixtures/photon-reference-scenes.js';
 import { installCloudStageProbe } from './fixtures/cloud-stage-probe.js';
 import {
+  setSurfaceDiffuseControl,
+  beginCompiledSurfaceDiffuseControl,
+} from './fixtures/surface-diffuse-control.js';
+import {
   distribution,
   readReferenceFrame,
   resourceLayout,
@@ -178,6 +182,94 @@ test('FHD forest real WebGL stage costs', async ({ page }, info) => {
     })
     .toBeGreaterThanOrEqual(casOnAt + 24);
   // Same-process control retains the complete current lighting algorithm.
+  expect(await page.evaluate(setSurfaceDiffuseControl, false)).toBe(0);
+  const compiledControl = process.env.PHOTON_PROFILE_DIFFUSE === '1';
+  if (compiledControl) await page.evaluate(beginCompiledSurfaceDiffuseControl);
+  const diffuseAt = await page.evaluate(() => window.__cloudStages.rendered);
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.rendered), {
+      timeout: 90000,
+    })
+    .toBeGreaterThanOrEqual(diffuseAt + 24);
+  await page.evaluate(() => window.__cloudStages.start(120));
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.done), {
+      timeout: 90000,
+    })
+    .toBe(true);
+  const diffuseOff = await page.evaluate(() => window.__cloudStages.result());
+  const diffuseFrame = await page.evaluate(readReferenceFrame, resourceLayout);
+  await writeFile(
+    info.outputPath('surface-diffuse-control.json'),
+    JSON.stringify(
+      {
+        measured: diffuseOff,
+        compiledControl: compiledControl
+          ? await page.evaluate(
+              () => window.__compiledSurfaceDiffuseControl.diagnostics,
+            )
+          : null,
+        frame: diffuseFrame,
+        enabled: await page.evaluate(
+          () => window.__hexwild.graphics.weatherUniforms.surfaceDiffuse.value,
+        ),
+        gpu: distribution(
+          diffuseOff.frames.map((f) =>
+            diffuseOff.gpu
+              .filter((s) => s.index === f.index)
+              .reduce((n, s) => n + s.milliseconds, 0),
+          ),
+        ),
+        cpu: distribution(diffuseOff.frames.map((f) => f.cpuSubmitMs)),
+        messages,
+      },
+      null,
+      2,
+    ),
+  );
+  await page
+    .locator('#world')
+    .screenshot({ path: info.outputPath('forest-diffuse-off.png') });
+  expect(diffuseOff.frames).toHaveLength(120);
+  expect(diffuseFrame.settings.surfaceDiffuse).toBe(0);
+  expect(diffuseFrame.settings.post.sharpening).toBe(true);
+  expect(diffuseOff.disjoint).toBe(0);
+  expect(diffuseOff.busy).toBe(0);
+  expect(diffuseFrame.glErrors).toEqual([]);
+  if (compiledControl) {
+    const diagnostics = await page.evaluate(() => {
+      const control = window.__compiledSurfaceDiffuseControl,
+        result = { ...control.diagnostics };
+      control.restore();
+      return result;
+    });
+    expect(diagnostics.materials).toBeGreaterThan(0);
+    expect(diagnostics.compiles).toBeGreaterThanOrEqual(diagnostics.materials);
+    expect(diagnostics.replacements).toBe(diagnostics.compiles);
+  }
+  expect(await page.evaluate(setSurfaceDiffuseControl, true)).toBe(1);
+  const restoredDiffuseAt = await page.evaluate(
+    () => window.__cloudStages.rendered,
+  );
+  await expect
+    .poll(() => page.evaluate(() => window.__cloudStages.rendered), {
+      timeout: 90000,
+    })
+    .toBeGreaterThanOrEqual(restoredDiffuseAt + 24);
+  if (compiledControl) {
+    const restored = await page.evaluate(readReferenceFrame, resourceLayout);
+    expect(restored.settings.surfaceDiffuse).toBe(1);
+    expect(restored.resources.rendererInfo.programs).toBe(
+      frame.resources.rendererInfo.programs,
+    );
+    expect(restored.glErrors).toEqual([]);
+    expect(messages).toEqual({ errors: [], warnings: [] });
+    await writeFile(
+      info.outputPath('compiled-control-restored.json'),
+      JSON.stringify({ restored, messages }, null, 2),
+    );
+    return;
+  }
   // Disable only early leaf depth, warm it, and measure the same fixed view.
   const controlAt = await page.evaluate(() => {
     window.__hexwild.graphics.composer.passes[0].beauty.depthPrepassEnabled = false;
@@ -378,6 +470,7 @@ test('FHD forest real WebGL stage costs', async ({ page }, info) => {
     const g = window.__hexwild.graphics;
     return {
       quality: g.quality,
+      surfaceDiffuse: g.weatherUniforms.surfaceDiffuse.value,
       composer: !!g.composer,
       toneMapping: g.renderer.toneMapping,
       fog: [g.scene.fog.near, g.scene.fog.far],
@@ -404,6 +497,7 @@ test('FHD forest real WebGL stage costs', async ({ page }, info) => {
     .screenshot({ path: info.outputPath('balanced.png') });
   expect(balancedFrame).toMatchObject({
     quality: 1,
+    surfaceDiffuse: 1,
     composer: false,
     fog: [87.32, 118],
     renderedChunks: 441,
