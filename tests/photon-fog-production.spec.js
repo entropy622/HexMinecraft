@@ -7,7 +7,7 @@ import {
 } from './fixtures/photon-reference-scenes.js';
 import { installFrameProbe } from './fixtures/photon-frame-probe.js';
 
-test('production rain and snow scenes render through native v16 imports and retain weather, pose and edits on export', async ({
+test('production rain, snow and lingering wetness render through native v16 imports and retain weather, pose and edits on export', async ({
   page,
 }, info) => {
   const messages = [];
@@ -26,6 +26,7 @@ test('production rain and snow scenes render through native v16 imports and reta
     // Keep the native import clear of this snow column's natural tree. The
     // normal loader correctly relocates a colliding pose to the spawn point.
     ['snow', { eye: [-250, 45, -180], look: [-230, 13, -180] }],
+    ['after-rain', referenceScenes[0]],
   ]) {
     await page.goto('/');
     expect(await page.evaluate(() => typeof window.__hexwild)).toBe(
@@ -50,12 +51,12 @@ test('production rain and snow scenes render through native v16 imports and reta
     const input = referenceSave(scene);
     input.time = 120;
     input.weather = {
-      kind: 'rain',
+      kind: label === 'after-rain' ? 'clear' : 'rain',
       remaining: 3600,
       sequence: 0,
-      rain: 1,
+      rain: label === 'after-rain' ? 0 : 1,
       storm: 0,
-      wetness: 1,
+      wetness: label === 'after-rain' ? 0.75 : 1,
     };
     await page.locator('#save-file').setInputFiles({
       name: `${label}.json`,
@@ -68,7 +69,7 @@ test('production rain and snow scenes render through native v16 imports and reta
       label === 'snow' ? '雪原' : '森林',
     );
     await expect(page.locator('#weather-hud')).toContainText(
-      label === 'snow' ? '降雪' : '降雨',
+      label === 'after-rain' ? '晴朗' : label === 'snow' ? '降雪' : '降雨',
     );
     const at = await page.evaluate(() => window.__photonProbe.rendered);
     await expect

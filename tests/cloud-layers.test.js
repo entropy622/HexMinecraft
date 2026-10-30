@@ -113,6 +113,7 @@ test('derived cloud climate is bounded, deterministic and varies continuously wi
               c.stratus,
               c.altoStratus,
               ...c.coverage,
+              c.cirrocumulus,
               ...c.ranges.flat(),
             ])
               assert.ok(Number.isFinite(v) && v >= 0 && v <= 1);

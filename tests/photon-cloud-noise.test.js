@@ -82,7 +82,7 @@ test('source coverage endpoints retain regional variation and independent upper 
   );
 });
 
-test('Photon temporal weather keeps biome influence weak and rain independently increases humidity and wind', () => {
+test('Photon temporal weather keeps biome influence weak and saved wetness independently increases humidity and wind', () => {
   const dry = photonWeather(120, 0.6, 0, 0),
     humidBiome = photonWeather(120, 0.6, 1, 0),
     wet = photonWeather(120, 0.6, 1, 1);

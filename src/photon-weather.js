@@ -16,7 +16,7 @@ function noise(x) {
   return hash(i) * (1 - smooth) + hash(i + 1) * smooth;
 }
 
-export function photonWeather(time, biomeTemperature, biomeHumidity, rain) {
+export function photonWeather(time, biomeTemperature, biomeHumidity, wetness) {
   const angle = (time / 600) * 2 * Math.PI,
     x = Math.cos(angle),
     y = (Math.sin(angle) * 78) / Math.hypot(78, 45),
@@ -32,8 +32,8 @@ export function photonWeather(time, biomeTemperature, biomeHumidity, rain) {
     humidity =
       (0.2 + 0.6 * noise(time * speed + 46.618)) *
         (1 + (clamp(biomeHumidity) + 0.2) * 0.1) +
-      clamp(rain),
-    wind = noise((time * 0.5 * golden) / 600 + 83.236) + 0.33 * clamp(rain);
+      clamp(wetness),
+    wind = noise((time * 0.5 * golden) / 600 + 83.236) + 0.33 * clamp(wetness);
   return {
     temperature: clamp(temperature),
     humidity: clamp(humidity),

@@ -194,7 +194,16 @@ export class HexClouds {
     this.mesh.boundingSphere.center.y += 8;
     this.mesh.boundingSphere.radius += 20;
   }
-  prepare({ world, camera, time, rain, storm, quality, enabled }) {
+  prepare({
+    world,
+    camera,
+    time,
+    rain,
+    storm,
+    wetness = rain,
+    quality,
+    enabled,
+  }) {
     const u = this.uniforms,
       active = world.dimension === 'overworld' && enabled;
     this.mesh.visible = active && quality < 1.7;
@@ -214,6 +223,7 @@ export class HexClouds {
         noise(climateQ * 0.019, climateR * 0.019, world.seed + 76),
         rain,
         storm,
+        wetness,
       );
     this.climate = climate;
     if (!active) return;
@@ -239,7 +249,7 @@ export class HexClouds {
       climate.ranges[1][0] * 0.25 + climate.ranges[1][1] * 0.75,
       climate.altoStratus,
     );
-    u.cloudLayers.value[2].set(300, 3.5, climate.coverage[2], climate.stratus);
+    u.cloudLayers.value[2].set(300, 3.5, climate.cirrus, climate.cirrocumulus);
     u.cloudLayerWind.value.forEach((wind, layer) =>
       wind.fromArray(climate.winds[layer]),
     );

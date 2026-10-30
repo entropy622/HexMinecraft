@@ -40,6 +40,8 @@ float hexCloudPhase(float cosine) {
 // Photon cumulus/altocumulus/cirrus closures. Depth is metres before extinction;
 // in particular phase broadening must not use the extinguished optical depth.
 // parameters: extinction per metre, single-scattering albedo, stratus, upper shadow.
+// The thin deck uses z for its density's source day_factor; its scatter branch
+// overrides the stratus-dependent powder/falloff terms below.
 // Returns coefficients for direct light (including planet/layer bounce) and sky.
 vec2 hexCloudScatter(vec3 depth, float density, float cosine, float phase,
   float opacity, vec4 parameters, int layer, float lightElevation, float cirrusBoost) {

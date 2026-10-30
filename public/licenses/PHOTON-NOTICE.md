@@ -37,6 +37,20 @@ a partial host implementation; congestus and noctilucent clouds are still
 missing. These assets and
 derived portions retain Photon's license.
 
+Since 0.120, the high cloud layer uses the Perlin-gradient/hash curl from
+`sky/clouds/common.glsl` and `utility/random.glsl`, and the R/A/G image channels,
+physical frequencies, octave wind offsets and separate cirrus/cirrocumulus
+density defaults from `sky/clouds/cirrus.glsl`. The high-cloud amounts follow
+`weather/clouds.glsl`; existing saved wetness now supplies `weather/core.glsl`
+instead of substituting instantaneous rain. The density's source day_factor
+travels with the existing optical snapshot. Zero cell coverage has a defined
+zero-density limit. The same published field serves camera, environment and
+ground shadows. The host retains its shell thickness, ray integration and
+analytic advection. Verbatim source density/hash/gradient functions retained
+in the test fixture also retain Photon's license. No new binary asset is added.
+The source attributes its Perlin-gradient routine to Inigo Quilez's
+gradient-noise article: https://iquilezles.org/articles/gradientnoise/ .
+
 The source binary is `src/assets/photon-scattering.dat`, 393216 bytes, SHA256
 `d4834ef3babc1376f923f39d495d69dd9d7099f56feb40335a184af8a6b98fc6`.
 It is embedded in the application bundle. Runtime RGB16F to RGBA16F packing

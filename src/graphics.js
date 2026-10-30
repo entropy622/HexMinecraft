@@ -1623,6 +1623,7 @@ export class Graphics {
       rain,
       storm,
       quality: this.quality,
+      wetness: weather?.wetness || 0,
       enabled: this.postOptions.clouds,
     });
     const localSky = this.voxelLight.atPosition(this.camera.position);

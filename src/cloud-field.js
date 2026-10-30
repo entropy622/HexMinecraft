@@ -1,5 +1,6 @@
-import { CLOUD_METRES_PER_UNIT, CIRRUS_DENSITY } from './cloud-optics.js';
+import { CLOUD_METRES_PER_UNIT } from './cloud-optics.js';
 import { cloudDetailGLSL } from './cloud-detail-data.js';
+import { cloudCirrusGLSL } from './cloud-cirrus.js';
 import { photonWeather } from './photon-weather.js';
 import {
   cloudCoverageNoiseGLSL,
@@ -49,14 +50,22 @@ export function cloudNoiseData(seed) {
 
 // Analytic wind displacement has no accumulated clock or saved state. Its
 // derivative varies smoothly, and changing rain never teleports the texture.
-export function cloudWeather(seed, time, heat, wet, rain, storm) {
+export function cloudWeather(
+  seed,
+  time,
+  heat,
+  wet,
+  rain,
+  storm,
+  wetness = rain,
+) {
   const {
       temperature,
       humidity,
       wind: breeze,
-    } = photonWeather(time, heat, wet, Math.min(1, rain + storm * 0.12)),
+    } = photonWeather(time, heat, wet, wetness),
     wind = 0.7 + breeze * 0.6,
-    shaping = cloudCoverageWeather(temperature, humidity, breeze);
+    shaping = cloudCoverageWeather(temperature, humidity, breeze, rain);
   return {
     temperature,
     humidity,
@@ -72,7 +81,7 @@ export function cloudWeather(seed, time, heat, wet, rain, storm) {
         0.12,
         Math.min(0.9, 0.2 + humidity * 0.23 + shaping.altoStratus * 0.16),
       ),
-      Math.max(0.12, Math.min(0.78, 0.26 + humidity * 0.3 - storm * 0.08)),
+      shaping.cirrus,
     ],
     winds: [0, 1, 2].map((layer) => {
       const angle = [0.26, 1.22, 2.18][layer] + random(2, 9, seed) * 0.6;
@@ -87,7 +96,7 @@ export function cloudWeather(seed, time, heat, wet, rain, storm) {
   };
 }
 
-export function cloudCoverageWeather(temperature, humidity, breeze) {
+export function cloudCoverageWeather(temperature, humidity, breeze, rain = 0) {
   const cold = Math.max(0, Math.min(1, (0.5 - temperature) * 2)),
     calm = 1 - breeze,
     upperCold = Math.max(0, Math.min(1, (0.5 - temperature) / 0.16));
@@ -110,11 +119,24 @@ export function cloudCoverageWeather(temperature, humidity, breeze) {
     as = linear(0.25, 0.45, breeze * humidity),
     alto = [0.5, 1.5].map((weight) =>
       clamp(ac * weight * (1 - altoStratus) + as * altoStratus),
-    );
+    ),
+    highCellWeight =
+      (1 - 0.3 * linear(0.5, 1, temperature)) *
+      (0.5 + 0.5 * linear(0.4, 1, humidity)) *
+      breeze ** 1.5;
   return {
     stratus,
     altoStratus,
     ranges: [cumulus, alto],
+    cirrus: clamp(
+      0.5 *
+        (0.6 -
+          0.4 * linear(0.5, 0.9, temperature) ** 2 +
+          0.4 * (1 - linear(0, 0.2, temperature))) *
+        (1 - 0.5 * linear(0.5, 0.75, humidity)) +
+        0.5 * clamp(rain),
+    ),
+    cirrocumulus: 0.8 * highCellWeight * (2 - highCellWeight),
   };
 }
 
@@ -164,7 +186,7 @@ uniform float cloudThreshold;
 uniform vec3 cloudLightDirection;
 uniform float cloudShade;
 uniform float cloudEnabled;
-uniform vec4 cloudLayers[3]; // base, thickness, coverage, stratus blend
+uniform vec4 cloudLayers[3]; // base, thickness, coverage, stratus; high deck z/w = cirrus/CC amounts
 uniform vec2 cloudCoverageRange[2]; // source regional min/max, not a scalar threshold
 uniform vec4 cloudOptics[3]; // extinction / metre, albedo, stratus, layer response
 uniform vec2 cloudLayerWind[3];
@@ -176,18 +198,7 @@ uniform float cloudCoverageReady;
 uniform vec2 cloudCoverageOrigin[2];
 const float hexCloudPlanet = ${CLOUD_PLANET_RADIUS.toFixed(1)};
 ${cloudDetailGLSL}
-// Rotate the analytic gradient of a C2 scalar field. Each octave needs only
-// four seed fetches, and the flow remains continuous across lattice cells.
-vec2 hexCloudCurl(vec2 p) {
-  vec2 cell = floor(p), f = fract(p);
-  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-  vec2 du = 30.0 * f * f * (f - 1.0) * (f - 1.0);
-  vec4 n = vec4(hexCloudRandom(cell), hexCloudRandom(cell + vec2(1,0)),
-    hexCloudRandom(cell + vec2(0,1)), hexCloudRandom(cell + 1.0));
-  vec2 gradient = vec2(mix(n.y - n.x, n.w - n.z, u.y),
-    mix(n.z - n.x, n.w - n.y, u.x)) * du;
-  return vec2(gradient.y, -gradient.x);
-}
+${cloudCirrusGLSL}
 vec2 hexCloudMacro(vec2 drifting, int layer) {
   vec2 origin = layer == 0 ? cloudCoverageOrigin[0] : cloudCoverageOrigin[1];
   float span = layer == 0 ? ${CLOUD_COVERAGE_SPANS[0].toFixed(1)} : ${CLOUD_COVERAGE_SPANS[1].toFixed(1)};
@@ -263,27 +274,9 @@ float hexCloudLayerDensity(vec3 position, int layer) {
   vec2 drifting = position.xz - cloudLayerWind[layer];
   float fraction = y / band.y;
   if (layer == 2) {
-    vec2 curl = hexCloudCurl(drifting * 0.0004) * 0.5 +
-      hexCloudCurl(drifting * 0.0008) * 0.25 + hexCloudCurl(drifting * 0.0016) * 0.125;
-    float base = 0.7 * hexCloudNoise(drifting * 0.01024 + curl * 1.6) +
-      0.3 * hexCloudNoise(drifting * 0.08192 + curl * 3.2);
-    float cirrus = clamp((base - (0.7 - band.z)) / (0.3 + band.z), 0.0, 1.0);
-    float frequency = 0.2048, amplitude = 0.2, bend = 40.96;
-    for (int octave = 0; octave < 4; octave++) {
-      if (cirrus <= 0.0) break;
-      cirrus -= hexCloudNoise(drifting * frequency + curl * bend) * amplitude;
-      frequency *= 2.0; amplitude *= 0.6; bend *= 4.0;
-    }
-    cirrus = max(0.0, cirrus);
-    float height = 1.0 - abs(1.0 - 2.0 * fraction);
-    float wisps = cirrus * cirrus * cirrus * height * height * 1.2;
-    // Independent coverage keeps small high-cloud patches outside the wisps.
-    float patches = smoothstep(1.0 - band.z - 0.1, 1.0 - band.z + 0.1,
-      hexCloudNoise(drifting * 0.007 + vec2(27.0, 53.0)));
-    float cells = smoothstep(0.45, 0.8, hexCloudNoise(drifting * 0.256 + curl * 13.5));
-    cells = max(0.0, cells - 0.6 * hexCloudNoise(drifting * 0.512 + curl * 1.5));
-    float cirrocumulus = cells * cells * cells * cells * patches * height * (0.12 + band.w * 0.15);
-    return (wisps + cirrocumulus) * ${CIRRUS_DENSITY.toFixed(1)};
+    vec2 high = hexCloudHighDensity(position.xz + cloudNoiseOffset,
+      cloudLayerWind[2],band.zw,fraction,cloudOptics[2].z);
+    return high.x + high.y;
   }
   vec2 coverage = hexCloudMacro(drifting, layer);
   vec2 range = cloudCoverageRange[layer];

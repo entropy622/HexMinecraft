@@ -1,6 +1,8 @@
 import { test, expect } from './browser-fixture.js';
 import { DataUtils } from 'three';
 import { writeFile } from 'node:fs/promises';
+import { referenceSave } from './fixtures/photon-reference-scenes.js';
+import { installFrameProbe } from './fixtures/photon-frame-probe.js';
 
 test.setTimeout(300000);
 test.beforeEach(async ({ page }) => {
@@ -207,6 +209,9 @@ async function fieldProbe(page, points = null) {
 test('sky cloud distance, real foreground depth and three moving cloud layers share a stable production history', async ({
   page,
 }, info) => {
+  // This now includes two native weather imports; pixel/field gates below stay
+  // unchanged. Calm weather is no longer required to contain a high-cloud patch.
+  test.setTimeout(420000);
   const errors = [],
     warnings = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -214,17 +219,78 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
     if (e.type() === 'error') errors.push(e.text());
     if (e.type() === 'warning') warnings.push(e.text());
   });
+  await page.addInitScript(installFrameProbe);
   await setup(page);
-  const observations = [];
-  // Choose a real visible high-cloud patch. A fixed position below a natural
-  // coverage hole cannot prove that the cirrus integration itself is absent.
-  const thinAnchor = await page.evaluate(async () => {
-    const { probeCloudField } =
-      await import('/tests/fixtures/cloud-field-probe.js');
-    const { worldToAxial } = await import('/src/core.js');
-    const points = probeCloudField(window.__hexwild.graphics, null, 2).points;
-    return worldToAxial(points[0][0], points[0][2]);
+  await page.evaluate(() => {
+    window.__photonFreeze = true;
+    window.__layerPostOptions = structuredClone(
+      window.__hexwild.graphics.postOptions,
+    );
   });
+  const observations = [];
+  const weatherScenes = [];
+  const importWeatherScene = async (wetness, high) => {
+    const input = referenceSave({
+      eye: [0, high ? 281.65 : 26.65, 0],
+      look: [100, high ? 320 : 32, 0],
+    });
+    input.time = 120;
+    input.weather.wetness = wetness;
+    await page.evaluate(() => {
+      window.__layerOldWorld = window.__hexwild.state.world;
+    });
+    await page.locator('#save-file').setInputFiles({
+      name: 'layer-weather-v16.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(input)),
+    });
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => window.__hexwild.state.world !== window.__layerOldWorld,
+          ),
+        { timeout: 90000 },
+      )
+      .toBe(true);
+    await page.evaluate(() => {
+      const a = window.__hexwild;
+      a.setPlaying(false);
+      a.graphics.setPostOptions({ ...window.__layerPostOptions });
+      a.graphics.stepOffset = 0;
+    });
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const g = window.__hexwild.graphics;
+            return (
+              !g.relightQueue.size &&
+              g.voxelLight.revision === g.world.lightRevision &&
+              !g.skyEnvironment.atmosphere.pending
+            );
+          }),
+        { timeout: 90000 },
+      )
+      .toBe(true);
+    await frames(page, 40);
+    const climate = await page.evaluate(
+      () => window.__hexwild.graphics.cloudSystem.climate,
+    );
+    if (wetness === 1) expect(climate.humidity).toBe(1);
+    else expect(climate.humidity).toBeLessThan(0.9);
+    weatherScenes.push({
+      time: input.time,
+      eye: input.position,
+      weather: input.weather,
+      climate,
+    });
+    await writeFile(
+      info.outputPath('layer-weather-scenes.json'),
+      JSON.stringify(weatherScenes, null, 2),
+    );
+  };
+  let thinAnchor = null;
   const cost = await gpuCost(page);
   for (const [name, feet, target] of [
     ['low-angle', 25, [100, 32, 0]],
@@ -233,6 +299,22 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
     ['cirrus', 280, [15, 323, 0]],
     ['above', 325, [30, 155, 0]],
   ]) {
+    if (name === 'cirrus') {
+      // Observe a genuine high-cloud patch in wet/windy post-rain weather,
+      // from above the two low decks so they cannot hide the thin layer.
+      await importWeatherScene(1, true);
+      thinAnchor = await page.evaluate(async () => {
+        const { probeCloudField } =
+          await import('/tests/fixtures/cloud-field-probe.js');
+        const { worldToAxial } = await import('/src/core.js');
+        const points = probeCloudField(
+          window.__hexwild.graphics,
+          null,
+          2,
+        ).points;
+        return worldToAxial(points[0][0], points[0][2]);
+      });
+    }
     await page.evaluate(
       ({ feet, target, anchor }) => {
         const g = window.__hexwild;
@@ -277,6 +359,8 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
     expect(
       observations.reduce((sum, o) => sum + o.main.layers[layer], 0),
     ).toBeGreaterThan(5);
+  // Restore the original calm climate for the far-world field/roof checks.
+  await importWeatherScene(0, false);
   for (const q of [-10000, 10000]) {
     await page.evaluate((q) => {
       const g = window.__hexwild;
@@ -319,6 +403,11 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
       );
       upperInfluence.push(t[3] * t[0] * (1 - t[1] * t[2]));
     }
+    const upperGrid = await page.evaluate(async () => {
+      const { probeCloudShadowGrid } =
+        await import('/tests/fixtures/cloud-shadow-grid-probe.js');
+      return probeCloudShadowGrid(window.__hexwild.graphics);
+    });
     observations.push({
       name: `world-${q}-field`,
       anchored,
@@ -328,6 +417,7 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
       followingError,
       productErrors,
       upperInfluence,
+      upperGrid,
     });
     await writeFile(
       info.outputPath('cloud-layers.json'),
@@ -336,7 +426,11 @@ test('sky cloud distance, real foreground depth and three moving cloud layers sh
     expect(followingError).toBeGreaterThan(0.008);
     expect(fixedError).toBeLessThan(followingError * 0.6 + 0.002);
     expect(Math.max(...productErrors)).toBeLessThan(0.002);
-    expect(Math.max(...upperInfluence)).toBeGreaterThan(0.005);
+    expect(upperGrid.finite).toBe(true);
+    expect(upperGrid.gl).toBe(0);
+    expect(Math.max(...upperInfluence, upperGrid.maximum)).toBeGreaterThan(
+      0.005,
+    );
     expect(translated.main.finite).toBe(true);
     expect(translated.wind).toEqual(distant.wind);
     observations.push({ name: `world-${q}-translated`, ...translated });

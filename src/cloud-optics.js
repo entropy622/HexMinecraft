@@ -4,6 +4,7 @@ import { Vector4 } from 'three';
 
 export const CLOUD_METRES_PER_UNIT = 20;
 export const CIRRUS_DENSITY = 0.5;
+export const CIRROCUMULUS_DENSITY = 1;
 const clamp = (x) => Math.max(0, Math.min(1, x));
 const linear = (a, b, x) => clamp((x - a) / (b - a));
 const smooth = (a, b, x) => {
@@ -11,7 +12,8 @@ const smooth = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 
-// x: extinction / metre, y: single-scattering albedo, z: stratus.
+// x: extinction / metre, y: single-scattering albedo,
+// z: stratus for volume decks, source day_factor for the thin high deck.
 // w: lower-deck shadow / alto direct boost / cirrus extinction boost.
 // Write existing vectors so every material retains its published uniform identity.
 export function setCloudOptics(
@@ -29,7 +31,6 @@ export function setCloudOptics(
     c2 = clamp(layers[2].z),
     s0 = clamp(layers[0].w),
     s1 = clamp(layers[1].w),
-    s2 = clamp(layers[2].w),
     shadow = linear(0.7, 1, c1 * (1 + s1)) * day * (2 - day),
     extinction =
       (0.05 + 0.05 * day) *
@@ -51,7 +52,7 @@ export function setCloudOptics(
     s1,
     altoBoost,
   );
-  target[2].set(0.15, 1, s2, cirrusBoost);
+  target[2].set(0.15, 1, day, cirrusBoost);
   return target;
 }
 

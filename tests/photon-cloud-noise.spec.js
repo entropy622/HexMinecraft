@@ -100,23 +100,25 @@ test('fixed forest and sky show actual cloud detail at unchanged camera, light a
       .toBe(true);
   };
   const shots = [];
-  for (const [label, time, sky, width, height] of [
+  for (const [label, time, sky, width, height, lookHeight, lookR] of [
     ['forest-morning', 30, false, 900, 650],
     ['sky-morning', 30, true, 900, 650],
     ['forest-day', 120, false, 900, 650],
     ['sky-day', 120, true, 900, 650],
     ['forest-morning-1080p', 30, false, 1920, 1080],
+    // Additional reference composition, not part of the unchanged-input A/B.
+    ['forest-reference-hour', 60, false, 1920, 1080, 27, 0],
   ]) {
     await page.setViewportSize({ width, height });
     await page.evaluate(
-      ({ time, sky }) => {
+      ({ time, sky, lookHeight, lookR }) => {
         const a = window.__hexwild;
         a.setPlaying(false);
         a.step(time - a.state.time);
-        a.lookAt(-98, sky ? 52 : 17, -4);
+        a.lookAt(-98, lookHeight ?? (sky ? 52 : 17), lookR ?? -4);
         a.graphics.stepOffset = 0;
       },
-      { time, sky },
+      { time, sky, lookHeight, lookR },
     );
     await settle();
     const state = await page.evaluate(() => {
@@ -261,6 +263,40 @@ test('fixed forest and sky show actual cloud detail at unchanged camera, light a
     // interpolation weights. Still reject a wrong channel, layout or wrap.
     expect(sampling.error).toBeLessThan(0.001);
     expect(shots[0].texture.bytes).toBe(64 * 64 * 132);
+  }
+  if (!baseline) {
+    const high = await page.evaluate(async () => {
+      const { readCloudHigh } =
+        await import('/tests/fixtures/cloud-high-probe.js');
+      return readCloudHigh(window.__hexwild.graphics);
+    });
+    let maximum = 0,
+      cirrusPeak = 0,
+      cellsPeak = 0;
+    for (let row = 0; row < high.height; row++)
+      for (let x = 0; x < high.width; x++) {
+        const i = (row * high.width + x) * 4;
+        maximum = Math.max(
+          maximum,
+          Math.abs(high.output[i] - high.output[i + 1]),
+        );
+        cirrusPeak = Math.max(cirrusPeak, high.output[i + 2]);
+        cellsPeak = Math.max(cellsPeak, high.output[i + 3]);
+        if (Math.floor(row / 4) % 3 !== 1) {
+          expect(high.output[i]).toBe(0);
+          expect(high.output[i + 1]).toBe(0);
+        }
+        if (row % 4 === 0) expect(high.output[i + 3]).toBe(0);
+      }
+    await writeFile(
+      info.outputPath('source-high-clouds.json'),
+      JSON.stringify({ ...high, maximum, cirrusPeak, cellsPeak }, null, 2),
+    );
+    expect(high.output.every(Number.isFinite)).toBe(true);
+    expect(high.gl).toBe(0);
+    expect(maximum).toBeLessThan(0.00001);
+    expect(cirrusPeak).toBeGreaterThan(0.000001);
+    expect(cellsPeak).toBeGreaterThan(0.000001);
   }
   expect(messages).toEqual([]);
 });
