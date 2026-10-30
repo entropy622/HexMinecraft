@@ -3999,8 +3999,9 @@ function growTree(k) {
   crops.delete(k);
   graphics.removeCrop(k);
   const chunks = new Set();
-  for (const [a, b, c, type] of cells) {
+  for (const [a, b, c, type, axis = 0] of cells) {
     world.set(a, b, c, type);
+    if (axis) world.setState(a, b, c, { facing: 0, open: false, axis });
     for (const [dq, dr] of [
       [0, 0],
       [1, 0],

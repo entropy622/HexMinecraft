@@ -620,7 +620,7 @@ export class World {
             pods.push(
               ...naturalCocoa(tq, this.terrainHeight(tq, tr), tr, this.seed),
             );
-          for (const [q, y, r, type] of treeCells(
+          for (const [q, y, r, type, axis = 0] of treeCells(
             this.treeKind(tq, tr),
             tq,
             this.terrainHeight(tq, tr),
@@ -630,14 +630,15 @@ export class World {
             if (chunkKey(q, r) !== ck) continue;
             const previous = this.get(q, y, r);
             // Crowns may overlap each other, but never erase trunks or hillsides.
-            if (
-              !BLOCKS[type].log &&
-              previous &&
-              !BLOCKS[previous]?.foliage &&
-              previous !== 'shroom'
-            )
+            if (previous && !BLOCKS[previous]?.foliage && previous !== 'shroom')
               continue;
             put(q, y, r, type);
+            if (axis)
+              this.naturalStates.set(key(q, y, r), {
+                facing: 0,
+                open: false,
+                axis,
+              });
           }
         }
     for (const [q, y, r, state] of pods) {

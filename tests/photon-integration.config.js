@@ -5,6 +5,7 @@ import atmosphere from './atmosphere.playwright.config.js';
 export default defineConfig({
   ...atmosphere,
   testMatch: [
+    'tree-shape.spec.js',
     'biome-tint.spec.js',
     'photon-skylight.spec.js',
     'material-pack.spec.js',
