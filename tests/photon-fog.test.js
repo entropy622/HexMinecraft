@@ -4,7 +4,10 @@ import { PerspectiveCamera, DirectionalLight, Color, Vector3 } from 'three';
 import { FogBiomes, photonFogParameters } from '../src/photon-fog.js';
 import { Atmosphere } from '../src/atmosphere.js';
 import { HexClouds } from '../src/clouds.js';
-import { cloudDetailData } from './fixtures/cloud-detail-data.js';
+import {
+  cloudDetailData,
+  cloudCoverageData,
+} from './fixtures/cloud-detail-data.js';
 import { Scene } from 'three';
 
 const parameters = (extra = {}) =>
@@ -85,6 +88,7 @@ test('fog uses shared climate with clouds hidden, disables inside liquids and st
       scene,
       { up: new Color(), down: new Color() },
       cloudDetailData,
+      cloudCoverageData,
     ),
     air = new Atmosphere(camera),
     sun = new DirectionalLight(),

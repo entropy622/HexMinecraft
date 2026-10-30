@@ -283,6 +283,8 @@ export class CloudVolumePass {
         scale: new Vector2(),
         wind: [new Vector2(), new Vector2(), new Vector2()],
         layers: [new Vector4(), new Vector4(), new Vector4()],
+        coverage: [new Vector2(), new Vector2()],
+        noiseOffset: new Vector2(),
         optics: [new Vector4(), new Vector4(), new Vector4()],
         light: new Color(),
         direction: new Vector3(),
@@ -322,6 +324,15 @@ export class CloudVolumePass {
             Math.abs(v.w - state.layers[i].w) > 0.08,
         ) ||
         u.cloudSeedNoise.value.version !== state.noise ||
+        u.cloudNoiseOffset.value.distanceToSquared(state.noiseOffset) >
+          0.000001 ||
+        u.cloudCoverageRange.value.some(
+          (v, i) =>
+            Math.max(
+              Math.abs(v.x - state.coverage[i].x),
+              Math.abs(v.y - state.coverage[i].y),
+            ) > 0.04,
+        ) ||
         u.cloudOptics.value.some(
           (v, i) =>
             Math.abs(v.x / state.optics[i].x - 1) > 0.03 ||
@@ -381,6 +392,8 @@ export class CloudVolumePass {
       state.scale.set(p[0], p[5]);
       state.wind.forEach((v, i) => v.copy(u.cloudLayerWind.value[i]));
       state.layers.forEach((v, i) => v.copy(u.cloudLayers.value[i]));
+      state.coverage.forEach((v, i) => v.copy(u.cloudCoverageRange.value[i]));
+      state.noiseOffset.copy(u.cloudNoiseOffset.value);
       state.optics.forEach((v, i) => v.copy(u.cloudOptics.value[i]));
       state.noise = u.cloudSeedNoise.value.version;
       state.light.copy(this.light);

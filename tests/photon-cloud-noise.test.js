@@ -4,6 +4,98 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { packCloudDetail, setCloudDetail } from '../src/cloud-detail-data.js';
 import { Vector4 } from 'three';
+import { decode } from 'fast-png';
+import {
+  cloudNoiseData,
+  cloudWeather,
+  cloudCoverageWeather,
+} from '../src/cloud-field.js';
+import { photonWeather } from '../src/photon-weather.js';
+import {
+  packCloudCoverage,
+  updateCloudSeed,
+} from '../src/cloud-coverage-data.js';
+
+test('Photon numeric coverage image and seed lattice retain all bytes in their isolated atlas regions', async () => {
+  const png = await readFile(
+    new URL('../src/assets/photon-noise.png', import.meta.url),
+  );
+  assert.equal(
+    createHash('sha256').update(png).digest('hex'),
+    '9972ae2cad05ccf00fbe2d81209244e265e3c089e840862f3cf0859443f77c34',
+  );
+  const image = decode(png);
+  assert.deepEqual(
+    [image.width, image.height, image.channels, image.depth],
+    [512, 512, 4, 8],
+  );
+  const packed = packCloudCoverage(image.data, cloudNoiseData(624));
+  const checkImage = () => {
+    for (let y = 0; y < 512; y++)
+      assert.deepEqual(
+        packed.subarray(((y + 1) * 1024 + 129) * 4, ((y + 1) * 1024 + 641) * 4),
+        image.data.subarray(y * 512 * 4, (y + 1) * 512 * 4),
+      );
+  };
+  checkImage();
+  for (let y = 0; y < 514; y++)
+    for (const x of [0, 513]) {
+      const destination = (y * 1024 + 128 + x) * 4,
+        source = (((y + 511) % 512) * 512 + ((x + 511) % 512)) * 4;
+      assert.deepEqual(
+        packed.subarray(destination, destination + 4),
+        image.data.subarray(source, source + 4),
+      );
+    }
+  for (const y of [0, 513]) {
+    const sourceRow = ((y + 511) % 512) * 512 * 4;
+    assert.deepEqual(
+      packed.subarray((y * 1024 + 129) * 4, (y * 1024 + 641) * 4),
+      image.data.subarray(sourceRow, sourceRow + 512 * 4),
+    );
+  }
+  const seed = cloudNoiseData(751);
+  updateCloudSeed(packed, seed);
+  for (let y = 0; y < 127; y++)
+    for (let x = 0; x < 127; x++)
+      assert.equal(packed[(y * 1024 + x) * 4], seed[y * 127 + x]);
+  checkImage();
+  assert.throws(
+    () => packCloudCoverage(image.data.subarray(4), seed),
+    RangeError,
+  );
+});
+
+test('source coverage endpoints retain regional variation and independent upper weather', () => {
+  const wind = 0.8,
+    c = cloudCoverageWeather(0.6, 1, wind);
+  assert.equal(c.stratus, 0);
+  assert.ok(
+    Math.abs(c.ranges[0][0] - (0.9 - 0.1 * (0.1 + 0.1 * wind))) < 1e-12,
+  );
+  assert.equal(c.ranges[0][1], 1);
+  assert.equal(c.ranges[1][0], 0.5);
+  assert.equal(c.ranges[1][1], 1);
+  assert.notDeepEqual(
+    cloudWeather(624, 0, 0.6, 1, 0, 0).noiseOffset,
+    cloudWeather(751, 0, 0.6, 2, 0, 0).noiseOffset,
+  );
+});
+
+test('Photon temporal weather keeps biome influence weak and rain independently increases humidity and wind', () => {
+  const dry = photonWeather(120, 0.6, 0, 0),
+    humidBiome = photonWeather(120, 0.6, 1, 0),
+    wet = photonWeather(120, 0.6, 1, 1);
+  assert.ok(dry.humidity >= 0.2 && dry.humidity <= 0.8 * 1.02);
+  assert.ok(Math.abs(humidBiome.humidity / dry.humidity - 1.12 / 1.02) < 1e-12);
+  assert.equal(wet.humidity, 1);
+  assert.ok(Math.abs(wet.wind - humidBiome.wind - 0.33) < 1e-12);
+  assert.equal(humidBiome.temperature, dry.temperature);
+  assert.ok(
+    Math.abs(photonWeather(120, 1, 0, 0).temperature / dry.temperature - 1.04) <
+      1e-12,
+  );
+});
 
 test('pinned Photon cloud detail retains both source volumes and periodic guard slices byte for byte', async () => {
   const names = ['bubbly', 'swirley'],

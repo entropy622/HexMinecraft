@@ -6,6 +6,27 @@ import {
   referenceSettings,
 } from './fixtures/photon-reference-scenes.js';
 import { installFrameProbe } from './fixtures/photon-frame-probe.js';
+import { decode } from 'fast-png';
+
+const coverageImage = decode(
+  await readFile(new URL('../src/assets/photon-noise.png', import.meta.url)),
+).data;
+function sampleCoverage(point) {
+  const p = point.map((v) => v * 512 - 0.5),
+    cell = p.map(Math.floor),
+    f = p.map((v, i) => v - cell[i]),
+    result = [0, 0, 0, 0],
+    wrap = (v) => ((v % 512) + 512) % 512;
+  for (let y = 0; y < 2; y++)
+    for (let x = 0; x < 2; x++) {
+      const weight = (x ? f[0] : 1 - f[0]) * (y ? f[1] : 1 - f[1]),
+        index = (wrap(cell[1] + y) * 512 + wrap(cell[0] + x)) * 4;
+      result.forEach(
+        (_, c) => (result[c] += (weight * coverageImage[index + c]) / 255),
+      );
+    }
+  return result;
+}
 
 const baseline = process.env.PHOTON_CLOUD_NOISE_BASELINE === '1';
 const volumes = await Promise.all(
@@ -117,6 +138,10 @@ test('fixed forest and sky show actual cloud detail at unchanged camera, light a
           bytes: texture.image.data.byteLength,
         },
         light: g.cloudSystem.uniforms.cloudLightDirection.value.toArray(),
+        coverageRange: g.cloudSystem.uniforms.cloudCoverageRange.value.map(
+          (v) => v.toArray(),
+        ),
+        climate: g.cloudSystem.climate,
         error: g.renderer.getContext().getError(),
       };
     });
@@ -176,6 +201,56 @@ test('fixed forest and sky show actual cloud detail at unchanged camera, light a
         );
     sampling = { points, expected, actual, error };
   }
+  const coveragePoints = [
+    [0, 0],
+    [1, 1],
+    [0.5 / 512, 511.5 / 512],
+    [0.123, 0.456],
+    [-0.23, 2.17],
+    [0.9999, -0.0001],
+  ].map((p) => p.map(Math.fround));
+  const coverage = await page.evaluate(
+    async ({ points, sourceBytes }) => {
+      const { readCloudCoverageNoise } =
+        await import('/tests/fixtures/cloud-noise-probe.js');
+      return readCloudCoverageNoise(
+        window.__hexwild.graphics,
+        points,
+        sourceBytes,
+      );
+    },
+    { points: coveragePoints, sourceBytes: Array.from(coverageImage) },
+  );
+  const coverageExpected = coveragePoints.flatMap(sampleCoverage);
+  const coverageErrors = coverage.outputs.map((values) =>
+    Math.max(...values.map((v, i) => Math.abs(v - coverageExpected[i]))),
+  );
+  const referenceErrors = coverage.outputs
+    .slice(1)
+    .map((values) =>
+      Math.max(...values.map((v, i) => Math.abs(v - coverage.outputs[0][i]))),
+    );
+  await writeFile(
+    info.outputPath('coverage-noise.json'),
+    JSON.stringify(
+      {
+        points: coveragePoints,
+        expected: coverageExpected,
+        ...coverage,
+        errors: coverageErrors,
+        referenceErrors,
+      },
+      null,
+      2,
+    ),
+  );
+  expect(coverage.error).toBe(0);
+  // Preserve the strict packing/atlas threshold against an independently
+  // uploaded original source texture, rather than requiring hardware RGBA8
+  // interpolation to equal ideal double precision. Record both comparisons.
+  for (const error of referenceErrors) expect(error).toBeLessThan(0.0005);
+  for (const error of coverageErrors)
+    expect(error).toBeLessThan(1 / 255 + 0.0005);
   await writeFile(
     info.outputPath('cloud-detail.json'),
     JSON.stringify({ baseline, shots, sampling, messages }, null, 2),

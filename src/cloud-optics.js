@@ -14,12 +14,18 @@ const smooth = (a, b, x) => {
 // x: extinction / metre, y: single-scattering albedo, z: stratus.
 // w: lower-deck shadow / alto direct boost / cirrus extinction boost.
 // Write existing vectors so every material retains its published uniform identity.
-export function setCloudOptics(target, sunDirection, rain, layers) {
+export function setCloudOptics(
+  target,
+  sunDirection,
+  rain,
+  layers,
+  ranges = null,
+) {
   const y = sunDirection.y,
     r = clamp(rain),
     day = smooth(0, 0.3, Math.abs(y)),
-    c0 = clamp(layers[0].z),
-    c1 = clamp(layers[1].z),
+    c0 = clamp(ranges ? ranges[0].y : layers[0].z),
+    c1 = clamp(ranges ? ranges[1].x * 0.25 + ranges[1].y * 0.75 : layers[1].z),
     c2 = clamp(layers[2].z),
     s0 = clamp(layers[0].w),
     s1 = clamp(layers[1].w),

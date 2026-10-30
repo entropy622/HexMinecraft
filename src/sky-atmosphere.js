@@ -349,6 +349,7 @@ export class SkyAtmosphere {
         direction,
         rain,
         this.cloudSky.uniforms.cloudLayers.value,
+        this.cloudSky.uniforms.cloudCoverageRange.value,
       );
     const previous = renderer.getRenderTarget(),
       generation = this.generation;

@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cloudWeather, cloudNoiseData } from '../src/cloud-field.js';
+import {
+  cloudWeather,
+  cloudNoiseData,
+  cloudCoverageWeather,
+} from '../src/cloud-field.js';
 import {
   Color,
   Vector3,
@@ -12,7 +16,10 @@ import {
   UnsignedByteType,
 } from 'three';
 import { HexClouds } from '../src/clouds.js';
-import { cloudDetailData } from './fixtures/cloud-detail-data.js';
+import {
+  cloudDetailData,
+  cloudCoverageData,
+} from './fixtures/cloud-detail-data.js';
 import { World } from '../src/world.js';
 import {
   createCloudOptics,
@@ -50,6 +57,22 @@ test('Photon default cloud coefficients match noon, horizon, rain, overcast and 
   close(optics[0].x, 0.02);
   close(optics[0].w, 1);
   close(optics[1].x, 0.016);
+  close(optics[1].w, 1.4);
+  // Production uses the source pair's upper endpoint for dense cumulus and
+  // its weighted upper-deck coverage, rather than the old scalar metadata.
+  layers[0].z = layers[1].z = 0.1;
+  layers[0].w = layers[1].w = 0;
+  const ranges = [
+    { x: 0.3, y: 0.95 },
+    { x: 0.1, y: 0.3 },
+  ];
+  setCloudOptics(optics, sun, 0, layers, ranges);
+  close(optics[0].x, 0.07);
+  ranges[1] = { x: 0.3, y: 0.7 };
+  layers[1].w = 1;
+  setCloudOptics(optics, sun, 0, layers, ranges);
+  close(optics[0].x, 0.028);
+  close(optics[0].w, 1);
   close(optics[1].w, 1.4);
 });
 
@@ -90,6 +113,7 @@ test('derived cloud climate is bounded, deterministic and varies continuously wi
               c.stratus,
               c.altoStratus,
               ...c.coverage,
+              ...c.ranges.flat(),
             ])
               assert.ok(Number.isFinite(v) && v >= 0 && v <= 1);
             assert.ok(c.winds.flat().every(Number.isFinite));
@@ -103,9 +127,10 @@ test('derived cloud climate is bounded, deterministic and varies continuously wi
           }
   const dry = cloudWeather(624, 120, 0.9, 0.1, 0, 0),
     wet = cloudWeather(624, 120, 0.2, 0.9, 1, 1);
-  assert.ok(wet.stratus > dry.stratus + 0.4);
+  assert.ok(wet.humidity > dry.humidity + 0.3);
+  assert.ok(wet.shear > dry.shear);
   assert.ok(wet.coverage[0] > dry.coverage[0] + 0.25);
-  assert.ok(wet.coverage[1] > dry.coverage[1] + 0.25);
+  assert.ok(wet.ranges[1][1] > dry.ranges[1][1] + 0.25);
   // A weather transition changes morphology, never the world-space wind offset.
   assert.deepEqual(wet.winds, dry.winds);
   const later = cloudWeather(624, 220, 0.9, 0.1, 0, 0);
@@ -115,18 +140,14 @@ test('derived cloud climate is bounded, deterministic and varies continuously wi
 });
 
 test('warm humid weather keeps cumulus while cold upper sheets vary independently', () => {
-  const warm = cloudWeather(624, 0, 0.9, 0.9, 0, 0),
-    warmDry = cloudWeather(624, 0, 0.9, 0.1, 0, 0),
-    cool = cloudWeather(624, 0, 0.4, 0.9, 0, 0),
-    storm = cloudWeather(624, 0, 0.4, 0.9, 1, 1);
+  const warm = cloudCoverageWeather(0.9, 0.9, 0.5),
+    warmDry = cloudCoverageWeather(0.9, 0.1, 0.5),
+    cool = cloudCoverageWeather(0.4, 0.9, 0.5);
   assert.equal(warm.stratus, 0);
   assert.equal(warm.altoStratus, 0);
-  assert.ok(warm.coverage[0] > warmDry.coverage[0]);
+  assert.ok(warm.ranges[0][1] > warmDry.ranges[0][1]);
   assert.ok(cool.stratus > warm.stratus);
   assert.ok(cool.altoStratus > cool.stratus + 0.2);
-  assert.ok(storm.stratus > cool.stratus);
-  assert.ok(storm.coverage[0] > cool.coverage[0]);
-  assert.deepEqual(storm.winds, cool.winds);
 });
 
 test('world cloud coverage keeps distinct seed identities without the old 127-seed alias', () => {
@@ -143,6 +164,7 @@ test('production cloud preparation derives all three layers and preserves low qu
         down: new Color(0),
       },
       cloudDetailData,
+      cloudCoverageData,
     ),
     camera = new PerspectiveCamera(72, 1, 0.08, 220),
     sun = new DirectionalLight();
@@ -226,7 +248,7 @@ test('cloud sky and ground radiance use separate raw clear hemispheres without r
   const probe = new LightProbe(),
     scene = new Scene(),
     clear = { up: new Color(0), down: new Color(0) },
-    clouds = new HexClouds(scene, clear, cloudDetailData),
+    clouds = new HexClouds(scene, clear, cloudDetailData, cloudCoverageData),
     camera = new PerspectiveCamera(72, 1, 0.08, 220),
     sun = new DirectionalLight(),
     world = new World(624, 'overworld', { load: false });

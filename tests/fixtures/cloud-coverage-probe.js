@@ -7,7 +7,11 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { CLOUD_COVERAGE_SPANS, cloudFieldGLSL } from '../../src/cloud-field.js';
+import {
+  CLOUD_COVERAGE_SPANS,
+  CLOUD_COVERAGE_HEADER,
+  cloudFieldGLSL,
+} from '../../src/cloud-field.js';
 
 let previousAtlas = null;
 
@@ -24,12 +28,21 @@ export function readCloudCoverage(g, anchors = null) {
   for (let i = 0; i < 127 * 127; i++)
     headerMismatches +=
       DataUtils.fromHalfFloat(header[i * 4]) !==
-      u.cloudSeedNoise.value.image.data[i];
+      u.cloudSeedNoise.value.image.data[
+        (Math.floor(i / 127) * 1024 + (i % 127)) * 4
+      ];
   function compareAtlas() {
     const atlas = new Uint16Array(1024 * 1024 * 4),
       origins = u.cloudCoverageOrigin.value.map((v) => v.toArray()),
       atlasOverlap = [];
-    g.renderer.readRenderTargetPixels(pass.target, 0, 128, 1024, 1024, atlas);
+    g.renderer.readRenderTargetPixels(
+      pass.target,
+      0,
+      CLOUD_COVERAGE_HEADER,
+      1024,
+      1024,
+      atlas,
+    );
     if (previousAtlas)
       for (let layer = 0; layer < 2; layer++) {
         const shift = origins[layer].map((v, i) =>

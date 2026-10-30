@@ -1,11 +1,16 @@
 import { CLOUD_METRES_PER_UNIT, CIRRUS_DENSITY } from './cloud-optics.js';
 import { cloudDetailGLSL } from './cloud-detail-data.js';
+import { photonWeather } from './photon-weather.js';
+import {
+  cloudCoverageNoiseGLSL,
+  CLOUD_COVERAGE_HEADER,
+} from './cloud-coverage-data.js';
+export { CLOUD_COVERAGE_HEADER } from './cloud-coverage-data.js';
 export const CLOUD_RADIUS = 4;
 export const CLOUD_BASE = 52;
 export const CLOUD_NOISE_SCALE = 255 / 126;
 export const CLOUD_COVERAGE_SIZE = 1024;
 export const CLOUD_COVERAGE_SPANS = [512, 256];
-export const CLOUD_COVERAGE_HEADER = 128;
 // Shared with the atmosphere's conversion of 20 metres per local world unit.
 export const CLOUD_PLANET_RADIUS = 6371000 / CLOUD_METRES_PER_UNIT;
 const mod = (x, n) => ((x % n) + n) % n;
@@ -45,42 +50,28 @@ export function cloudNoiseData(seed) {
 // Analytic wind displacement has no accumulated clock or saved state. Its
 // derivative varies smoothly, and changing rain never teleports the texture.
 export function cloudWeather(seed, time, heat, wet, rain, storm) {
-  const temperature = Math.max(
-    0,
-    Math.min(1, heat + Math.sin((time * Math.PI) / 300) * 0.06),
-  );
-  const humidity = Math.max(
-    0,
-    Math.min(
-      1,
-      wet +
-        rain * 0.34 +
-        storm * 0.12 +
-        noise(time / 900, 7, seed) * 0.12 -
-        0.06,
-    ),
-  );
-  const breeze = noise(time / 1400, 43, seed),
-    wind = 0.7 + breeze * 0.6;
-  const cold = Math.max(0, Math.min(1, (0.5 - temperature) * 2)),
-    calm = 1 - breeze,
-    upperCold = Math.max(0, Math.min(1, (0.5 - temperature) / 0.16));
-  const stratus = Math.max(
-    0,
-    Math.min(1, cold * (2 - cold) * calm * (2 - calm) + storm * 0.25),
-  );
-  const altoStratus = upperCold * upperCold * (3 - 2 * upperCold);
+  const {
+      temperature,
+      humidity,
+      wind: breeze,
+    } = photonWeather(time, heat, wet, Math.min(1, rain + storm * 0.12)),
+    wind = 0.7 + breeze * 0.6,
+    shaping = cloudCoverageWeather(temperature, humidity, breeze);
   return {
     temperature,
     humidity,
-    stratus,
-    altoStratus,
+    ...shaping,
+    noiseOffset: [random(3, 17, seed) * 25000, random(29, 5, seed) * 25000],
+    // The inexpensive geometry mode retains its scalar coverage control.
     coverage: [
       Math.max(
         0.2,
         Math.min(0.94, 0.33 + humidity * 0.18 + rain * 0.3 + storm * 0.08),
       ),
-      Math.max(0.12, Math.min(0.9, 0.2 + humidity * 0.23 + altoStratus * 0.16)),
+      Math.max(
+        0.12,
+        Math.min(0.9, 0.2 + humidity * 0.23 + shaping.altoStratus * 0.16),
+      ),
       Math.max(0.12, Math.min(0.78, 0.26 + humidity * 0.3 - storm * 0.08)),
     ],
     winds: [0, 1, 2].map((layer) => {
@@ -96,12 +87,45 @@ export function cloudWeather(seed, time, heat, wet, rain, storm) {
   };
 }
 
+export function cloudCoverageWeather(temperature, humidity, breeze) {
+  const cold = Math.max(0, Math.min(1, (0.5 - temperature) * 2)),
+    calm = 1 - breeze,
+    upperCold = Math.max(0, Math.min(1, (0.5 - temperature) / 0.16));
+  const stratus = cold * (2 - cold) * calm * (2 - calm);
+  const altoStratus = upperCold * upperCold * (3 - 2 * upperCold);
+  const clamp = (v) => Math.max(0, Math.min(1, v)),
+    linear = (a, b, v) => clamp((v - a) / (b - a)),
+    humidityWeight =
+      (1 - 0.15 * linear(0.6, 1, temperature)) *
+      (0.4 * humidity + 0.5 * humidity * humidity),
+    variation = 0.1 + 0.1 * breeze,
+    cumulus = [
+      clamp(humidityWeight - 0.1 * variation + 0.3 * stratus * stratus),
+      clamp(humidityWeight + variation + 0.3 * stratus * stratus),
+    ],
+    ac =
+      (linear(0.4, 1, humidity) * 0.5 + 0.5) *
+      linear(0.4, 0.66, breeze) *
+      linear(1, 0.8, temperature),
+    as = linear(0.25, 0.45, breeze * humidity),
+    alto = [0.5, 1.5].map((weight) =>
+      clamp(ac * weight * (1 - altoStratus) + as * altoStratus),
+    );
+  return {
+    stratus,
+    altoStratus,
+    ranges: [cumulus, alto],
+  };
+}
+
 // Integer-sized arithmetic stays below the float exact-integer limit. CPU
 // geometry and GPU shadows sample the same seeded field and drifting hex grid.
 export const cloudMacroGLSL = /* glsl */ `
 uniform highp sampler2D cloudNoise;
 uniform float cloudNoiseScale;
 uniform float cloudRadius;
+uniform vec2 cloudNoiseOffset;
+${cloudCoverageNoiseGLSL}
 float hexCloudRandom(vec2 p) {
   return texelFetch(cloudNoise, ivec2(mod(p, 127.0)), 0).r * cloudNoiseScale;
 }
@@ -117,10 +141,15 @@ float hexCloudDensity(vec2 h) {
     hexCloudNoise(vec2(h.x + h.y, h.y) * 0.6 + vec2(9.0, -27.0)) * 0.11;
 }
 vec2 hexCloudMacroAnalytic(vec2 drifting, int layer) {
-  vec2 p = drifting * (layer == 0 ? 1.0 : 2.8) / cloudRadius;
-  vec2 h = vec2(p.x / 1.732050808 - p.y / 3.0, p.y / 1.5);
-  return vec2(hexCloudDensity(h + vec2(float(layer) * 37.0)),
-    hexCloudNoise(drifting * 0.0025 + float(layer) * 17.0));
+  // Source physical frequencies, at 20 metres per local unit. Seed changes
+  // translate the original field rather than generating a different noise.
+  vec2 position = drifting + cloudNoiseOffset;
+  vec2 result = vec2(0.0);
+  if (layer == 0) result = vec2(
+    hexPhotonCloudNoise(position * 0.00004).r,
+    hexPhotonCloudNoise(position * 0.00054).a);
+  else result = hexPhotonCloudNoise(position * 0.00094 + 0.3).ar;
+  return result;
 }
 `;
 export const cloudFieldGLSL = /* glsl */ `
@@ -136,6 +165,7 @@ uniform vec3 cloudLightDirection;
 uniform float cloudShade;
 uniform float cloudEnabled;
 uniform vec4 cloudLayers[3]; // base, thickness, coverage, stratus blend
+uniform vec2 cloudCoverageRange[2]; // source regional min/max, not a scalar threshold
 uniform vec4 cloudOptics[3]; // extinction / metre, albedo, stratus, layer response
 uniform vec2 cloudLayerWind[3];
 uniform vec4 cloudDetailDrift[2]; // scaled coarse xz, fine xz advection
@@ -256,28 +286,23 @@ float hexCloudLayerDensity(vec3 position, int layer) {
     return (wisps + cirrocumulus) * ${CIRRUS_DENSITY.toFixed(1)};
   }
   vec2 coverage = hexCloudMacro(drifting, layer);
-  float macro = coverage.x, regional = coverage.y;
-  // The weather controls layer depth. Applying the local coverage a second
-  // time to altitude squeezed every footprint into a tall pointed column.
-  float thickness = min(1.0, mix(0.5, 1.0, smoothstep(0.4, 0.6, band.z)) / 0.8);
-  fraction /= thickness;
-  if (fraction >= 1.0) return 0.0;
+  vec2 range = cloudCoverageRange[layer];
+  float weatherCoverage = layer == 0 ? dot(range, vec2(0.25, 0.75)) : range.y;
+  fraction *= 0.8 / mix(0.5, 1.0, smoothstep(0.4, 0.6, weatherCoverage));
   float sheet = clamp(fraction * 2.0, 0.0, 1.0) * clamp(fraction / 0.1, 0.0, 1.0) * clamp((1.0 - fraction) / 0.6, 0.0, 1.0);
   sheet *= 2.0 - sheet;
   float bottom = smoothstep(0.0, 0.2, fraction);
-  float profile = 1.0 - smoothstep(0.88, 1.0, fraction);
   if (layer == 1) {
-    // A separate patch/sheet mixture gives the upper deck its own morphology.
-    // Reuse the cached base and seed header; no additional texture or sampler.
-    float localCoverage = clamp(band.z + (regional - 0.5) * 0.25, 0.05, 0.95);
+    float regional = hexPhotonCloudNoise((drifting + cloudNoiseOffset) * 0.0001 + 0.01).r;
+    float detail = hexPhotonCloudNoise((drifting + cloudNoiseOffset) * 0.002 + 0.6).a;
+    float localCoverage = mix(range.x, range.y, regional * (2.0 - regional));
     float threshold = (1.0 - localCoverage) * (1.0 - localCoverage);
-    float ac = clamp((macro - threshold) / (1.0 - threshold), 0.0, 1.0);
-    float detail = hexCloudNoise(drifting * 0.12 + vec2(71.0, 29.0));
+    float ac = clamp((coverage.x - threshold) / max(0.00001, 1.0 - threshold), 0.0, 1.0);
     ac -= 1.9 * (1.0 - detail) * (1.0 - detail) * (1.0 - ac * ac);
-    ac = max(0.0, ac - smoothstep(0.2, 1.0, fraction) * 0.6) * bottom;
-    float deck = clamp((2.0 * regional * band.z - (0.9 - band.z)) / (0.1 + band.z), 0.0, 1.0);
+    ac = (ac - smoothstep(0.2, 1.0, fraction) * 0.6) * bottom;
+    float deck = clamp((2.0 * regional * range.y - (0.9 - range.x)) / (0.1 + range.x), 0.0, 1.0);
     deck = deck * deck * (3.0 - 2.0 * deck);
-    deck *= (0.5 + smoothstep(0.3, 0.6, macro)) * (0.5 + smoothstep(0.3, 0.7, detail));
+    deck *= (0.5 + clamp((coverage.x - 0.3) / 0.3, 0.0, 1.0)) * (0.5 + clamp((coverage.y - 0.3) / 0.4, 0.0, 1.0));
     deck = deck / (1.0 + deck) * sheet;
     float upperDensity = mix(ac, deck, band.w);
     if (upperDensity <= 0.0) return 0.0;
@@ -288,10 +313,15 @@ float hexCloudLayerDensity(vec3 position, int layer) {
     vec2 edge = mix(vec2(3.0, 14.0), vec2(2.0, 7.0), band.w);
     float sharp = mix(edge.x, edge.y, fraction);
     upperDensity = upperDensity * (1.0 + sharp) / (1.0 + upperDensity * sharp);
-    return upperDensity * mix(0.1, 1.0, smoothstep(0.2, 0.7, fraction)) * profile * 0.48;
+    return upperDensity * mix(0.1, 1.0, smoothstep(0.2, 0.7, fraction));
   }
-  float cover = macro * 0.82 + regional * 0.18;
-  float fill = clamp((cover - (1.0 - band.z)) / max(0.18, band.z * 0.75), 0.0, 1.0);
+  float localCoverage = mix(range.x, range.y, coverage.x);
+  float cu = clamp((coverage.y - (1.0 - localCoverage)) / max(0.00001, localCoverage), 0.0, 1.0);
+  float st = clamp((2.0 * coverage.x * range.y - (0.9 - range.x)) / (0.1 + range.x), 0.0, 1.0);
+  st = st * st * (3.0 - 2.0 * st);
+  st *= 0.5 + clamp((coverage.y - 0.3) / 0.3, 0.0, 1.0);
+  st /= st + 1.0;
+  float fill = mix(cu, st, band.w);
   float crown = smoothstep(0.2, 1.0, fraction) * mix(0.6, 0.3, band.w);
   float density = max(0.0, mix(fill, fill * sheet, band.w) - crown) * bottom;
   if (density <= 0.0) return 0.0;
@@ -317,7 +347,7 @@ float hexCloudLayerDensity(vec3 position, int layer) {
   float sharpening = mix(sharpness.x, sharpness.y, fraction);
   density = density * (1.0 + sharpening) / (1.0 + density * sharpening);
   density *= mix(0.1, 1.0, smoothstep(0.2, 0.7, fraction));
-  return density * profile;
+  return density;
 }
 float hexCloudLayerOpticalDepth(vec3 origin, vec3 direction, float reach, int layer, int steps) {
   float depth = 0.0;

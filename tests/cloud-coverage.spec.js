@@ -176,7 +176,7 @@ test('real coverage atlas preserves the seed, bounded macro error, analytic exte
   );
   expect(before.headerMismatches).toBe(0);
   expect(after.headerMismatches).toBe(0);
-  expect(before.size).toEqual([1024, 1152]);
+  expect(before.size).toEqual([1024, 1538]);
   expect(before.samplerPrograms.length).toBeGreaterThan(0);
   for (const p of before.samplerPrograms)
     expect(p).toEqual(['cloudNoise', 'cloudWorley']);
@@ -266,7 +266,7 @@ test('real quality controls, native seed import and device restoration rebuild c
   for (const stage of stages) {
     expect(stage.sample.headerMismatches).toBe(0);
     expect(stage.sample.gl).toBe(0);
-    expect(stage.sample.size).toEqual([1024, 1152]);
+    expect(stage.sample.size).toEqual([1024, 1538]);
   }
   expect(restored.seed).toBe(841);
   expect(restored.seedVersion).toBe(other.seedVersion);

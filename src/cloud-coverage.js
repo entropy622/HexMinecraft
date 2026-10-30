@@ -1,7 +1,7 @@
 import {
   GLSL3,
   HalfFloatType,
-  NearestFilter,
+  LinearFilter,
   ShaderMaterial,
   WebGLRenderTarget,
 } from 'three';
@@ -31,6 +31,7 @@ export class CloudCoverage {
         cloudNoise: { value: this.seed },
         cloudNoiseScale: { value: CLOUD_NOISE_SCALE },
         cloudRadius: uniforms.cloudRadius,
+        cloudNoiseOffset: uniforms.cloudNoiseOffset,
         cloudCoverageOrigin: uniforms.cloudCoverageOrigin,
       },
       vertexShader: 'void main(){gl_Position=vec4(position.xy,0.0,1.0);}',
@@ -40,8 +41,9 @@ export class CloudCoverage {
         void main(){
           if(gl_FragCoord.y < ${CLOUD_COVERAGE_HEADER.toFixed(1)}){
             ivec2 cell=ivec2(gl_FragCoord.xy);
-            float seedValue=cell.x<127&&cell.y<127?round(texelFetch(cloudNoise,cell,0).r*255.0):0.0;
-            coverageValue=vec4(seedValue,0.0,0.0,1.0);return;
+            coverageValue=texelFetch(cloudNoise,cell,0);
+            if(cell.x<127&&cell.y<127) coverageValue.r=round(coverageValue.r*255.0);
+            return;
           }
           vec2 uv=(gl_FragCoord.xy-vec2(0.0,${CLOUD_COVERAGE_HEADER.toFixed(1)}))/${CLOUD_COVERAGE_SIZE.toFixed(1)};
           vec2 p=uv-0.5;
@@ -89,6 +91,7 @@ export class CloudCoverage {
     const key = [
       this.seed.version,
       u.cloudRadius.value,
+      ...u.cloudNoiseOffset.value.toArray(),
       ...u.cloudCoverageOrigin.value.flatMap((v) => v.toArray()),
     ].join(',');
     if (this.key !== key) {
@@ -97,8 +100,8 @@ export class CloudCoverage {
         CLOUD_COVERAGE_SIZE + CLOUD_COVERAGE_HEADER,
         {
           type: HalfFloatType,
-          minFilter: NearestFilter,
-          magFilter: NearestFilter,
+          minFilter: LinearFilter,
+          magFilter: LinearFilter,
           depthBuffer: false,
         },
       );

@@ -3,6 +3,12 @@ import { axialToWorld, worldToAxial, noise } from './core.js';
 import { skyRadianceGLSL } from './sky-transport.js';
 import { createCloudOptics } from './cloud-optics.js';
 import {
+  packCloudCoverage,
+  updateCloudSeed,
+  CLOUD_NOISE_WIDTH,
+  CLOUD_COVERAGE_HEADER,
+} from './cloud-coverage-data.js';
+import {
   setCloudDetail,
   CLOUD_DETAIL_BYTES,
   CLOUD_DETAIL_DEPTH,
@@ -21,7 +27,13 @@ import {
 const CHUNK = 8,
   CAPACITY = 49 * CHUNK * CHUNK;
 export class HexClouds {
-  constructor(scene, clearIrradiance, detailNoise, fogAmbient = null) {
+  constructor(
+    scene,
+    clearIrradiance,
+    detailNoise,
+    coverageNoise,
+    fogAmbient = null,
+  ) {
     if (
       !(detailNoise instanceof Uint8Array) ||
       detailNoise.length !== CLOUD_DETAIL_BYTES
@@ -34,13 +46,14 @@ export class HexClouds {
     this.clearIrradiance = clearIrradiance;
     this.noiseSeed = 0;
     this.noise = new THREE.DataTexture(
-      cloudNoiseData(0),
-      127,
-      127,
-      THREE.RedFormat,
+      packCloudCoverage(coverageNoise, cloudNoiseData(0)),
+      CLOUD_NOISE_WIDTH,
+      CLOUD_COVERAGE_HEADER,
+      THREE.RGBAFormat,
       THREE.UnsignedByteType,
     );
     this.noise.needsUpdate = true;
+    this.noise.minFilter = this.noise.magFilter = THREE.LinearFilter;
     this.worley = new THREE.Data3DTexture(
       detailNoise,
       64,
@@ -58,6 +71,8 @@ export class HexClouds {
     this.uniforms = {
       cloudNoise: { value: this.noise },
       cloudSeedNoise: { value: this.noise },
+      cloudNoiseOffset: { value: new THREE.Vector2() },
+      cloudCoverageRange: { value: [new THREE.Vector2(), new THREE.Vector2()] },
       cloudNoiseScale: { value: CLOUD_NOISE_SCALE },
       cloudCoverageReady: { value: 0 },
       cloudCoverageOrigin: {
@@ -205,19 +220,23 @@ export class HexClouds {
     setCloudDetail(u.cloudDetailDrift.value, u.cloudDetailShape.value, climate);
     if (this.noiseSeed !== world.seed) {
       this.noiseSeed = world.seed;
-      this.noise.image.data.set(cloudNoiseData(this.noiseSeed));
+      updateCloudSeed(this.noise.image.data, cloudNoiseData(this.noiseSeed));
       this.noise.needsUpdate = true;
     }
+    u.cloudNoiseOffset.value.fromArray(climate.noiseOffset);
+    u.cloudCoverageRange.value.forEach((v, i) =>
+      v.fromArray(climate.ranges[i]),
+    );
     u.cloudLayers.value[0].set(
       CLOUD_BASE,
       60 + rain * 12 + storm * 8,
-      climate.coverage[0],
+      climate.ranges[0][0] * 0.25 + climate.ranges[0][1] * 0.75,
       climate.stratus,
     );
     u.cloudLayers.value[1].set(
       160,
       24 + climate.humidity * 6 + storm * 8,
-      climate.coverage[1],
+      climate.ranges[1][0] * 0.25 + climate.ranges[1][1] * 0.75,
       climate.altoStratus,
     );
     u.cloudLayers.value[2].set(300, 3.5, climate.coverage[2], climate.stratus);

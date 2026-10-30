@@ -17,8 +17,25 @@ swirl detail, including distinct physical frequencies, secondary wind and
 sequential edge erosion from `sky/clouds/{cumulus,altocumulus}.glsl`.
 Weather detail weights and sharpening from `weather/clouds.glsl` are prepared
 once per frame and shared with all cloud-density consumers.
-These assets and derived portions retain Photon's license. Local coverage,
-height envelopes, weather and integration remain host adaptations.
+These assets and derived portions retain Photon's license.
+
+Since 0.119, the unmodified `shaders/image/noise.png` is bundled as
+`src/assets/photon-noise.png` (512 x 512 RGBA8; SHA256
+`9972ae2cad05ccf00fbe2d81209244e265e3c089e840862f3cf0859443f77c34`).
+It remains numeric data, without sRGB conversion. A periodic border preserves
+linear/repeat filtering inside a shared seed/cache atlas. The cumulus coverage
+map and altocumulus base/coverage/detail follow the original channels and
+physical frequencies in `sky/clouds/{coverage_map,altocumulus}.glsl`.
+`weather/core.glsl`, `weather/clouds.glsl`, `utility/random.glsl` and time weights
+in `shaders.properties` supply the temporal temperature/humidity/wind, weak
+biome influence, paired coverage ranges and altitude shaping. Cumulus/alto
+height shaping no longer applies the earlier extra host top fade/alto density
+multiplier. The host still supplies biome noises, a 600-second solar cycle,
+rain as wetness, deterministic spatial seed offsets, separate analytic layer
+advection, a rectangular macro cache and WebGL ray integration. Cirrus remains
+a partial host implementation; congestus and noctilucent clouds are still
+missing. These assets and
+derived portions retain Photon's license.
 
 The source binary is `src/assets/photon-scattering.dat`, 393216 bytes, SHA256
 `d4834ef3babc1376f923f39d495d69dd9d7099f56feb40335a184af8a6b98fc6`.
