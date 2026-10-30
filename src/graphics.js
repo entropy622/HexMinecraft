@@ -1824,11 +1824,20 @@ export class Graphics {
         this.composer.effects.contact.enabled =
           this.postOptions.occlusion > 0 && !submerged;
         this.composer.effects.wet.enabled =
+          (this.postOptions.environmentReflections ||
+            this.postOptions.skyReflections) &&
           (this.weatherUniforms.terrainWetness.value > 0.001 ||
-            this.world.dimension === 'overworld') &&
+            (this.world.dimension === 'overworld' &&
+              (this.postOptions.environmentReflections ||
+                this.postOptions.skyReflections))) &&
           !submerged;
         this.composer.effects.wet.material.uniforms.environmentStrength.value =
-          this.world.dimension === 'overworld' && !submerged ? 1 : 0;
+          this.world.dimension === 'overworld' &&
+          !submerged &&
+          (this.postOptions.environmentReflections ||
+            this.postOptions.skyReflections)
+            ? 1
+            : 0;
         temporal = this.composer.effects.temporal;
         this.composer.effects.protection.enabled =
           this.composer.effects.contact.enabled ||

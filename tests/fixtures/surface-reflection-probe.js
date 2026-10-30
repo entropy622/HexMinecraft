@@ -61,7 +61,7 @@ export function probeSurfaceReflections(g) {
             );
           if (mode === 'sky')
             fragment = fragment.replace(
-              'vec4 hit=reflectedScene(position+normal*0.045,ray);',
+              'vec4 hit=environmentScene>0.5?reflectedScene(position+normal*0.045,ray,environmentSteps,mip,dither):vec4(0.0);',
               'vec4 hit=vec4(0.0);',
             );
           const material = new ShaderMaterial({

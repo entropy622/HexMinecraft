@@ -1,6 +1,7 @@
 import { wetCoverageGLSL } from './wet-surfaces.js';
 import {
   Color,
+  Frustum,
   DoubleSide,
   Matrix4,
   NoBlending,
@@ -34,6 +35,10 @@ export class SurfaceProtectionPass extends Pass {
     this.flags = new WeakMap();
     this.variants = new WeakMap();
     this.ownedMaterials = new Set();
+    this.frustum = new Frustum();
+    this.viewProjection = new Matrix4();
+    this.reflectiveVisible = false;
+    wet.protection = this;
     this.material = new ShaderMaterial({
       name: 'SurfaceProtection',
       vertexShader:
@@ -177,6 +182,13 @@ export class SurfaceProtectionPass extends Pass {
       alpha = renderer.getClearAlpha();
     renderer.getClearColor(this.clearColor);
     this.saved.length = 0;
+    this.reflectiveVisible = false;
+    this.frustum.setFromProjectionMatrix(
+      this.viewProjection.multiplyMatrices(
+        camera.projectionMatrix,
+        camera.matrixWorldInverse,
+      ),
+    );
     try {
       scene.traverse((object) => {
         if (
@@ -250,6 +262,17 @@ export class SurfaceProtectionPass extends Pass {
                 this.opticalMaterial(m, flags, receivesOptics),
               )
             : this.opticalMaterial(object.material, flags, receivesOptics);
+        if (
+          receivesOptics &&
+          object.layers.mask &&
+          !protection &&
+          this.frustum.intersectsObject(object)
+        ) {
+          let visible = true;
+          for (let parent = object; parent; parent = parent.parent)
+            visible &&= parent.visible;
+          this.reflectiveVisible ||= visible;
+        }
       });
       camera.layers.set(31);
       scene.background = null;

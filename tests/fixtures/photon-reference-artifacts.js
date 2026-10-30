@@ -96,6 +96,18 @@ export function readReferenceFrame(layout) {
   };
   const renderTargets = [...targets].map((t) => {
     const color = t.textures.map(bytesPerPixel);
+    const colorPixels = t.textures.map((texture) => {
+      let w = t.width,
+        h = t.height,
+        total = w * h;
+      if (texture.generateMipmaps)
+        while (w > 1 || h > 1) {
+          w = Math.max(1, Math.floor(w / 2));
+          h = Math.max(1, Math.floor(h / 2));
+          total += w * h;
+        }
+      return total;
+    });
     const depth = t.depthBuffer
       ? t.depthTexture
         ? bytesPerPixel(t.depthTexture)
@@ -107,12 +119,14 @@ export function readReferenceFrame(layout) {
       height: t.height,
       samples: t.samples,
       colorBytesPerPixel: color,
+      colorMipPixels: colorPixels,
       depthBytesPerPixel: depth,
       estimatedBytes: known
-        ? t.width *
-          t.height *
-          (color.reduce((a, b) => a + b, 0) * (1 + t.samples) +
-            depth * Math.max(1, t.samples))
+        ? color.reduce((n, bpp, i) => n + bpp * colorPixels[i], 0) +
+          t.width *
+            t.height *
+            (color.reduce((a, b) => a + b, 0) * t.samples +
+              depth * Math.max(1, t.samples))
         : null,
     };
   });
@@ -196,6 +210,16 @@ export function readReferenceFrame(layout) {
       surfaceDiffuse: g.weatherUniforms.surfaceDiffuse.value,
       surfaceSpecular: g.weatherUniforms.surfaceSpecular.value,
       surfaceLightRadius: g.weatherUniforms.surfaceLightRadius.value,
+      reflectionState: g.composer
+        ? {
+            visible: g.composer.effects.protection.reflectiveVisible,
+            radianceAllocated: !!g.composer.effects.wet.radiance.target,
+            rays: g.composer.effects.wet.material.uniforms.environmentRays
+              .value,
+            steps:
+              g.composer.effects.wet.material.uniforms.environmentSteps.value,
+          }
+        : null,
       post: g.postOptions,
       toneMapping: g.renderer.toneMapping,
       exposure: g.renderer.toneMappingExposure,

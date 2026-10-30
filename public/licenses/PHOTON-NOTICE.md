@@ -68,6 +68,15 @@ It uses compact material attachments in the existing protection draw; source
 history reprojection, reflected fog correction and color mip filtering are not
 included. These derived portions retain Photon's license.
 
+Since 0.106, `src/reflection-trace.js` adapts the projected depth march and
+refinement from `misc/raytracer.glsl`. `surface-reflection.js` also adapts the
+roughness-to-color-mip rule and R1 dither progression. Host changes clip to
+actual WebGL screen bounds, retain protection/thickness/range rejection,
+use an IGN seed instead of the source noise texture, and reuse the march for
+wet surfaces. `reflection-radiance.js` uses standard Three.js HDR copying and
+GPU mip generation; source history/fog correction remains separate work.
+These derived portions retain Photon's license.
+
 Host changes include kilometres with stable sphere products, a WebGL2 3D
 half-float texture, linear sRGB output, a shared asynchronous sky/SH/light
 snapshot, and explicit resource lifetime. The table uses Photon's fixed ground-level atmosphere;

@@ -83,6 +83,17 @@ export function createPostprocessing(
 export function setPostprocessingOptions(composer, settings) {
   const values = postSettings(settings),
     effects = composer.effects;
+  const reflectionUniforms = effects.wet.material.uniforms;
+  if (
+    reflectionUniforms.environmentScene.value !==
+      Number(values.environmentReflections) ||
+    reflectionUniforms.environmentSkyEnabled.value !==
+      Number(values.skyReflections) ||
+    reflectionUniforms.environmentRays.value !== values.reflectionRays ||
+    reflectionUniforms.environmentSteps.value !== values.reflectionSteps
+  )
+    effects.temporal.reset();
+  effects.wet.setOptions(values);
   if (
     effects.temporal.enabled !== values.antialias ||
     effects.contact.composite.uniforms.strength.value !== values.occlusion

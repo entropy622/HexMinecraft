@@ -3,6 +3,11 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { BLOCKS } from './core.js';
 import { photonSpecularGLSL } from './photon-specular.js';
 import { surfaceReflectionGLSL } from './surface-reflection.js';
+import { reflectionTraceGLSL } from './reflection-trace.js';
+import {
+  ReflectionRadiance,
+  reflectionColorGLSL,
+} from './reflection-radiance.js';
 
 export function wetPorosity(type) {
   if (['snow', 'powderSnow'].includes(type) || BLOCKS[type]?.light) return 1;
@@ -41,6 +46,7 @@ export class WetSurfacePass extends Pass {
   constructor(camera, frame, weather, sky) {
     super();
     this.weather = weather;
+    this.radiance = new ReflectionRadiance();
     this.material = new ShaderMaterial({
       name: 'WetSurfaceReflection',
       depthTest: false,
@@ -62,18 +68,28 @@ export class WetSurfacePass extends Pass {
         environmentSky: sky.skyRadianceMap,
         environmentStrength: { value: 1 },
         environmentFrame: { value: 0 },
+        environmentScene: { value: 1 },
+        environmentSkyEnabled: { value: 1 },
+        environmentRays: { value: 4 },
+        environmentSteps: { value: 8 },
+        reflectionColor: { value: null },
       },
       vertexShader: /* glsl */ `varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
       fragmentShader: /* glsl */ `
       varying vec2 vUv;
       uniform sampler2D sceneColor, sceneDepth, surfaceMask;
       uniform sampler2D surfaceAlbedo,surfaceGeometry,environmentSky;
+      uniform sampler2D reflectionColor;
       uniform mat4 wetProjection, wetInverse, wetView, wetWorld;
       uniform vec3 wetSky;
       uniform float rain, wetTime;
       uniform float environmentStrength,environmentFrame;
+      uniform float environmentScene,environmentSkyEnabled;
+      uniform int environmentRays,environmentSteps;
       ${wetCoverageGLSL}
       ${photonSpecularGLSL}
+      ${reflectionTraceGLSL}
+      ${reflectionColorGLSL}
       vec3 wetViewPosition(vec2 uv, float depth) {
         vec4 p=wetInverse*vec4(uv*2.0-1.0,depth*2.0-1.0,1.0);return p.xyz/p.w;
       }
@@ -93,40 +109,19 @@ export class WetSurfacePass extends Pass {
         }
         return normalize(vec3(slope.x*rain,1.0,slope.y*rain));
       }
-      vec4 reflectedScene(vec3 origin,vec3 direction) {
-        float previous=0.035,travel=0.1;
-        for(int i=0;i<40;i++) {
-          vec3 p=origin+direction*travel;
-          if(p.z>=-0.08)break;
-          vec4 clip=wetProjection*vec4(p,1.0);vec2 uv=clip.xy/clip.w*0.5+0.5;
-          if(any(lessThan(uv,vec2(0.002)))||any(greaterThan(uv,vec2(0.998))))break;
-          float depth=texture2D(sceneDepth,uv).r;
-          float gap=depth<0.999999 ? -p.z+wetViewPosition(uv,depth).z : -10000.0;
-          if(gap>0.0) {
-            float low=previous,high=travel;
-            for(int j=0;j<6;j++) {
-              float mid=(low+high)*0.5;
-              vec3 point=origin+direction*mid;
-              vec4 projected=wetProjection*vec4(point,1.0);
-              vec2 sampleUv=projected.xy/projected.w*0.5+0.5;
-              float d=texture2D(sceneDepth,sampleUv).r;
-              float delta=d<0.999999 ? -point.z+wetViewPosition(sampleUv,d).z : -10000.0;
-              if(delta>0.0)high=mid;else low=mid;
-            }
-            p=origin+direction*high;clip=wetProjection*vec4(p,1.0);uv=clip.xy/clip.w*0.5+0.5;
-            depth=texture2D(sceneDepth,uv).r;
-            gap=-p.z+wetViewPosition(uv,depth).z;
-            if(depth<0.999999 && gap<max(0.16,-p.z*0.015) && texture2D(surfaceMask,uv).r<0.5) {
-              float edge=min(min(uv.x,uv.y),min(1.0-uv.x,1.0-uv.y));
-              float confidence=smoothstep(0.005,0.065,edge)*(1.0-smoothstep(26.0,48.0,high));
-              return vec4(texture2D(sceneColor,uv).rgb,confidence);
-            }
-            break;
-          }
-          previous=travel;travel+=0.1+travel*0.14;
-        }
-        return vec4(0.0);
+      vec4 reflectedScene(vec3 origin,vec3 direction,int steps,float mip,float dither) {
+        vec3 hit;
+        if(!reflectionTrace(sceneDepth,wetProjection,origin,direction,dither,steps,4,hit))return vec4(0.0);
+        if(textureLod(surfaceMask,hit.xy,0.0).r>0.5)return vec4(0.0);
+        float depth=textureLod(sceneDepth,hit.xy,0.0).r;
+        vec3 point=wetViewPosition(hit.xy,depth),rayPoint=wetViewPosition(hit.xy,hit.z);
+        if(abs(point.z-rayPoint.z)>max(0.16,-point.z*0.015))return vec4(0.0);
+        float edge=min(min(hit.x,hit.y),min(1.0-hit.x,1.0-hit.y));
+        float confidence=smoothstep(0.005,0.065,edge)*(1.0-smoothstep(26.0,48.0,length(point-origin)));
+        vec4 color=mip<0.0?vec4(textureLod(sceneColor,hit.xy,0.0).rgb,1.0):filteredReflectionColor(reflectionColor,hit.xy,mip);
+        return vec4(color.rgb,confidence*color.a);
       }
+      vec4 reflectedScene(vec3 origin,vec3 direction){return reflectedScene(origin,direction,16,-1.0,0.5);}
       ${surfaceReflectionGLSL}
       void main() {
         vec4 base=texture2D(sceneColor,vUv),mask=texture2D(surfaceMask,vUv);
@@ -144,8 +139,8 @@ export class WetSurfacePass extends Pass {
         vec3 normalWorld=puddleNormal(world.xz);
         vec3 normal=normalize(mat3(wetView)*normalWorld);
         vec3 ray=reflect(-view,normal),rayWorld=mat3(wetWorld)*ray;
-        vec3 sky=wetSky*mix(0.65,1.3,smoothstep(0.0,0.75,rayWorld.y));
-        vec4 hit=reflectedScene(position+normal*0.045,ray);
+        vec3 sky=environmentSkyEnabled>0.5?wetSky*mix(0.65,1.3,smoothstep(0.0,0.75,rayWorld.y)):vec3(0.0);
+        vec4 hit=environmentScene>0.5?reflectedScene(position+normal*0.045,ray):vec4(0.0);
         vec3 reflected=mix(sky,hit.rgb,hit.a);
         float fresnel=0.02+0.98*pow(1.0-clamp(dot(normal,view),0.0,1.0),5.0);
         gl_FragColor=vec4(mix(base.rgb,reflected,coverage*min(fresnel,0.94)),base.a);
@@ -157,11 +152,36 @@ export class WetSurfacePass extends Pass {
     this.material.uniforms.environmentFrame.value =
       (this.material.uniforms.environmentFrame.value + 1) % 64;
     this.material.uniforms.sceneColor.value = readBuffer.texture;
+    if (
+      this.protection.reflectiveVisible &&
+      this.material.uniforms.environmentStrength.value > 0 &&
+      this.material.uniforms.environmentScene.value > 0
+    )
+      this.material.uniforms.reflectionColor.value = this.radiance.update(
+        renderer,
+        readBuffer.texture,
+        this.material.uniforms.surfaceMask.value,
+      );
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     this.quad.render(renderer);
   }
   dispose() {
+    this.radiance.dispose();
     this.material.dispose();
     this.quad.dispose();
+  }
+  setSize(width, height) {
+    this.radiance.setSize(width, height);
+  }
+  setOptions(values) {
+    const u = this.material.uniforms;
+    u.environmentScene.value = Number(values.environmentReflections);
+    u.environmentSkyEnabled.value = Number(values.skyReflections);
+    u.environmentRays.value = values.reflectionRays;
+    u.environmentSteps.value = values.reflectionSteps;
+    if (!values.environmentReflections) {
+      this.radiance.release();
+      u.reflectionColor.value = null;
+    }
   }
 }

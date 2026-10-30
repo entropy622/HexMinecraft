@@ -238,13 +238,46 @@ test('FHD native metal floor measures the dense four-ray reflection workload', a
   await warm(120);
   for (const [label, enabled] of [
     ['on', true],
-    ['off', false],
+    ['legacy40', true],
     ['restored', true],
+    ['off', false],
+    ['high32', true],
+    ['fast1', true],
+    ['fine8', true],
   ]) {
+    if (label === 'legacy40' || label === 'restored')
+      expect(
+        await page.evaluate(async (label) => {
+          const controls =
+            await import('/tests/fixtures/legacy-reflection-trace.js');
+          return label === 'legacy40'
+            ? controls.beginLegacyReflectionTrace()
+            : controls.endLegacyReflectionTrace();
+        }, label),
+      ).toBe(true);
+    if (label === 'high32')
+      await page.evaluate(() => {
+        const g = window.__hexwild.graphics;
+        g.setPostOptions({ ...g.postOptions, reflectionSteps: 32 });
+      });
+    if (label === 'fast1' || label === 'fine8')
+      await page.evaluate(
+        (rays) =>
+          window.__hexwild.graphics.setPostOptions({
+            ...window.__hexwild.graphics.postOptions,
+            reflectionRays: rays,
+            reflectionSteps: 8,
+          }),
+        label === 'fast1' ? 1 : 8,
+      );
     expect(await page.evaluate(setSurfaceEnvironmentControl, enabled)).toBe(
       enabled ? 1 : 0,
     );
-    await warm(24);
+    await warm(
+      ['legacy40', 'restored', 'high32', 'fast1', 'fine8'].includes(label)
+        ? 120
+        : 24,
+    );
     await page.evaluate(() => window.__cloudStages.start(120, true));
     await expect
       .poll(() => page.evaluate(() => window.__cloudStages.done), {
@@ -261,6 +294,8 @@ test('FHD native metal floor measures the dense four-ray reflection workload', a
     const result = {
       label,
       enabled,
+      traversal:
+        label === 'legacy40' ? 'legacy 40+6, current shading' : 'projected',
       frame,
       gpu: distribution(totals),
       cpu: distribution(measured.frames.map((f) => f.cpuSubmitMs)),
@@ -275,6 +310,13 @@ test('FHD native metal floor measures the dense four-ray reflection workload', a
     expect(measured.disjoint).toBe(0);
     expect(measured.busy).toBe(0);
     expect(frame.glErrors).toEqual([]);
+    expect(frame.settings.post.occlusion).toBe(0);
+    expect(frame.settings.post.clouds).toBe(false);
+    expect(frame.settings.post.bloom).toBe(0);
+    expect(frame.settings.post.exposure).toBe(false);
+    expect(frame.settings.post.antialias).toBe(true);
+    expect(frame.resources.renderTargetBytes).toBe(252958736);
+    expect(frame.resources.geometryAttributeBytes).toBe(454574092);
     expect(messages).toEqual({ errors: [], warnings: [] });
     if (label !== 'restored')
       await page
@@ -288,7 +330,7 @@ test('FHD native metal floor measures the dense four-ray reflection workload', a
         windows: windows.map(({ measured, ...r }) => r),
         messages,
         scope:
-          'Dense native iron/gem floor and blue wool wall, seed624 time120 FHD. Same process A/B/A; environment shader and eligible metadata draw disabled together, buffers retained. No screenshot/readback during timing. Different post options from forest; compare windows within this scene.',
+          'Dense native iron/gem floor and blue wool wall, seed624 time120 FHD. A/B/A swaps only projected traversal with legacy40+6, retaining CURRENT HDR mip/filter/shading. Separate off and quality windows preserve ALL other post settings. No screenshot/readback during timing. Not an old-release comparison; intersection coverage can differ.',
       },
       null,
       2,

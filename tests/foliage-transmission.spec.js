@@ -706,6 +706,9 @@ test('all three leaf materials follow actual cloud shadows, moonlight and a paus
 test('a real canopy and water capture survive quality, context restoration and dimension changes with voxel transport outside the shadow map', async ({
   page,
 }, info) => {
+  // Two real context rebuilds plus dimension streaming need their own budget;
+  // each restoration below still has its existing 30-second success gate.
+  test.setTimeout(360000);
   const errors = [];
   const warnings = [];
   page.on('pageerror', (e) => errors.push(e.message));

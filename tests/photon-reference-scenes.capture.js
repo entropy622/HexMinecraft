@@ -244,6 +244,27 @@ test('production UI imports and re-exports the reusable native forest save', asy
     await expect(page.locator('#exposure-toggle')).not.toBeChecked();
     await expect(page.locator('#sharpening-toggle')).toBeChecked();
     await expect(page.locator('#sharpness-strength')).toHaveValue('0.5');
+    await expect(page.locator('#environment-reflections-toggle')).toBeChecked();
+    await expect(page.locator('#sky-reflections-toggle')).toBeChecked();
+    await expect(page.locator('#reflection-rays')).toHaveValue('4');
+    await expect(page.locator('#reflection-steps')).toHaveValue('8');
+    await page.locator('#reflection-rays').selectOption('2');
+    await page.locator('#reflection-steps').selectOption('16');
+    await page.locator('#environment-reflections-toggle').uncheck();
+    await expect(page.locator('#reflection-steps')).toBeDisabled();
+    await page.locator('#sky-reflections-toggle').uncheck();
+    await expect(page.locator('#reflection-rays')).toBeDisabled();
+    const reflectionPreferences = await page.evaluate(
+      () => JSON.parse(localStorage.getItem('hexwild-settings')).post,
+    );
+    expect(reflectionPreferences.environmentReflections).toBe(false);
+    expect(reflectionPreferences.skyReflections).toBe(false);
+    expect(reflectionPreferences.reflectionRays).toBe(2);
+    expect(reflectionPreferences.reflectionSteps).toBe(16);
+    await page.locator('#environment-reflections-toggle').check();
+    await page.locator('#sky-reflections-toggle').check();
+    await page.locator('#reflection-rays').selectOption('4');
+    await page.locator('#reflection-steps').selectOption('8');
     await page.locator('#sharpness-strength').focus();
     await page.keyboard.press('End');
     await page.locator('#sharpening-toggle').uncheck();
@@ -264,6 +285,8 @@ test('production UI imports and re-exports the reusable native forest save', asy
     await expect(page.locator('#exposure-toggle')).not.toBeChecked();
     await expect(page.locator('#sharpening-toggle')).not.toBeChecked();
     await expect(page.locator('#sharpness-strength')).toHaveValue('1');
+    await expect(page.locator('#environment-reflections-toggle')).toBeChecked();
+    await expect(page.locator('#reflection-rays')).toHaveValue('4');
     await page.locator('#sharpening-toggle').check();
     await expect(page.locator('#sharpness-strength')).toBeEnabled();
     await page

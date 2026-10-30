@@ -29,6 +29,8 @@ export function installCloudStageProbe() {
       f = g.composer?.passes[0];
     const t = g.renderer.getRenderTarget();
     if (!f) return t ? 'other' : 'output';
+    if (t && t === g.composer.effects.wet.radiance?.target)
+      return 'reflection-color-mips';
     if (f.clouds.coverage?.target && t === f.clouds.coverage.target)
       return 'cloud-coverage';
     if (t === f.clouds.target)

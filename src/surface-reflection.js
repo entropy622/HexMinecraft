@@ -26,6 +26,7 @@ float surfaceIgn(vec2 p,float frame){
   return fract(52.9829189*fract(dot(p,vec2(0.06711056,0.00583715))));
 }
 vec3 surfaceSky(vec3 direction,float skylight){
+  if(environmentSkyEnabled<0.5)return vec3(0.0);
   float elevation=asin(clamp(direction.y,-1.0,1.0));
   float azimuth=dot(direction.xz,direction.xz)<1e-10?0.0:atan(direction.z,direction.x);
   vec2 uv=vec2(azimuth/6.28318530718+0.5,0.5+0.5*sign(elevation)*sqrt(abs(elevation)/1.57079632679));
@@ -47,18 +48,20 @@ vec3 surfaceEnvironment(vec3 position,vec3 view,vec4 data,vec4 geometry){
   float a2=max(optical.roughness*optical.roughness,1e-8);
   float v1=1.0/(nv+sqrt((-nv*a2+nv)*nv+a2));
   vec3 fresnel=photonSurfaceFresnel(nv,albedo,optical),result=vec3(0.0);
-  for(int i=0;i<4;i++){
-    float sampleFrame=environmentFrame*4.0+float(i);
+  float mip=floor(min(8.0*(1.0-pow(1.0-optical.roughness,8.0)),5.0));
+  float dither=fract(surfaceIgn(gl_FragCoord.xy+vec2(51,137),0.0)+0.61803398875*environmentFrame);
+  for(int i=0;i<environmentRays;i++){
+    float sampleFrame=environmentFrame*float(environmentRays)+float(i);
     vec2 hash=vec2(surfaceIgn(gl_FragCoord.xy,sampleFrame),surfaceIgn(gl_FragCoord.xy+vec2(97,23),sampleFrame));
     vec3 microfacet=basis*surfaceVndf(localView,max(optical.roughness,0.0001),hash);
     vec3 ray=reflect(-view,microfacet);
     float nl=dot(normal,ray);
     if(nl<=0.000001)continue;
-    vec4 hit=reflectedScene(position+normal*0.045,ray);
+    vec4 hit=environmentScene>0.5?reflectedScene(position+normal*0.045,ray,environmentSteps,mip,dither):vec4(0.0);
     vec3 radiance=mix(surfaceSky(normalize(mat3(wetWorld)*ray),geometry.b),hit.rgb,hit.a);
     float v2=0.5/(nv*sqrt((-nl*a2+nl)*nl+a2)+nl*sqrt((-nv*a2+nv)*nv+a2));
     result+=radiance*fresnel*(2.0*nl*v2/v1);
   }
-  return max(result*0.25,vec3(0.0))*environmentStrength;
+  return max(result/float(environmentRays),vec3(0.0))*environmentStrength;
 }
 `;

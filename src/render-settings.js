@@ -11,6 +11,10 @@ export const DEFAULT_POST_SETTINGS = {
   exposure: false,
   sharpening: true,
   sharpness: 0.5,
+  environmentReflections: true,
+  skyReflections: true,
+  reflectionRays: 4,
+  reflectionSteps: 8,
 };
 export function postSettings(raw) {
   const settings = { ...DEFAULT_POST_SETTINGS };
@@ -21,6 +25,12 @@ export function postSettings(raw) {
   if (typeof raw.clouds === 'boolean') settings.clouds = raw.clouds;
   if (typeof raw.exposure === 'boolean') settings.exposure = raw.exposure;
   if (typeof raw.sharpening === 'boolean') settings.sharpening = raw.sharpening;
+  for (const key of ['environmentReflections', 'skyReflections'])
+    if (typeof raw[key] === 'boolean') settings[key] = raw[key];
+  if ([1, 2, 4, 8].includes(raw.reflectionRays))
+    settings.reflectionRays = raw.reflectionRays;
+  if ([4, 8, 16, 32].includes(raw.reflectionSteps))
+    settings.reflectionSteps = raw.reflectionSteps;
   if (Number.isFinite(raw.sharpness))
     settings.sharpness =
       Math.round(Math.max(0, Math.min(1, raw.sharpness)) * 100) / 100;
