@@ -85,7 +85,12 @@ import { Fauna } from './fauna.js';
 import { ItemDrops } from './item-drops.js';
 import { Weather, WeatherColumns, WEATHER } from './weather.js';
 import { PLANTS, plantForItem } from './farming-data.js';
-import { plantingIssue, growthConditions, treePlan } from './farming.js';
+import {
+  plantingIssue,
+  growthConditions,
+  saplingGrowthPlan,
+  saplingGroup,
+} from './farming.js';
 import { TREES } from './wood-data.js';
 import { pillarAxis, pillarAxisLabel } from './pillar-faces.js';
 import { leafDrops } from './leaves.js';
@@ -3996,12 +4001,14 @@ function growTree(k) {
   const plant = crops.get(k),
     def = PLANTS[plant?.kind];
   if (!def?.tree || !def.soil.includes(world.get(q, y, r))) return false;
-  const cells = treePlan(world, q, y, r, growthOccupied, def.species);
-  if (!cells) return false;
-  crops.delete(k);
-  graphics.removeCrop(k);
+  const plan = saplingGrowthPlan(world, crops, k, growthOccupied);
+  if (!plan) return false;
+  for (const root of plan.roots) {
+    crops.delete(root);
+    graphics.removeCrop(root);
+  }
   const chunks = new Set();
-  for (const [a, b, c, type, axis = 0] of cells) {
+  for (const [a, b, c, type, axis = 0] of plan.cells) {
     world.set(a, b, c, type);
     if (axis) world.setState(a, b, c, { facing: 0, open: false, axis });
     for (const [dq, dr] of [
@@ -4115,6 +4122,7 @@ function interactPlant(k) {
   if (plant) {
     const def = PLANTS[plant.kind];
     if (useItem() === 'boneMeal') {
+      const group = def.tree && saplingGroup(crops, k);
       if (def.infernal) {
         toast('下界疣无法用骨粉催熟，灵魂沙上会自然生长。');
         return true;
@@ -4122,7 +4130,9 @@ function interactPlant(k) {
       if (!fertilizePlant(k)) {
         toast(
           def.tree
-            ? '请清理树苗周围的生长空间。'
+            ? group
+              ? '巨型树需要更大的上方空间，四株树苗已保留。'
+              : '请清理树苗周围的生长空间。'
             : plant.age >= def.seconds
               ? '作物已成熟，换下骨粉后右键收获。'
               : '先恢复植物需要的土地和水。',
@@ -4134,7 +4144,9 @@ function interactPlant(k) {
       updateHUD();
       toast(
         def.tree
-          ? '树苗长成了' + TREES[def.species].name + '。'
+          ? (group ? '四株树苗长成了巨型' : '树苗长成了') +
+              TREES[def.species].name +
+              '。'
           : def.name + '已成熟，右键收获。',
       );
       return true;
@@ -4156,7 +4168,10 @@ function interactPlant(k) {
         '% · ' +
         (def.tree && plant.age >= def.seconds
           ? '空间不足，清理上方并退开'
-          : status.reason),
+          : status.reason) +
+        (['spruce', 'jungle'].includes(def.species)
+          ? ' · 同种四株排成菱形可长巨型树'
+          : ''),
     );
     return true;
   }
@@ -7203,6 +7218,10 @@ function frame(now) {
         def = PLANTS[plant.kind];
       $('#target').textContent =
         `${def.name} · ${Math.floor((plant.age / def.seconds) * 100)}% · 右键${plant.age >= def.seconds && !def.tree ? '收获' : '查看 / 骨粉催熟'} · 左键拔除`;
+      if (['spruce', 'jungle'].includes(def.species))
+        $('#target').textContent += saplingGroup(crops, target.crop)
+          ? ' · 四株成组，可长成巨型树'
+          : ' · 同种四株排成菱形可长巨型树';
     }
     if (target && isChorus(target.type)) {
       const growth = world.chorus.get(key(target.q, target.y, target.r));

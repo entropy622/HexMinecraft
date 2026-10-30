@@ -1,6 +1,6 @@
 import { PLANTS } from './farming-data.js';
 import { BLOCKS, axialToWorld, hexDistance, key } from './core.js';
-import { treeCells } from './tree-layout.js';
+import { treeCells, megaTreeCells, megaTreeRoots } from './tree-layout.js';
 
 export function nearWater(world, q, y, r, radius = 3) {
   for (let dq = -radius; dq <= radius; dq++)
@@ -84,19 +84,79 @@ export function growthConditions(
 }
 export function treePlan(world, q, y, r, occupied, species = 'oak') {
   const cells = treeCells(species, q, y + 1, r, world.seed);
+  return clearTreePlan(world, cells, occupied) ? cells : null;
+}
+function clearTreePlan(world, cells, occupied) {
   if (
     cells.some(
-      ([a, b, c, type]) =>
+      ([a, b, c]) =>
         b < 0 ||
         b >= world.maxY ||
         !world.loaded(a, c) ||
         world.persistentLeaves.has(key(a, b, c)) ||
-        (world.get(a, b, c) &&
-          !(BLOCKS[type].foliage && BLOCKS[world.get(a, b, c)]?.foliage)) ||
+        (world.get(a, b, c) && !BLOCKS[world.get(a, b, c)]?.foliage) ||
         world.fluids.get(a, b, c) ||
         occupied(a, b, c),
     )
   )
+    return false;
+  return true;
+}
+
+export function saplingGroup(crops, root) {
+  const kind = crops.get(root)?.kind,
+    species = PLANTS[kind]?.species;
+  if (species !== 'spruce' && species !== 'jungle') return null;
+  const [q, y, r] = root.split(',').map(Number),
+    candidates = [];
+  for (let rotation = 0; rotation < 3; rotation++) {
+    for (const [dx, , dz] of megaTreeRoots(0, 0, 0, rotation)) {
+      const a = q - dx,
+        c = r - dz,
+        roots = megaTreeRoots(a, y, c, rotation).map((p) => key(...p));
+      if (roots.every((k) => crops.get(k)?.kind === kind))
+        candidates.push({ q: a, y, r: c, rotation, roots });
+    }
+  }
+  candidates.sort((a, b) => a.q - b.q || a.r - b.r || a.rotation - b.rotation);
+  return candidates[0] || null;
+}
+
+// Plan first, then let the caller commit all roots and blocks together. A full
+// group that cannot fit must not silently fall back to consuming one sapling.
+export function saplingGrowthPlan(world, crops, root, occupied) {
+  const def = PLANTS[crops.get(root)?.kind];
+  if (!def?.tree) return null;
+  const group = saplingGroup(crops, root),
+    [q, y, r] = root.split(',').map(Number),
+    roots = group?.roots || [root],
+    rootSet = new Set(roots);
+  if (
+    roots.some((k) => {
+      const [a, b, c] = k.split(',').map(Number);
+      return !world.loaded(a, c) || !def.soil.includes(world.get(a, b, c));
+    })
+  )
     return null;
-  return cells;
+  const cells = group
+    ? megaTreeCells(
+        def.species,
+        group.q,
+        y + 1,
+        group.r,
+        world.seed,
+        group.rotation,
+      )
+    : treeCells(def.species, q, y + 1, r, world.seed);
+  if (
+    !clearTreePlan(
+      world,
+      cells,
+      (a, b, c) =>
+        (crops.has(key(a, b - 1, c)) && !rootSet.has(key(a, b - 1, c))) ||
+        occupied(a, b, c),
+    )
+  )
+    return null;
+  return { cells, roots, mega: !!group, species: def.species };
 }
