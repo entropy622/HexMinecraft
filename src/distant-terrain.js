@@ -16,10 +16,13 @@ import {
   DISTANT_RADIUS,
   DISTANT_TILE,
   DISTANT_INSET,
+  DISTANT_CACHE_TILES,
+  DISTANT_CACHE_BYTES,
 } from './distant-config.js';
 import { applySkylight } from './skylight.js';
 import { distantMesh } from './distant-mesh.js';
 import { applyDistantFoliage } from './distant-foliage.js';
+import { DistantCache } from './distant-cache.js';
 
 let epoch = 0;
 export class DistantTerrain {
@@ -56,6 +59,7 @@ export class DistantTerrain {
     this.material.surfaceAtlas = textures.materials;
     applySkylight(this.material, uniforms, true);
     this.tiles = new Map();
+    this.cache = new DistantCache(DISTANT_CACHE_TILES, DISTANT_CACHE_BYTES);
     this.wanted = new Set();
     this.generations = new Map();
     this.completed = [];
@@ -67,6 +71,7 @@ export class DistantTerrain {
       maxResidentChunks: 0,
       maxResidentBlocks: 0,
       generationMs: 0,
+      cacheHits: 0,
     };
   }
   reset(world) {
@@ -78,6 +83,8 @@ export class DistantTerrain {
       entry.mesh.geometry.dispose();
     }
     this.tiles.clear();
+    this.cache.clear();
+    this.stats.cacheHits = 0;
     this.wanted.clear();
     this.generations.clear();
     this.completed.length = 0;
@@ -128,11 +135,10 @@ export class DistantTerrain {
           this.stats.maxResidentBlocks,
           data.tile.residentBlocks,
         );
-        if (
-          this.wanted.has(data.id) &&
-          (this.generations.get(data.id) || 0) === data.generation
-        )
-          this.completed.push(data);
+        if ((this.generations.get(data.id) || 0) === data.generation) {
+          if (this.wanted.has(data.id)) this.completed.push(data);
+          else this.cache.put(data);
+        }
       }
     };
     worker.postMessage({
@@ -148,10 +154,10 @@ export class DistantTerrain {
       },
     });
   }
-  synchronizeEdits(dt) {
+  synchronizeEdits(dt, force = false) {
     this.editClock += dt;
     if (
-      this.editClock < 0.25 ||
+      (this.editClock < 0.25 && !force) ||
       (this.version === this.world.editVersion &&
         this.fluidVersion === this.world.fluids.editVersion)
     )
@@ -193,28 +199,58 @@ export class DistantTerrain {
       if (r - tr * DISTANT_TILE < 8) rs.push(tr - 1);
       for (const a of qs) for (const b of rs) affected.add(a + ',' + b);
     }
-    for (const id of affected)
+    for (const id of affected) {
       this.generations.set(id, (this.generations.get(id) || 0) + 1);
+      this.cache.delete(id);
+    }
   }
   frame(q, r, dt) {
     this.frameId++;
     if (!this.worker) return;
-    this.synchronizeEdits(dt);
     const tq = Math.floor((q - DISTANT_INSET) / DISTANT_TILE),
       tr = Math.floor((r - DISTANT_INSET) / DISTANT_TILE),
       center = tq + ',' + tr;
+    this.synchronizeEdits(dt, this.center !== center);
     if (this.center !== center) {
       this.center = center;
       this.wanted.clear();
       for (let a = -DISTANT_RADIUS; a <= DISTANT_RADIUS; a++)
         for (let b = -DISTANT_RADIUS; b <= DISTANT_RADIUS; b++)
           this.wanted.add(tq + a + ',' + (tr + b));
+      // Promote wanted data before retiring the old display, otherwise the
+      // outgoing window could evict the returning window from the bounded LRU.
+      const promoted = [];
+      for (const id of this.wanted) {
+        const data = this.cache.take(id, this.generations.get(id) || 0);
+        if (data) {
+          promoted.push(data);
+          this.stats.cacheHits++;
+        }
+      }
+      const retained = [];
+      for (const data of this.completed) {
+        if (data.generation !== (this.generations.get(data.id) || 0)) continue;
+        if (this.wanted.has(data.id)) retained.push(data);
+        else this.cache.put(data);
+      }
       for (const [id, entry] of this.tiles)
         if (!this.wanted.has(id)) {
+          if (entry.generation === (this.generations.get(id) || 0))
+            this.cache.put(entry);
           this.group.remove(entry.mesh);
           entry.mesh.geometry.dispose();
           this.tiles.delete(id);
         }
+      this.completed = [
+        ...new Map(
+          [...retained, ...promoted].map((data) => [data.id, data]),
+        ).values(),
+      ];
+      this.completed.sort(
+        (a, b) =>
+          Math.hypot(a.tile.tq - tq, a.tile.tr - tr) -
+          Math.hypot(b.tile.tq - tq, b.tile.tr - tr),
+      );
     }
     // Limit main-thread geometry uploads; source generation stays in the worker.
     for (let i = 0; i < 2 && this.completed.length; i++) {
@@ -253,10 +289,18 @@ export class DistantTerrain {
           if (!this.tiles.has(a + ',' + b)) this.ready = false;
     }
     if (!this.workerReady || this.job) return;
+    const queued = new Set(
+      this.completed
+        .filter(
+          (data) => data.generation === (this.generations.get(data.id) || 0),
+        )
+        .map((data) => data.id),
+    );
     const pending = [...this.wanted].filter(
       (id) =>
-        !this.tiles.has(id) ||
-        this.tiles.get(id).generation !== (this.generations.get(id) || 0),
+        !queued.has(id) &&
+        (!this.tiles.has(id) ||
+          this.tiles.get(id).generation !== (this.generations.get(id) || 0)),
     );
     pending.sort((a, b) => {
       const [aq, ar] = a.split(',').map(Number),
@@ -346,10 +390,17 @@ export class DistantTerrain {
     }
   }
   dispose() {
+    this.epoch = ++epoch;
     this.worker?.terminate();
     this.worker = null;
     for (const entry of this.tiles.values()) entry.mesh.geometry.dispose();
     this.tiles.clear();
+    this.cache.clear();
+    this.completed.length = 0;
+    this.ready = false;
+    this.wanted.clear();
+    this.generations.clear();
+    this.job = null;
     this.group.removeFromParent();
     this.material.dispose();
     this.target.dispose();

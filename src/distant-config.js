@@ -7,6 +7,8 @@ export const DISTANT_INSET = DISTANT_STEP;
 export const DISTANT_TREE_SAMPLES =
   (DISTANT_SAMPLES * DISTANT_STEP) / DISTANT_TREE_STEP;
 export const DISTANT_RADIUS = 6;
+export const DISTANT_CACHE_TILES = (2 * DISTANT_RADIUS + 1) ** 2;
+export const DISTANT_CACHE_BYTES = 10 * 1024 * 1024;
 // One tile of reserve covers normal walking while the next row is generated.
 export const DISTANT_FOG_FAR = (DISTANT_RADIUS - 1) * DISTANT_TILE * 1.5 - 2;
 export const DISTANT_FOG_NEAR = DISTANT_FOG_FAR * 0.74;
