@@ -8,7 +8,7 @@ import { FIRST_END_SHIP } from './flight-data.js';
 import { FIRST_END_CITY } from './end-city-data.js';
 import { stampChorus } from './chorus.js';
 import { isChorus } from './chorus-data.js';
-import { treeCells } from './tree-layout.js';
+import { naturalTree, distantJungleRoot } from './jungle-landscape.js';
 import { naturalCocoa } from './cocoa.js';
 import { treeVines } from './vines.js';
 import { LeafDecay } from './leaves.js';
@@ -214,8 +214,16 @@ export class World {
               : 0.981);
     // Evaluate exclusions at the source, so a canopy crossing a chunk seam
     // cannot see a different set of caves or structures in its destination.
+    return present && this.treeGround(q, r);
+  }
+  treeGround(q, r) {
+    const h = this.terrainHeight(q, r);
     return (
-      present &&
+      h > 6 &&
+      !villageAt(this, q, r, 3) &&
+      !this.structures(q, r, 0).some(
+        (s) => hexDistance(q - s.q, r - s.r) < 8,
+      ) &&
       !this.structures(q, r, 0).some((s) => {
         const column = s.kind === 'mine' && s.mine.columns.get(`${q},${r}`);
         return column && column.ceiling >= h - 1;
@@ -224,6 +232,16 @@ export class World {
         const column = caveColumn(c, q, r);
         return column && column.ceiling >= h - 1;
       })
+    );
+  }
+  naturalTree(q, r) {
+    return this.tree(q, r) ? naturalTree(this, q, r) : null;
+  }
+  treeSpace(q, y, r) {
+    return (
+      this.terrainHeight(q, r) <= y &&
+      !villageAt(this, q, r, 3) &&
+      !this.structures(q, r, 0).some((s) => hexDistance(q - s.q, r - s.r) < 8)
     );
   }
   treeKind(q, r) {
@@ -619,19 +637,36 @@ export class World {
     stampCaves(this, cq, cr);
     const structures = this.structures(cq * 8 + 4, cr * 8 + 4, 8),
       pods = [],
-      vines = [];
-    // Jungle vines reach one cell beyond the existing three-cell crown halo.
-    // The result is independent of chunk load order, including negative seams.
-    for (let tq = cq * 8 - 4; tq < cq * 8 + 12; tq++)
-      for (let tr = cr * 8 - 4; tr < cr * 8 + 12; tr++)
+      vines = [],
+      trees = [];
+    // The outer halo is only for sparse giant crowns and fallen logs. Ordinary
+    // trees retain their four-cell halo and the cheap prefilter bounds the cost.
+    for (let tq = cq * 8 - 13; tq < cq * 8 + 21; tq++)
+      for (let tr = cr * 8 - 13; tr < cr * 8 + 21; tr++) {
+        const ordinaryHalo =
+          tq >= cq * 8 - 4 &&
+          tq < cq * 8 + 12 &&
+          tr >= cr * 8 - 4 &&
+          tr < cr * 8 + 12;
+        if (!ordinaryHalo && !distantJungleRoot(this, tq, tr)) continue;
         if (this.tree(tq, tr)) {
-          const species = this.treeKind(tq, tr),
-            base = this.terrainHeight(tq, tr),
-            cells = treeCells(species, tq, base, tr, this.seed);
-          if (species === 'jungle') {
-            pods.push(...naturalCocoa(tq, base, tr, this.seed));
+          const tree = naturalTree(this, tq, tr);
+          if (!tree) continue;
+          const { cells, base } = tree;
+          trees.push(cells);
+          if (tree.cocoa) pods.push(...naturalCocoa(tq, base, tr, this.seed));
+          if (tree.vines)
             vines.push(...treeVines(cells, tq, base, tr, this.seed));
-          }
+          if (tree.form === 'fallen')
+            vines.push(
+              ...treeVines(
+                cells.filter(([q, y, r]) => q === tq && r === tr && y === base),
+                tq,
+                base,
+                tr,
+                this.seed,
+              ),
+            );
           for (const [q, y, r, type, axis = 0] of cells) {
             if (chunkKey(q, r) !== ck) continue;
             const previous = this.get(q, y, r);
@@ -647,6 +682,7 @@ export class World {
               });
           }
         }
+      }
     for (const [q, y, r, state] of pods) {
       if (chunkKey(q, r) !== ck || this.get(q, y, r)) continue;
       put(q, y, r, 'cocoa');
@@ -694,7 +730,7 @@ export class World {
       stampVillage(this, v, cq, cr);
     for (const s of structures) stampStructure(this, s, cq, cr);
     stampEndArena(this, cq, cr);
-    stampPigments(this, cq, cr);
+    stampPigments(this, cq, cr, trees);
     for (const [k, t] of this.editChunks.get(ck) || []) {
       if (this.blocks.get(k) !== t) this.naturalStates.delete(k);
       if (isChorus(t)) this.chorusPending.add(k);

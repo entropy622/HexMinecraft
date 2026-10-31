@@ -18,6 +18,7 @@ export function vineParts(state, collision = false) {
       w: 1,
       h: 1,
       d: 1 / 128,
+      plane: true,
       angle,
       tile: 'vine',
     });
@@ -29,6 +30,7 @@ export function vineParts(state, collision = false) {
       z: 0,
       h: 1 / 128,
       polygon: HEX_POLYGON,
+      plane: true,
       angle: 0,
       tile: 'vine',
       uvFull: true,

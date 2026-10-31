@@ -3,11 +3,12 @@ import { TREES } from './wood-data.js';
 
 // Shared by world generation and planted saplings. Trunks win over their own
 // crowns, and every generated column is independent of chunk load order.
-export function treeCells(species, q, base, r, seed = 1) {
+export function treeCells(species, q, base, r, seed = 1, options = {}) {
   const tree = TREES[species] || TREES.oak,
     cells = new Map();
   const broadleaf = species === 'oak' || species === 'birch',
-    branched = species === 'oak' && hash(q, 749, r, seed) > 0.82;
+    branched =
+      species === 'oak' && (options.fancy || hash(q, 749, r, seed) > 0.82);
   const height =
     (branched ? 7 : tree.height) +
     (species === 'jungle'

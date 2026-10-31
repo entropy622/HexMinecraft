@@ -86,7 +86,7 @@ export function pigmentSupport(world, type, q, y, r) {
   );
 }
 
-export function stampPigments(world, cq, cr) {
+export function stampPigments(world, cq, cr, trees) {
   if (world.dimension !== 'overworld') return;
   const structures = world.structures(cq * 8 + 4, cr * 8 + 4, 24),
     villages = world.villages(cq * 8 + 4, cr * 8 + 4, 24);
@@ -139,6 +139,18 @@ export function stampPigments(world, cq, cr) {
       const height = cactus
         ? 1 + Math.min(2, Math.floor(hash(q, h, r, world.seed + 1183) * 3))
         : 1;
+      // Complete seeded tree plans include the adjacent chunk's canopy. Checking
+      // loaded blocks here would let a border cactus intersect a later bush.
+      if (
+        cactus &&
+        trees.some((cells) =>
+          cells.some(
+            ([a, y, b]) =>
+              y >= h && y < h + height && hexDistance(a - q, b - r) === 1,
+          ),
+        )
+      )
+        continue;
       for (let i = 0; i < height; i++) {
         const k = key(q, h + i, r);
         world.blocks.set(k, type);

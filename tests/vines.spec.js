@@ -237,6 +237,8 @@ test('real vines support paid placement, shearing and climbing, with native jung
         ([q, y, r]) =>
           w.get(q, y, r) === 'jungleWood' &&
           w.tree(q, r) &&
+          w.get(q, y + 4, r) === 'jungleWood' &&
+          ['jungle', 'giant'].includes(w.naturalTree(q, r)?.form) &&
           w.get(q, y - 1, r) !== 'jungleWood',
       )
       .sort(

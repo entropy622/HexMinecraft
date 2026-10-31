@@ -58,16 +58,17 @@ function polygonPrism(part) {
   };
   for (let i = 1; i < polygon.length - 1; i++) {
     const tri = [polygon[0], polygon[i], polygon[i + 1]];
+    if (!part.plane)
+      triangle(
+        [...tri].reverse().map(([x, z]) => [x * scale, high, z * scale]),
+        [...tri].reverse().map(([x, z]) => [(x + 1) / 2, (z + 1) / 2]),
+      );
     triangle(
-      [...tri].reverse().map(([x, z]) => [x * scale, high, z * scale]),
-      [...tri].reverse().map(([x, z]) => [(x + 1) / 2, (z + 1) / 2]),
-    );
-    triangle(
-      tri.map(([x, z]) => [x, low, z]),
+      tri.map(([x, z]) => [x, part.plane ? 0 : low, z]),
       tri.map(([x, z]) => [(x + 1) / 2, (z + 1) / 2]),
     );
   }
-  for (let i = 0; i < polygon.length; i++) {
+  for (let i = 0; !part.plane && i < polygon.length; i++) {
     const start = polygon[i],
       end = polygon[(i + 1) % polygon.length];
     const total = Math.hypot(start[0] - end[0], start[1] - end[1]);
@@ -126,7 +127,11 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
   for (const part of buildingParts(world, q, y, r)) {
     const box = part.polygon
       ? polygonPrism(part)
-      : new THREE.BoxGeometry(part.w, part.h, part.d).toNonIndexed();
+      : part.plane
+        ? new THREE.PlaneGeometry(part.w, part.h)
+            .rotateY(Math.PI)
+            .toNonIndexed()
+        : new THREE.BoxGeometry(part.w, part.h, part.d).toNonIndexed();
     if (part.pitch) box.rotateX(part.pitch);
     box.rotateY(part.angle);
     box.translate(p.x - origin.x + part.x, y + part.y, p.z - origin.z + part.z);
@@ -146,20 +151,22 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
       const face = panelNormal > 0.5 ? 'top' : 'side';
       uv.push(...textures.uv(part.tile + ':' + face, tex.getX(i), tex.getY(i)));
       const saw = part.tile === 'stonecutterSaw';
-      sawNext.push(
-        ...textures.uv(
-          (saw ? 'stonecutterSaw2' : part.tile) + ':' + face,
-          tex.getX(i),
-          tex.getY(i),
-        ),
-      );
-      sawLast.push(
-        ...textures.uv(
-          (saw ? 'stonecutterSaw3' : part.tile) + ':' + face,
-          tex.getX(i),
-          tex.getY(i),
-        ),
-      );
+      if (type !== 'vine') {
+        sawNext.push(
+          ...textures.uv(
+            (saw ? 'stonecutterSaw2' : part.tile) + ':' + face,
+            tex.getX(i),
+            tex.getY(i),
+          ),
+        );
+        sawLast.push(
+          ...textures.uv(
+            (saw ? 'stonecutterSaw3' : part.tile) + ':' + face,
+            tex.getX(i),
+            tex.getY(i),
+          ),
+        );
+      }
       const shade = (normal.getY(i) > 0.5 ? 1 : 0.86) * (part.shade ?? 1);
       colors.push(shade, shade, shade);
       sky.push(1);
@@ -178,7 +185,8 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     ['skylight', sky, 1],
     ['rainExposure', rain, 1],
   ])
-    geometry.setAttribute(name, new THREE.Float32BufferAttribute(data, size));
+    if (data.length)
+      geometry.setAttribute(name, new THREE.Float32BufferAttribute(data, size));
   geometry.computeBoundingSphere();
   if (type === 'vine' && material.userData?.geometricShade) {
     const count = geometry.attributes.position.count,
