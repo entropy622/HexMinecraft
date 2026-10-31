@@ -1,5 +1,16 @@
 # Photon rendering assets and optics
 
+Since 0.126, `src/border-fog.js` adapts the directional border-color selection
+from `program/d4_deferred_shading.fsh`: morning/evening and rain horizon
+selection, view-elevation dampening and the squared blend. It samples the
+host's published clear-sky map through the same projection and lower-horizon
+extension as the visible dome, then uses the existing air-transport paths.
+Photon's cubic distance/eighth-power border profile and downward cutoff
+are adapted to the host's oblique axial chunk bounds, retaining the 87.32..118
+default range and cave skylight gate. Upward relief and LOD-specific
+transitions are not migrated in this change.
+These derived portions retain Photon's license.
+
 Hexwild 0.99 and later bundle the unmodified `shaders/image/atmosphere/scattering.dat`
 from Photon Shaders by Benjamin Stott (SixthSurge), commit
 `6e67b36e818bacde0304edd49f28e2bb70e33f04`.

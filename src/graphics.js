@@ -1979,6 +1979,7 @@ export class Graphics {
       medium: this.fluidRenderer.medium,
       volume: this.usePost,
       flight: this.gliding,
+      sky: this.skyEnvironment.uniforms,
     });
     this.atmosphere.attach(this.scene);
     this.softShadows.attach(

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { PerspectiveCamera, DirectionalLight, Color, Vector3 } from 'three';
 import { FogBiomes, photonFogParameters } from '../src/photon-fog.js';
 import { Atmosphere } from '../src/atmosphere.js';
+import { borderHorizonBlend } from '../src/border-fog.js';
 import { HexClouds } from '../src/clouds.js';
 import {
   cloudDetailData,
@@ -184,4 +185,53 @@ test('published sky fog stays in one epoch and never takes illumination from its
   air.update({ ...state, dimension: 'end' });
   assert.equal(air.uniforms.airSkyFogActive.value, 0);
   close(air.uniforms.airDensity.value, 0.004);
+});
+
+test('directional border fog follows the published sky epoch and releases disabled dimensions and replaced maps', () => {
+  const air = new Atmosphere(new PerspectiveCamera()),
+    map = {},
+    sky = {
+      skyRadianceMap: { value: map },
+      skySunDirection: { value: new Vector3(0, 1, 0) },
+      skyAerosol: { value: 1 },
+      skyFlash: { value: 0.25 },
+    },
+    state = {
+      time: 30,
+      dt: 0.016,
+      dimension: 'overworld',
+      world: { biome: () => '森林' },
+      climate: { humidity: 1, temperature: 1 },
+      sunDirection: new Vector3(0, -0.0496, 0),
+      rain: 1,
+      horizon: new Color(),
+      sun: new DirectionalLight(),
+      cameraSky: 1,
+      medium: null,
+      volume: true,
+      sky,
+    };
+  air.update(state);
+  assert.equal(air.uniforms.airBorderSky.value, map);
+  assert.equal(air.uniforms.airBorderEnabled.value, 1);
+  assert.equal(air.uniforms.airBorderHorizon.value, 0);
+  assert.equal(air.uniforms.airBorderFlash.value, 0.25);
+  sky.skySunDirection.value.y = -0.0496;
+  air.update(state);
+  assert.equal(air.uniforms.airBorderHorizon.value, 1);
+  sky.skySunDirection.value.y = 1;
+  sky.skyAerosol.value = 1.05;
+  air.update(state);
+  close(air.uniforms.airBorderHorizon.value, 1);
+  air.update({ ...state, dimension: 'nether' });
+  assert.equal(air.uniforms.airBorderEnabled.value, 0);
+  sky.skyRadianceMap.value = null;
+  air.update(state);
+  assert.equal(air.uniforms.airBorderSky.value, null);
+  assert.equal(air.uniforms.airBorderEnabled.value, 0);
+  sky.skyRadianceMap.value = {};
+  air.update(state);
+  assert.equal(air.uniforms.airBorderSky.value, sky.skyRadianceMap.value);
+  assert.equal(air.uniforms.airBorderEnabled.value, 1);
+  assert.ok(borderHorizonBlend(1, 0.0099) < 1);
 });

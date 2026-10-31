@@ -1,6 +1,7 @@
 import { Color, MathUtils, Vector3 } from 'three';
 import { airTransportGLSL } from './air-transport.js';
 import { FogBiomes, photonFogParameters } from './photon-fog.js';
+import { borderFogGLSL, borderHorizonBlend } from './border-fog.js';
 
 // Shared RGB height profiles and illumination for the marched and analytic
 // paths. The four direct orders remain an approximation, not a multiple-scattering LUT.
@@ -38,6 +39,10 @@ export class Atmosphere {
       airVolume: { value: 0 },
       waterCamera: { value: 0 },
       airFlight: { value: 0 },
+      airBorderSky: { value: null },
+      airBorderEnabled: { value: 0 },
+      airBorderHorizon: { value: 0 },
+      airBorderFlash: { value: 0 },
     };
   }
 
@@ -57,6 +62,7 @@ export class Atmosphere {
     medium,
     volume,
     flight = false,
+    sky = null,
   }) {
     const u = this.uniforms,
       overworld = dimension === 'overworld',
@@ -110,6 +116,13 @@ export class Atmosphere {
     u.airRayleighFalloff.value = (u.airFalloff.value * 7) / 30;
     u.airFogDistance.value = fogSnapshot?.distance || 118;
     u.airSkyFogActive.value = overworld && fogSnapshot ? 1 : 0;
+    u.airBorderSky.value = sky?.skyRadianceMap.value || null;
+    u.airBorderEnabled.value = overworld && u.airBorderSky.value ? 1 : 0;
+    u.airBorderHorizon.value = borderHorizonBlend(
+      sky?.skySunDirection.value.y ?? sunDirection.y,
+      sky ? MathUtils.clamp((sky.skyAerosol.value - 1) / 5, 0, 1) : rain,
+    );
+    u.airBorderFlash.value = sky?.skyFlash?.value || 0;
     if (overworld && fogSnapshot) {
       // Raw clear-sky incident light is independent of the fogged SH result.
       u.airSkyMean.value.copy(fogSnapshot.ambient);
@@ -178,6 +191,7 @@ export class Atmosphere {
         `varying vec3 vAirWorldPosition;
         uniform vec3 airCameraPosition;
         ${airTransportGLSL}
+        ${borderFogGLSL}
         uniform float airCameraSky; uniform float airVolume; uniform float airFlight;\n` +
         shader.fragmentShader.replace('#include <fog_fragment>', '').replace(
           '#include <opaque_fragment>',
@@ -198,8 +212,8 @@ export class Atmosphere {
           }
           // Keep the streaming boundary hidden in both rendering paths.
           float edgeDistance = mix(airDistance, length(vec3(airDelta.x, airDelta.y * 0.15, airDelta.z)), airFlight);
-          float airEdge = smoothstep(fogNear, fogFar, edgeDistance);
-          vec3 boundary = fogColor;
+          float airEdge = airBorderEnabled>0.5 ? 1.0-airBorderVisibility(airDelta,fogNear,fogFar) : smoothstep(fogNear,fogFar,edgeDistance);
+          vec3 boundary = airEdge>0.0 ? airBorderColor(airDelta/max(airDistance,0.001),fogColor,airCameraSky) : fogColor;
           if(airVolume<0.5 && airDensity>0.0 && airSkyFogActive>0.5 && airEdge>0.0) {
             vec3 ray=airDelta/max(airDistance,0.001);
             vec2 columns=airColumns(airCameraPosition,ray,airFogDistance);
@@ -213,7 +227,7 @@ export class Atmosphere {
         );
     };
     material.customProgramCacheKey = () =>
-      cacheKey.call(material) + '-photon-sky-air-v5';
+      cacheKey.call(material) + '-photon-directional-border-v6';
     material.needsUpdate = true;
   }
 }
