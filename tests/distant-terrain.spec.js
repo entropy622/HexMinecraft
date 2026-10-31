@@ -1,5 +1,7 @@
 import { test, expect } from './browser-fixture.js';
 import { writeFile } from 'node:fs/promises';
+import { encode } from 'fast-png';
+import { zipSync } from 'three/addons/libs/fflate.module.js';
 import {
   referenceSave,
   referenceScenes,
@@ -88,6 +90,24 @@ test('a real distant world fills the horizon without loading gameplay chunks and
         (n, e) => n + e.mesh.geometry.attributes.position.count,
         0,
       ),
+      geometryBytes: [...f.tiles.values()].reduce(
+        (sum, e) =>
+          sum +
+          Object.values(e.mesh.geometry.attributes).reduce(
+            (n, a) => n + a.array.byteLength,
+            0,
+          ) +
+          e.mesh.geometry.index.array.byteLength,
+        0,
+      ),
+      triangles: [...f.tiles.values()].reduce(
+        (sum, e) => sum + e.mesh.geometry.index.count / 3,
+        0,
+      ),
+      treeBytes: [...f.tiles.values()].reduce(
+        (sum, e) => sum + e.tile.trees.byteLength,
+        0,
+      ),
       gl: g.renderer.getContext().getError(),
     };
   });
@@ -105,6 +125,63 @@ test('a real distant world fills the horizon without loading gameplay chunks and
   await page
     .locator('#world')
     .screenshot({ path: info.outputPath('distant-jungle.png') });
+  const packPixels = new Uint8Array(32 * 32 * 4);
+  for (let i = 0; i < 32 * 32; i++) packPixels.set([180, 90, 210, 255], i * 4);
+  const packPng = encode({
+    width: 32,
+    height: 32,
+    channels: 4,
+    data: packPixels,
+  });
+  await page.locator('#material-pack-file').setInputFiles({
+    name: 'distant-leaves-32.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(
+      zipSync({
+        'assets/minecraft/textures/block/jungle_leaves.png': packPng,
+        'assets/minecraft/textures/block/oak_leaves.png': packPng,
+      }),
+    ),
+  });
+  await expect(page.locator('#material-pack-status')).toContainText('32×');
+  await ready();
+  await page
+    .locator('#world')
+    .screenshot({ path: info.outputPath('distant-pack-32.png') });
+  expect(
+    await page.evaluate(() =>
+      window.__hexwild.graphics.renderer.getContext().getError(),
+    ),
+  ).toBe(0);
+  await page
+    .locator('#material-pack-reset')
+    .evaluate((button) => button.click());
+  await expect(page.locator('#material-pack-status')).toContainText('默认材质');
+  await ready();
+  await page
+    .locator('#world')
+    .screenshot({ path: info.outputPath('distant-pack-reset.png') });
+  const crossing = [];
+  for (const [q, center] of [
+    [-158, '-6,1'],
+    [-155.9, '-5,1'],
+  ]) {
+    const result = await page.evaluate(async (q) => {
+      const a = window.__hexwild;
+      a.teleport(q, 43, 54.5);
+      a.lookAt(q + 20, 33, 54.5);
+      await new Promise(requestAnimationFrame);
+      const f = a.graphics.distantTerrain;
+      return { center: f.center, ready: f.ready };
+    }, q);
+    expect(result).toEqual({ center, ready: true });
+    crossing.push(result);
+  }
+  await page.evaluate(() => {
+    window.__hexwild.teleport(-177.5, 43, 54.5);
+    window.__hexwild.lookAt(-157.5, 33, 54.5);
+  });
+  await ready();
   await page.evaluate(() => {
     const f = window.__hexwild.graphics.distantTerrain;
     window.__distantRender = f.render;
@@ -296,7 +373,7 @@ test('a real distant world fills the horizon without loading gameplay chunks and
   await writeFile(
     info.outputPath('distant.json'),
     JSON.stringify(
-      { native, edits, relocated, presets, recovery, messages },
+      { native, edits, crossing, relocated, presets, recovery, messages },
       null,
       2,
     ),

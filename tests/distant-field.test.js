@@ -38,6 +38,20 @@ test('real pooled jungles retain crowns, fractional water and identical negative
     ),
   );
   assert.equal(a.residentChunks, 25);
+  const tn = 20,
+    th = a.treeHeight;
+  for (let edge = 0; edge < 4; edge++)
+    for (let i = 0; i < tn; i++)
+      for (let y = 0; y < th; y++) {
+        assert.equal(
+          a.trees[((16 + edge) * tn + i) * th + y],
+          b.trees[(edge * tn + i) * th + y],
+        );
+        assert.equal(
+          a.trees[(i * tn + 16 + edge) * th + y],
+          c.trees[(i * tn + edge) * th + y],
+        );
+      }
   assert.ok(a.residentBlocks <= 25 * 8 * 8 * 64);
   assert.deepEqual(source, before);
   const mesh = distantMesh(
@@ -60,7 +74,11 @@ test('real pooled jungles retain crowns, fractional water and identical negative
     ),
   );
   for (let i = 0; i < normal.count; i++)
-    assert.ok(normal.getY(i) === 0 || normal.getY(i) === 1);
+    assert.ok(normal.getY(i) === 0 || Math.abs(normal.getY(i)) === 1);
+  assert.ok(
+    mesh.geometry.index.count > mesh.geometry.attributes.position.count,
+  );
+  assert.ok(Array.from(normal.array).some((v, i) => i % 3 === 1 && v < 0));
   mesh.geometry.dispose();
   mesh.material.dispose();
 });
@@ -89,6 +107,36 @@ test('a thin authored tower survives pooling, same-key replacement, mining and a
   t = f.tile(0, 0);
   assert.ok(Math.abs(t.heights[index] - 60.92) < 0.00001);
   assert.equal(DISTANT_TYPES[t.types[index]], '@water');
+});
+
+test('a continuous crown spanning every tile edge has no internal vertical walls', () => {
+  const trees = new Uint16Array(20 * 20 * 64),
+    leaf = DISTANT_TYPES.indexOf('leaves') + 1;
+  for (let a = 0; a < 20; a++)
+    for (let b = 0; b < 20; b++)
+      for (let y = 20; y < 23; y++) trees[(a * 20 + b) * 64 + y] = leaf;
+  const tile = {
+    tq: 0,
+    tr: 0,
+    trees,
+    treeHeight: 64,
+    groundHeights: new Float32Array(100),
+    groundTypes: new Uint16Array(100),
+  };
+  const mesh = distantMesh(
+      tile,
+      {
+        materials: { has: () => true },
+        biomes: { tint: () => [80, 140, 45, 2] },
+        uv: (_, u, v) => [u, v],
+      },
+      null,
+    ),
+    normal = mesh.geometry.attributes.normal;
+  for (let i = 0; i < normal.count; i++)
+    assert.equal(Math.abs(normal.getY(i)), 1);
+  mesh.geometry.dispose();
+  mesh.material.dispose();
 });
 
 test('visual edit versions ignore generation and previews but observe same-cell block, state and fluid edits', () => {

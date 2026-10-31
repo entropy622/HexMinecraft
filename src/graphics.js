@@ -287,6 +287,7 @@ export class Graphics {
       this.sun,
       this.skyEnvironment.atmosphere.probe,
       this.cloudSystem,
+      this.leafUniforms,
     );
     this.clouds = this.cloudSystem.mesh;
     this.decor = new THREE.Group();

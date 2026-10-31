@@ -1,5 +1,11 @@
 # Photon rendering assets and optics
 
+Since 0.128, `src/distant-foliage.js` reuses the attributed leaf-lighting
+functions for the host's coarse distant leaf surfaces: upward sky diffuse,
+primary solar scattering, sheen and the far-shadow zero-thickness response.
+It does not trace the near world's incomplete optical volume for these surfaces.
+The distant terrain/voxel meshing and packed geometry are original host code.
+
 Since 0.126, `src/border-fog.js` adapts the directional border-color selection
 from `program/d4_deferred_shading.fsh`: morning/evening and rain horizon
 selection, view-elevation dampening and the squared blend. It samples the

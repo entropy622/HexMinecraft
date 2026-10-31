@@ -12,9 +12,14 @@ import {
   Vector2,
   WebGLRenderTarget,
 } from 'three';
-import { DISTANT_RADIUS, DISTANT_TILE } from './distant-config.js';
+import {
+  DISTANT_RADIUS,
+  DISTANT_TILE,
+  DISTANT_INSET,
+} from './distant-config.js';
 import { applySkylight } from './skylight.js';
 import { distantMesh } from './distant-mesh.js';
+import { applyDistantFoliage } from './distant-foliage.js';
 
 let epoch = 0;
 export class DistantTerrain {
@@ -195,8 +200,8 @@ export class DistantTerrain {
     this.frameId++;
     if (!this.worker) return;
     this.synchronizeEdits(dt);
-    const tq = Math.floor(q / DISTANT_TILE),
-      tr = Math.floor(r / DISTANT_TILE),
+    const tq = Math.floor((q - DISTANT_INSET) / DISTANT_TILE),
+      tr = Math.floor((r - DISTANT_INSET) / DISTANT_TILE),
       center = tq + ',' + tr;
     if (this.center !== center) {
       this.center = center;
@@ -236,13 +241,13 @@ export class DistantTerrain {
       // the entire visible core has data, rather than displaying absent tiles.
       const radius = (DISTANT_RADIUS - 1) * DISTANT_TILE;
       for (
-        let a = Math.floor((q - radius) / DISTANT_TILE);
-        a <= Math.floor((q + radius) / DISTANT_TILE);
+        let a = Math.floor((q - DISTANT_INSET - radius) / DISTANT_TILE);
+        a <= Math.floor((q - DISTANT_INSET + radius) / DISTANT_TILE);
         a++
       )
         for (
-          let b = Math.floor((r - radius) / DISTANT_TILE);
-          b <= Math.floor((r + radius) / DISTANT_TILE);
+          let b = Math.floor((r - DISTANT_INSET - radius) / DISTANT_TILE);
+          b <= Math.floor((r - DISTANT_INSET + radius) / DISTANT_TILE);
           b++
         )
           if (!this.tiles.has(a + ',' + b)) this.ready = false;
@@ -271,10 +276,11 @@ export class DistantTerrain {
       tr: b,
     });
   }
-  connect(sun, probe, clouds) {
+  connect(sun, probe, clouds, foliage) {
     this.sourceSun = sun;
     this.sourceProbe = probe;
     this.clouds = clouds;
+    applyDistantFoliage(this.material, foliage);
     clouds.attach(this.scene);
     this.atmosphere.apply(this.material);
   }

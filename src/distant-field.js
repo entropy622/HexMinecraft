@@ -4,6 +4,8 @@ import {
   DISTANT_TILE,
   DISTANT_STEP,
   DISTANT_SAMPLES,
+  DISTANT_TREE_STEP,
+  DISTANT_TREE_SAMPLES,
 } from './distant-config.js';
 export {
   DISTANT_TILE,
@@ -66,7 +68,9 @@ export class DistantField {
       offsets = new Uint8Array(length),
       groundHeights = new Float32Array(length),
       groundTypes = new Uint16Array(length),
-      groundOffsets = new Uint8Array(length);
+      groundOffsets = new Uint8Array(length),
+      treeHeight = world.maxY,
+      trees = new Uint16Array(DISTANT_TREE_SAMPLES ** 2 * treeHeight);
     // Max-pool complete 4x4 column footprints. Thin authored towers and the
     // highest real canopy contribute even when they miss the coarse lattice.
     for (let cq = q0 / 8; cq < (q0 + extent) / 8; cq++)
@@ -97,6 +101,20 @@ export class DistantField {
                 solid &&
                 (BLOCKS[block].foliage || BLOCKS[block].log) &&
                 !world.edits.has(`${q},${y},${r}`);
+              if (naturalTree) {
+                const a = Math.floor((q - q0) / DISTANT_TREE_STEP),
+                  b = Math.floor((r - r0) / DISTANT_TREE_STEP),
+                  cell = (a * DISTANT_TREE_SAMPLES + b) * treeHeight + y,
+                  previous = trees[cell];
+                // Preserve the actual vertical crown/branch occupancy. Leaves
+                // cover a thin branch when both share this coarse footprint.
+                if (
+                  !previous ||
+                  (BLOCKS[block].foliage &&
+                    !BLOCKS[DISTANT_TYPES[previous - 1]].foliage)
+                )
+                  trees[cell] = typeIndex.get(block) + 1;
+              }
               if (!naturalTree) {
                 if (height > groundHeights[index]) {
                   groundHeights[index] = height;
@@ -119,6 +137,8 @@ export class DistantField {
       groundHeights,
       groundTypes,
       groundOffsets,
+      trees,
+      treeHeight,
       residentChunks: world.chunks.size,
       residentBlocks: world.blocks.size,
     };
