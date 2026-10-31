@@ -94,7 +94,9 @@ function clearTreePlan(world, cells, occupied) {
         b >= world.maxY ||
         !world.loaded(a, c) ||
         world.persistentLeaves.has(key(a, b, c)) ||
-        (world.get(a, b, c) && !BLOCKS[world.get(a, b, c)]?.foliage) ||
+        (world.get(a, b, c) &&
+          world.get(a, b, c) !== 'vine' &&
+          !BLOCKS[world.get(a, b, c)]?.foliage) ||
         world.fluids.get(a, b, c) ||
         occupied(a, b, c),
     )

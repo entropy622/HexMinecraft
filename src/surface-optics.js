@@ -18,7 +18,7 @@ export function surfaceOpticsClass(type, definition = {}) {
   const base = definition.base || type;
   if (definition.foliage || base?.endsWith('Leaves') || base === 'leaves')
     return 5;
-  if (definition.shape === 'flower') return 2;
+  if (['flower', 'vine'].includes(definition.shape)) return 2;
   return classes[base] ?? 0;
 }
 

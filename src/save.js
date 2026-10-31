@@ -108,6 +108,10 @@ export function validateSave(s) {
             (e[1].double !== undefined && typeof e[1].double !== 'boolean') ||
             (e[1].powered !== undefined && typeof e[1].powered !== 'boolean') ||
             (e[1].down !== undefined && typeof e[1].down !== 'boolean') ||
+            (e[1].faces !== undefined &&
+              (!Number.isInteger(e[1].faces) ||
+                e[1].faces < 1 ||
+                e[1].faces > 127)) ||
             (e[1].age !== undefined &&
               (!Number.isInteger(e[1].age) || e[1].age < 0 || e[1].age > 15)) ||
             (e[1].subtract !== undefined &&
@@ -139,6 +143,7 @@ export function validateSave(s) {
               )) ||
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
             (state.down !== undefined && edits.get(k) !== 'hopper') ||
+            (state.faces !== undefined && edits.get(k) !== 'vine') ||
             (state.age !== undefined &&
               (!['cactus', 'cocoa'].includes(edits.get(k)) ||
                 (edits.get(k) === 'cocoa' && state.age > 2))) ||

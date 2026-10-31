@@ -10,6 +10,7 @@ import { stampChorus } from './chorus.js';
 import { isChorus } from './chorus-data.js';
 import { treeCells } from './tree-layout.js';
 import { naturalCocoa } from './cocoa.js';
+import { treeVines } from './vines.js';
 import { LeafDecay } from './leaves.js';
 import { Gravity } from './gravity.js';
 import { caveColumn, cavesNear, stampCaves } from './caves.js';
@@ -88,6 +89,7 @@ export class World {
     this.buildings = new Set();
     this.circuitCells = new Set();
     this.hangingPlants = new Set();
+    this.vineCells = new Set();
     this.dripstoneCells = new Set();
     this.portalCells = new Set();
     this.blockStates = new Map();
@@ -274,6 +276,9 @@ export class World {
         ...(state.output !== undefined ? { output: state.output } : {}),
         ...(state.subtract !== undefined ? { subtract: state.subtract } : {}),
         ...(state.down !== undefined ? { down: state.down } : {}),
+        ...(state.faces !== undefined && this.get(q, y, r) === 'vine'
+          ? { faces: state.faces }
+          : {}),
         ...(state.age !== undefined &&
         ['cactus', 'cocoa'].includes(this.get(q, y, r))
           ? { age: state.age }
@@ -295,6 +300,7 @@ export class World {
       mount: 'floor',
       delay: 1,
       age: 0,
+      faces: 1,
     };
     if (
       record &&
@@ -439,12 +445,14 @@ export class World {
       this.indexTreeCell(k, type);
       if (type === 'portal') this.portalCells.add(k);
       else this.portalCells.delete(k);
-      if (BLOCKS[type]?.shape) this.buildings.add(k);
+      if (BLOCKS[type]?.shape && type !== 'vine') this.buildings.add(k);
       else this.buildings.delete(k);
       if (isCircuit(type)) this.circuitCells.add(k);
       else this.circuitCells.delete(k);
       if (isHangingPlant(type)) this.hangingPlants.add(k);
       else this.hangingPlants.delete(k);
+      if (type === 'vine') this.vineCells.add(k);
+      else this.vineCells.delete(k);
       if (type === 'pointedDripstone') this.dripstoneCells.add(k);
       else this.dripstoneCells.delete(k);
       if (type === 'spawner') this.spawners.add(k);
@@ -610,23 +618,21 @@ export class World {
       }
     stampCaves(this, cq, cr);
     const structures = this.structures(cq * 8 + 4, cr * 8 + 4, 8),
-      pods = [];
-    // Generate trees from a three-cell halo, clipping writes to this chunk.
+      pods = [],
+      vines = [];
+    // Jungle vines reach one cell beyond the existing three-cell crown halo.
     // The result is independent of chunk load order, including negative seams.
-    for (let tq = cq * 8 - 3; tq < cq * 8 + 11; tq++)
-      for (let tr = cr * 8 - 3; tr < cr * 8 + 11; tr++)
+    for (let tq = cq * 8 - 4; tq < cq * 8 + 12; tq++)
+      for (let tr = cr * 8 - 4; tr < cr * 8 + 12; tr++)
         if (this.tree(tq, tr)) {
-          if (this.treeKind(tq, tr) === 'jungle')
-            pods.push(
-              ...naturalCocoa(tq, this.terrainHeight(tq, tr), tr, this.seed),
-            );
-          for (const [q, y, r, type, axis = 0] of treeCells(
-            this.treeKind(tq, tr),
-            tq,
-            this.terrainHeight(tq, tr),
-            tr,
-            this.seed,
-          )) {
+          const species = this.treeKind(tq, tr),
+            base = this.terrainHeight(tq, tr),
+            cells = treeCells(species, tq, base, tr, this.seed);
+          if (species === 'jungle') {
+            pods.push(...naturalCocoa(tq, base, tr, this.seed));
+            vines.push(...treeVines(cells, tq, base, tr, this.seed));
+          }
+          for (const [q, y, r, type, axis = 0] of cells) {
             if (chunkKey(q, r) !== ck) continue;
             const previous = this.get(q, y, r);
             // Crowns may overlap each other, but never erase trunks or hillsides.
@@ -647,6 +653,42 @@ export class World {
       this.naturalStates.set(key(q, y, r), state);
       this.buildings.add(key(q, y, r));
     }
+    const vineCandidates = new Map();
+    for (const [q, y, r, faces, anchors] of vines) {
+      if (chunkKey(q, r) !== ck) continue;
+      const k = key(q, y, r),
+        previous = vineCandidates.get(k);
+      vineCandidates.set(k, [
+        q,
+        y,
+        r,
+        faces | (previous?.[3] || 0),
+        anchors | (previous?.[4] || 0),
+      ]);
+    }
+    for (const [q, y, r, faces, anchors] of [...vineCandidates.values()].sort(
+      (a, b) => b[1] - a[1],
+    )) {
+      if (
+        chunkKey(q, r) !== ck ||
+        (this.get(q, y, r) && this.get(q, y, r) !== 'vine')
+      )
+        continue;
+      const k = key(q, y, r),
+        above =
+          this.get(q, y + 1, r) === 'vine'
+            ? this.naturalStates.get(key(q, y + 1, r))?.faces || 0
+            : 0,
+        supported = anchors | (above & faces & 63);
+      // Another crown or a hillside can interrupt this hanging chain.
+      if (!supported) continue;
+      put(q, y, r, 'vine');
+      this.naturalStates.set(k, {
+        facing: 0,
+        open: false,
+        faces: supported,
+      });
+    }
     stampChorus(this, cq, cr);
     for (const v of this.villages(cq * 8 + 4, cr * 8 + 4, 8))
       stampVillage(this, v, cq, cr);
@@ -656,7 +698,7 @@ export class World {
     for (const [k, t] of this.editChunks.get(ck) || []) {
       if (this.blocks.get(k) !== t) this.naturalStates.delete(k);
       if (isChorus(t)) this.chorusPending.add(k);
-      if (BLOCKS[t]?.shape) this.buildings.add(k);
+      if (BLOCKS[t]?.shape && t !== 'vine') this.buildings.add(k);
       else this.buildings.delete(k);
       if (t === 'spawner') this.spawners.add(k);
       else this.spawners.delete(k);
@@ -670,6 +712,7 @@ export class World {
           this.indexTreeCell(k, this.blocks.get(k));
           if (isCircuit(this.blocks.get(k))) this.circuitCells.add(k);
           if (isHangingPlant(this.blocks.get(k))) this.hangingPlants.add(k);
+          if (this.blocks.get(k) === 'vine') this.vineCells.add(k);
           if (this.blocks.get(k) === 'pointedDripstone')
             this.dripstoneCells.add(k);
           this.gravity.index(q, y, r, this.blocks.get(k));
@@ -713,6 +756,7 @@ export class World {
           this.buildings.delete(k);
           this.circuitCells.delete(k);
           this.hangingPlants.delete(k);
+          this.vineCells.delete(k);
           this.dripstoneCells.delete(k);
           this.portalCells.delete(k);
           this.naturalStates.delete(k);
@@ -734,6 +778,7 @@ export class World {
     this.buildings.clear();
     this.circuitCells.clear();
     this.hangingPlants.clear();
+    this.vineCells.clear();
     this.dripstoneCells.clear();
     for (const map of Object.values(this.redstone.signals)) map.clear();
     this.portalCells.clear();

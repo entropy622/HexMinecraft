@@ -21,6 +21,7 @@ export function biomeTintKind(tile) {
   if (tile === 'grass:top') return 1;
   if (tile === 'grass:side') return 4;
   if (tile.startsWith('leaves:')) return 2;
+  if (tile.startsWith('vine:')) return 2;
   if (tile.startsWith('jungleLeaves:')) return 3;
   if (tile === 'tuft') return 5;
   return 0;

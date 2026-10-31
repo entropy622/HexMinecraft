@@ -92,7 +92,7 @@ export function miningStats(block, held, enchant = {}) {
   const kind =
     material === 'hayBale' || material === 'mossBlock'
       ? 'hoe'
-      : material === 'leaves' || isWool(material)
+      : material === 'leaves' || material === 'vine' || isWool(material)
         ? 'shears'
         : AXE.has(material) || original.shape === 'cocoa'
           ? 'axe'
@@ -120,7 +120,9 @@ export function miningStats(block, held, enchant = {}) {
     : kind === 'shears'
       ? isWool(material)
         ? 5
-        : 15
+        : material === 'vine'
+          ? 2
+          : 15
       : [1, 2, 4, 6, 8][item.tier] || 1;
   const efficiency =
     effective && baseSpeed > 1 && enchant.efficiency

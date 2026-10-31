@@ -1,13 +1,13 @@
 {
   "name": "hexwild",
-  "version": "0.123.0",
+  "version": "0.124.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test tests/core.test.js tests/world.test.js tests/fluids.test.js tests/caves.test.js tests/movement.test.js tests/redstone.test.js tests/cave-ecology.test.js tests/dripstone.test.js tests/diodes.test.js tests/mineshafts.test.js tests/comparators.test.js tests/hoppers.test.js tests/cauldrons.test.js tests/powder-snow.test.js tests/droppers.test.js tests/dispensers.test.js tests/pistons.test.js tests/stained-glass.test.js tests/sheep-wool.test.js tests/colored-shafts.test.js tests/grass-ecology.test.js tests/carpets.test.js tests/observers.test.js tests/cactus-ecology.test.js tests/jungle-cocoa.test.js tests/cloud-layers.test.js tests/photon-reference-scenes.test.js tests/light-invalidation.test.js tests/gravity-updates.test.js tests/leaf-ambient.test.js tests/photon-scattering.test.js tests/photon-cloud-noise.test.js tests/material-pack.test.js tests/biome-colors.test.js tests/tree-layout.test.js tests/mega-trees.test.js tests/photon-fog.test.js tests/photon-cloud-high.test.js tests/cloud-shadow-map.test.js",
+    "test": "node --test tests/core.test.js tests/world.test.js tests/fluids.test.js tests/caves.test.js tests/movement.test.js tests/redstone.test.js tests/cave-ecology.test.js tests/dripstone.test.js tests/diodes.test.js tests/mineshafts.test.js tests/comparators.test.js tests/hoppers.test.js tests/cauldrons.test.js tests/powder-snow.test.js tests/droppers.test.js tests/dispensers.test.js tests/pistons.test.js tests/stained-glass.test.js tests/sheep-wool.test.js tests/colored-shafts.test.js tests/grass-ecology.test.js tests/carpets.test.js tests/observers.test.js tests/cactus-ecology.test.js tests/jungle-cocoa.test.js tests/cloud-layers.test.js tests/photon-reference-scenes.test.js tests/light-invalidation.test.js tests/gravity-updates.test.js tests/leaf-ambient.test.js tests/photon-scattering.test.js tests/photon-cloud-noise.test.js tests/material-pack.test.js tests/biome-colors.test.js tests/tree-layout.test.js tests/mega-trees.test.js tests/photon-fog.test.js tests/photon-cloud-high.test.js tests/cloud-shadow-map.test.js tests/vines.test.js",
     "test:e2e": "playwright test",
     "check": "npm test && npm run build",
     "format": "prettier --write .",

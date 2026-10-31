@@ -13,6 +13,7 @@ export const usesBuildingItemMesh = (type) =>
   isGlass(type) ||
   [
     'flower',
+    'vine',
     'cactus',
     'slab',
     'carpet',
@@ -179,6 +180,21 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
   ])
     geometry.setAttribute(name, new THREE.Float32BufferAttribute(data, size));
   geometry.computeBoundingSphere();
+  if (type === 'vine' && material.userData?.geometricShade) {
+    const count = geometry.attributes.position.count,
+      tint = textures.biomes.tint(world, q, r, 2),
+      colors = new Uint8Array(count * 4);
+    for (let i = 0; i < count; i++) colors.set(tint, i * 4);
+    geometry.setAttribute(
+      'biomeTint',
+      new THREE.Uint8BufferAttribute(colors, 4, true),
+    );
+    geometry.setAttribute(
+      'ambientOcclusion',
+      new THREE.Float32BufferAttribute(new Float32Array(count).fill(1), 1),
+    );
+    geometry.userData.biomeRanges = new Int32Array([q, r, 0, count, 2]);
+  }
   const mesh = new THREE.Mesh(geometry, material);
   mesh.userData.surfaceReflection = reflectiveSurfaceClass(
     surfaceOpticsClass(type, BLOCKS[type]),
@@ -220,9 +236,13 @@ export function buildingItemMesh(type, textures) {
       transparent: isGlass(type),
       opacity: isGlass(type) ? BLOCKS[type].opacity : 1,
       depthWrite: !isGlass(type),
-      alphaTest: ['trapdoor', 'stonecutter', 'cobweb', 'flower'].includes(
-        BLOCKS[type]?.shape,
-      )
+      alphaTest: [
+        'trapdoor',
+        'stonecutter',
+        'cobweb',
+        'flower',
+        'vine',
+      ].includes(BLOCKS[type]?.shape)
         ? 0.5
         : 0,
       side: THREE.DoubleSide,

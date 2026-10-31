@@ -97,6 +97,8 @@ import { leafDrops } from './leaves.js';
 import { tickGrass } from './grass.js';
 import { isJungleLog } from './cocoa-data.js';
 import { growCocoa, harvestCocoa, tickCocoa } from './cocoa.js';
+import { placeVine, tickVines, decorateJungleTree } from './vines.js';
+import { vineFaces } from './vine-data.js';
 import { isCaveVine, isHangingPlant } from './cave-data.js';
 import { canHang, harvestCavePlant, tickCavePlants } from './cave-plants.js';
 import {
@@ -1825,6 +1827,8 @@ function handCanUse(hand) {
   const id = handStack(hand)?.item,
     item = ITEMS[id];
   if (!item) return false;
+  if (id === 'vine' && target && !target.fluid) return true;
+  if (id === 'boneMeal' && target?.type === 'vine') return true;
   if (cauldronAction(target?.type, id)) return true;
   if (
     (id === 'boneMeal' && target?.type === 'cocoa') ||
@@ -2144,9 +2148,14 @@ function mine(dt) {
     return;
   }
   if (BLOCKS[type].shape) {
-    removeBuilding(q, y, r, !creative && stats.harvest && type !== 'cobweb');
+    removeBuilding(
+      q,
+      y,
+      r,
+      !creative && stats.harvest && !['cobweb', 'vine'].includes(type),
+    );
     maintainBuildings();
-    if (type === 'cobweb' && !creative && stats.harvest)
+    if (['cobweb', 'vine'].includes(type) && !creative && stats.harvest)
       for (const stack of miningLoot(type, { tool: ITEMS[held]?.kind, enchant })
         .stacks)
         dropAt(stack.item, stack.count, q, y, r);
@@ -3053,6 +3062,7 @@ function place() {
     useEndCrystal() ||
     useCircuitControl() ||
     useCocoa() ||
+    useVine() ||
     useCavePlant() ||
     useCauldron()
   )
@@ -3230,6 +3240,40 @@ function fullSupport(q, y, r, top = false) {
       type === 'observer' ||
       (isPiston(type) && !world.state(q, y, r).open))
   );
+}
+function useVine() {
+  if (!target || target.fluid) return false;
+  if (useItem() === 'boneMeal' && target.type === 'vine') {
+    toast('普通藤蔓自然蔓延，骨粉不能催长。');
+    return true;
+  }
+  if (useItem() !== 'vine') return false;
+  let p = target.place,
+    face =
+      target.normal?.y < -0.5
+        ? 6
+        : Math.abs(target.normal?.y ?? 1) < 0.5
+          ? facingFromDirection(-target.normal.x, -target.normal.z)
+          : -1;
+  if (target.type === 'vine') {
+    p = { q: target.q, y: target.y - 1, r: target.r };
+    const faces = vineFaces(world.state(target.q, target.y, target.r)) & 63;
+    face = DIRECTIONS.findIndex((_, i) => faces & (1 << i));
+  }
+  if (!p || (!creative && useCount('vine') <= 0)) return true;
+  if (face < 0 || !placeVine(world, p.q, p.y, p.r, face)) {
+    toast(
+      '藤蔓需要贴在墙面、树叶底面，或同向藤蔓下方；已有的附着面不重复消耗。',
+    );
+    return true;
+  }
+  consumeUseItem('vine');
+  rememberBlockUse('vine');
+  graphics.updateBlock(p.q, p.y, p.r);
+  soundFX.play('place', 'leaves');
+  useSwing();
+  updateHUD();
+  return true;
 }
 function mergeSlab(q, y, r, type) {
   const old = world.state(q, y, r),
@@ -3553,6 +3597,7 @@ function toggleBuilding(q, y, r, open = null) {
 }
 function maintainBuildings() {
   applyPlantChanges(tickCocoa(world, 0), !creative);
+  applyPlantChanges(tickVines(world, 0), false);
   for (const k of [...world.buildings]) {
     const [q, y, r] = k.split(',').map(Number),
       type = world.get(q, y, r);
@@ -3937,6 +3982,7 @@ function onLadder() {
   ) {
     const type = world.get(a.q, y, a.r),
       state = world.state(a.q, y, a.r);
+    if (type === 'vine') return true;
     if (
       isCaveVine(type) &&
       Math.hypot(camera.position.x - p.x, camera.position.z - p.z) < 0.55
@@ -4022,6 +4068,17 @@ function growTree(k) {
     ])
       chunks.add(graphics.chunkKey(a + dq, c + dr));
   }
+  if (def.species === 'jungle')
+    for (const [a, , c] of decorateJungleTree(
+      world,
+      plan.cells,
+      q,
+      y + 1,
+      r,
+      (a, b, c) => growthOccupied(a, b, c) || crops.has(key(a, b - 1, c)),
+    ))
+      for (const [dq, dr] of [[0, 0], ...DIRECTIONS])
+        chunks.add(graphics.chunkKey(a + dq, c + dr));
   for (const ck of chunks) if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
   weatherColumns.update(1, world);
   graphics.renderer.shadowMap.needsUpdate = true;
@@ -4044,6 +4101,7 @@ function updatePlants(dt) {
   if (stoneGrowth.length) graphics.updateCells(stoneGrowth);
   applyPlantChanges(tickCavePlants(world, dt), !creative);
   applyPlantChanges(tickCocoa(world, dt), !creative);
+  applyPlantChanges(tickVines(world, dt), false);
   const leaves = world.leafDecay.update(dt);
   if (leaves.length) {
     const chunks = new Set();
@@ -4202,6 +4260,7 @@ function interact(preferContext = false) {
     useEndCrystal() ||
     useCircuitControl() ||
     useCocoa() ||
+    useVine() ||
     useCavePlant() ||
     useCauldron()
   )
@@ -7121,6 +7180,9 @@ function frame(now) {
         target.type === 'caveVinesBerries'
           ? ' · 右键采摘 · 空格攀爬 · 断根会脱落'
           : ' · 骨粉结出浆果 · 空格攀爬 · 断根会脱落';
+    if (target?.type === 'vine')
+      $('#target').textContent +=
+        ' · 剪刀采集 · W / 空格攀爬 · Shift 停住 · 手持藤蔓右键续接';
     if (target?.type === 'sporeBlossom')
       $('#target').textContent += ' · 采集后可悬挂在洞顶 · 飘落孢子';
     if (target?.type === 'pointedDripstone')

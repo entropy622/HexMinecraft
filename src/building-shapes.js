@@ -13,6 +13,7 @@ import { hopperParts } from './hopper-shape.js';
 import { cauldronParts } from './cauldron-shape.js';
 import { pistonParts } from './piston-shape.js';
 import { isGlass } from './dye-data.js';
+import { vineParts } from './vine-shape.js';
 
 export function facingAngle(facing) {
   const d = DIRECTIONS[facing] || DIRECTIONS[0],
@@ -38,6 +39,7 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (shape === 'vine') return vineParts(state, collision);
   if (shape === 'cocoa') {
     const age = state.age || 0,
       width = [0.25, 0.375, 0.5][age],

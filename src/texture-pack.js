@@ -6,6 +6,7 @@ import { isWool, WOOL_BLOCKS, WOOL_TYPES } from './wool-data.js';
 import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
 import { WOOD_BLOCKS, TREES } from './wood-data.js';
 import { paintJungle } from './jungle-art.js';
+import { paintVine } from './vine-art.js';
 export const blockTextures = {
   cobble: ['default_cobble'],
   cobbledDeepslate: ['mcl_cobbled_deepslate'],
@@ -525,6 +526,10 @@ export async function loadTexturePack() {
   );
 }
 export function paintPackTile(ctx, id, top, grassOverlay = true) {
+  if (id === 'vine') {
+    paintVine(ctx);
+    return;
+  }
   if (paintJungle(ctx, id, top)) return;
   if (id === 'powderSnow') {
     paintPackTile(ctx, 'snow', top);

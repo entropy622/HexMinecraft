@@ -34,6 +34,8 @@ export function miningLoot(
   const fortune = Math.min(3, Math.max(0, enchant.fortune || 0));
   const silk = !!enchant.silkTouch && !SILK_EXCLUDED.has(type);
   const one = (item, count = 1, xp = 0) => ({ stacks: [{ item, count }], xp });
+  if (type === 'vine')
+    return tool === 'shears' ? one('vine') : { stacks: [], xp: 0 };
   if (type === 'cobweb')
     return tool === 'shears' || (tool === 'sword' && silk)
       ? one('cobweb')

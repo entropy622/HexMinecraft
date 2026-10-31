@@ -35,7 +35,7 @@ const LIGHT_DATA = Object.fromEntries(
     const glass = isGlass(type),
       cost = block.foliage
         ? 3
-        : glass || block.shape === 'carpet'
+        : glass || ['carpet', 'vine'].includes(block.shape)
           ? 1
           : isDoor(type) || ['dropper', 'observer'].includes(block.shape)
             ? 16

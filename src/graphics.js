@@ -1155,7 +1155,11 @@ export class Graphics {
       mesh.add(this.smithingModels.create(world, q, y, r, origin));
     for (const [q, y, r] of brewCells)
       mesh.add(this.brewingModels.create(world, q, y, r, origin));
-    const cuts = [];
+    const cuts = [],
+      vines = [],
+      vineRanges = [],
+      vineBiomes = [];
+    let vineVertices = 0;
     for (const [q, y, r] of shaped) {
       if (isCampfire(world.get(q, y, r)))
         mesh.add(this.campfireModels.create(world, q, y, r, origin));
@@ -1166,7 +1170,7 @@ export class Graphics {
         r,
         origin,
         this.textures,
-        BLOCKS[world.get(q, y, r)].shape === 'flower'
+        ['flower', 'vine'].includes(BLOCKS[world.get(q, y, r)].shape)
           ? this.foliageMaterial
           : isDoor(world.get(q, y, r)) ||
               isTrapdoor(world.get(q, y, r)) ||
@@ -1176,6 +1180,14 @@ export class Graphics {
             ? this.doorMaterial
             : this.material,
       );
+      if (world.get(q, y, r) === 'vine') {
+        const count = building.geometry.attributes.position.count;
+        vines.push(building.geometry);
+        vineRanges.push(q, y, r, vineVertices, vineVertices + count);
+        vineBiomes.push(q, r, vineVertices, vineVertices + count, 2);
+        vineVertices += count;
+        continue;
+      }
       if (BLOCKS[world.get(q, y, r)].shape === 'flower') {
         building.customDepthMaterial = this.plantMaterials.depth;
         setFoliageAmbient(building.geometry, [
@@ -1196,6 +1208,19 @@ export class Graphics {
       batch.userData.cutBlocks = true;
       mesh.add(batch);
       cuts.forEach((geometry) => geometry.dispose());
+    }
+    if (vines.length) {
+      const combined = mergeGeometries(vines);
+      setFoliageAmbient(combined, vineRanges);
+      combined.userData.biomeRanges = new Int32Array(vineBiomes);
+      const batch = new THREE.Mesh(combined, this.foliageMaterial);
+      batch.customDepthMaterial = this.plantMaterials.depth;
+      batch.castShadow = batch.receiveShadow = true;
+      // Reuse the partial-block hit reconstruction, including the real outline.
+      batch.userData.cutBlocks = true;
+      batch.userData.vines = true;
+      mesh.add(batch);
+      vines.forEach((geometry) => geometry.dispose());
     }
     if (torches.p.length)
       mesh.add(new THREE.Mesh(geometry(torches), this.torchMaterial));

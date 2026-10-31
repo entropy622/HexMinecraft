@@ -212,6 +212,13 @@ test('four planted saplings grow real giant trees atomically through bone meal a
         rootsRemaining: keys.filter((k) => a.state.crops.has(k)).length,
         bone: a.state.inventory.boneMeal,
         branches: cells.filter((c) => c[4]).length,
+        vines: [...w.vineCells].filter((k) => {
+          const [q, y, r] = k.split(',').map(Number),
+            root = cells[0];
+          return (
+            Math.abs(q - root[0]) < 12 && Math.abs(r - root[2]) < 12 && y >= 26
+          );
+        }).length,
         time: a.state.time,
         error: a.graphics.renderer.getContext().getError(),
         position: a.state.position,
@@ -220,6 +227,7 @@ test('four planted saplings grow real giant trees atomically through bone meal a
     expect(result.rootsRemaining).toBe(0);
     expect(result.bone).toBe(scenario.natural ? 4 : 3);
     expect(result.error).toBe(0);
+    if (scenario.species === 'jungle') expect(result.vines).toBeGreaterThan(0);
     await settled();
     await page.locator('#world').screenshot({
       path: info.outputPath(`${scenario.species}-${scenario.rotation}.png`),
