@@ -430,8 +430,8 @@ export function installMaterialAtlas(textures, tiles, names) {
                       255) *
                       (target[channel] - base[channel])) /
                       255
-                  : (pixels.data[p + channel] * target[channel]) /
-                    base[channel];
+                  : Math.min(1, pixels.data[p + channel] / base[channel]) *
+                    target[channel];
           }
         ctx.putImageData(pixels, 0, 0);
       }

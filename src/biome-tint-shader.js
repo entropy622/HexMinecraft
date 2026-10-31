@@ -19,7 +19,9 @@ vec3 biomeSurfaceTint(vec3 albedo,vec2 texUv){
   if(kind==4){
     vec4 overlay=biomeOverlay(texUv);
     srgb+=overlay.rgb*overlay.a*(vBiomeTint.rgb-base);
-  }else srgb=srgb/base*vBiomeTint.rgb;
+  // Recover a normalized texture before tinting. Grazing mip samples can mix
+  // neighboring atlas colors; they must not turn into a pigment above white.
+  }else srgb=clamp(srgb/base,0.0,1.0)*vBiomeTint.rgb;
   return biomeDecode(clamp(srgb,0.0,1.0));
 }
 `;

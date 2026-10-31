@@ -2,6 +2,7 @@ import {
   DataUtils,
   HalfFloatType,
   ShaderMaterial,
+  Vector3,
   WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
@@ -23,7 +24,7 @@ export function readForestExposure(g) {
 // Offscreen diagnostic clones retain the production material callbacks, vertex
 // attributes, alpha test, lights and shadows. Only their final output changes.
 // The original scene/materials and render state are restored before returning.
-export function readForestLighting(g) {
+export function readForestLighting(g, region = null) {
   const r = g.renderer,
     frame = g.composer.passes[0],
     width = frame.target.width,
@@ -98,6 +99,13 @@ export function readForestLighting(g) {
             outgoingLight=vec3(1.0);
           #endif
         }
+        else if(forestMode==9) outgoingLight=reflectedLight.directSpecular;
+        else if(forestMode==10) {
+          outgoingLight=vec3(0.0);
+          #ifdef HEX_GEOMETRIC_SHADE
+            outgoingLight=biomeEncode(diffuseColor.rgb)/max(vBiomeTint.rgb,vec3(0.00001));
+          #endif
+        }
         else if(forestMode==7 || forestMode==8) {
           outgoingLight=vec3(0.0);
           #ifdef FOREST_LEAF_SOLAR
@@ -130,7 +138,7 @@ export function readForestLighting(g) {
     r.autoClear = true;
     r.shadowMap.autoUpdate = false;
     r.shadowMap.needsUpdate = false;
-    for (mode.value = 0; mode.value < 9; mode.value++) {
+    for (mode.value = 0; mode.value < (region ? 11 : 9); mode.value++) {
       r.setRenderTarget(target);
       r.render(g.scene, camera);
       buffers.push(read(target));
@@ -146,6 +154,7 @@ export function readForestLighting(g) {
   }
   const half = DataUtils.fromHalfFloat,
     mask = new Uint8Array(width * height),
+    point = new Vector3(),
     selected = [],
     groups = { open: [], sheltered: [] };
   for (let y = 1; y < height - 1; y++)
@@ -153,6 +162,21 @@ export function readForestLighting(g) {
       const index = y * width + x,
         distance = half(buffers[0][index * 4 + 3]) - 1;
       if (distance < 0.8 || distance > 70) continue;
+      if (region) {
+        point
+          .set(((x + 0.5) / width) * 2 - 1, ((y + 0.5) / height) * 2 - 1, 1)
+          .unproject(camera)
+          .sub(camera.position)
+          .normalize()
+          .multiplyScalar(distance)
+          .add(camera.position);
+        if (
+          point
+            .toArray()
+            .some((v, c) => v < region.minimum[c] || v > region.maximum[c])
+        )
+          continue;
+      }
       let interior = true;
       for (let dy = -1; dy <= 1; dy++)
         for (let dx = -1; dx <= 1; dx++)
@@ -178,7 +202,7 @@ export function readForestLighting(g) {
     const distribution = (values) => {
       values.sort((a, b) => a - b);
       const q = (p) => values[Math.floor((values.length - 1) * p)] ?? null;
-      return { p10: q(0.1), median: q(0.5), p90: q(0.9) };
+      return { p10: q(0.1), median: q(0.5), p90: q(0.9), maximum: q(1) };
     };
     return {
       count: indices.length,
@@ -222,6 +246,8 @@ export function readForestLighting(g) {
       'geometric-ao',
       'solar-transmission',
       'solar-sheen',
+      'direct-specular',
+      'untinted-pigment',
     ],
     maps = buffers.map((data, i) => ({
       name: names[i],

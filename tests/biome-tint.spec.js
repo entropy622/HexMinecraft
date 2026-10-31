@@ -187,8 +187,10 @@ test('native biome pigment reaches foliage and grass while ZIP maps refresh mesh
                   b.overlay[i][3] *
                   (a.tint[i][c] - base[name][c] / 255)
               : base[name]
-                ? (encodeSrgb(b.albedo[i][c]) * a.tint[i][c]) /
-                  (base[name][c] / 255)
+                ? Math.min(
+                    1,
+                    encodeSrgb(b.albedo[i][c]) / (base[name][c] / 255),
+                  ) * a.tint[i][c]
                 : encodeSrgb(b.albedo[i][c]);
             const expected = decodeSrgb(Math.max(0, Math.min(1, desired)));
             maximum = Math.max(maximum, Math.abs(a.albedo[i][c] - expected));

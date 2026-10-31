@@ -1,4 +1,6 @@
 // Original 16px art, drawn locally. No vanilla or third-party image assets.
+import { WOOD_BLOCKS } from './wood-data.js';
+
 export function paintJungle(ctx, id, top = false) {
   const sapling = id === 'jungleSapling',
     leaves = id === 'jungleLeaves',
@@ -28,6 +30,8 @@ export function paintJungle(ctx, id, top = false) {
     }
     return true;
   }
+  // Keep leaf pigment neutral and bounded before tinting, like imported leaves.
+  // Colored highlights above the declared tint would be amplified again later.
   const age = cocoa ? Number(id.at(-1)) : 0,
     colors = cocoa
       ? [
@@ -36,7 +40,7 @@ export function paintJungle(ctx, id, top = false) {
           ['#bf702c', '#eca048', '#85491f'],
         ][age]
       : leaves
-        ? ['#3e792e', '#679c38', '#285529']
+        ? ['#b2b2b2', '#e6e6e6', '#7d7d7d']
         : log
           ? top || stripped
             ? ['#ba8761', '#d5a37a', '#8e6044']
@@ -52,9 +56,14 @@ export function paintJungle(ctx, id, top = false) {
   if (leaves) {
     for (let y = 1; y < 16; y += 4)
       for (let x = y % 3; x < 16; x += 5) {
-        pixel('#80ad46', x, y, 3, 1);
-        pixel('#204829', x + 1, y + 2, 2, 2);
+        pixel('#ffffff', x, y, 3, 1);
+        pixel('#6a6a6a', x + 1, y + 2, 2, 2);
       }
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = WOOD_BLOCKS.jungleLeaves.leafTint;
+    ctx.fillRect(0, 0, 16, 16);
+    ctx.restore();
   } else if (cocoa) {
     for (let x = 2; x < 16; x += 4) {
       pixel(colors[2], x, 1, 1, 15);

@@ -206,6 +206,6 @@ export function applySkylight(
         );
   };
   material.customProgramCacheKey = () =>
-    'hex-colored-voxel-wet-sky-v13-biome-' + Number(geometricShade);
+    'hex-colored-voxel-wet-sky-v14-biome-pigment-' + Number(geometricShade);
   return uniforms;
 }
