@@ -10,7 +10,12 @@ import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
 import { biomeTintKind } from './biome-colors.js';
 import { surfaceOpticsClass } from './surface-optics.js';
 import { DISTANT_TYPES } from './distant-field.js';
-import { decodeDetail, detailMetadata } from './distant-detail.js';
+import {
+  decodeDetail,
+  detailMetadata,
+  detailType,
+  detailAmbient,
+} from './distant-detail.js';
 import { pillarFace } from './pillar-faces.js';
 import { isGlass } from './dye-data.js';
 import {
@@ -33,13 +38,14 @@ export function distantMesh(tile, textures, world, material) {
     uv = [],
     biomes = [],
     optics = [],
+    leafAmbient = [],
     indices = [],
     transparentIndices = [],
     origin = axialToWorld(
       tile.tq * DISTANT_TILE + 1.5,
       tile.tr * DISTANT_TILE + 1.5,
     );
-  function polygon(points, normal, type, face, q, r, coords) {
+  function polygon(points, normal, type, face, q, r, coords, ambient) {
     if (face === 'bottom') {
       if (type === 'grass') type = 'dirt';
       face = 'top';
@@ -62,6 +68,7 @@ export function distantMesh(tile, textures, world, material) {
       uv.push(...textures.uv(name, ...coords[i]));
       biomes.push(tint[0], tint[1], tint[2], tint[3]);
       optics.push(category);
+      leafAmbient.push(ambient);
     });
     const target = isGlass(id) ? transparentIndices : indices;
     for (let i = 1; i < points.length - 1; i++)
@@ -81,6 +88,7 @@ export function distantMesh(tile, textures, world, material) {
     bottomFace = false,
     state = null,
     sideSpans = null,
+    ambient = 0,
   ) {
     if (top <= bottom) return;
     const point = (i, y) => [
@@ -105,7 +113,7 @@ export function distantMesh(tile, textures, world, material) {
         face = mapped.face;
         coords = mapped.uv;
       }
-      polygon(points, normal, type, face, q, r, coords);
+      polygon(points, normal, type, face, q, r, coords, ambient);
     };
     if (topFace)
       draw(
@@ -179,7 +187,8 @@ export function distantMesh(tile, textures, world, material) {
   for (let i = 0; i < (tile.fineDetails?.length || 0); i += 2) {
     const value = tile.fineDetails[i + 1];
     fine.set(tile.fineDetails[i], {
-      id: value >>> 16,
+      id: detailType(value >>> 16),
+      ambient: detailAmbient(value >>> 16),
       state: decodeDetail(value & 65535),
     });
   }
@@ -193,8 +202,11 @@ export function distantMesh(tile, textures, world, material) {
     if (a < 0 || b < 0 || a >= detailN || b >= detailN || y < 0 || y >= detailH)
       return empty;
     const index = (a * detailN + b) * detailH + y,
-      id = tile.details[index];
-    return id ? { id, state: metadata.get(index) || full } : empty;
+      code = tile.details[index],
+      id = detailType(code);
+    return id
+      ? { id, ambient: detailAmbient(code), state: metadata.get(index) || full }
+      : empty;
   };
   const fineAt = (x, z, y) => {
     if (x < 0 || z < 0 || x >= extent || z >= extent || y < 0 || y >= detailH)
@@ -261,6 +273,7 @@ export function distantMesh(tile, textures, world, material) {
         if (end < top) result.push([Math.max(low, end), top]);
         return result;
       },
+      cell.ambient,
     );
   }
   const start = DISTANT_INSET / DISTANT_DETAIL_STEP,
@@ -325,6 +338,14 @@ export function distantMesh(tile, textures, world, material) {
     ),
   );
   geometry.setAttribute('biomeTint', new Uint8BufferAttribute(biomes, 4, true));
+  geometry.setAttribute(
+    'leafAmbient',
+    new Uint8BufferAttribute(
+      leafAmbient.map((v) => Math.round(v * 255)),
+      1,
+      true,
+    ),
+  );
   geometry.setAttribute(
     'surfaceOptics',
     new Uint8BufferAttribute(optics, 1, false),

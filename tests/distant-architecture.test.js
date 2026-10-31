@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DistantField, DISTANT_TYPES } from '../src/distant-field.js';
-import { decodeDetail } from '../src/distant-detail.js';
+import { decodeDetail, detailType } from '../src/distant-detail.js';
 import { distantMesh } from '../src/distant-mesh.js';
 import { World } from '../src/world.js';
 import { BLOCKS } from '../src/core.js';
@@ -16,7 +16,7 @@ function fine(tile) {
       q = tile.tq * 32 + Math.floor(column / 40),
       r = tile.tr * 32 + (column % 40);
     result.set(`${q},${cell % h},${r}`, {
-      type: DISTANT_TYPES[(word >>> 16) - 1],
+      type: DISTANT_TYPES[detailType(word >>> 16) - 1],
       ...decodeDetail(word & 65535),
     });
   }

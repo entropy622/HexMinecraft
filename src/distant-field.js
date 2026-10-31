@@ -1,6 +1,13 @@
 import { World } from './world.js';
 import { BLOCKS } from './core.js';
-import { encodeDetail, decodeDetail, FULL_DETAIL } from './distant-detail.js';
+import {
+  encodeDetail,
+  decodeDetail,
+  FULL_DETAIL,
+  encodeDetailType,
+  DETAIL_TYPE_MASK,
+} from './distant-detail.js';
+import { distantAmbient } from './distant-ambient.js';
 import {
   DISTANT_TILE,
   DISTANT_STEP,
@@ -20,6 +27,8 @@ export const DISTANT_TYPES = [
   '@glow',
 ];
 const typeIndex = new Map(DISTANT_TYPES.map((type, i) => [type, i]));
+if (DISTANT_TYPES.length > DETAIL_TYPE_MASK)
+  throw Error('Distant detail type IDs exceed their nine-bit worker encoding.');
 
 // A visual field uses the real generator in its own world. Each job owns only
 // one tile plus the shared forward-gradient halo; no gameplay world is loaded
@@ -287,6 +296,39 @@ export class DistantField {
         const [q, y, r] = key.split(',').map(Number);
         promote(q - q0, y, r - r0);
       }
+    const ambient = distantAmbient(world, q0, r0, extent);
+    for (let a = 0; a < DISTANT_DETAIL_SAMPLES; a++)
+      for (let b = 0; b < DISTANT_DETAIL_SAMPLES; b++)
+        for (let y = 0; y < detailHeight; y++) {
+          const cell = (a * DISTANT_DETAIL_SAMPLES + b) * detailHeight + y,
+            id = details[cell];
+          if (!id || !BLOCKS[DISTANT_TYPES[id - 1]]?.foliage) continue;
+          let sum = 0,
+            count = 0;
+          for (let dx = 0; dx < DISTANT_DETAIL_STEP; dx++)
+            for (let dz = 0; dz < DISTANT_DETAIL_STEP; dz++) {
+              const index =
+                ((a * DISTANT_DETAIL_STEP + dx) * extent +
+                  b * DISTANT_DETAIL_STEP +
+                  dz) *
+                  detailHeight +
+                y;
+              if (ambient.medium[index] !== 12) continue;
+              sum += ambient.values[index];
+              count++;
+            }
+          details[cell] = encodeDetailType(id, count ? sum / (255 * count) : 0);
+        }
+    for (const [cell, word] of fine) {
+      const id = word >>> 16;
+      if (!BLOCKS[DISTANT_TYPES[id - 1]]?.foliage) continue;
+      fine.set(
+        cell,
+        ((encodeDetailType(id, ambient.values[cell] / 255) << 16) |
+          (word & 65535)) >>>
+          0,
+      );
+    }
     const fineDetails = new Uint32Array(
       [...fine]
         .sort((a, b) => a[0] - b[0])

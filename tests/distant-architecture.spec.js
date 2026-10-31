@@ -73,7 +73,8 @@ test('real distant architecture keeps openings, glass coverage and exact edited 
     .screenshot({ path: info.outputPath('architecture-native.png') });
   const data = await page.evaluate(async () => {
     const f = window.__hexwild.graphics.distantTerrain,
-      { DISTANT_TYPES } = await import('/src/distant-field.js');
+      { DISTANT_TYPES } = await import('/src/distant-field.js'),
+      { detailType } = await import('/src/distant-detail.js');
     const find = (q, y, r) => {
       const tq = Math.floor((q - 4) / 32),
         tr = Math.floor((r - 4) / 32),
@@ -81,7 +82,7 @@ test('real distant architecture keeps openings, glass coverage and exact edited 
         key = ((q - tq * 32) * 40 + r - tr * 32) * tile.detailHeight + y;
       for (let i = 0; i < tile.fineDetails.length; i += 2)
         if (tile.fineDetails[i] === key)
-          return DISTANT_TYPES[(tile.fineDetails[i + 1] >>> 16) - 1];
+          return DISTANT_TYPES[detailType(tile.fineDetails[i + 1] >>> 16) - 1];
       return null;
     };
     return {

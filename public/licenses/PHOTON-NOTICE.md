@@ -6,6 +6,12 @@ primary solar scattering, sheen and the far-shadow zero-thickness response.
 It does not trace the near world's incomplete optical volume for these surfaces.
 The distant terrain/voxel meshing and packed geometry are original host code.
 
+Since 0.131, the distant leaf shader also uses the attributed sky ambient-SSS
+and far-shadow visibility compensation from `include/lighting/diffuse_lighting.glsl`.
+The visibility is computed from the host's actual temporary hex world using
+the same original local canopy sampler as the near surfaces, not Photon's
+screen-space horizon integration. The derived lighting retains Photon's license.
+
 Since 0.126, `src/border-fog.js` adapts the directional border-color selection
 from `program/d4_deferred_shading.fsh`: morning/evening and rain horizon
 selection, view-elevation dampening and the squared blend. It samples the
