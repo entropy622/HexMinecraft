@@ -7,28 +7,34 @@ export function borderHorizonBlend(sunY, rain) {
   return Math.min(1, Math.max(0, (glow - 0.1) / 0.9) + Number(rain >= 0.01));
 }
 
-export const borderFogGLSL = /* glsl */ `
-uniform sampler2D airBorderSky;
-uniform float airBorderEnabled, airBorderHorizon, airBorderFlash;
-const float SKY_PI = 3.14159265359;
-${skyProjectionGLSL}
+export const borderDistanceGLSL = /* glsl */ `
 float airBorderCurve(float ratio) {
   float a=clamp(ratio,0.0,1.0);a*=a;a*=a;a*=a;
   return exp2(-8.0*a);
 }
-float airBorderVisibility(vec3 delta,float nearDistance,float farDistance) {
+float airBorderDistance(vec3 delta) {
   // The rendered window has axial q/r boundaries. Their world-space unit
   // normals are (sqrt(3)/2,-1/2) and (0,1). Keep Photon's cubic norm between
   // the nearest loaded edge and the old circle, so fog never begins closer.
   vec2 axes=abs(vec2(0.866025403784*delta.x-0.5*delta.z,delta.z));
   float cubic=pow(dot(axes*axes,axes),1.0/3.0);
-  float distance=min(length(delta.xz),cubic);
+  return min(length(delta.xz),cubic);
+}
+float airBorderVisibility(vec3 delta,float nearDistance,float farDistance) {
+  float distance=airBorderDistance(delta);
   float end=exp2(-8.0),start=airBorderCurve(nearDistance/farDistance);
   float visibility=clamp((airBorderCurve(distance/farDistance)-end)/max(start-end,0.000001),0.0,1.0);
   // Source downward cutoff. Upward relief requires geometry beyond the loaded
   // window and is deliberately not used to expose missing terrain.
   return visibility*clamp((delta.y+farDistance)/16.0,0.0,1.0);
 }
+`;
+export const borderFogGLSL = /* glsl */ `
+uniform sampler2D airBorderSky;
+uniform float airBorderEnabled, airBorderHorizon, airBorderFlash;
+const float SKY_PI = 3.14159265359;
+${skyProjectionGLSL}
+${borderDistanceGLSL}
 vec3 airBorderSample(vec3 direction) {
   vec2 uv=skyUv(direction);
   // Match the visible dome's extension of the air-side horizon. The map's

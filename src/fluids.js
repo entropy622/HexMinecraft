@@ -53,6 +53,7 @@ export class Fluids {
     this.world = world;
     this.chunks = new Map();
     this.edits = new Map(edits);
+    this.editVersion = 0;
     this.editChunks = new Map();
     this.active = new Set();
     this.dirty = new Set();
@@ -123,6 +124,7 @@ export class Fluids {
     else cells.delete(k);
     if (record) this.world.redstone.blockChanged(q, y, r);
     if (record) {
+      this.editVersion++;
       this.edits.set(k, f ? { ...f } : null);
       if (!this.editChunks.has(ck)) this.editChunks.set(ck, new Map());
       this.editChunks.get(ck).set(k, f ? { ...f } : null);

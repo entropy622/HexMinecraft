@@ -130,6 +130,17 @@ export async function prepareRecoveredRenderer(graphics, current) {
     )
       return false;
     composer?.effects.protection.compile(renderer);
+    if (
+      graphics.distantTerrain?.group.visible &&
+      !(await compileScene(
+        renderer,
+        graphics.distantTerrain.scene,
+        camera,
+        graphics.distantTerrain.target,
+        current,
+      ))
+    )
+      return false;
   } finally {
     renderer.setRenderTarget(target, face, level);
     // Borrowed materials and scene geometry still belong to their owners.

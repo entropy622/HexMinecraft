@@ -1,7 +1,9 @@
-import { Color, MathUtils, Vector3 } from 'three';
+import { Color, MathUtils, Matrix4, Vector2, Vector3 } from 'three';
 import { airTransportGLSL } from './air-transport.js';
 import { FogBiomes, photonFogParameters } from './photon-fog.js';
 import { borderFogGLSL, borderHorizonBlend } from './border-fog.js';
+import { DISTANT_FOG_NEAR, DISTANT_FOG_FAR } from './distant-config.js';
+import { distantBackdropGLSL } from './distant-backdrop.js';
 
 // Shared RGB height profiles and illumination for the marched and analytic
 // paths. The four direct orders remain an approximation, not a multiple-scattering LUT.
@@ -43,6 +45,15 @@ export class Atmosphere {
       airBorderEnabled: { value: 0 },
       airBorderHorizon: { value: 0 },
       airBorderFlash: { value: 0 },
+      airDistantBlend: { value: 0 },
+      airDistantColor: { value: null },
+      airDistantDepth: { value: null },
+      airDistantResolution: { value: new Vector2(1, 1) },
+      airDetailFar: { value: 118 },
+      airProjectionMatrix: { value: new Matrix4() },
+      airDistantRange: {
+        value: new Vector2(DISTANT_FOG_NEAR, DISTANT_FOG_FAR),
+      },
     };
   }
 
@@ -188,32 +199,57 @@ export class Atmosphere {
         vAirWorldPosition = (airCameraWorld * mvPosition).xyz;`,
         );
       shader.fragmentShader =
-        `varying vec3 vAirWorldPosition;
+        `${material.userData.distantTerrain ? '#define HEX_DISTANT_TERRAIN\n' : ''}varying vec3 vAirWorldPosition;
         uniform vec3 airCameraPosition;
         ${airTransportGLSL}
         ${borderFogGLSL}
-        uniform float airCameraSky; uniform float airVolume; uniform float airFlight;\n` +
-        shader.fragmentShader.replace('#include <fog_fragment>', '').replace(
-          '#include <opaque_fragment>',
-          /* glsl */ `
+        ${distantBackdropGLSL}
+        uniform float airCameraSky; uniform float airVolume; uniform float airFlight;
+        uniform vec2 airDistantRange;\n` +
+        shader.fragmentShader
+          .replace('#include <fog_fragment>', '')
+          .replace(
+            '#include <clipping_planes_fragment>',
+            /* glsl */ `#include <clipping_planes_fragment>
+          #ifdef USE_FOG
+            #ifdef HEX_DISTANT_TERRAIN
+              vec3 distantDelta=vAirWorldPosition-airCameraPosition;
+              if(airBorderVisibility(distantDelta,fogNear,fogFar)>=1.0 || airBorderVisibility(distantDelta,airDistantRange.x,airDistantRange.y)<=0.0)discard;
+            #endif
+          #endif`,
+          )
+          .replace(
+            '#include <opaque_fragment>',
+            /* glsl */ `
         #ifdef USE_FOG
           vec3 airDelta = vAirWorldPosition - airCameraPosition;
           float airDistance = length(airDelta);
           // The post path integrates air once after the scene; skip this work
           // uniformly rather than computing it only to mix it away.
+          #ifndef HEX_DISTANT_TERRAIN
           if(airVolume<0.5 && airDensity>0.0) {
             vec3 airRay = airDelta / max(airDistance, 0.001);
-            vec2 columns = airColumns(airCameraPosition,airRay,airDistance);
+            float airPath=airSkyFogActive>0.5 ? min(airDistance,airFogDistance) : airDistance;
+            vec2 columns = airColumns(airCameraPosition,airRay,airPath);
             vec3 airTransmission = exp(-airOpticalDepth(columns));
             float airSky = max(${sky}, airCameraSky * 0.3);
             vec3 airScatter = airScattering(columns,airDirectPhase(dot(airRay,airSunDirection)),
               airSky,vec3(0.0),airSunColor*airSunPower*airSky);
             outgoingLight=outgoingLight*airTransmission+airScatter;
           }
+          #endif
           // Keep the streaming boundary hidden in both rendering paths.
           float edgeDistance = mix(airDistance, length(vec3(airDelta.x, airDelta.y * 0.15, airDelta.z)), airFlight);
           float airEdge = airBorderEnabled>0.5 ? 1.0-airBorderVisibility(airDelta,fogNear,fogFar) : smoothstep(fogNear,fogFar,edgeDistance);
+          #ifdef HEX_DISTANT_TERRAIN
+            airEdge=1.0-airBorderVisibility(airDelta,airDistantRange.x,airDistantRange.y);
+          #endif
           vec3 boundary = airEdge>0.0 ? airBorderColor(airDelta/max(airDistance,0.001),fogColor,airCameraSky) : fogColor;
+          #ifndef HEX_DISTANT_TERRAIN
+          if(airEdge>0.0 && airDistantBlend>0.0){
+            vec4 distant=airDistantBackdrop();
+            boundary=mix(boundary,distant.rgb,airDistantBlend*distant.a);
+          }
           if(airVolume<0.5 && airDensity>0.0 && airSkyFogActive>0.5 && airEdge>0.0) {
             vec3 ray=airDelta/max(airDistance,0.001);
             vec2 columns=airColumns(airCameraPosition,ray,airFogDistance);
@@ -221,13 +257,16 @@ export class Atmosphere {
               airScattering(columns,airDirectPhase(dot(ray,airSunDirection)),airCameraSky,
                 vec3(0),airSunColor*airSunPower*airCameraSky);
           }
+          #endif
           outgoingLight = mix(outgoingLight, boundary, airEdge);
         #endif
         #include <opaque_fragment>`,
-        );
+          );
     };
     material.customProgramCacheKey = () =>
-      cacheKey.call(material) + '-photon-directional-border-v6';
+      cacheKey.call(material) +
+      '-photon-distant-border-v7-' +
+      Number(!!material.userData.distantTerrain);
     material.needsUpdate = true;
   }
 }

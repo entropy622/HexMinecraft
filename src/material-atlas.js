@@ -385,11 +385,14 @@ export function installMaterialAtlas(textures, tiles, names) {
       reflectiveCache.set(geometry, { revision, value });
       return value;
     },
+    has(name) {
+      return index.has(name);
+    },
     tile(name) {
       const i = index.get(name),
         c = document.createElement('canvas');
       c.width = c.height = layout.size;
-      c.getContext('2d').drawImage(
+      c.getContext('2d', { willReadFrequently: true }).drawImage(
         textures.canvas,
         (i % 8) * layout.cell + layout.pad,
         Math.floor(i / 8) * layout.cell + layout.pad,

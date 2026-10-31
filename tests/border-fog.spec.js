@@ -133,7 +133,7 @@ test('directional terrain borders meet the visible sky while near surfaces, fog 
     expect(result.surfaces.gl).toBe(0);
     expect(result.fog).toEqual([87.32, 118]);
     expect(result.exposure).toBe(1);
-    expect(result.far).toBe(220);
+    expect(result.far).toBe(480);
     expect(result.enabled).toBe(1);
     expect(result.mapBound).toBe(true);
     if (quality !== 1.7) await capture('jungle-quality-' + quality, false);

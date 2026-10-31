@@ -9,6 +9,8 @@ import {
 } from './sky-atmosphere.js';
 import { PHOTON_SUN_SCALE } from './photon-lighting.js';
 import { airTransportGLSL } from './air-transport.js';
+import { borderDistanceGLSL } from './border-fog.js';
+import { distantBackdropGLSL } from './distant-backdrop.js';
 
 const PHASES = [
   '满月',
@@ -41,7 +43,7 @@ function attachCelestialFog(material, uniforms) {
       'uniform vec3 airCameraPosition;varying vec3 celestialDirection;\n' +
       shader.vertexShader.replace(
         '#include <project_vertex>',
-        '#include <project_vertex>\ncelestialDirection=(modelMatrix*vec4(transformed,1.0)).xyz-airCameraPosition;',
+        '#include <project_vertex>\ngl_Position.z=gl_Position.w;\ncelestialDirection=(modelMatrix*vec4(transformed,1.0)).xyz-airCameraPosition;',
       );
     shader.fragmentShader =
       celestialFogGLSL +
@@ -70,18 +72,33 @@ export class SkyEnvironment {
       new THREE.SphereGeometry(180, 32, 16),
       new THREE.ShaderMaterial({
         side: THREE.BackSide,
-        depthWrite: false,
+        depthWrite: !!air,
         uniforms: this.uniforms,
         vertexShader:
           'varying vec3 vSkyDirection; void main(){ vSkyDirection = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         fragmentShader: /* glsl */ `
         ${skyRadianceGLSL}
         ${air ? airTransportGLSL : ''}
+        ${air ? borderDistanceGLSL + distantBackdropGLSL : ''}
         ${air ? 'uniform vec3 airCameraPosition;uniform float airCameraSky,airVolume;' : ''}
         uniform float skyFlash;
         varying vec3 vSkyDirection;
         void main() {
           vec3 sky = mix(hexSkyRadiance(vSkyDirection), vec3(0.571, 0.687, 0.831), skyFlash * 0.5);
+          ${
+            air
+              ? `vec4 distant=airDistantBackdrop();
+          sky=mix(sky,distant.rgb,airDistantBlend*distant.a);
+          gl_FragDepth=1.0;
+          if(distant.a>0.5 && airDistantBlend>0.0){
+            vec3 direction=normalize(vSkyDirection);
+            float detailEnd=airDetailFar/max(airBorderDistance(direction),0.0001);
+            vec4 clip=airProjectionMatrix*vec4(mat3(viewMatrix)*direction*detailEnd,1.0);
+            float floorDepth=clamp(0.5+0.5*clip.z/clip.w,0.0,1.0);
+            gl_FragDepth=max(floorDepth,texture2D(airDistantDepth,airDistantUv()).r);
+          }`
+              : ''
+          }
           ${
             air
               ? `if(airVolume<0.5 && airDensity>0.0 && airSkyFogActive>0.5){
@@ -117,7 +134,7 @@ export class SkyEnvironment {
           ${air ? 'uniform vec3 airCameraPosition;varying vec3 celestialDirection;' : ''}
           void main() { diskPosition = uv * 2.0 - 1.0;
             ${air ? 'celestialDirection=(modelMatrix*vec4(position,1.0)).xyz-airCameraPosition;' : ''}
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);gl_Position.z=gl_Position.w; }
         `,
         fragmentShader: /* glsl */ `
           uniform vec3 diskRadiance;

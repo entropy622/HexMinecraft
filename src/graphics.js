@@ -67,6 +67,8 @@ import {
   worldToAxial,
 } from './core.js';
 import { DIMENSIONS, VIEW_RADIUS, CHUNK_SIZE, WORLD_HEIGHT } from './world.js';
+import { DistantTerrain } from './distant-terrain.js';
+import { DISTANT_CAMERA_FAR } from './distant-config.js';
 // A chunk spans 1.5 * CHUNK_SIZE perpendicular to either axial boundary.
 // Fade before the nearest loaded edge, including an off-centre player.
 const terrainFogFar = VIEW_RADIUS * CHUNK_SIZE * 1.5 - 2;
@@ -193,6 +195,12 @@ export class Graphics {
       true,
     );
     this.material.userData.wetSurface = true;
+    this.distantTerrain = new DistantTerrain(
+      this.scene,
+      this.textures,
+      this.weatherUniforms,
+      this.atmosphere,
+    );
     this.doorMaterial = new THREE.MeshLambertMaterial({
       map: this.textures.atlas,
       vertexColors: true,
@@ -275,6 +283,11 @@ export class Graphics {
     );
     Object.assign(this.cloudSystem.uniforms, this.skyEnvironment.uniforms);
     this.skyEnvironment.atmosphere.attachClouds(this.cloudSystem.uniforms);
+    this.distantTerrain.connect(
+      this.sun,
+      this.skyEnvironment.atmosphere.probe,
+      this.cloudSystem,
+    );
     this.clouds = this.cloudSystem.mesh;
     this.decor = new THREE.Group();
     this.scene.add(this.decor);
@@ -338,25 +351,28 @@ export class Graphics {
         this.composer = null;
       }
       const resources = new Set();
-      this.scene.traverse((object) => {
-        if (object.isInstancedMesh) resources.add(object);
-        if (object.geometry) resources.add(object.geometry);
-        const materials = [
-          ...(Array.isArray(object.material)
-            ? object.material
-            : [object.material]),
-          object.customDepthMaterial,
-          object.customDistanceMaterial,
-        ];
-        for (const material of materials) {
-          if (!material) continue;
-          resources.add(material);
-          for (const value of Object.values(material))
-            if (value?.isTexture) resources.add(value);
-          for (const uniform of Object.values(material.uniforms || {}))
-            if (uniform.value?.isTexture) resources.add(uniform.value);
-        }
-      });
+      for (const scene of [this.scene, this.distantTerrain.scene])
+        scene.traverse((object) => {
+          if (object.isInstancedMesh) resources.add(object);
+          if (object.geometry) resources.add(object.geometry);
+          const materials = [
+            ...(Array.isArray(object.material)
+              ? object.material
+              : [object.material]),
+            object.customDepthMaterial,
+            object.customDistanceMaterial,
+          ];
+          for (const material of materials) {
+            if (!material) continue;
+            resources.add(material);
+            for (const value of Object.values(material))
+              if (value?.isTexture) resources.add(value);
+            for (const uniform of Object.values(material.uniforms || {}))
+              if (uniform.value?.isTexture) resources.add(uniform.value);
+          }
+        });
+      this.distantTerrain.target.dispose();
+      this.distantTerrain.captureKey = null;
       const volume = this.dynamicLight.uniforms.entityLightVolume.value;
       if (volume) resources.add(volume);
       for (const uniform of Object.values(this.textures.materials.uniforms))
@@ -473,6 +489,7 @@ export class Graphics {
       this.renderer.capabilities.maxTextureSize,
     );
     this.refreshBiomeTints();
+    this.distantTerrain.refreshColors();
     this.renderer.shadowMap.needsUpdate = true;
     this.composer?.effects.temporal.reset();
     if (this.recovering && !this.renderer.getContext().isContextLost())
@@ -512,6 +529,11 @@ export class Graphics {
     this.stepOffset = 0;
     this.shapeOutline.visible = false;
     this.world = world;
+    this.distantTerrain.reset(world);
+    this.atmosphere.uniforms.airDistantBlend.value = 0;
+    this.camera.far =
+      world.dimension === 'overworld' ? DISTANT_CAMERA_FAR : 220;
+    this.camera.updateProjectionMatrix();
     this.voxelLight = new VoxelLight(world);
     this.voxelLight.update(0, true);
     this.dynamicLight.upload(this.voxelLight);
@@ -1611,6 +1633,13 @@ export class Graphics {
     offhandLight = playing ? this.offhandKey : null,
   ) {
     if (this.recovering || this.renderer.getContext().isContextLost()) return;
+    const farHex = worldToAxial(this.camera.position.x, this.camera.position.z);
+    this.distantTerrain.frame(farHex.q, farHex.r, renderDt);
+    const distantBlend = this.atmosphere.uniforms.airDistantBlend;
+    distantBlend.value = this.distantTerrain.ready
+      ? THREE.MathUtils.damp(distantBlend.value, 1, 6, renderDt)
+      : 0;
+    if (distantBlend.value > 0.999) distantBlend.value = 1;
     sawClock.value = time;
     this.voxelLight.setHeld([heldLight, offhandLight], this.camera.position);
     this.updateVoxelLight(renderDt);
@@ -1729,6 +1758,7 @@ export class Graphics {
     this.scene.fog.color.copy(horizon);
     // Outdoor distance haze must not turn a sealed cave sky-blue.
     this.scene.fog.color.multiplyScalar(0.035 + perceivedSky * 0.965);
+    this.atmosphere.uniforms.airDetailFar.value = this.scene.fog.far;
     this.sky.position.copy(this.camera.position);
     this.hemi.intensity = overworld ? 0 : 1.15;
     this.hemi.color.set(

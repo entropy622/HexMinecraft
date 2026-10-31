@@ -76,6 +76,7 @@ export class World {
     // Circuits observe all block changes; transport only observes optical ones.
     this.lightRevision = 0;
     this.blockRevision = 0;
+    this.editVersion = 0;
     this.leafRevision = 0;
     this.treeLeaves = new Set();
     this.treeLogs = new Set();
@@ -327,6 +328,7 @@ export class World {
           (previous[name] ?? defaults[name]) !== (next[name] ?? defaults[name]),
       )
     ) {
+      this.editVersion++;
       if (this.loaded(q, r)) this.gravity.wake(q, y, r);
       this.redstone.blockChanged(q, y, r);
       if (isOpenable(this.get(q, y, r)) && isDoorTop(this.get(q, y + 1, r)))
@@ -494,6 +496,8 @@ export class World {
       if (isCampfire(type)) {
         if (!this.campfires.has(k)) this.campfires.set(k, newCampfire());
       } else this.campfires.delete(k);
+      if (!this.edits.has(k) || this.edits.get(k) !== (type || null))
+        this.editVersion++;
       this.edits.set(k, type || null);
       const ck = chunkKey(q, r);
       if (!this.editChunks.has(ck)) this.editChunks.set(ck, new Map());
