@@ -199,6 +199,7 @@ export function stampStructure(world, s, cq, cr) {
     if (Math.floor(q / 8) !== cq || Math.floor(r / 8) !== cr || y < 1 || y > 62)
       return false;
     const k = key(q, y, r);
+    world.featureBlocks?.add(k);
     if (type) world.blocks.set(k, type);
     else world.blocks.delete(k);
     if (type === 'spawner') world.spawners.add(k);

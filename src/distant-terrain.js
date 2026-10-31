@@ -58,6 +58,13 @@ export class DistantTerrain {
     this.material.userData.distantTerrain = true;
     this.material.surfaceAtlas = textures.materials;
     applySkylight(this.material, uniforms, true);
+    this.glassMaterial = this.material.clone();
+    this.glassMaterial.transparent = true;
+    this.glassMaterial.depthWrite = false;
+    this.glassMaterial.alphaTest = 0.01;
+    this.glassMaterial.surfaceAtlas = textures.materials;
+    applySkylight(this.glassMaterial, uniforms, true);
+    this.materials = [this.material, this.glassMaterial];
     this.tiles = new Map();
     this.cache = new DistantCache(DISTANT_CACHE_TILES, DISTANT_CACHE_BYTES);
     this.wanted = new Set();
@@ -324,9 +331,11 @@ export class DistantTerrain {
     this.sourceSun = sun;
     this.sourceProbe = probe;
     this.clouds = clouds;
-    applyDistantFoliage(this.material, foliage);
+    for (const material of this.materials) {
+      applyDistantFoliage(material, foliage);
+      this.atmosphere.apply(material);
+    }
     clouds.attach(this.scene);
-    this.atmosphere.apply(this.material);
   }
   render(renderer, camera) {
     const u = this.atmosphere.uniforms;
@@ -376,7 +385,7 @@ export class DistantTerrain {
     }
   }
   mesh(tile) {
-    const mesh = distantMesh(tile, this.textures, this.world, this.material);
+    const mesh = distantMesh(tile, this.textures, this.world, this.materials);
     this.clouds?.attach(mesh);
     return mesh;
   }
@@ -402,7 +411,7 @@ export class DistantTerrain {
     this.generations.clear();
     this.job = null;
     this.group.removeFromParent();
-    this.material.dispose();
+    for (const material of this.materials) material.dispose();
     this.target.dispose();
   }
 }

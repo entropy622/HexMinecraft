@@ -39,20 +39,42 @@ test('real pooled jungles retain crowns, fractional water and identical negative
   );
   assert.equal(a.residentChunks, 25);
   const tn = 20,
-    th = a.treeHeight;
+    th = a.detailHeight;
   for (let edge = 0; edge < 4; edge++)
     for (let i = 0; i < tn; i++)
       for (let y = 0; y < th; y++) {
         assert.equal(
-          a.trees[((16 + edge) * tn + i) * th + y],
-          b.trees[(edge * tn + i) * th + y],
+          a.details[((16 + edge) * tn + i) * th + y],
+          b.details[(edge * tn + i) * th + y],
         );
         assert.equal(
-          a.trees[(i * tn + 16 + edge) * th + y],
-          c.trees[(i * tn + edge) * th + y],
+          a.details[(i * tn + 16 + edge) * th + y],
+          c.details[(i * tn + edge) * th + y],
         );
       }
   assert.ok(a.residentBlocks <= 25 * 8 * 8 * 64);
+  const fineCells = (tile) => {
+    const result = new Map();
+    for (let i = 0; i < tile.fineDetails.length; i += 2) {
+      const cell = tile.fineDetails[i],
+        column = Math.floor(cell / tile.detailHeight),
+        q = tile.tq * 32 + Math.floor(column / 40),
+        r = tile.tr * 32 + (column % 40);
+      result.set(
+        `${q},${cell % tile.detailHeight},${r}`,
+        tile.fineDetails[i + 1],
+      );
+    }
+    return result;
+  };
+  const af = fineCells(a),
+    bf = fineCells(b),
+    cf = fineCells(c);
+  for (const [key, value] of af) {
+    const [q, , r] = key.split(',').map(Number);
+    if (q >= b.tq * 32) assert.equal(bf.get(key), value);
+    if (r >= c.tr * 32) assert.equal(cf.get(key), value);
+  }
   assert.deepEqual(source, before);
   const mesh = distantMesh(
       a,
@@ -110,16 +132,16 @@ test('a thin authored tower survives pooling, same-key replacement, mining and a
 });
 
 test('a continuous crown spanning every tile edge has no internal vertical walls', () => {
-  const trees = new Uint16Array(20 * 20 * 64),
+  const details = new Uint16Array(20 * 20 * 64),
     leaf = DISTANT_TYPES.indexOf('leaves') + 1;
   for (let a = 0; a < 20; a++)
     for (let b = 0; b < 20; b++)
-      for (let y = 20; y < 23; y++) trees[(a * 20 + b) * 64 + y] = leaf;
+      for (let y = 20; y < 23; y++) details[(a * 20 + b) * 64 + y] = leaf;
   const tile = {
     tq: 0,
     tr: 0,
-    trees,
-    treeHeight: 64,
+    details,
+    detailHeight: 64,
     groundHeights: new Float32Array(100),
     groundTypes: new Uint16Array(100),
   };

@@ -8,6 +8,8 @@ uniform mat4 airProjectionMatrix;
 vec2 airDistantUv(){return gl_FragCoord.xy/max(airDistantResolution,vec2(1.0));}
 vec4 airDistantBackdrop(){
   if(airDistantBlend<=0.0)return vec4(0.0);
-  return texture2D(airDistantColor,airDistantUv());
+  vec4 color=texture2D(airDistantColor,airDistantUv());
+  if(color.a>0.00001)color.rgb/=color.a;
+  return color;
 }
 `;

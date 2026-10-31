@@ -7,7 +7,7 @@ const entry = (id, generation = 0, bytes = 16) => ({
   id,
   epoch: 1,
   generation,
-  tile: { trees: new Uint8Array(bytes) },
+  tile: { details: new Uint8Array(bytes) },
 });
 
 test('returning data follows recency while retired geometry is never retained', () => {

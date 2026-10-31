@@ -28,7 +28,9 @@ self.onmessage = ({ data }) => {
           tile.groundHeights.buffer,
           tile.groundTypes.buffer,
           tile.groundOffsets.buffer,
-          tile.trees.buffer,
+          tile.details.buffer,
+          tile.detailMeta.buffer,
+          tile.fineDetails.buffer,
         ],
       );
     }

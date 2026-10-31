@@ -104,8 +104,8 @@ test('a real distant world fills the horizon without loading gameplay chunks and
         (sum, e) => sum + e.mesh.geometry.index.count / 3,
         0,
       ),
-      treeBytes: [...f.tiles.values()].reduce(
-        (sum, e) => sum + e.tile.trees.byteLength,
+      detailBytes: [...f.tiles.values()].reduce(
+        (sum, e) => sum + e.tile.details.byteLength,
         0,
       ),
       gl: g.renderer.getContext().getError(),

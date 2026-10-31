@@ -1,9 +1,7 @@
 import { test, expect } from './browser-fixture.js';
 import { readFile, writeFile } from 'node:fs/promises';
-import {
-  referenceSave,
-  referenceSettings,
-} from './fixtures/photon-reference-scenes.js';
+import { referenceSettings } from './fixtures/photon-reference-scenes.js';
+import { distantArchitectureSave } from './fixtures/distant-architecture-save.js';
 import { installFrameProbe } from './fixtures/photon-frame-probe.js';
 
 test('shipped distant terrain reaches the GPU and preserves a native v16 world through real controls', async ({
@@ -69,12 +67,7 @@ test('shipped distant terrain reaches the GPU and preserves a native v16 world t
       });
     observer.observe(hud, { attributes: true, attributeFilter: ['class'] });
   });
-  const input = referenceSave({
-    eye: [-177.5, 44.65, 54.5],
-    look: [-157.5, 33, 54.5],
-  });
-  input.time = 120;
-  input.dimensions.overworld.edits.push(['-40,60,54', 'wood']);
+  const input = distantArchitectureSave();
   await page.locator('#save-file').setInputFiles({
     name: 'distant-v16.json',
     mimeType: 'application/json',
@@ -113,6 +106,12 @@ test('shipped distant terrain reaches the GPU and preserves a native v16 world t
   expect(output.inventory).toEqual(input.inventory);
   expect(output.dimensions.overworld.edits).toEqual(
     input.dimensions.overworld.edits,
+  );
+  expect(output.dimensions.overworld.blockStates).toEqual(
+    input.dimensions.overworld.blockStates,
+  );
+  expect(output.dimensions.overworld.fluids).toEqual(
+    input.dimensions.overworld.fluids,
   );
   expect(await page.evaluate(() => typeof window.__hexwild)).toBe('undefined');
   expect(await page.evaluate(() => !!document.pointerLockElement)).toBe(false);

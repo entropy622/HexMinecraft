@@ -96,6 +96,7 @@ export class World {
     this.blockStates = new Map();
     this.naturalStates = new Map();
     this.shapeCache = new Map();
+    this.featureBlocks = options.trackFeatures ? new Set() : null;
     this.chorus = new Map(options.chorus || []);
     this.chorusPending = new Set();
     this.structureFeatures = new Set(options.structureFeatures || []);
@@ -800,6 +801,7 @@ export class World {
           this.dripstoneCells.delete(k);
           this.portalCells.delete(k);
           this.naturalStates.delete(k);
+          this.featureBlocks?.delete(k);
           this.chorusPending.delete(k);
         }
       }
@@ -824,6 +826,7 @@ export class World {
     this.portalCells.clear();
     this.gravity.pending.clear();
     this.naturalStates.clear();
+    this.featureBlocks?.clear();
     this.shapeCache.clear();
     this.heights.clear();
     this.chorusPending.clear();

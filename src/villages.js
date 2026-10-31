@@ -179,6 +179,7 @@ export function stampVillage(world, v, cq, cr) {
     )
       return;
     world.set(q, y, r, t, false);
+    world.featureBlocks?.add(key(q, y, r));
   };
   for (let q = cq * 8; q < cq * 8 + 8; q++)
     for (let r = cr * 8; r < cr * 8 + 8; r++) {
