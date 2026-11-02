@@ -37,7 +37,7 @@ export function installCloudStageProbe() {
       return f.clouds.volume.uniforms.sceneDepth.value === f.target.depthTexture
         ? 'cloud-integrate-main'
         : 'cloud-integrate-water';
-    return t ? labels.get(t) || 'other' : 'output';
+    return t ? window.__profilePass || labels.get(t) || 'other' : 'output';
   }
   HTMLCanvasElement.prototype.getContext = function (...args) {
     const result = context.apply(this, args);

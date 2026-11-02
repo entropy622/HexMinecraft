@@ -1,5 +1,14 @@
 # Photon rendering assets and optics
 
+Since 0.135, `src/reflection-air.js` adapts the receiver-to-hit analytic air
+transport and hit-direction VL shadow approximation from the pinned Photon's
+`include/lighting/specular_lighting.glsl` and
+`include/fog/overworld/analytic.glsl`. These source-derived helpers retain the
+Photon license in `photon.txt`. The host reuses its existing height profiles,
+RGB coefficients and linear Rec.709 transport. Its current-frame input precedes
+volume composition, so it does not copy the source's previous-frame fog
+subtraction. Primary camera air is composed later; sky fallback is unchanged.
+
 Since 0.134, `src/wet-material.js` adapts the puddle darkening, porosity,
 F0, roughness, reflection coverage and normal blending in the pinned Photon's
 `include/surface/rain_puddles.glsl`. `src/material-pack-shader.js` adapts its

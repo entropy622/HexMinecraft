@@ -2,6 +2,7 @@ import { test, expect } from './browser-fixture.js';
 import { readFile, writeFile } from 'node:fs/promises';
 import { emissionGallery } from './fixtures/emission-gallery.js';
 import { wetGallery } from './fixtures/wet-gallery.js';
+import { reflectionAirGallery } from './fixtures/reflection-air-gallery.js';
 import { referenceSettings } from './fixtures/photon-reference-scenes.js';
 import { validateSave } from '../src/save.js';
 
@@ -15,6 +16,11 @@ for (const gallery of [
     name: 'wet-material',
     makeSave: wetGallery,
     shader: 'photonPuddleMaterial',
+  },
+  {
+    name: 'reflection-air',
+    makeSave: reflectionAirGallery,
+    shader: 'surfaceReflectionAir',
   },
 ])
   test(`release draws ${gallery.name} materials and preserves a v16 gallery through native UI and device recovery`, async ({

@@ -6,6 +6,7 @@ import { wetMaterialGLSL } from './wet-material.js';
 export { wetCoverageGLSL } from './wet-material.js';
 import { surfaceReflectionGLSL } from './surface-reflection.js';
 import { reflectionTraceGLSL } from './reflection-trace.js';
+import { reflectionAirGLSL } from './reflection-air.js';
 import {
   ReflectionRadiance,
   reflectionColorGLSL,
@@ -30,7 +31,7 @@ export function wetPorosity(type) {
 
 // Same-frame screen-space reflection, sharing the protection mask's B channel.
 export class WetSurfacePass extends Pass {
-  constructor(camera, frame, weather, sky) {
+  constructor(camera, frame, weather, sky, airUniforms) {
     super();
     this.weather = weather;
     this.radiance = new ReflectionRadiance();
@@ -40,6 +41,7 @@ export class WetSurfacePass extends Pass {
       depthWrite: false,
       toneMapped: false,
       uniforms: {
+        ...airUniforms,
         sceneColor: { value: null },
         sceneDepth: { value: frame.depthTexture },
         surfaceMask: { value: null },
@@ -75,6 +77,7 @@ export class WetSurfacePass extends Pass {
       ${wetMaterialGLSL}
       ${reflectionTraceGLSL}
       ${reflectionColorGLSL}
+      ${reflectionAirGLSL}
       vec3 wetViewPosition(vec2 uv, float depth) {
         vec4 p=wetInverse*vec4(uv*2.0-1.0,depth*2.0-1.0,1.0);return p.xyz/p.w;
       }
@@ -87,8 +90,14 @@ export class WetSurfacePass extends Pass {
         if(abs(point.z-rayPoint.z)>max(0.16,-point.z*0.015))return vec4(0.0);
         float edge=min(min(hit.x,hit.y),min(1.0-hit.x,1.0-hit.y));
         float confidence=smoothstep(0.005,0.065,edge)*(1.0-smoothstep(26.0,48.0,length(point-origin)));
+        if(confidence<=0.0)return vec4(0.0);
         vec4 color=mip<0.0?vec4(textureLod(sceneColor,hit.xy,0.0).rgb,1.0):filteredReflectionColor(reflectionColor,hit.xy,mip);
-        return vec4(color.rgb,confidence*color.a);
+        if(color.a<=0.0)return vec4(0.0);
+        vec3 airOrigin=(wetWorld*vec4(origin,1.0)).xyz;
+        vec3 airHit=(wetWorld*vec4(point,1.0)).xyz;
+        vec3 transported=surfaceReflectionAir(color.rgb,airOrigin,airHit);
+        // HEX_REFLECTION_AIR_READY
+        return vec4(transported,confidence*color.a);
       }
       ${surfaceReflectionGLSL}
       void main() {
