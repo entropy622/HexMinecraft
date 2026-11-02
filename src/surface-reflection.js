@@ -36,14 +36,24 @@ vec3 surfaceSky(vec3 direction,float skylight){
 vec3 surfaceEnvironment(vec3 position,vec3 view,vec4 data,vec4 geometry){
   float mask=floor(data.a*255.0+0.5)-1.0;
   bool mapped=surfaceSpecularEnabled>0.5&&geometry.a>0.5;
-  if(environmentStrength<=0.0||(!mapped&&!surfaceReflectiveClass(mask)))return vec3(0.0);
+  float coverage=texture2D(surfaceMask,vUv).b;
+  if(environmentStrength<=0.0||(!mapped&&!surfaceReflectiveClass(mask)&&coverage<0.001))return vec3(0.0);
   vec3 albedo=surfaceDecodeAlbedo(data.rgb);
   PhotonSurfaceOptics optical=photonSurfaceOptics(albedo,mask);
   if(mapped)photonDecodeLabPbr(texture2D(surfaceSpecular,vUv),albedo,optical);
-  if(optical.ssr<0.5)return vec3(0.0);
+  if(coverage>0.001)photonPuddleOptics(optical,coverage);
+  if(optical.ssr<0.001)return vec3(0.0);
   vec3 normal=normalize(mat3(wetView)*surfaceDecodeNormal(geometry.xy));
   if(dot(normal,view)<0.0)normal=-normal;
   float nv=max(0.01,dot(normal,view));
+  // The mirror limit needs neither a noisy VNDF nor an HDR mip pyramid.
+  // Keep calm/paused puddles stable while their actual rain normal animates.
+  if(optical.roughness<0.003){
+    vec3 ray=reflect(-view,normal);
+    vec4 hit=environmentScene>0.5?reflectedScene(position+normal*0.045,ray,environmentSteps,-1.0,0.5):vec4(0.0);
+    vec3 radiance=mix(surfaceSky(normalize(mat3(wetWorld)*ray),geometry.b),hit.rgb,hit.a);
+    return max(radiance*photonSurfaceFresnel(nv,albedo,optical),vec3(0.0))*environmentStrength*optical.ssr*mix(vec3(1.0),albedo,optical.hardcoded);
+  }
   vec3 tangent=normalize(cross(abs(normal.z)<0.999?vec3(0,0,1):vec3(0,1,0),normal));
   vec3 bitangent=cross(normal,tangent);
   mat3 basis=mat3(tangent,bitangent,normal);
@@ -65,6 +75,6 @@ vec3 surfaceEnvironment(vec3 position,vec3 view,vec4 data,vec4 geometry){
     float v2=0.5/(nv*sqrt((-nl*a2+nl)*nl+a2)+nl*sqrt((-nv*a2+nv)*nv+a2));
     result+=radiance*fresnel*(2.0*nl*v2/v1);
   }
-  return max(result/float(environmentRays),vec3(0.0))*environmentStrength*mix(vec3(1.0),albedo,optical.hardcoded);
+  return max(result/float(environmentRays),vec3(0.0))*environmentStrength*optical.ssr*mix(vec3(1.0),albedo,optical.hardcoded);
 }
 `;

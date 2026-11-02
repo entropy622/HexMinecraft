@@ -51,7 +51,7 @@ export function probeSurfaceReflections(g) {
         const results = {};
         for (const mode of ['full', 'ssr', 'sky']) {
           let fragment = pass.material.fragmentShader.replace(
-            'base.rgb+=environment*(1.0-coverage);',
+            'base.rgb+=environment;',
             'gl_FragColor=vec4(environment,1.0);return;',
           );
           if (mode === 'ssr')
@@ -59,14 +59,15 @@ export function probeSurfaceReflections(g) {
               'textureLod(environmentSky,uv,0.0).rgb*visible',
               'vec3(0.0)',
             );
-          if (mode === 'sky')
-            fragment = fragment.replace(
-              'vec4 hit=environmentScene>0.5?reflectedScene(position+normal*0.045,ray,environmentSteps,mip,dither):vec4(0.0);',
-              'vec4 hit=vec4(0.0);',
-            );
           const material = new ShaderMaterial({
             uniforms: {
               ...pass.material.uniforms,
+              environmentScene: {
+                value:
+                  mode === 'sky'
+                    ? 0
+                    : pass.material.uniforms.environmentScene.value,
+              },
               environmentFrame: { value: 0 },
             },
             vertexShader: pass.material.vertexShader,

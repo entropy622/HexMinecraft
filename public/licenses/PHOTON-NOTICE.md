@@ -1,5 +1,15 @@
 # Photon rendering assets and optics
 
+Since 0.134, `src/wet-material.js` adapts the puddle darkening, porosity,
+F0, roughness, reflection coverage and normal blending in the pinned Photon's
+`include/surface/rain_puddles.glsl`. `src/material-pack-shader.js` adapts its
+light-level filtering to the host's squared RGB voxel-light attributes.
+These derived helpers retain the Photon license in `photon.txt`. The host's
+existing world-space noise and rain rings replace noisetex, in linear Rec.709.
+Wet surfaces share the existing attributed specular/reflection pipeline;
+the stable near-mirror limit, renderer integration and buffer ownership are
+host adaptations, not a pixel-identical reproduction of Iris rendering.
+
 Since 0.133, `src/photon-emission.js` adapts the fixed source material classes
 33, 35, 36, 37 and 55 from `include/surface/material.glsl`, including the HSV
 utility and periodic hue selection from `include/utility/color.glsl` and

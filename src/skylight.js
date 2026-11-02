@@ -7,6 +7,7 @@ import {
   materialPackFragment,
 } from './material-pack-shader.js';
 import { biomeTintGLSL } from './biome-tint-shader.js';
+import { wetCoverageGLSL, wetMaterialGLSL } from './wet-material.js';
 export const visionUniforms = { nightVision: { value: 0 } };
 
 // Both static surfaces and moving models use the same response to voxel light.
@@ -118,6 +119,7 @@ export function applySkylight(
     terrainWetness: { value: 0 },
   };
   uniforms.surfaceBounce ??= { value: 0 };
+  uniforms.terrainRain ??= { value: 0 };
   uniforms.surfaceDiffuse ??= { value: 1 };
   uniforms.surfaceSpecular ??= { value: 1 };
   uniforms.surfaceLightRadius ??= { value: Math.PI / 90 };
@@ -142,15 +144,18 @@ export function applySkylight(
       );
     shader.fragmentShader =
       `${geometricShade ? '#define HEX_GEOMETRIC_SHADE\nvarying float vAmbientOcclusion; varying float vSurfaceOptics; uniform float surfaceSpecular,surfaceLightRadius;\n' : ''}
+      ${geometricShade && material.userData.wetSurface ? '#define HEX_WET_SURFACE\n' : ''}
       ${!material.transparent ? '#define HEX_WATER_RECEIVER\n' + waterLightingGLSL : ''}
       varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;
-      uniform float terrainWetness; uniform float nightVision; uniform float surfaceDiffuse;\n${shader.fragmentShader}`
+      uniform float terrainWetness; uniform float terrainRain; uniform float nightVision; uniform float surfaceDiffuse;\n${shader.fragmentShader}`
         .replace(
           '#include <lights_pars_begin>',
           '#include <lights_pars_begin>\n' +
             (geometricShade
               ? surfaceIndirectGLSL +
                 photonSpecularGLSL +
+                wetCoverageGLSL +
+                wetMaterialGLSL +
                 materialPackGLSL +
                 biomeTintGLSL
               : ''),
@@ -199,13 +204,15 @@ export function applySkylight(
         .replace(
           '#include <opaque_fragment>',
           `
-        float wet = terrainWetness * vWetTop;
-        outgoingLight *= 1.0 - wet * (0.12 + 0.18 * ${geometricShade ? 'surfacePorosity' : 'vPorosity'});
+        ${geometricShade ? '' : 'float wet=terrainWetness*vWetTop;outgoingLight*=1.0-wet*(0.12+0.18*vPorosity);'}
         ${geometricShade ? 'outgoingLight+=reflectedLight.directSpecular;' : ''}
         #include <opaque_fragment>`,
         );
   };
   material.customProgramCacheKey = () =>
-    'hex-colored-voxel-wet-sky-v14-biome-pigment-' + Number(geometricShade);
+    'hex-colored-voxel-wet-sky-v15-puddle-material-' +
+    Number(geometricShade) +
+    '-' +
+    Number(!!material.userData.wetSurface);
   return uniforms;
 }

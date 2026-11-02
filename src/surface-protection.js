@@ -125,12 +125,6 @@ export class SurfaceProtectionPass extends Pass {
       Object.assign(shader.uniforms, uniforms, {
         surfaceChannels: { value: flags.clone() },
       });
-      shader.vertexShader =
-        'varying float surfaceRain;\n' +
-        shader.vertexShader.replace(
-          '#include <begin_vertex>',
-          '#include <begin_vertex>\nsurfaceRain=rainExposure;',
-        );
       shader.fragmentShader =
         /* glsl */ `
         layout(location=1) out highp vec4 reflectionAlbedo;
@@ -138,10 +132,8 @@ export class SurfaceProtectionPass extends Pass {
         #ifdef HEX_PACK_SPECULAR_OUTPUT
           layout(location=3) out highp vec4 reflectionSpecular;
         #endif
-        varying float surfaceRain;
         uniform sampler2D surfaceDepth;uniform vec2 surfaceResolution;
         uniform vec3 surfaceChannels;
-        ${wetCoverageGLSL}
         vec2 surfaceOctEncode(vec3 n){
           n/=abs(n.x)+abs(n.y)+abs(n.z);
           vec2 e=n.xy;
@@ -158,8 +150,7 @@ export class SurfaceProtectionPass extends Pass {
         float surfaceDepthValue=texture2D(surfaceDepth,gl_FragCoord.xy/surfaceResolution).r;
         if(gl_FragCoord.z>surfaceDepthValue+0.000001)discard;
         vec3 surfaceWorldNormal=normalize(inverseTransformDirection(normal,viewMatrix));
-        float coverage=surfaceChannels.z>0.5?wetCoverage(vLightPosition,surfaceWorldNormal.y,
-          surfaceRain,surfacePorosity,terrainWetness):0.0;
+        float coverage=surfaceChannels.z>0.5?surfacePuddleCoverage:0.0;
         gl_FragColor=vec4(surfaceChannels.x,max(surfaceChannels.y,step(0.025,coverage)),coverage,1.0);
         reflectionAlbedo=vec4(surfaceEncodeAlbedo(diffuseColor.rgb),(floor(vSurfaceOptics+0.5)+1.0)/255.0);
         reflectionGeometry=vec4(surfaceOctEncode(surfaceWorldNormal),sqrt(clamp(surfaceSkyLevel,0.0,1.0)),surfaceHasSpec);
@@ -265,13 +256,14 @@ export class SurfaceProtectionPass extends Pass {
             this.wet.enabled &&
             this.wet.weather.terrainWetness.value > 0.001 &&
             materials.some((m) => m?.userData.wetSurface),
-          receivesOptics =
+          receivesRoughOptics =
             this.wet.enabled &&
             this.wet.material.uniforms.environmentStrength.value > 0 &&
             (!!object.userData.surfaceReflection ||
               materials.some((m) =>
                 m?.surfaceAtlas?.reflective(object.geometry),
               )),
+          receivesOptics = receivesWet || receivesRoughOptics,
           protection =
             overlay ||
             materials.some(
@@ -316,7 +308,7 @@ export class SurfaceProtectionPass extends Pass {
             : this.opticalMaterial(object.material, flags, receivesOptics);
         else if (compiling) object.material = null;
         if (
-          receivesOptics &&
+          receivesRoughOptics &&
           object.layers.mask &&
           !protection &&
           this.frustum.intersectsObject(object)

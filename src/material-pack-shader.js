@@ -37,5 +37,21 @@ export const materialPackFragment = /* glsl */ `
     }
   #endif
   totalEmissiveRadiance=max(totalEmissiveRadiance,surfaceOptical.emissionRadiance);
+  float surfacePuddle=0.0,surfacePuddleCoverage=0.0;
+  #ifdef HEX_WET_SURFACE
+    vec3 surfaceFlatNormal=normalize(cross(dFdx(vLightPosition),dFdy(vLightPosition)));
+    float surfaceBlockLevelRaw=sqrt(clamp(max(max(vBlockLight.r,vBlockLight.g),vBlockLight.b),0.0,1.0));
+    surfacePuddle=wetPuddle(vLightPosition,surfaceFlatNormal.y,vWetTop,terrainWetness)
+      *(1.0-surfaceBlockLevelRaw*surfaceBlockLevelRaw*surfaceBlockLevelRaw)
+      *clamp((sqrt(clamp(vSkylight,0.0,1.0))-14.0/15.0)*15.0,0.0,1.0);
+    surfacePuddleCoverage=photonPuddleMaterial(surfacePuddle,surfacePorosity,diffuseColor.rgb,surfaceOptical);
+    if(surfacePuddle>0.000001){
+      vec3 surfaceNormalWorld=inverseTransformDirection(normal,viewMatrix);
+      surfaceNormalWorld=photonPuddleNormal(surfaceNormalWorld,surfaceFlatNormal,
+        wetRippleNormal(vLightPosition.xz,terrainRain,waterTime),surfacePuddleCoverage,terrainRain,
+        normalize(cameraPosition-vLightPosition));
+      normal=normalize((viewMatrix*vec4(surfaceNormalWorld,0.0)).xyz);
+    }
+  #endif
   // HEX_SURFACE_DATA_READY
 `;

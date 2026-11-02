@@ -5,7 +5,7 @@
 审计基准：
 
 - Photon：`D:/Git/photon`，固定提交 [`6e67b36e818bacde0304edd49f28e2bb70e33f04`][p-root]。已对照 [README][p-readme]、[settings.glsl][p-settings]、[shaders.properties][p-properties] 的菜单/启用条件，以及对应 program/include 的实际实现。下方所有 Photon 链接固定到该提交。
-- HexMinecraft：初始审计基线为 [`bf64bbf855484deb040d56561fc6713b74fa0480`][h-root]，版本 0.85；下方机制状态与补充记录更新至 0.133。各验证文件保留首次失败与后续结果，本矩阵不替代实际图像和性能验收。
+- HexMinecraft：初始审计基线为 [`bf64bbf855484deb040d56561fc6713b74fa0480`][h-root]，版本 0.85；下方机制状态与补充记录更新至 0.134。各验证文件保留首次失败与后续结果，本矩阵不替代实际图像和性能验收。
 - 参考图：用户附件 `codex-clipboard-332466b9-bff0-4693-9c2d-c219012105ea.png`。实际查看了 1920x1080 图像；场景是向光森林，白色太阳周围薄云发亮，多层积云有明显厚度和暗底，远山与林冠向空气色递进，低洼湿霾保留前景深绿与背光亮叶的对比。不能从单张图确定其资源包、全部开关、时刻或曝光值。
 
 机制表中的本项目源码链接跟随当前检出版本；初始审计基线保留在上方固定提交中。
@@ -143,7 +143,7 @@
 | 通用粗糙 SSR、天空反射与环境 BRDF       | [specular_lighting][p-specular] 的 GGX VNDF 多射线、粗糙度/颜色 mip、天空图回退；[raytracer][p-raytracer]                         | **部分，已有原生固定材质核心**。[surface-reflections-verification.md](surface-reflections-verification.md) 中金属、宝石和黑曜石使用共享投影追踪、GGX VNDF、按需 HDR 颜色 mip 和共享天空回退；支持保存的场景/天空开关与质量选择。仍缺反射专用历史、反射雾校正、资源包通道和独立模型覆盖，详见 [过滤验证](reflection-filtering-verification.md) | **P1**，材质真实感；延伸一条共享路径，避免另建第二套互不一致的水/地面规则 |
 | 所有透明材质折射与层合成                | [c1_blend_layers][p-blend-layers] 的 refraction data、透明层、雾和前置云合成                                                      | **部分**。真实水折射已做，普通玻璃更多是透明材质与透光，不是任意透明表面视线折射                                                                                                                                                                                                                                                              | **P1**，玻璃/冰等效果；保护前景深度、手持与水捕获边界                     |
 | 发光材质和固定材质参数                  | [material.glsl][p-material] 的 hardcoded specular/emission/SSS                                                                    | **已有源分区自发光，完整映射仍部分**。0.133 将类33/35/36/37/55接入烛身、灯具、火把、炉口、浆果与晶簇，按实际贴图与状态计算 RGB 辐射，并与 labPBR 取最大值；实体、独立模型及其余源类仍待统一，见[发光验证](emission-verification.md)                                                                                                           | **P1**，统一灯、矿物、植物与 HDR，不以统一抬亮代替发光                    |
-| 雨后湿润/孔隙率/水洼                    | [rain_puddles.glsl][p-puddles] 修改 albedo/F0/roughness/normal/SSR                                                                | **已有核心，部分 PBR 耦合**。[wet-surfaces.js][h-wet] 有世界空间覆盖、孔隙率、淋雨条件、干燥过程、雨滴环和真实 SSR；未修改通用 PBR 粗糙度/F0                                                                                                                                                                                                  | **P1**，延伸既有遮罩/字段，避免再建天气存档或第二水洼场                   |
+| 雨后湿润/孔隙率/水洼                    | [rain_puddles.glsl][p-puddles] 修改 albedo/F0/roughness/normal/SSR                                                                | **已有共享湿面光学，完整覆盖仍部分**。0.134 将源吸水暗化、F0/粗糙度、法线和 SSR 覆盖接入原生材质与共享反射，支持 labPBR 与稳定镜面极限；远景与更多独立模型仍待完善，见[湿面验证](wet-material-verification.md)                                                                                                                                | **P1**，延伸既有遮罩/字段，避免再建天气存档或第二水洼场                   |
 
 ## 水与后处理
 
