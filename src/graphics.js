@@ -6,6 +6,7 @@ import {
   plantMaterials,
 } from './foliage-shader.js';
 import { LeafParticles } from './leaf-particles.js';
+import { foliageWindStrength } from './foliage-wind.js';
 import {
   surfaceOpticsClass,
   reflectiveSurfaceClass,
@@ -286,6 +287,9 @@ export class Graphics {
       this.skyEnvironment.atmosphere.fogAmbient,
     );
     Object.assign(this.cloudSystem.uniforms, this.skyEnvironment.uniforms);
+    // The numeric Photon noise already belongs to this graphics owner. Keep
+    // its seed header bound even when the cloud cache swaps its own atlas.
+    this.leafUniforms.leafNoise.value = this.cloudSystem.noise;
     this.skyEnvironment.atmosphere.attachClouds(this.cloudSystem.uniforms);
     this.distantTerrain.connect(
       this.sun,
@@ -1795,7 +1799,7 @@ export class Graphics {
     this.leafUniforms.leafTime.value = time;
     this.leafUniforms.leafViewer.value.copy(this.camera.position);
     this.leafUniforms.leafWind.value = overworld
-      ? 0.018 + rain * 0.012 + storm * 0.014
+      ? foliageWindStrength(rain, this.cloudSystem.climate.wind)
       : 0;
     this.leafUniforms.leafSunDirection.value
       .copy(this.sun.position)

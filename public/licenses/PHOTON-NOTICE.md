@@ -1,5 +1,15 @@
 # Photon rendering assets and optics
 
+Since 0.137, `src/foliage-wind.js` adapts the directional noise gust,
+three-harmonic wobble, weather strength and leaf/plant response from the pinned
+Photon's `include/vertex/displacement.glsl` and `include/weather/core.glsl`.
+The derived helpers retain the Photon license in `photon.txt`. The host reuses
+the existing numeric noise image and cloud climate, maps its already-squared
+skylight attributes directly to the source squared-light response, and retains
+its native grass anchors and player interaction. Leaf-particle drift is a host
+cosmetic adaptation; independent crop models and distant foliage are not a
+complete port of the source material classes.
+
 Since 0.136, `src/cloud-volume.js` adapts the neighborhood apparent-distance
 reprojection principle in the pinned Photon's `program/d2_clouds_upscaling.fsh`.
 For missed sky rays, actual neighboring sky-cloud distances can anchor existing

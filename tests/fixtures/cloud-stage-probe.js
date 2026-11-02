@@ -15,7 +15,8 @@ export function installCloudStageProbe() {
     gpu = [],
     frames = [],
     disjoint = 0,
-    busy = 0;
+    busy = 0,
+    queryCapacity = 256;
   let labels = new WeakMap();
   const context = HTMLCanvasElement.prototype.getContext;
   function finishBatch() {
@@ -68,7 +69,7 @@ export function installCloudStageProbe() {
           count++;
           if (frame && gpuEnabled && extension && bits && !batch) {
             if (
-              pending.length < 256 &&
+              pending.length < queryCapacity &&
               !gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY)
             ) {
               const query = gl.createQuery();
@@ -136,7 +137,7 @@ export function installCloudStageProbe() {
     get rendered() {
       return rendered;
     },
-    start(n, withGpu = true) {
+    start(n, withGpu = true, capacity = 256) {
       if (measuring || pending.length)
         throw Error('GPU measurement is pending');
       const g = window.__hexwild.graphics,
@@ -160,6 +161,7 @@ export function installCloudStageProbe() {
       busy = 0;
       disjoint = 0;
       targetFrames = n;
+      queryCapacity = capacity;
       gpuEnabled = withGpu;
       measuring = true;
     },

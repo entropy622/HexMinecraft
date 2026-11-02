@@ -9,10 +9,12 @@ import {
 import { applySkylight } from './skylight.js';
 import { leafLightingGLSL } from './leaf-lighting.js';
 import { leafTransmissionGLSL } from './leaf-transmission.js';
+import { foliageWindGLSL } from './foliage-wind.js';
 
 export const foliageUniforms = () => ({
   leafTime: { value: 0 },
   leafWind: { value: 0 },
+  leafNoise: { value: null },
   leafSunDirection: { value: new Vector3(0, 1, 0) },
   leafSunColor: { value: new Color(0) },
   leafSheen: { value: 0.5 },
@@ -31,17 +33,14 @@ export function applyFoliageWind(material, uniforms, grass = false) {
     previous.call(material, shader, renderer);
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader =
-      `uniform float leafTime; uniform float leafWind; uniform vec3 leafViewer;\n${material.isMeshDepthMaterial ? 'attribute float skylight;\n' : ''}` +
+      `uniform float leafTime; uniform float leafWind; uniform vec3 leafViewer;\n${foliageWindGLSL}\n${material.isMeshDepthMaterial ? 'attribute float skylight;\n' : ''}` +
       shader.vertexShader.replace(
         '#include <begin_vertex>',
         /* glsl */ `
         #include <begin_vertex>
         vec3 leafWorld = (modelMatrix * vec4(position, 1.0)).xyz;
-        float leafGust = sin(leafWorld.x * 0.47 + leafWorld.z * 0.31 + leafTime * 1.1);
-        float leafFlutter = sin(leafWorld.x * 1.37 - leafWorld.z * 0.81 + leafTime * 2.8 + leafWorld.y * 0.7);
-        float leafAnchor = ${grass ? 'clamp(fract(position.y + 0.001) * 1.4, 0.0, 1.0)' : '1.0'};
-        float leafShelter = 0.15 + 0.85 * sqrt(clamp(skylight, 0.0, 1.0));
-        transformed.xz += vec2(leafGust + leafFlutter * 0.3, leafGust * 0.45 - leafFlutter * 0.2) * leafWind * leafAnchor * leafShelter;
+        float leafAnchor = ${grass ? 'clamp(fract(position.y) * 1.4, 0.0, 1.0)' : '1.0'};
+        transformed += hexFoliageWind(leafWorld, leafTime, leafWind, clamp(skylight,0.0,1.0)) * leafAnchor * ${grass ? '1.0' : '0.5'};
         ${
           grass
             ? `vec2 leafToPlayer = leafViewer.xz - leafWorld.xz;
@@ -54,7 +53,7 @@ export function applyFoliageWind(material, uniforms, grass = false) {
       );
   };
   material.customProgramCacheKey = () =>
-    cacheKey + (grass ? '-grass-wind-v1' : '-leaf-wind-v1');
+    cacheKey + (grass ? '-grass-wind-v2-photon' : '-leaf-wind-v2-photon');
 }
 
 function subsurfaceMaterials(atlas, weather, uniforms, thin) {

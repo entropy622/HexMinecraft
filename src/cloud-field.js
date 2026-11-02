@@ -73,6 +73,7 @@ export function cloudWeather(
   return {
     temperature,
     humidity,
+    wind: breeze,
     ...shaping,
     noiseOffset: [random(3, 17, seed) * 25000, random(29, 5, seed) * 25000],
     // The inexpensive geometry mode retains its scalar coverage control.

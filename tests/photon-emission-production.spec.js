@@ -29,6 +29,11 @@ for (const gallery of [
     shader: 'cloudCubicWeights',
     clouds: true,
   },
+  {
+    name: 'photon-foliage-wind',
+    makeSave: daylightSave,
+    shader: 'hexFoliageWind',
+  },
 ])
   test(`release draws ${gallery.name} materials and preserves a v16 gallery through native UI and device recovery`, async ({
     page,

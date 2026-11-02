@@ -57,9 +57,10 @@ export class LeafParticles {
       if (!p.mesh.visible) continue;
       p.life -= dt;
       p.mesh.visible = p.life > 0;
-      p.mesh.position.x +=
-        (0.14 + wind * 3 + Math.sin(time * 2 + p.phase) * 0.12) * dt;
-      p.mesh.position.z += Math.cos(time + p.phase) * dt * 0.18;
+      const drift = 0.14 + wind * 0.3,
+        flutter = Math.sin(time * 2 + p.phase) * 0.12;
+      p.mesh.position.x += (0.866025403784 * drift - 0.5 * flutter) * dt;
+      p.mesh.position.z += (0.5 * drift + 0.866025403784 * flutter) * dt;
       p.mesh.position.y -= dt * (0.4 + 0.15 * Math.sin(time * 3 + p.phase));
       p.mesh.rotation.x += dt * 2.1;
       p.mesh.rotation.z = Math.sin(time * 3 + p.phase) * 0.7;
