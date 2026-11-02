@@ -1,5 +1,5 @@
 import { BLOCKS, key } from './core.js';
-import { GLASS_TYPES, isGlass } from './dye-data.js';
+import { GLASS_TYPES, isFilteredGlass } from './dye-data.js';
 import { isDoor, isTrapdoor } from './building-data.js';
 import { isCampfire } from './campfire-data.js';
 import { FURNACES, isFurnace } from './processing-data.js';
@@ -17,6 +17,10 @@ export const EMISSION = {
   lantern: [15, 13, 9],
   glowstone: [15, 13, 9],
   crystal: [6, 11, 10],
+  smallAmethystBud: [1, 0, 1],
+  mediumAmethystBud: [2, 1, 2],
+  largeAmethystBud: [3, 2, 4],
+  amethystCluster: [4, 3, 5],
   ...Object.fromEntries(Object.keys(FURNACES).map((id) => [id, [13, 9, 5]])),
   portal: [11, 6, 15],
   endportal: [7, 14, 12],
@@ -32,20 +36,22 @@ export const EMISSION = {
 // invalidate uploads even when a change of glass leaves transport unchanged.
 const LIGHT_DATA = Object.fromEntries(
   Object.entries(BLOCKS).map(([type, block]) => {
-    const glass = isGlass(type),
-      cost = block.foliage
-        ? 3
-        : glass || ['carpet', 'vine'].includes(block.shape)
-          ? 1
-          : isDoor(type) || ['dropper', 'observer'].includes(block.shape)
-            ? 16
-            : isTrapdoor(type)
-              ? 3
-              : block.shape
-                ? 2
-                : block.nonSolid
-                  ? 1
-                  : 16,
+    const glass = isFilteredGlass(type),
+      cost = block.blocksLight
+        ? 16
+        : block.foliage
+          ? 3
+          : glass || ['carpet', 'vine'].includes(block.shape)
+            ? 1
+            : isDoor(type) || ['dropper', 'observer'].includes(block.shape)
+              ? 16
+              : isTrapdoor(type)
+                ? 3
+                : block.shape
+                  ? 2
+                  : block.nonSolid
+                    ? 1
+                    : 16,
       medium = glass
         ? 14
         : block.foliage

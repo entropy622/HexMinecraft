@@ -109,6 +109,15 @@ export class GameAudio {
   play(event, material = 'grass') {
     if (!this.enabled) return;
     this.events[event] = (this.events[event] || 0) + 1;
+    if (
+      /amethyst/i.test(material) &&
+      ['step', 'dig', 'break', 'place', 'hit'].includes(event)
+    ) {
+      const note = event === 'break' ? 660 : event === 'step' ? 880 : 990;
+      this.tone(note, 0.18, 'sine', 0.045);
+      this.tone(note * 1.5, 0.24, 'sine', 0.025, 0.025);
+      return;
+    }
     if (event === 'step') {
       this.noise(
         0.09,

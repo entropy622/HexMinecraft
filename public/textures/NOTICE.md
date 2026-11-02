@@ -335,8 +335,10 @@ gameplay source or model is bundled. Selected media now totals 253 PNGs:
 232 under CC BY-SA 3.0 and 21 under CC BY-SA 4.0.
 
 Photon (https://github.com/sixthsurge/photon) provided visual inspiration for
-warm low sunlight, sky color and water highlights. No Photon source or assets
-are included, and this project does not implement or bundle the Photon pack.
+warm low sunlight, sky color and water highlights. These texture PNGs contain
+no Photon media. Some rendering mathematics is adapted from Photon under its
+license; see [PHOTON-NOTICE](../licenses/PHOTON-NOTICE.md). The complete Photon
+shader pack is not bundled.
 Its `shaders/include/vertex/displacement.glsl` was also consulted for the
 concepts of anchored plants, world-space wind and weather-dependent gusts;
 no Photon source was copied or distributed.

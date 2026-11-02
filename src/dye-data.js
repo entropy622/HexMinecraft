@@ -42,7 +42,8 @@ export const GLASS_BLOCKS = {
   ),
 };
 export const GLASS_TYPES = Object.keys(GLASS_BLOCKS);
-export const isGlass = (id) => Object.hasOwn(GLASS_BLOCKS, id);
+export const isFilteredGlass = (id) => Object.hasOwn(GLASS_BLOCKS, id);
+export const isGlass = (id) => id === 'tintedGlass' || isFilteredGlass(id);
 export const PIGMENT_PLANTS = {
   poppy: {
     name: '虞美人',

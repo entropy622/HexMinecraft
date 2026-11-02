@@ -14,6 +14,8 @@ import { treeVines } from './vines.js';
 import { LeafDecay } from './leaves.js';
 import { Gravity } from './gravity.js';
 import { caveColumn, cavesNear, stampCaves } from './caves.js';
+import { geodesNear, stampGeodes } from './geodes.js';
+import { isAmethystBud } from './amethyst-data.js';
 import { isCampfire, newCampfire } from './campfire-data.js';
 import { isDoorTop, isFence, isGate, isOpenable } from './building-data.js';
 import {
@@ -92,6 +94,7 @@ export class World {
     this.hangingPlants = new Set();
     this.vineCells = new Set();
     this.dripstoneCells = new Set();
+    this.amethystCells = new Set();
     this.portalCells = new Set();
     this.blockStates = new Map();
     this.naturalStates = new Map();
@@ -150,6 +153,9 @@ export class World {
   }
   caves(q, r, range = 0) {
     return cavesNear(this, q, r, range);
+  }
+  geodes(q, r, range = 0) {
+    return geodesNear(this, q, r, range);
   }
   villageSources(cq, cr) {
     return this.villages(cq * 8 + 4, cr * 8 + 4, 8)
@@ -276,7 +282,10 @@ export class World {
     const k = key(q, y, r);
     return (
       this.blockStates.get(k) ||
-      this.naturalStates.get(k) || { facing: 0, open: false }
+      this.naturalStates.get(k) || {
+        facing: BLOCKS[this.get(q, y, r)]?.defaultFacing ?? 0,
+        open: false,
+      }
     );
   }
   setState(q, y, r, state, record = true) {
@@ -308,7 +317,7 @@ export class World {
     if (previousLight !== blockLight(this, q, y, r)) this.lightRevision++;
     this.shapeCache.clear();
     const defaults = {
-      facing: 0,
+      facing: BLOCKS[this.get(q, y, r)]?.defaultFacing ?? 0,
       open: false,
       upper: false,
       double: false,
@@ -476,6 +485,8 @@ export class World {
       else this.vineCells.delete(k);
       if (type === 'pointedDripstone') this.dripstoneCells.add(k);
       else this.dripstoneCells.delete(k);
+      if (isAmethystBud(type)) this.amethystCells.add(k);
+      else this.amethystCells.delete(k);
       if (type === 'spawner') this.spawners.add(k);
       else this.spawners.delete(k);
       if (type) this.blocks.set(k, type);
@@ -640,6 +651,7 @@ export class World {
           for (let y = h; y < h + 7; y++) put(q, y, r, 'obsidian');
       }
     stampCaves(this, cq, cr);
+    stampGeodes(this, cq, cr);
     const structures = this.structures(cq * 8 + 4, cr * 8 + 4, 8),
       pods = [],
       vines = [],
@@ -756,6 +768,8 @@ export class World {
           if (this.blocks.get(k) === 'vine') this.vineCells.add(k);
           if (this.blocks.get(k) === 'pointedDripstone')
             this.dripstoneCells.add(k);
+          if (isAmethystBud(this.blocks.get(k))) this.amethystCells.add(k);
+          else this.amethystCells.delete(k);
           this.gravity.index(q, y, r, this.blocks.get(k));
           if (this.blocks.get(k) === 'portal') this.portalCells.add(k);
           if (isCampfire(this.blocks.get(k)) && !this.campfires.has(k))
@@ -799,6 +813,7 @@ export class World {
           this.hangingPlants.delete(k);
           this.vineCells.delete(k);
           this.dripstoneCells.delete(k);
+          this.amethystCells.delete(k);
           this.portalCells.delete(k);
           this.naturalStates.delete(k);
           this.featureBlocks?.delete(k);
@@ -822,6 +837,7 @@ export class World {
     this.hangingPlants.clear();
     this.vineCells.clear();
     this.dripstoneCells.clear();
+    this.amethystCells.clear();
     for (const map of Object.values(this.redstone.signals)) map.clear();
     this.portalCells.clear();
     this.gravity.pending.clear();

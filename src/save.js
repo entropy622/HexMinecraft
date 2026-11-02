@@ -138,9 +138,13 @@ export function validateSave(s) {
         [...states].some(
           ([k, state]) =>
             (state.facing > 5 &&
-              !['dropper', 'piston', 'pistonHead', 'observer'].includes(
-                BLOCKS[edits.get(k)]?.shape,
-              )) ||
+              ![
+                'dropper',
+                'piston',
+                'pistonHead',
+                'observer',
+                'amethyst',
+              ].includes(BLOCKS[edits.get(k)]?.shape)) ||
             (state.delay !== undefined && edits.get(k) !== 'repeater') ||
             (state.down !== undefined && edits.get(k) !== 'hopper') ||
             (state.faces !== undefined && edits.get(k) !== 'vine') ||

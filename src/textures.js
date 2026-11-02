@@ -295,6 +295,26 @@ export function createTextures(maxTextureSize = 16384) {
       c.strokeRect(0.5, 0.5, 15, 15);
       for (let i = 3; i < 10; i++) fill('#ffffff', i, 13 - i);
     }
+    if (BLOCKS[id]?.amethyst) {
+      for (let y = 0; y < 16; y++)
+        for (let x = 0; x < 16; x++) {
+          const phase =
+            (x +
+              2 * y +
+              Math.floor(
+                hash(Math.floor(x / 4), 1332, Math.floor(y / 4)) * 5,
+              )) %
+            7;
+          if (phase < 2) fill(top ? '#c8a4e7' : '#b08ad3', x, y);
+          else if (phase > 4) fill('#705493', x, y);
+        }
+      if (id === 'buddingAmethyst') {
+        fill('#4c386b', 7, 2, 2, 12);
+        fill('#4c386b', 2, 7, 12, 2);
+        fill('#ebd0ff', 6, 5, 1, 5);
+        fill('#ba8fe7', 5, 6, 5, 1);
+      }
+    }
     if (id === 'lantern') {
       fill('#493925', 0, 0, 16, 2);
       fill('#493925', 0, 14, 16, 2);

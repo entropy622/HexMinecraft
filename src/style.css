@@ -4437,3 +4437,30 @@ input:focus-visible {
   width: max-content;
   margin-inline: auto;
 }
+/* The optical view leaves controls untouched and uses no native mouse lock. */
+#spyglass-view {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+#spyglass-view.hidden {
+  display: none;
+}
+.spyglass-lens {
+  width: 78vmin;
+  height: 78vmin;
+  border: 9px solid #80542f;
+  outline: 3px solid #d2ab70;
+  box-shadow:
+    0 0 0 100vmax #040403,
+    inset 0 0 0 3px #b2c4d0,
+    inset 0 0 25px #38435d55;
+  border-radius: 5px;
+}
+.using-spyglass #crosshair {
+  visibility: hidden;
+}

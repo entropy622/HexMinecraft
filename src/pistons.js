@@ -45,7 +45,9 @@ function reaction(world, p) {
     isPigmentPlant(type) ||
     isDoor(type) ||
     type === 'pointedDripstone' ||
-    type === 'cocoa'
+    type === 'cocoa' ||
+    type === 'buddingAmethyst' ||
+    block.shape === 'amethyst'
   )
     return 'break';
   return 'move';

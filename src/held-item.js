@@ -9,6 +9,37 @@ import { buildingItemMesh, usesBuildingItemMesh } from './building-graphics.js';
 export function createHeldItem(id, textures) {
   const group = new THREE.Group();
   if (!id) return group;
+  if (id === 'spyglass') {
+    const scope = new THREE.Group();
+    scope.position.set(0, 0.2, -0.4);
+    scope.rotation.set(-0.6, 0, -0.4);
+    for (const [y, radius, height, color] of [
+      [0, 0.055, 0.42, '#b47b45'],
+      [-0.2, 0.07, 0.07, '#6b452a'],
+      [0.2, 0.075, 0.07, '#d0a067'],
+      [0.245, 0.052, 0.02, '#aebde4'],
+    ]) {
+      const part = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius, height, 8),
+        new THREE.MeshLambertMaterial({ color }),
+      );
+      part.position.y = y;
+      scope.add(part);
+    }
+    group.add(scope);
+    return group;
+  }
+  if (id === 'amethystShard') {
+    const shard = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.17),
+      new THREE.MeshLambertMaterial({ color: '#b38ad8', flatShading: true }),
+    );
+    shard.scale.set(0.7, 1.4, 0.55);
+    shard.position.set(0, 0.2, -0.4);
+    shard.rotation.z = -0.35;
+    group.add(shard);
+    return group;
+  }
   if (ITEMS[id]?.portable) {
     const mesh = portableBoxMesh();
     mesh.scale.setScalar(0.24);

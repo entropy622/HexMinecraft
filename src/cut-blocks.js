@@ -85,7 +85,7 @@ export function cutBlockParts(world, q, y, r) {
   return parts.filter((p) => p.polygon.length >= 3);
 }
 
-export function cutItemWorld(type, facing = 0) {
+export function cutItemWorld(type, facing = BLOCKS[type]?.defaultFacing ?? 0) {
   return {
     get: (q, y, r) => (q === 0 && y === 0 && r === 0 ? type : null),
     state: () => ({ facing, open: false }),

@@ -1,6 +1,7 @@
 import { BLOCKS } from './core.js';
 import { isGlass } from './dye-data.js';
 import { leafDrops } from './leaves.js';
+import { isAmethystBud } from './amethyst-data.js';
 
 const ORES = {
   netherQuartzOre: ['netherQuartz', 1, 1, [2, 5]],
@@ -34,6 +35,18 @@ export function miningLoot(
   const fortune = Math.min(3, Math.max(0, enchant.fortune || 0));
   const silk = !!enchant.silkTouch && !SILK_EXCLUDED.has(type);
   const one = (item, count = 1, xp = 0) => ({ stacks: [{ item, count }], xp });
+  if (type === 'buddingAmethyst') return { stacks: [], xp: 0 };
+  if (isAmethystBud(type)) {
+    if (silk) return one(type);
+    if (type !== 'amethystCluster') return { stacks: [], xp: 0 };
+    return one(
+      'amethystShard',
+      tool === 'pick'
+        ? 4 * (fortune ? fortuneMultiplier(fortune, random) : 1)
+        : 2,
+    );
+  }
+  if (type === 'tintedGlass') return one(type);
   if (type === 'vine')
     return tool === 'shears' ? one('vine') : { stacks: [], xp: 0 };
   if (type === 'cobweb')

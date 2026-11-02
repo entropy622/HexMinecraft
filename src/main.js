@@ -3,6 +3,8 @@ import { COLOR_SETTINGS, DEFAULT_COLOR_SETTINGS } from './photon-grading.js';
 import { DYES, dyeColor, isPigmentPlant } from './dye-data.js';
 import { pigmentSupport } from './pigment-plants.js';
 import { cactusContact, tickCactus } from './cactus.js';
+import { amethystSupport, tickAmethyst } from './amethyst.js';
+import { isAmethystBud } from './amethyst-data.js';
 import { isCarpet, carpetSupport } from './carpet-data.js';
 import { touchesWeb } from './cobwebs.js';
 import {
@@ -518,6 +520,7 @@ const fauna = new Fauna(graphics.scene, graphics.textures, {
 let equipment = new Equipment();
 let bowCharge = 0,
   bowUse = null;
+let spyglassUse = null;
 let survival = new Survival(),
   foodUse = null,
   survivalSubmerged = false;
@@ -1665,6 +1668,62 @@ function cancelBow() {
   bowUse = null;
   bowCharge = 0;
 }
+function cancelSpyglass() {
+  if (!spyglassUse) return;
+  spyglassUse = null;
+  graphics.spyglass = false;
+  document.body.classList.remove('using-spyglass');
+  $('#spyglass-view')?.classList.add('hidden');
+  camera.fov = fieldOfView;
+  camera.updateProjectionMatrix();
+}
+function useSpyglass() {
+  if (useItem() !== 'spyglass') return false;
+  const input = heldUseInput();
+  if (!input) {
+    toast('按住右键或触屏「用」观察远方，松开退出。');
+    return true;
+  }
+  stopEating();
+  cancelBow();
+  combat.reset();
+  blockUse = throwHeldItem = null;
+  spyglassUse = {
+    hand: actionHand || 'main',
+    ref: handRef(),
+    stack: handStack(),
+    input,
+  };
+  if (!$('#spyglass-view')) {
+    const view = document.createElement('div');
+    view.id = 'spyglass-view';
+    view.setAttribute('aria-hidden', 'true');
+    view.innerHTML = '<div class="spyglass-lens"></div>';
+    document.body.append(view);
+  }
+  $('#spyglass-view').classList.remove('hidden');
+  document.body.classList.add('using-spyglass');
+  return true;
+}
+function updateSpyglassUse() {
+  if (!spyglassUse) return;
+  if (
+    !playing ||
+    overlay ||
+    !validHandUse(spyglassUse, 'spyglass') ||
+    !foodInputs.has(spyglassUse.input) ||
+    leftDown ||
+    foodUse ||
+    bowUse ||
+    combat.raised
+  ) {
+    cancelSpyglass();
+    return;
+  }
+  graphics.spyglass = true;
+  camera.fov = fieldOfView * 0.1;
+  camera.updateProjectionMatrix();
+}
 function useBow() {
   if (useItem() !== 'bow') return false;
   if (bowUse) return true;
@@ -1875,6 +1934,7 @@ function handCanUse(hand) {
     ) ||
     (id === 'bow' && (creative || !!arrowSlot())) ||
     id === 'fishingRod' ||
+    id === 'spyglass' ||
     id === 'shield' ||
     (id === 'boneMeal' && target?.crop) ||
     (item.kind === 'axe' &&
@@ -1919,6 +1979,7 @@ function updateHUD() {
   graphics.shieldEquipped = pack.gear[4]?.item === 'shield';
   graphics.mainShieldEquipped = heldItem() === 'shield';
   if (bowUse && !validHandUse(bowUse, 'bow')) cancelBow();
+  if (spyglassUse && !validHandUse(spyglassUse, 'spyglass')) cancelSpyglass();
   if (fishingUse && !validHandUse(fishingUse, 'fishingRod')) {
     fishing.clear();
     fishingUse = null;
@@ -2148,14 +2209,10 @@ function mine(dt) {
     return;
   }
   if (BLOCKS[type].shape) {
-    removeBuilding(
-      q,
-      y,
-      r,
-      !creative && stats.harvest && !['cobweb', 'vine'].includes(type),
-    );
+    const customLoot = ['cobweb', 'vine'].includes(type) || isAmethystBud(type);
+    removeBuilding(q, y, r, !creative && stats.harvest && !customLoot);
     maintainBuildings();
-    if (['cobweb', 'vine'].includes(type) && !creative && stats.harvest)
+    if (customLoot && !creative && stats.harvest)
       for (const stack of miningLoot(type, { tool: ITEMS[held]?.kind, enchant })
         .stacks)
         dropAt(stack.item, stack.count, q, y, r);
@@ -3106,7 +3163,7 @@ function place() {
     interact(true);
     return;
   }
-  if (useBow() || useFishingRod() || useBoatItem()) return;
+  if (useSpyglass() || useBow() || useFishingRod() || useBoatItem()) return;
   if (useIgniter()) return;
   if (interactCreature()) return;
   if (stripLog()) return;
@@ -3372,6 +3429,18 @@ function placeBuilding(type, p) {
     return;
   }
   let facing = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw));
+  if (isAmethystBud(type)) {
+    facing =
+      Math.abs(target.normal?.y ?? 1) > 0.5
+        ? target.normal.y > 0
+          ? 6
+          : 7
+        : facingFromDirection(target.normal.x, target.normal.z);
+    if (amethystSupport(world, q, y, r, facing) !== true) {
+      toast('晶芽需要附着在完整的支撑面上。');
+      return;
+    }
+  }
   if (
     BLOCKS[type]?.shape === 'dropper' ||
     isPiston(type) ||
@@ -3448,7 +3517,10 @@ function placeBuilding(type, p) {
     : [[q, y, r, type]];
   if (
     cells.some(
-      ([a, b, c]) => world.get(a, b, c) || world.fluids.get(a, b, c),
+      ([a, b, c]) =>
+        world.get(a, b, c) ||
+        (world.fluids.get(a, b, c) &&
+          !(isAmethystBud(type) && world.fluids.get(a, b, c).type === 'water')),
     ) ||
     ((isFence(type) || isGate(type)) &&
       (world.get(q, y + 1, r) || world.fluids.get(q, y + 1, r)))
@@ -3596,11 +3668,13 @@ function toggleBuilding(q, y, r, open = null) {
   return true;
 }
 function maintainBuildings() {
+  applyPlantChanges(tickAmethyst(world, 0), !creative);
   applyPlantChanges(tickCocoa(world, 0), !creative);
   applyPlantChanges(tickVines(world, 0), false);
   for (const k of [...world.buildings]) {
     const [q, y, r] = k.split(',').map(Number),
       type = world.get(q, y, r);
+    if (isAmethystBud(type)) continue;
     if (isCarpet(type)) {
       if (!carpetSupport(world, q, y, r) || world.fluids.get(q, y, r)) {
         for (let h = y; isCarpet(world.get(q, h, r)); h++)
@@ -4099,6 +4173,7 @@ function updatePlants(dt) {
   }
   const stoneGrowth = tickDripstone(world, dt, growthOccupied);
   if (stoneGrowth.length) graphics.updateCells(stoneGrowth);
+  applyPlantChanges(tickAmethyst(world, dt), !creative);
   applyPlantChanges(tickCavePlants(world, dt), !creative);
   applyPlantChanges(tickCocoa(world, dt), !creative);
   applyPlantChanges(tickVines(world, dt), false);
@@ -4301,7 +4376,8 @@ function interact(preferContext = false) {
   if (
     !contextual &&
     !target?.crop &&
-    (useBow() ||
+    (useSpyglass() ||
+      useBow() ||
       useFishingRod() ||
       useBoatItem() ||
       useRocket() ||
@@ -5096,6 +5172,7 @@ function stopEating(clearInputs = false) {
   foodUse = null;
   pendingChorusUse = null;
   if (clearInputs) {
+    cancelSpyglass();
     foodInputs.clear();
     blockUse = null;
   }
@@ -6157,6 +6234,11 @@ function movePlayer(dt) {
     dz *= 0.25;
     motion.sprintRequested = false;
   }
+  if (spyglassUse) {
+    dx *= 0.2;
+    dz *= 0.2;
+    motion.sprintRequested = false;
+  }
   if (powder) {
     dx *= 0.2;
     dz *= 0.2;
@@ -6806,10 +6888,11 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('mousemove', (e) => {
   if (!playing || isTouch) return;
-  yaw -= e.movementX * 0.002 * sensitivity;
+  const scope = spyglassUse ? 0.1 : 1;
+  yaw -= e.movementX * 0.002 * sensitivity * scope;
   pitch = Math.max(
     -1.5,
-    Math.min(1.5, pitch - e.movementY * 0.002 * sensitivity),
+    Math.min(1.5, pitch - e.movementY * 0.002 * sensitivity * scope),
   );
 });
 $('#world').addEventListener('mousedown', (e) => {
@@ -6831,6 +6914,7 @@ $('#world').addEventListener('mousedown', (e) => {
 document.addEventListener('mouseup', (e) => {
   if (e.button === 2) {
     releaseBow('mouse');
+    if (spyglassUse?.input === 'mouse') cancelSpyglass();
     foodInputs.delete('mouse');
     throwHeldItem = null;
     blockUse = null;
@@ -6956,10 +7040,11 @@ if (isTouch) {
   });
   $('#world').addEventListener('pointermove', (e) => {
     if (!playing || !look || look.id !== e.pointerId) return;
-    yaw -= (e.clientX - look.x) * 0.005 * sensitivity;
+    const scope = spyglassUse ? 0.1 : 1;
+    yaw -= (e.clientX - look.x) * 0.005 * sensitivity * scope;
     pitch = Math.max(
       -1.5,
-      Math.min(1.5, pitch - (e.clientY - look.y) * 0.005 * sensitivity),
+      Math.min(1.5, pitch - (e.clientY - look.y) * 0.005 * sensitivity * scope),
     );
     look.x = e.clientX;
     look.y = e.clientY;
@@ -7606,6 +7691,7 @@ function frame(now) {
   combatHUD();
   updateFlightHUD();
   graphics.gliding = glider.active;
+  updateSpyglassUse();
   graphics.frame(
     playing ? dt : 0,
     time,

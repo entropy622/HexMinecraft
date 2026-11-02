@@ -3,6 +3,7 @@ import { CIRCUIT_BLOCKS } from './redstone-data.js';
 import { isHangingPlant } from './cave-data.js';
 import { caveFluidSources } from './caves.js';
 import { isCarpet } from './carpet-data.js';
+import { isAmethystBud } from './amethyst-data.js';
 
 export const WATER_EXTINCTION = [0.24, 0.075, 0.035];
 
@@ -90,6 +91,7 @@ export class Fluids {
         this.world.get(q, y, r) === 'powderSnow' ||
         this.world.get(q, y, r) === 'cocoa' ||
         this.world.get(q, y, r) === 'vine' ||
+        isAmethystBud(this.world.get(q, y, r)) ||
         this.world.get(q, y, r) === 'cactusFlower' ||
         isCarpet(this.world.get(q, y, r)) ||
         isHangingPlant(this.world.get(q, y, r)))
@@ -106,6 +108,8 @@ export class Fluids {
         this.active.add(key(a, b, c));
   }
   write(q, y, r, f, record = true) {
+    if (f && f.type !== 'water' && isAmethystBud(this.world.get(q, y, r)))
+      return;
     const ck = chunk(q, r),
       k = key(q, y, r),
       cells = this.chunks.get(ck);
@@ -213,10 +217,15 @@ export class Fluids {
     }
   }
   changedBlock(q, y, r) {
-    if (this.world.get(q, y, r) && this.get(q, y, r)) this.write(q, y, r, null);
+    const type = this.world.get(q, y, r),
+      fluid = this.get(q, y, r);
+    if (type && fluid && !(isAmethystBud(type) && fluid.type === 'water'))
+      this.write(q, y, r, null);
     this.wake(q, y, r);
   }
   source(q, y, r, type) {
+    if (type !== 'water' && isAmethystBud(this.world.get(q, y, r)))
+      return false;
     if (!Object.hasOwn(LIQUIDS, type) || !this.open(q, y, r)) return false;
     const old = this.get(q, y, r);
     if (old?.source && old.type === type) return false;

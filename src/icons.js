@@ -35,6 +35,7 @@ import {
   Apple,
   Axe,
   PaintBucket,
+  Telescope,
 } from 'lucide';
 import {
   blockTextures,
@@ -51,8 +52,11 @@ import { PROCESSING_BLOCKS } from './processing-data.js';
 import { materialIconURL } from './material-icons.js';
 import { CAVE_BLOCKS } from './cave-data.js';
 import { CIRCUIT_BLOCKS } from './redstone-data.js';
+import { AMETHYST_BLOCKS } from './amethyst-data.js';
 // Named imports keep the bundled icon set small; SVGs work offline on Pages.
 const symbols = {
+  spyglass: Telescope,
+  amethystShard: Gem,
   blazeRod: Flame,
   brewingStand: CookingPot,
   anvil: Anvil,
@@ -141,6 +145,7 @@ export function itemIcon(id) {
       isWool(id) ||
       PROCESSING_BLOCKS[id] ||
       CAVE_BLOCKS[id] ||
+      AMETHYST_BLOCKS[id] ||
       CIRCUIT_BLOCKS[id] ||
       MINERAL_ICON_BLOCKS.has(id) ||
       (ITEMS[id]?.pillar && blockTextures[id]) ||

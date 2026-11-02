@@ -18,7 +18,7 @@ export function cutBlockIcon(id) {
     parts =
       def.portable || def.pillar || !def.shape
         ? [{ y: 0.5, h: 1, polygon: HEX_POLYGON }]
-        : buildingParts(cutItemWorld(id, 1), 0, 0, 0);
+        : buildingParts(cutItemWorld(id, def.defaultFacing ?? 1), 0, 0, 0);
   const faces = [];
   const project = ([x, y, z]) =>
     `${(24 + (x - z) * 12.5).toFixed(2)},${(33 + (x + z) * 5.8 - y * 20).toFixed(2)}`;

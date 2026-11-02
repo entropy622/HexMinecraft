@@ -5,6 +5,8 @@ const classes = Object.assign(Object.create(null), {
   goldBlock: 12,
   copperBlock: 12,
   diamondBlock: 13,
+  amethystBlock: 13,
+  buddingAmethyst: 13,
   sand: 7,
   snow: 14,
   powderSnow: 14,

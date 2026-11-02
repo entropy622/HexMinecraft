@@ -3,6 +3,7 @@ import { BLOCKS, axialToWorld } from './core.js';
 import { buildingParts } from './building-shapes.js';
 import { cutItemWorld } from './cut-blocks.js';
 import { isGlass } from './dye-data.js';
+import { wetPorosity } from './wet-surfaces.js';
 import {
   surfaceOpticsClass,
   reflectiveSurfaceClass,
@@ -40,6 +41,7 @@ export const usesBuildingItemMesh = (type) =>
     'cobweb',
     'sporeBlossom',
     'pointedDripstone',
+    'amethyst',
     'piston',
   ].includes(BLOCKS[type]?.shape);
 
@@ -197,10 +199,6 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
       'biomeTint',
       new THREE.Uint8BufferAttribute(colors, 4, true),
     );
-    geometry.setAttribute(
-      'ambientOcclusion',
-      new THREE.Float32BufferAttribute(new Float32Array(count).fill(1), 1),
-    );
     geometry.userData.biomeRanges = new Int32Array([q, r, 0, count, 2]);
   }
   const mesh = new THREE.Mesh(geometry, material);
@@ -209,7 +207,26 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
   );
   mesh.userData.baseSurfaceReflection = mesh.userData.surfaceReflection;
   mesh.userData.surfaceReflection ||= textures.materials?.reflective(geometry);
-  if (material.userData?.geometricShade)
+  if (material.userData?.geometricShade) {
+    // Constant vertex inputs can be overwritten by other render programs.
+    // Partial geometry needs the same explicit visibility as chunk geometry.
+    const count = geometry.attributes.position.count;
+    if (!geometry.attributes.biomeTint)
+      geometry.setAttribute(
+        'biomeTint',
+        new THREE.Uint8BufferAttribute(new Uint8Array(count * 4), 4, true),
+      );
+    geometry.setAttribute(
+      'surfacePorosity',
+      new THREE.Float32BufferAttribute(
+        new Float32Array(count).fill(wetPorosity(type)),
+        1,
+      ),
+    );
+    geometry.setAttribute(
+      'ambientOcclusion',
+      new THREE.Float32BufferAttribute(new Float32Array(count).fill(1), 1),
+    );
     geometry.setAttribute(
       'surfaceOptics',
       new THREE.Uint8BufferAttribute(
@@ -219,6 +236,7 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
         1,
       ),
     );
+  }
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.userData.shaped = { q, y, r, type };
   return mesh;

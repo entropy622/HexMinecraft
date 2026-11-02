@@ -5,7 +5,8 @@ import { PORTABLE_SLOTS } from './shulker-data.js';
 
 export const INVENTORY_SLOTS = 36;
 export const stackSize = (id) =>
-  ITEMS[id]?.durability ||
+  ITEMS[id]?.maxStack ??
+  (ITEMS[id]?.durability ||
   ITEMS[id]?.portable ||
   ITEMS[id]?.vehicle ||
   ITEMS[id]?.potion ||
@@ -14,7 +15,7 @@ export const stackSize = (id) =>
     ? 1
     : id === 'bucket' || id === 'egg' || id === 'pearl' || id === 'snowball'
       ? 16
-      : 64;
+      : 64);
 const stores = new WeakMap();
 export const GEAR_SLOTS = [...Object.keys(ARMOR_SLOTS), 'offhand'];
 export const usedSlots = (inventory) =>

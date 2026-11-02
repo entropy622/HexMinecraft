@@ -1,5 +1,11 @@
 # Photon rendering assets and optics
 
+Since 0.132, full amethyst and budding-amethyst blocks map to the existing
+attributed gem category 13 from the pinned Photon block/material mapping.
+The host's geode generation, crystal geometry, tinted-glass transport/shadow
+setup and spyglass controls are independent implementations. No new upstream
+media is bundled; crystal light uses the existing host voxel-light system.
+
 Since 0.128, `src/distant-foliage.js` reuses the attributed leaf-lighting
 functions for the host's coarse distant leaf surfaces: upward sky diffuse,
 primary solar scattering, sheen and the far-shadow zero-thickness response.

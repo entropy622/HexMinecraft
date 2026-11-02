@@ -38,6 +38,11 @@ import {
 import { CAMPFIRE_BLOCKS, CAMPFIRE_RECIPES } from './campfire-data.js';
 import { PROCESSING_BLOCKS, PROCESSING_RECIPES } from './processing-data.js';
 import { CAVE_BLOCKS, CAVE_ITEMS, CAVE_RECIPES } from './cave-data.js';
+import {
+  AMETHYST_BLOCKS,
+  AMETHYST_ITEMS,
+  AMETHYST_RECIPES,
+} from './amethyst-data.js';
 import { CIRCUIT_BLOCKS, CIRCUIT_RECIPES } from './redstone-data.js';
 import {
   IGNITION_BLOCKS,
@@ -64,6 +69,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...AMETHYST_BLOCKS,
   ...VINE_BLOCKS,
   ...COCOA_BLOCKS,
   ...WOOL_BLOCKS,
@@ -265,6 +271,7 @@ export const BLOCKS = {
 };
 applyMiningHardness(BLOCKS);
 export const ITEMS = {
+  ...AMETHYST_ITEMS,
   ...DYE_ITEMS,
   ...CAVE_ITEMS,
   ...MINERAL_ITEMS,
@@ -709,6 +716,7 @@ RECIPES.push(
   ...FARM_RECIPES,
   ...BUILDING_RECIPES,
   ...CAVE_RECIPES,
+  ...AMETHYST_RECIPES,
   ...DYE_RECIPES,
   ...WOOL_RECIPES,
   ...CARPET_RECIPES,

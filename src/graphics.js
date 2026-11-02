@@ -244,6 +244,10 @@ export class Graphics {
       side: THREE.DoubleSide,
     });
     applySkylight(this.glassMaterial, this.weatherUniforms);
+    this.tintedGlassDepth = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.RGBADepthPacking,
+      side: THREE.DoubleSide,
+    });
     this.ray = new THREE.Raycaster();
     this.ray.far = 7;
     this.outline = new THREE.LineSegments(
@@ -766,6 +770,7 @@ export class Graphics {
         porosity: [],
       },
       glass = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
+      tintedGlass = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
       plants = {
         biome: [],
         biomeRanges: [],
@@ -941,11 +946,13 @@ export class Graphics {
           if (BLOCKS[type].nonSolid && type !== 'powderSnow') continue;
           out = BLOCKS[type].foliage
             ? leaves
-            : isGlass(type)
-              ? glass
-              : type === 'redstoneLamp' && world.state(q, y, r).powered
-                ? lamps
-                : solid;
+            : type === 'tintedGlass'
+              ? tintedGlass
+              : isGlass(type)
+                ? glass
+                : type === 'redstoneLamp' && world.state(q, y, r).powered
+                  ? lamps
+                  : solid;
           const abs = axialToWorld(q, r),
             x = abs.x - origin.x,
             z = abs.z - origin.z,
@@ -1254,6 +1261,13 @@ export class Graphics {
     }
     if (glass.p.length)
       mesh.add(new THREE.Mesh(geometry(glass), this.glassMaterial));
+    if (tintedGlass.p.length) {
+      const tinted = new THREE.Mesh(geometry(tintedGlass), this.glassMaterial);
+      tinted.castShadow = true;
+      tinted.customDepthMaterial = this.tintedGlassDepth;
+      tinted.userData.tintedGlass = true;
+      mesh.add(tinted);
+    }
     if (leaves.p.length) {
       const canopy = new THREE.Mesh(
         geometry(leaves),
@@ -1874,7 +1888,7 @@ export class Graphics {
         sprite.userData.ownedMap.needsUpdate = true;
       }
     }
-    this.hand.visible = playing && this.heldKey !== 'shield';
+    this.hand.visible = playing && !this.spyglass && this.heldKey !== 'shield';
     if (this.held) this.held.visible = true;
     if (this.offhandHeld) this.offhandHeld.visible = true;
     if (!playing) this.miningEffects.hide();
@@ -1906,7 +1920,10 @@ export class Graphics {
       : 0.8;
     this.hand.position.y = -0.32 + (moving ? Math.sin(time * 11) * 0.018 : 0);
     this.offhandHand.visible =
-      playing && !!this.offhandKey && this.offhandKey !== 'shield';
+      playing &&
+      !this.spyglass &&
+      !!this.offhandKey &&
+      this.offhandKey !== 'shield';
     this.offhandSwingTime = Math.max(0, (this.offhandSwingTime || 0) - dt);
     this.offhandHand.rotation.set(
       Math.sin((this.offhandSwingTime / 0.28) * Math.PI) * 0.7,
@@ -1944,7 +1961,7 @@ export class Graphics {
       ['offhand', this.shield, this.shieldEquipped],
       ['main', this.mainShield, this.mainShieldEquipped],
     ]) {
-      model.visible = playing && !!equipped && !drawingBow;
+      model.visible = playing && !this.spyglass && !!equipped && !drawingBow;
       const active = this.blocking && this.blockingHand === hand;
       const key = hand === 'main' ? 'mainShieldBlend' : 'shieldBlend';
       this[key] = THREE.MathUtils.damp(
