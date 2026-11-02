@@ -33,9 +33,9 @@ export const materialPackFragment = /* glsl */ `
         surfacePackSpec=texture2D(surfacePackSpecular,vMapUv);surfaceHasSpec=1.0;
         photonDecodeLabPbr(surfacePackSpec,diffuseColor.rgb,surfaceOptical);
         surfacePorosity=surfaceOptical.porosity;
-        totalEmissiveRadiance=max(totalEmissiveRadiance,diffuseColor.rgb*surfaceOptical.emission);
       }
     }
   #endif
+  totalEmissiveRadiance=max(totalEmissiveRadiance,surfaceOptical.emissionRadiance);
   // HEX_SURFACE_DATA_READY
 `;

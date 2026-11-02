@@ -45,6 +45,30 @@ export const usesBuildingItemMesh = (type) =>
     'piston',
   ].includes(BLOCKS[type]?.shape);
 
+// Triangle ownership is independent of wind, face normals and hex boundaries.
+export function shapeCellAtTriangle(geometry, triangle) {
+  const ranges = geometry.userData.shapeRanges || geometry.userData.leafRanges;
+  if (!ranges || !Number.isInteger(triangle) || triangle < 0) return null;
+  const vertex = geometry.index
+    ? geometry.index.getX(triangle * 3)
+    : triangle * 3;
+  if (
+    !Number.isInteger(vertex) ||
+    vertex >= (geometry.attributes.position?.count || 0)
+  )
+    return null;
+  let low = 0,
+    high = ranges.length / 5 - 1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2),
+      i = mid * 5;
+    if (vertex < ranges[i + 3]) high = mid - 1;
+    else if (vertex >= ranges[i + 4]) low = mid + 1;
+    else return { q: ranges[i], y: ranges[i + 1], r: ranges[i + 2] };
+  }
+  return null;
+}
+
 function polygonPrism(part) {
   const positions = [],
     uv = [],
@@ -120,6 +144,7 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     sawNext = [],
     sawLast = [],
     colors = [],
+    optics = [],
     sky = [],
     rain = [];
   const exposed =
@@ -127,6 +152,12 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     world.surface(q, r) === y + 1 &&
     !['沙漠', '雪原'].includes(world.biome(q, r));
   for (const part of buildingParts(world, q, y, r)) {
+    const partOptics =
+      part.tile === 'glowBerry'
+        ? surfaceOpticsClass('glowBerry')
+        : type === 'endRod' && part.tile !== 'endRod'
+          ? 0
+          : surfaceOpticsClass(type, BLOCKS[type]);
     const box = part.polygon
       ? polygonPrism(part)
       : part.plane
@@ -151,26 +182,30 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
           )
         : Math.abs(normal.getY(i));
       const face = panelNormal > 0.5 ? 'top' : 'side';
-      uv.push(...textures.uv(part.tile + ':' + face, tex.getX(i), tex.getY(i)));
+      const rect = part.uvRect || [0, 0, 1, 1],
+        u = rect[0] + tex.getX(i) * (rect[2] - rect[0]),
+        v = rect[1] + tex.getY(i) * (rect[3] - rect[1]);
+      uv.push(...textures.uv(part.tile + ':' + face, u, v));
       const saw = part.tile === 'stonecutterSaw';
       if (type !== 'vine') {
         sawNext.push(
           ...textures.uv(
             (saw ? 'stonecutterSaw2' : part.tile) + ':' + face,
-            tex.getX(i),
-            tex.getY(i),
+            u,
+            v,
           ),
         );
         sawLast.push(
           ...textures.uv(
             (saw ? 'stonecutterSaw3' : part.tile) + ':' + face,
-            tex.getX(i),
-            tex.getY(i),
+            u,
+            v,
           ),
         );
       }
       const shade = (normal.getY(i) > 0.5 ? 1 : 0.86) * (part.shade ?? 1);
       colors.push(shade, shade, shade);
+      optics.push(partOptics);
       sky.push(1);
       rain.push(part.polygon && normal.getY(i) > 0.5 && exposed ? 1 : 0);
     }
@@ -187,7 +222,7 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     ['skylight', sky, 1],
     ['rainExposure', rain, 1],
   ])
-    if (data.length)
+    if (data.length || name === 'position')
       geometry.setAttribute(name, new THREE.Float32BufferAttribute(data, size));
   geometry.computeBoundingSphere();
   if (type === 'vine' && material.userData?.geometricShade) {
@@ -229,12 +264,7 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     );
     geometry.setAttribute(
       'surfaceOptics',
-      new THREE.Uint8BufferAttribute(
-        new Uint8Array(geometry.attributes.position.count).fill(
-          surfaceOpticsClass(type, BLOCKS[type]),
-        ),
-        1,
-      ),
+      new THREE.Uint8BufferAttribute(optics, 1),
     );
   }
   mesh.castShadow = mesh.receiveShadow = true;

@@ -1,5 +1,14 @@
 # Photon rendering assets and optics
 
+Since 0.133, `src/photon-emission.js` adapts the fixed source material classes
+33, 35, 36, 37 and 55 from `include/surface/material.glsl`, including the HSV
+utility and periodic hue selection from `include/utility/color.glsl` and
+`include/global.glsl`. These derived helpers retain Photon's license in
+`photon.txt`. Thresholds use texture sRGB and radiance uses the host's linear
+Rec.709 working space. Hardcoded and labPBR radiance combine by channel maximum.
+The host maps its actual flame/berry/shaft parts and active block states into
+these classes; its geometry ownership, UV mapping and renderer setup are original.
+
 Since 0.132, full amethyst and budding-amethyst blocks map to the existing
 attributed gem category 13 from the pinned Photon block/material mapping.
 The host's geode generation, crystal geometry, tinted-glass transport/shadow

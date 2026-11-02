@@ -92,9 +92,14 @@ export function cutBlockIcon(id) {
     }
   }
   const pattern = (name, tile) => {
+    const rect = parts.find((part) => part.tile === tile)?.uvRect;
+    const image = (url) =>
+      rect
+        ? `<svg width="16" height="16" viewBox="${rect[0] * 16} ${rect[1] * 16} ${(rect[2] - rect[0]) * 16} ${(rect[3] - rect[1]) * 16}" preserveAspectRatio="none"><image href="${url}" width="16" height="16"/></svg>`
+        : `<image href="${url}" width="16" height="16"/>`;
     const custom = materialIconURL(tile, name);
     if (custom)
-      return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><image href="${custom}" width="16" height="16"/></pattern>`;
+      return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse">${image(custom)}</pattern>`;
     if (isGlass(tile))
       return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="${BLOCKS[tile].color}" opacity="0.65"/><path d="M1 1h14v14H1zM3 11l6-6" fill="none" stroke="#f4faff" stroke-width="0.7" opacity="0.7"/></pattern>`;
     const tiles = blockTextures[tile];
@@ -124,7 +129,7 @@ export function cutBlockIcon(id) {
         : crop(16, 12, 0, 8) + crop(44, 8, 8, 8)
       : tile === 'stonecutterSaw'
         ? `<svg width="16" height="16" viewBox="0 0 16 16"><image href="${url}" width="16" height="48"/></svg>`
-        : `<image href="${url}" width="16" height="16"/>`;
+        : image(url);
     return `<pattern id="${id}-${tile}-${name}" width="16" height="16" patternUnits="userSpaceOnUse">${content}</pattern>`;
   };
   const tiles = [...new Set(faces.map((f) => f.tile))];

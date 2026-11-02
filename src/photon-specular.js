@@ -1,9 +1,11 @@
 // Adapted from Photon 6e67b36 surface/material.glsl, lighting/bsdf.glsl and
 // lighting/specular_lighting.glsl. See public/licenses/PHOTON-NOTICE.md.
 // Optical math uses the host's linear-sRGB working space.
+import { photonEmissionGLSL } from './photon-emission.js';
 export const photonSpecularGLSL = /* glsl */ `
+${photonEmissionGLSL}
 const float photonSurfacePi=3.14159265359;
-struct PhotonSurfaceOptics { float roughness;float f0;float metal;vec3 conductorF0;vec3 f82;float hardcoded;float ssr;float emission;float porosity;float sss; };
+struct PhotonSurfaceOptics { float roughness;float f0;float metal;vec3 conductorF0;vec3 f82;float hardcoded;float ssr;float emission;vec3 emissionRadiance;float porosity;float sss; };
 float photonSurfaceLinearStep(float a,float b,float x){return clamp((x-a)/(b-a),0.0,1.0);}
 PhotonSurfaceOptics photonSurfaceOptics(vec3 albedo,float category){
   // Source rgb_to_hsl().z is HSV's maximum channel, before linear decoding.
@@ -23,11 +25,12 @@ PhotonSurfaceOptics photonSurfaceOptics(vec3 albedo,float category){
   if(mask==12 || mask==13)roughness=max(roughness,0.04);
   float ssr=(mask==8||mask==11||mask==12||mask==13)?1.0:0.0;
   float sss=mask==5?1.0:mask==2?0.5:0.0;
-  return PhotonSurfaceOptics(roughness,f0,metal,vec3(f0),vec3(0.0),0.0,ssr,0.0,0.0,sss);
+  return PhotonSurfaceOptics(roughness,f0,metal,vec3(f0),vec3(0.0),0.0,ssr,0.0,photonSurfaceEmission(albedo,mask),0.0,sss);
 }
 void photonDecodeLabPbr(vec4 data,vec3 albedo,inout PhotonSurfaceOptics optical){
   optical.roughness=(1.0-data.r)*(1.0-data.r);
   optical.emission=data.a<1.0?data.a:0.0;
+  optical.emissionRadiance=max(optical.emissionRadiance,albedo*optical.emission);
   if(data.g<229.5/255.0){
     optical.f0=max(optical.f0,data.g);
     float hasSss=step(64.5/255.0,data.b);

@@ -294,6 +294,8 @@ export function buildingParts(world, q, y, r, collision = false) {
         h: 0.78,
         angle: 0,
         tile: 'endRod',
+        uvFull: true,
+        uvRect: [8 / 16, 0, 10 / 16, 15 / 16],
         polygon: HEX_POLYGON.map(([x, z]) => [x * 0.065, z * 0.065]),
       },
     ];

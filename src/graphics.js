@@ -40,7 +40,7 @@ import { SmithingModels } from './smithing-graphics.js';
 import { isSmithingStation } from './smithing-data.js';
 import { WeatherEffects } from './weather-graphics.js';
 import { createPlant, plantStage } from './plant-graphics.js';
-import { buildingMesh } from './building-graphics.js';
+import { buildingMesh, shapeCellAtTriangle } from './building-graphics.js';
 import {
   createPostprocessing,
   setPostprocessingOptions,
@@ -299,21 +299,6 @@ export class Graphics {
     this.particles = [];
     this.cropMeshes = new Map();
     this.lights = new Map();
-    this.torchMaterial = new THREE.MeshLambertMaterial({
-      map: this.textures.atlas,
-      vertexColors: true,
-      emissive: '#8c470e',
-      emissiveIntensity: 0.45,
-    });
-    applySkylight(this.torchMaterial, this.weatherUniforms);
-    this.lampMaterial = new THREE.MeshLambertMaterial({
-      map: this.textures.atlas,
-      emissiveMap: this.textures.atlas,
-      emissive: '#fff4d8',
-      emissiveIntensity: 1.8,
-      vertexColors: true,
-    });
-    applySkylight(this.lampMaterial, this.weatherUniforms);
     this.hand = new THREE.Group();
     this.hand.userData.skipOcclusion = true;
     const sleeve = new THREE.Mesh(
@@ -781,9 +766,7 @@ export class Graphics {
         sky: [],
         rain: [],
         porosity: [],
-      },
-      torches = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] },
-      lamps = { p: [], c: [], uv: [], sky: [], rain: [], porosity: [] };
+      };
     let out = solid,
       rainExposure = 0,
       porosity = 1,
@@ -888,6 +871,8 @@ export class Graphics {
           }
           porosity = wetPorosity(type);
           opticalClass = surfaceOpticsClass(type, BLOCKS[type]);
+          if (type === 'redstoneLamp' && world.state(q, y, r).powered)
+            opticalClass = surfaceOpticsClass('redstoneLampOn');
           rainExposure =
             porosity < 1 &&
             world.dimension === 'overworld' &&
@@ -897,7 +882,7 @@ export class Graphics {
               : 0;
           if (BLOCKS[type].light || isFurnace(type)) this.updateLight(q, y, r);
           if (type === 'torch') {
-            out = torches;
+            out = solid;
             const p = axialToWorld(q, r),
               x = p.x - origin.x,
               z = p.z - origin.z;
@@ -905,6 +890,11 @@ export class Graphics {
               [0.07, 0, 0.55, 'wood:side'],
               [0.115, 0.55, 0.75, 'lantern:top'],
             ]) {
+              opticalClass =
+                bottom === 0
+                  ? surfaceOpticsClass('wood')
+                  : surfaceOpticsClass('torchFlame');
+              porosity = bottom === 0 ? wetPorosity('wood') : 1;
               for (let i = 0; i < 6; i++) {
                 const a = corners[i],
                   b = corners[(i + 1) % 6];
@@ -950,15 +940,14 @@ export class Graphics {
               ? tintedGlass
               : isGlass(type)
                 ? glass
-                : type === 'redstoneLamp' && world.state(q, y, r).powered
-                  ? lamps
-                  : solid;
+                : solid;
           const abs = axialToWorld(q, r),
             x = abs.x - origin.x,
             z = abs.z - origin.z,
             leafStart = leaves.p.length / 3;
           const axis = BLOCKS[type].pillar ? world.state(q, y, r).axis || 0 : 0;
           const blockFace = (vertices, uv, side, shade = 1, ao = [1, 1, 1]) => {
+            const baseOptics = opticalClass;
             let tile = type + (side < 0 ? ':top' : ':side');
             if (type === 'grass' && side < 0 && vertices[0][1] === y)
               tile = 'dirt:side';
@@ -973,6 +962,11 @@ export class Graphics {
               tile = type + ':' + mapped.face;
               uv = mapped.uv;
             } else if (isFurnace(type) && side >= 0) {
+              if (
+                side === world.state(q, y, r).facing &&
+                world.furnaces.get(q + ',' + y + ',' + r)?.burn > 0
+              )
+                opticalClass = surfaceOpticsClass(type + 'Lit');
               tile =
                 side === world.state(q, y, r).facing
                   ? world.furnaces.get(q + ',' + y + ',' + r)?.burn > 0
@@ -981,6 +975,7 @@ export class Graphics {
                   : type + 'Casing:side';
             }
             tri(vertices, uv, tile, shade, ao);
+            opticalClass = baseOptics;
           };
           const visible = (q, y, r) =>
             !opaque(q, y, r) && (!isGlass(type) || world.get(q, y, r) !== type);
@@ -1186,10 +1181,12 @@ export class Graphics {
     for (const [q, y, r] of brewCells)
       mesh.add(this.brewingModels.create(world, q, y, r, origin));
     const cuts = [],
+      cutRanges = [],
       vines = [],
       vineRanges = [],
       vineBiomes = [];
-    let vineVertices = 0;
+    let vineVertices = 0,
+      cutVertices = 0;
     for (const [q, y, r] of shaped) {
       if (isCampfire(world.get(q, y, r)))
         mesh.add(this.campfireModels.create(world, q, y, r, origin));
@@ -1228,12 +1225,16 @@ export class Graphics {
           building.geometry.attributes.position.count,
         ]);
       }
-      if (['slab', 'stairs'].includes(BLOCKS[world.get(q, y, r)].shape))
+      if (['slab', 'stairs'].includes(BLOCKS[world.get(q, y, r)].shape)) {
+        const count = building.geometry.attributes.position.count;
+        cutRanges.push(q, y, r, cutVertices, cutVertices + count);
+        cutVertices += count;
         cuts.push(building.geometry);
-      else mesh.add(building);
+      } else mesh.add(building);
     }
     if (cuts.length) {
       const batch = new THREE.Mesh(mergeGeometries(cuts), this.material);
+      batch.geometry.userData.shapeRanges = new Int32Array(cutRanges);
       batch.castShadow = batch.receiveShadow = true;
       batch.userData.cutBlocks = true;
       mesh.add(batch);
@@ -1251,13 +1252,6 @@ export class Graphics {
       batch.userData.vines = true;
       mesh.add(batch);
       vines.forEach((geometry) => geometry.dispose());
-    }
-    if (torches.p.length)
-      mesh.add(new THREE.Mesh(geometry(torches), this.torchMaterial));
-    if (lamps.p.length) {
-      const lit = new THREE.Mesh(geometry(lamps), this.lampMaterial);
-      lit.castShadow = true;
-      mesh.add(lit);
     }
     if (glass.p.length)
       mesh.add(new THREE.Mesh(geometry(glass), this.glassMaterial));
@@ -1421,10 +1415,16 @@ export class Graphics {
     }
     let shaped = hit.object.userData.shaped;
     if (hit.object.userData.cutBlocks) {
-      const inside = hit.point.clone().addScaledVector(hit.face.normal, -0.003),
-        cell = worldToAxial(inside.x, inside.z),
-        y = Math.floor(inside.y);
-      shaped = { ...cell, y, type: this.world.get(cell.q, y, cell.r) };
+      const cell = shapeCellAtTriangle(hit.object.geometry, hit.faceIndex);
+      if (!cell) {
+        this.outline.visible = false;
+        return null;
+      }
+      shaped = { ...cell, type: this.world.get(cell.q, cell.y, cell.r) };
+      if (!BLOCKS[shaped.type]?.shape) {
+        this.outline.visible = false;
+        return null;
+      }
     }
     if (shaped) {
       const block = shaped,
