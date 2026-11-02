@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { emissionGallery } from './fixtures/emission-gallery.js';
 import { wetGallery } from './fixtures/wet-gallery.js';
 import { reflectionAirGallery } from './fixtures/reflection-air-gallery.js';
+import { daylightSave } from './fixtures/photon-daylight-scenes.js';
 import { referenceSettings } from './fixtures/photon-reference-scenes.js';
 import { validateSave } from '../src/save.js';
 
@@ -22,6 +23,12 @@ for (const gallery of [
     makeSave: reflectionAirGallery,
     shader: 'surfaceReflectionAir',
   },
+  {
+    name: 'cloud-edge-history',
+    makeSave: daylightSave,
+    shader: 'cloudCubicWeights',
+    clouds: true,
+  },
 ])
   test(`release draws ${gallery.name} materials and preserves a v16 gallery through native UI and device recovery`, async ({
     page,
@@ -38,7 +45,7 @@ for (const gallery of [
       (s) => localStorage.setItem('hexwild-settings', JSON.stringify(s)),
       {
         ...referenceSettings,
-        post: { ...referenceSettings.post, clouds: false },
+        post: { ...referenceSettings.post, clouds: gallery.clouds ?? false },
       },
     );
     await page.addInitScript((shaderFunction) => {

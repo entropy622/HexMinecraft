@@ -1,5 +1,13 @@
 # Photon rendering assets and optics
 
+Since 0.136, `src/cloud-volume.js` adapts the neighborhood apparent-distance
+reprojection principle in the pinned Photon's `program/d2_clouds_upscaling.fsh`.
+For missed sky rays, actual neighboring sky-cloud distances can anchor existing
+history reprojection. Foreground, layer, distance and neighborhood-color checks
+remain in the host resolver. This conservative WebGL2 adaptation is not the
+source checkerboard upscaler. Source-derived logic retains the Photon license
+in `photon.txt`; no additional production targets or passes are introduced.
+
 Since 0.135, `src/reflection-air.js` adapts the receiver-to-hit analytic air
 transport and hit-direction VL shadow approximation from the pinned Photon's
 `include/lighting/specular_lighting.glsl` and

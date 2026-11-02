@@ -4,6 +4,12 @@
 
 [在线游玩](https://entropy622.github.io/HexMinecraft/) · [操作说明](#操作) · [本地开发](#开发与验证)
 
+## 0.136：日间云边缘重建
+
+改善体积云边缘漏采样时的历史重建，减少天空中的规则闪点；保留前景遮挡、层间拒绝和水面独立历史。补充固定曝光的日间森林与天空对照，以及实际 GPU 成本记录。[画面对照、来源与验证](docs/cloud-edge-verification.md)。
+
+本批交付后按请求暂时停止开发。整体 MC 与 Photon 还原仍有差距，后续范围保留在[开发状态](docs/development-status.md)和[迁移矩阵](docs/photon-migration.md)中。
+
 ## 0.135：倒影中的空气光程
 
 湿地、金属和宝石的场景倒影加入反射光程中的 RGB 吸收与散射，颜色和亮度随反射点到物体的距离变化。[画面对照、来源与验证](docs/reflection-air-verification.md)。

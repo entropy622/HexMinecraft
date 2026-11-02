@@ -83,11 +83,29 @@ void main() {
   vec4 data = texelFetch(currentData, pixel, 0);
   resolvedCloud = current;
   resolvedData = vec4(data.xy, 1.0, data.w);
-  if (!cloudReady || data.x <= 0.0) return;
+  if (!cloudReady) return;
+  // HEX_SPARSE_SKY_HISTORY
+  bool emptyRay = data.x <= 0.0;
+  vec4 anchor = data;
+  if (emptyRay) {
+    // A jittered march can miss a thin edge. Neighbour cloud distances give
+    // that sky pixel a reprojection anchor (Photon d2 neighbourhood-distance
+    // principle), while actual foreground and unsupported clear sky stay clear.
+    if (data.y >= 0.0) return;
+    float nearest = 1e20;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      ivec2 p = clamp(pixel + ivec2(x,y), ivec2(0), size - 1);
+      vec4 neighbor = texelFetch(currentData,p,0);
+      if (neighbor.x > 0.0 && neighbor.y < 0.0 && neighbor.w >= 0.0 && neighbor.x < nearest) {
+        nearest = neighbor.x; anchor = neighbor;
+      }
+    }
+    if (nearest == 1e20) return;
+  }
   vec4 view = cloudInverseProjection * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
   vec3 direction = normalize(mat3(cloudCameraWorld) * view.xyz);
-  vec2 wind = cloudDeltaWind[clamp(int(data.w + 0.5), 0, 2)];
-  vec3 currentPosition = cloudCameraWorld[3].xyz + direction * data.x;
+  vec2 wind = cloudDeltaWind[clamp(int(anchor.w + 0.5), 0, 2)];
+  vec3 currentPosition = cloudCameraWorld[3].xyz + direction * anchor.x;
   vec3 position = currentPosition - vec3(wind.x, 0.0, wind.y);
   // Density uses world xz but a local tangent-plane altitude. Preserve that
   // altitude when mapping into the previous view's tangent plane and wind.
@@ -108,7 +126,7 @@ void main() {
     if (any(lessThan(p, ivec2(0))) || any(greaterThanEqual(p, size))) continue;
     vec4 old = texelFetch(previousData, p, 0);
     // Reject missing clouds and foreground that covered this cloud last frame.
-    if (!validCloudHistory(old, data, expected)) continue;
+    if (!validCloudHistory(old, anchor, expected)) continue;
     vec2 spatial = mix(1.0 - f, f, vec2(float(x), float(y)));
     float w = spatial.x * spatial.y;
     history += texelFetch(previousCloud, p, 0) * w;
@@ -124,7 +142,7 @@ void main() {
     for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) {
       ivec2 p = ivec2(base) + ivec2(x - 1, y - 1);
       if (any(lessThan(p, ivec2(0))) || any(greaterThanEqual(p, size))) { complete = false; continue; }
-      if (!validCloudHistory(texelFetch(previousData, p, 0), data, expected)) { complete = false; continue; }
+      if (!validCloudHistory(texelFetch(previousData, p, 0), anchor, expected)) { complete = false; continue; }
       cubic += texelFetch(previousCloud, p, 0) * wx[x] * wy[y];
     }
     if (complete) history = cubic * weights;
@@ -138,6 +156,10 @@ void main() {
   history = clamp(history / weights, lower, upper);
   resolvedCloud = mix(current, history, min(0.9, age / (age + 1.0)) * weights);
   resolvedData.z = min(32.0, age + 1.0);
+  if (emptyRay && resolvedCloud.a < 0.9999) {
+    resolvedData.x = anchor.x;
+    resolvedData.w = anchor.w;
+  }
 }
 `;
 const compositeShader = /* glsl */ `
