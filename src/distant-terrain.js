@@ -6,7 +6,6 @@ import {
   Group,
   HalfFloatType,
   LightProbe,
-  MeshLambertMaterial,
   Scene,
   UnsignedIntType,
   Vector2,
@@ -19,9 +18,9 @@ import {
   DISTANT_CACHE_TILES,
   DISTANT_CACHE_BYTES,
 } from './distant-config.js';
-import { applySkylight } from './skylight.js';
 import { distantMesh } from './distant-mesh.js';
 import { applyDistantFoliage } from './distant-foliage.js';
+import { createSurfaceMaterial } from './surface-material.js';
 import { DistantCache } from './distant-cache.js';
 
 let epoch = 0;
@@ -48,22 +47,22 @@ export class DistantTerrain {
       this.render(renderer, camera);
     };
     this.textures = textures;
-    this.material = new MeshLambertMaterial({
+    const parameters = {
       vertexColors: true,
       map: textures.atlas,
       alphaTest: 0.5,
       side: DoubleSide,
       toneMapped: false,
-    });
+    };
+    this.material = createSurfaceMaterial(parameters, uniforms).material;
     this.material.userData.distantTerrain = true;
     this.material.surfaceAtlas = textures.materials;
-    applySkylight(this.material, uniforms, true);
-    this.glassMaterial = this.material.clone();
-    this.glassMaterial.transparent = true;
-    this.glassMaterial.depthWrite = false;
-    this.glassMaterial.alphaTest = 0.01;
+    this.glassMaterial = createSurfaceMaterial(
+      { ...parameters, transparent: true, depthWrite: false, alphaTest: 0.01 },
+      uniforms,
+    ).material;
+    this.glassMaterial.userData.distantTerrain = true;
     this.glassMaterial.surfaceAtlas = textures.materials;
-    applySkylight(this.glassMaterial, uniforms, true);
     this.materials = [this.material, this.glassMaterial];
     this.tiles = new Map();
     this.cache = new DistantCache(DISTANT_CACHE_TILES, DISTANT_CACHE_BYTES);

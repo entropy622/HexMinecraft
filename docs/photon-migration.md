@@ -5,7 +5,7 @@
 审计基准：
 
 - Photon：`D:/Git/photon`，固定提交 [`6e67b36e818bacde0304edd49f28e2bb70e33f04`][p-root]。已对照 [README][p-readme]、[settings.glsl][p-settings]、[shaders.properties][p-properties] 的菜单/启用条件，以及对应 program/include 的实际实现。下方所有 Photon 链接固定到该提交。
-- HexMinecraft：初始审计基线为 [`bf64bbf855484deb040d56561fc6713b74fa0480`][h-root]，版本 0.85；下方机制状态与补充记录更新至 0.137。各验证文件保留首次失败与后续结果，本矩阵不替代实际图像和性能验收。按用户请求，本批交付后暂时停止开发，未完成项继续保留。
+- HexMinecraft：初始审计基线为 [`bf64bbf855484deb040d56561fc6713b74fa0480`][h-root]，版本 0.85；下方机制状态与补充记录更新至 0.138。各验证文件保留首次失败与后续结果，本矩阵不替代实际图像和性能验收，未完成项继续保留。
 - 参考图：用户附件 `codex-clipboard-332466b9-bff0-4693-9c2d-c219012105ea.png`。实际查看了 1920x1080 图像；场景是向光森林，白色太阳周围薄云发亮，多层积云有明显厚度和暗底，远山与林冠向空气色递进，低洼湿霾保留前景深绿与背光亮叶的对比。不能从单张图确定其资源包、全部开关、时刻或曝光值。
 
 机制表中的本项目源码链接跟随当前检出版本；初始审计基线保留在上方固定提交中。
@@ -15,6 +15,8 @@
 当前默认是 `quality=1` 均衡档；真实体积云和后处理链只在 `quality=1.7` 光影档启用，均衡档使用几何云。下面体积云、GTAO、TAA、SSR 和后处理的“已有”均受各自启用条件约束。目标图的成对验收明确使用光影档并记录基线成本；便宜的天空、太阳/月亮和方向光改进应按可行性同时覆盖均衡档，不自动替玩家切高档，也不靠改变曝光伪造改善。
 
 ## 参考图最先要求的五个变化
+
+0.138 先完成[材质与渲染流程重构](surface-pipeline-verification.md)：表面解码与光照正文由项目维护，颜色 / 材质记录变体共用解码，渲染阶段声明依赖。两组内部场景缓冲与旧版逐字节一致，未新增 Photon 光学机制；AO 仍在颜色之后，没有完整 G-buffer / 延迟光照或屏幕空间 bent normal / ambient SSS。该批为下一步冠层与环境照明改造提供接口，受控 GPU 对照的场景成本增加也需继续处理。
 
 0.127～0.130 补充[远景地形](distant-terrain-verification.md)、[真实分层树冠](distant-canopies-verification.md)、[折返缓存](distant-cache-verification.md)及[建筑悬空与开口](distant-architecture-verification.md)。0.131 将真实局部环境透光加入远叶的天空散射与远影 SSS 补偿，减轻近远树冠明暗断层；[固定画面与验证](distant-lighting-verification.md)保留范围与开销。它仍使用体素几何可见性，未完成屏幕空间 ambient SSS/bent normal、精确远影或整体森林参考图验收。
 

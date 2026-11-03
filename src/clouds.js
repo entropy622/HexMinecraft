@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addSurfaceFeature } from './surface-program.js';
 import { axialToWorld, worldToAxial, noise } from './core.js';
 import { skyRadianceGLSL } from './sky-transport.js';
 import { createCloudOptics } from './cloud-optics.js';
@@ -336,6 +337,30 @@ export class HexClouds {
         )
           continue;
         material.userData.hexCloudShadow = true;
+        if (
+          addSurfaceFeature(material, {
+            id: 'cloud-shadow',
+            version: 8,
+            order: 10,
+            uniforms: this.uniforms,
+            stages: {
+              vertex_pars: 'varying vec3 vCloudShadowPoint;',
+              vertex_project: `vec4 cloudPoint=vec4(transformed,1.0);
+              #ifdef USE_BATCHING
+                cloudPoint=batchingMatrix*cloudPoint;
+              #endif
+              #ifdef USE_INSTANCING
+                cloudPoint=instanceMatrix*cloudPoint;
+              #endif
+              vCloudShadowPoint=(modelMatrix*cloudPoint).xyz;`,
+              fragment_pars:
+                cloudShadowGLSL + '\nvarying vec3 vCloudShadowPoint;',
+              directional_filter:
+                'directLight.color *= hexCloudShadow(vCloudShadowPoint);',
+            },
+          })
+        )
+          continue;
         const previous = material.onBeforeCompile,
           cache = material.customProgramCacheKey;
         material.onBeforeCompile = (shader, renderer) => {

@@ -1,5 +1,6 @@
 import { ShaderChunk, Vector3 } from 'three';
 import { glassTransmissionGLSL } from './glass-transmission.js';
+import { addSurfaceFeature } from './surface-program.js';
 
 // Directional, orthographic PCSS. Depth is already linear in this projection;
 // convert separations to world units before applying the visible disk's angle.
@@ -108,6 +109,20 @@ export class SoftShadows {
         if (!material?.userData.voxelLighting || material.userData.softShadows)
           continue;
         material.userData.softShadows = true;
+        if (
+          addSurfaceFeature(material, {
+            id: 'soft-shadow-glass',
+            version: 7,
+            order: 20,
+            uniforms: () => ({ ...this.lightUniforms, ...this.uniforms }),
+            stages: {
+              shadow_pars: shadowChunk + glassTransmissionGLSL,
+              directional_filter:
+                'directLight.color *= glassTransmittance(vLightPosition + inverseTransformDirection(normal, viewMatrix) * 0.045, inverseTransformDirection(directLight.direction, viewMatrix));',
+            },
+          })
+        )
+          continue;
         const previous = material.onBeforeCompile,
           key = material.customProgramCacheKey;
         material.onBeforeCompile = (shader, renderer) => {

@@ -1,13 +1,6 @@
 import { ShaderChunk, Vector2 } from 'three';
 import { waterLightingGLSL } from './water-lighting.js';
-import { surfaceIndirectGLSL } from './surface-indirect.js';
-import { photonSpecularGLSL } from './photon-specular.js';
-import {
-  materialPackGLSL,
-  materialPackFragment,
-} from './material-pack-shader.js';
-import { biomeTintGLSL } from './biome-tint-shader.js';
-import { wetCoverageGLSL, wetMaterialGLSL } from './wet-material.js';
+import { installSurfaceProgram } from './surface-program.js';
 export const visionUniforms = { nightVision: { value: 0 } };
 
 // Both static surfaces and moving models use the same response to voxel light.
@@ -43,64 +36,9 @@ export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
     'irradiance += vSkylight * getHemisphereLightIrradiance',
   );
 
-const directionalShadow =
-  /directLight\.color \*= (\( directLight\.visible && receiveShadow \) \? getShadow\( directionalShadowMap\[ i \],[^\n]+ : 1\.0);/;
-if (!directionalShadow.test(voxelLightingChunk))
-  throw Error(
-    'Directional shadow chunk changed; update surface indirect lighting.',
-  );
-// Only the directional-light invocation gets Photon's direct diffuse response.
-// Leave the incident energy used by SSS/bounce and every local light unchanged.
-const directionalLoop =
-  /(getDirectionalLightInfo\( directionalLight, directLight \);[\s\S]*?)(RE_Direct\( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight \);)/;
-if (!directionalLoop.test(voxelLightingChunk))
-  throw Error('Directional light loop changed; update Photon surface diffuse.');
-const geometricLightingChunk = voxelLightingChunk
-  .replace(
-    directionalLoop,
-    (_, setup, draw) => `${setup}
-    // Specular receives the filtered, shadowed incident light before the
-    // artistic diffuse response or SSS energy allocation changes it.
-    if(surfaceSpecular>0.5){
-      float surfaceLoV=clamp(dot(directLight.direction,geometryViewDir),-1.0,1.0);
-      reflectedLight.directSpecular+=directLight.color*
-      photonSurfaceHighlight(material.diffuseColor,surfaceOptical,
-        dot(geometryNormal,directLight.direction),max(0.0,dot(geometryNormal,geometryViewDir)),
-        surfaceLoV,sqrt(max(0.0,0.5+0.5*surfaceLoV)),surfaceLightRadius);
-    }
-    #ifdef HEX_LEAF_PRIMARY_SSS
-      directLight.color*=1.0-0.5*clamp(leafSssAmount,0.0,1.0);
-    #endif
-    // lift(NoL, 0.25) / NoL has this finite form, including grazing NoL=0.
-    // The common geometry attenuation below supplies one AO factor already.
-    float surfaceNoL=clamp(dot(geometryNormal,directLight.direction),0.0,1.0);
-    directLight.color*=mix(1.0,1.25/(1.0+0.25*surfaceNoL)*clamp(vAmbientOcclusion,0.0,1.0),surfaceDiffuse);
-    ${draw}`,
-  )
-  .replace(
-    'vSkylight * max(vec3(0.0), getLightProbeIrradiance( lightProbe, geometryNormal ))',
-    'vSkylight * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion)',
-  )
-  .replace(
-    directionalShadow,
-    (_, visibility) => `
-    float geometricShadow=${visibility};
-    directLight.color*=geometricShadow;
-    // Photon's bounded shadow-bounce approximation. Incident RGB already
-    // contains cloud/glass/water filtering; emission and local lights stay separate.
-    float geometricAO=clamp(vAmbientOcclusion,0.0,1.0);
-    float geometricUp=max(0.0,inverseTransformDirection(geometryNormal,viewMatrix).y);
-    reflectedLight.indirectDiffuse += material.diffuseColor*geometricIncident *
-      (0.033*surfaceBounce*(1.0-geometricShadow)*(1.0-0.1*geometricUp)*
-        // The vertex attribute already contains (voxel sky level / 15)^2.
-        sqrt(geometricAO)*pow(clamp(vSkylight,0.0,1.0),2.0));
-  `,
-  )
-  .replaceAll('vSkylight', 'surfaceSkyLevel')
-  .replaceAll('vBlockLight', 'surfaceBlockLevel');
-
-// Shared weather uniforms; terrain receives persistent voxel light instead of
-// static point-light pools. Two short-range moving fireball lights supplement it.
+// Three's existing material classes remain adapters for texture/light uniforms.
+// Geometric surfaces own their shader stages; independent legacy models keep
+// their existing host path until their material semantics are migrated.
 export function applySkylight(
   material,
   sharedUniforms,
@@ -115,9 +53,7 @@ export function applySkylight(
       surfaceOptics: [0],
       biomeTint: [0, 0, 0, 0],
     };
-  const uniforms = sharedUniforms || {
-    terrainWetness: { value: 0 },
-  };
+  const uniforms = sharedUniforms || { terrainWetness: { value: 0 } };
   uniforms.surfaceBounce ??= { value: 0 };
   uniforms.terrainRain ??= { value: 0 };
   uniforms.surfaceDiffuse ??= { value: 1 };
@@ -127,92 +63,34 @@ export function applySkylight(
   uniforms.surfacePackGrid ??= { value: new Vector2(1, 1) };
   uniforms.biomeGrassOverlay ??= { value: null };
   uniforms.biomeTileSize ??= { value: 16 };
+  if (geometricShade) {
+    installSurfaceProgram(material, uniforms, visionUniforms);
+    return uniforms;
+  }
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, visionUniforms);
-    shader.vertexShader =
-      `${geometricShade ? 'attribute vec4 biomeTint;varying vec4 vBiomeTint;attribute float ambientOcclusion; varying float vAmbientOcclusion; attribute float surfaceOptics; varying float vSurfaceOptics;\n' : ''}
-      attribute float skylight; attribute float rainExposure; attribute float surfacePorosity; attribute vec3 blocklight;
-      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;\n${shader.vertexShader}`.replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        vSkylight = skylight;
-        ${geometricShade ? 'vBiomeTint=biomeTint;vAmbientOcclusion=clamp(ambientOcclusion,0.0,1.0);vSurfaceOptics=surfaceOptics;' : ''}
-        vBlockLight = blocklight;
-        vPorosity = surfacePorosity;
-        vWetTop = rainExposure * max(0.0, normal.y);
-        vLightPosition = (modelMatrix * vec4(position, 1.0)).xyz;`,
+    shader.vertexShader = (
+      'attribute float skylight;attribute float rainExposure;attribute float surfacePorosity;attribute vec3 blocklight;\n' +
+      'varying vec3 vBlockLight;varying float vSkylight,vWetTop,vPorosity;varying vec3 vLightPosition;\n' +
+      shader.vertexShader
+    ).replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nvSkylight=skylight;vBlockLight=blocklight;vPorosity=surfacePorosity;vWetTop=rainExposure*max(0.0,normal.y);vLightPosition=(modelMatrix*vec4(position,1.0)).xyz;',
+    );
+    shader.fragmentShader = (
+      (!material.transparent
+        ? '#define HEX_WATER_RECEIVER\n' + waterLightingGLSL
+        : '') +
+      'varying vec3 vBlockLight;varying float vSkylight,vWetTop,vPorosity;varying vec3 vLightPosition;uniform float terrainWetness,terrainRain,nightVision,surfaceDiffuse;\n' +
+      shader.fragmentShader
+    )
+      .replace('#include <lights_fragment_begin>', voxelLightingChunk)
+      .replace(
+        '#include <opaque_fragment>',
+        'float wet=terrainWetness*vWetTop;outgoingLight*=1.0-wet*(0.12+0.18*vPorosity);\n#include <opaque_fragment>',
       );
-    shader.fragmentShader =
-      `${geometricShade ? '#define HEX_GEOMETRIC_SHADE\nvarying float vAmbientOcclusion; varying float vSurfaceOptics; uniform float surfaceSpecular,surfaceLightRadius;\n' : ''}
-      ${geometricShade && material.userData.wetSurface ? '#define HEX_WET_SURFACE\n' : ''}
-      ${!material.transparent ? '#define HEX_WATER_RECEIVER\n' + waterLightingGLSL : ''}
-      varying vec3 vBlockLight; varying float vSkylight; varying float vWetTop; varying float vPorosity; varying vec3 vLightPosition;
-      uniform float terrainWetness; uniform float terrainRain; uniform float nightVision; uniform float surfaceDiffuse;\n${shader.fragmentShader}`
-        .replace(
-          '#include <lights_pars_begin>',
-          '#include <lights_pars_begin>\n' +
-            (geometricShade
-              ? surfaceIndirectGLSL +
-                photonSpecularGLSL +
-                wetCoverageGLSL +
-                wetMaterialGLSL +
-                materialPackGLSL +
-                biomeTintGLSL
-              : ''),
-        )
-        .replace(
-          '#include <lights_fragment_begin>',
-          geometricShade ? geometricLightingChunk : voxelLightingChunk,
-        )
-        .replace(
-          '#include <emissivemap_fragment>',
-          '#include <emissivemap_fragment>\n' +
-            (geometricShade
-              ? '#ifdef USE_MAP\n diffuseColor.rgb=biomeSurfaceTint(diffuseColor.rgb,vMapUv);\n#endif\n' +
-                materialPackFragment
-              : ''),
-        )
-        .replace(
-          '#include <color_fragment>',
-          geometricShade
-            ? `#ifdef USE_COLOR_ALPHA
-                 diffuseColor.a *= vColor.a;
-               #endif`
-            : '#include <color_fragment>',
-        )
-        .replace(
-          '#include <lights_fragment_end>',
-          `#include <lights_fragment_end>
-          ${
-            geometricShade
-              ? `
-          // Baked face shade/AO attenuates reflected light, but is not pigment.
-          // Transmission and other material responses keep the texture albedo.
-          #if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)
-            reflectedLight.directDiffuse *= vColor.rgb;
-            reflectedLight.indirectDiffuse *= vColor.rgb;
-          #endif
-          reflectedLight.directDiffuse *= vAmbientOcclusion;
-          reflectedLight.indirectDiffuse *= vAmbientOcclusion;
-          // Photon keeps half the diffuse on metals in its default SSR model.
-          float surfaceMetalDiffuse=mix(1.0,0.5,surfaceOptical.metal);
-          reflectedLight.directDiffuse*=surfaceMetalDiffuse;
-          reflectedLight.indirectDiffuse*=surfaceMetalDiffuse;`
-              : ''
-          }`,
-        )
-        .replace(
-          '#include <opaque_fragment>',
-          `
-        ${geometricShade ? '' : 'float wet=terrainWetness*vWetTop;outgoingLight*=1.0-wet*(0.12+0.18*vPorosity);'}
-        ${geometricShade ? 'outgoingLight+=reflectedLight.directSpecular;' : ''}
-        #include <opaque_fragment>`,
-        );
   };
   material.customProgramCacheKey = () =>
-    'hex-colored-voxel-wet-sky-v15-puddle-material-' +
-    Number(geometricShade) +
-    '-' +
-    Number(!!material.userData.wetSurface);
+    'hex-legacy-voxel-v16-' + Number(!!material.userData.wetSurface);
   return uniforms;
 }

@@ -1,5 +1,14 @@
 # Photon rendering assets and optics
 
+Since 0.138, the host owns its surface shader templates, named feature stages
+and lighting loops. Existing attributed optics and foliage responses now run
+through `src/surface-lighting.js`, `src/surface-foliage.js` and the shared
+material decoder; their Photon-derived portions retain the license in
+`photon.txt`. This refactor preserves the current forward-lighting behavior
+and does not constitute a complete port of Photon's deferred pipeline.
+The light interfaces and loop structure adapted from Three.js retain its
+MIT license in `three.txt`.
+
 Since 0.137, `src/foliage-wind.js` adapts the directional noise gust,
 three-harmonic wobble, weather strength and leaf/plant response from the pinned
 Photon's `include/vertex/displacement.glsl` and `include/weather/core.glsl`.

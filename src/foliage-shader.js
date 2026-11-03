@@ -2,14 +2,13 @@ import {
   Color,
   DoubleSide,
   MeshDepthMaterial,
-  MeshLambertMaterial,
   RGBADepthPacking,
   Vector3,
 } from 'three';
-import { applySkylight } from './skylight.js';
-import { leafLightingGLSL } from './leaf-lighting.js';
-import { leafTransmissionGLSL } from './leaf-transmission.js';
 import { foliageWindGLSL } from './foliage-wind.js';
+import { addSurfaceFeature } from './surface-program.js';
+import { windSurfaceFeature, leafSurfaceFeature } from './surface-foliage.js';
+import { createSurfaceMaterial } from './surface-material.js';
 
 export const foliageUniforms = () => ({
   leafTime: { value: 0 },
@@ -27,6 +26,7 @@ export const foliageUniforms = () => ({
 // World-space phases keep neighboring leaf faces and chunk seams together.
 // Grass anchors at the integral ground height; full leaf blocks sway gently.
 export function applyFoliageWind(material, uniforms, grass = false) {
+  if (addSurfaceFeature(material, windSurfaceFeature(uniforms, grass))) return;
   const previous = material.onBeforeCompile;
   const cacheKey = material.customProgramCacheKey();
   material.onBeforeCompile = (shader, renderer) => {
@@ -57,90 +57,21 @@ export function applyFoliageWind(material, uniforms, grass = false) {
 }
 
 function subsurfaceMaterials(atlas, weather, uniforms, thin) {
-  const material = new MeshLambertMaterial({
-    map: atlas,
-    vertexColors: true,
-    alphaTest: 0.5,
-    side: DoubleSide,
-  });
-  applySkylight(material, weather, true);
+  const { material } = createSurfaceMaterial(
+    {
+      map: atlas,
+      vertexColors: true,
+      alphaTest: 0.5,
+      side: DoubleSide,
+    },
+    weather,
+  );
   // Thick canopies benefit from early depth. Thin plants keep wind-aware
   // shadow depth without adding a second main/capture draw for every flower.
   material.userData.foliageDepthPrepass = !thin;
   material.defaultAttributeValues.leafAmbient = [0];
   applyFoliageWind(material, uniforms, thin);
-  const previous = material.onBeforeCompile;
-  material.onBeforeCompile = (shader, renderer) => {
-    previous.call(material, shader, renderer);
-    shader.vertexShader =
-      'attribute float leafAmbient; varying float vLeafAmbient;\n' +
-      shader.vertexShader
-        // Generic vertex constants are shared GL state, not stored in a VAO.
-        // Cached draws can otherwise inherit the last plant/leaf class.
-        .replace(
-          'vSurfaceOptics=surfaceOptics;',
-          `vSurfaceOptics=${thin ? 2 : 5}.0;`,
-        )
-        .replace(
-          '#include <begin_vertex>',
-          '#include <begin_vertex>\nvLeafAmbient=leafAmbient;',
-        );
-    shader.fragmentShader =
-      `#define HEX_LEAF_PRIMARY_SSS\n${thin ? '#define HEX_THIN_PLANT\n' : ''}varying float vLeafAmbient; uniform vec3 leafSunDirection; uniform vec3 leafSunColor; uniform float leafSheen; uniform float leafDepthOnly;\n${leafLightingGLSL}\n` +
-      shader.fragmentShader
-        .replace(
-          '#include <alphatest_fragment>',
-          `#include <alphatest_fragment>
-          if (leafDepthOnly > 0.5) { gl_FragColor=vec4(0.0); return; }`,
-        )
-        .replace(
-          'irradiance += surfaceSkyLevel * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);',
-          `vec3 leafSkyUp=max(vec3(0.0),shGetIrradianceAt(vec3(0.0,1.0,0.0),lightProbe));
-          ${thin ? 'irradiance += surfaceSkyLevel * mix(surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion),0.5*leafSkyUp,leafSssAmount);' : 'irradiance += 0.5 * surfaceSkyLevel * leafSkyUp;'}`,
-        )
-        .replace(
-          'reflectedLight.indirectDiffuse *= vAmbientOcclusion;',
-          `reflectedLight.indirectDiffuse *= vAmbientOcclusion;
-          #if defined(USE_LIGHT_PROBES)
-            vec3 leafFaceShade=vec3(1.0);
-            #if defined(USE_COLOR) || defined(USE_COLOR_ALPHA)
-              leafFaceShade=vColor.rgb;
-            #endif
-            // Photon separates AO-weighted diffuse sky from ambient SSS.
-            // vSkylight is already raw sky squared. Visibility is a normalized
-            // byte from the real local canopy, not an exposure multiplier.
-            reflectedLight.indirectDiffuse += BRDF_Lambert(material.diffuseColor) *
-              leafSkyUp * surfaceSkyLevel * clamp(vLeafAmbient,0.0,1.0)${thin ? ' * leafSssAmount' : ''} * leafFaceShade;
-          #endif`,
-        )
-        .replace(
-          '#include <shadowmap_pars_fragment>',
-          '#include <shadowmap_pars_fragment>\n' + leafTransmissionGLSL,
-        )
-        .replace(
-          'getDirectionalLightInfo( directionalLight, directLight );',
-          `getDirectionalLightInfo( directionalLight, directLight );
-        leafLightTransmission = directLight.color / max(vec3(0.00001), directionalLight.color);`,
-        )
-        .replace(
-          '#include <opaque_fragment>',
-          /* glsl */ `
-        // Photon gates at raw sky 0.1; vSkylight already contains raw sky squared.
-        if (leafSssAmount >= 0.000001 && max(max(leafSunColor.r, leafSunColor.g), leafSunColor.b) > 0.00001 && surfaceSkyLevel >= 0.01) {
-          float leafMu = dot(normalize(vLightPosition - cameraPosition), leafSunDirection);
-          float leafNoL = dot(inverseTransformDirection(geometryNormal,viewMatrix),leafSunDirection);
-          outgoingLight += leafSunColor * clamp(leafLightTransmission, vec3(0.0), vec3(1.0)) *
-            leafSolarResponse(diffuseColor.rgb,leafMu,leafTransmittance(diffuseColor.rgb,leafNoL,vAmbientOcclusion,0.5*clamp(vLeafAmbient,0.0,1.0)),leafSheen,leafSssAmount);
-        }
-        #include <opaque_fragment>
-      `,
-        );
-  };
-  const key = material.customProgramCacheKey();
-  material.customProgramCacheKey = () =>
-    key +
-    '-transmission-v7-sky-subsurface-v2-primary-sheen-range-depth' +
-    (thin ? '-plant-v1' : '');
+  addSurfaceFeature(material, leafSurfaceFeature(uniforms, thin));
   const depth = new MeshDepthMaterial({
     map: atlas,
     depthPacking: RGBADepthPacking,

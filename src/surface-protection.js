@@ -1,3 +1,9 @@
+import {
+  createSurfaceRecordMaterial,
+  hasSurfaceProgram,
+  surfaceProgramKey,
+} from './surface-program.js';
+import { SURFACE_RECORDS } from './surface-data.js';
 import { wetCoverageGLSL } from './wet-surfaces.js';
 import {
   Color,
@@ -31,6 +37,7 @@ export class SurfaceProtectionPass extends Pass {
     });
     this.textureUniform = { value: this.target.texture };
     this.specularEnabled = false;
+    this.records = SURFACE_RECORDS;
     this.clearColor = new Color();
     this.saved = [];
     this.previous = new WeakMap();
@@ -102,70 +109,24 @@ export class SurfaceProtectionPass extends Pass {
     };
   }
   opticalMaterial(original, flags, receivesOptics) {
-    if (!receivesOptics || !original?.userData.geometricShade)
-      return this.material;
+    if (!receivesOptics || !hasSurfaceProgram(original)) return this.material;
     let variants = this.variants.get(original);
     if (!variants) this.variants.set(original, (variants = new Map()));
-    const key = flags.x + flags.y * 2 + flags.z * 4;
-    if (variants.has(key)) return variants.get(key);
-    const material = original.clone(),
-      compile = original.onBeforeCompile,
-      uniforms = this.material.uniforms;
-    material.name = 'SurfaceOptics-' + original.name;
-    material.defaultAttributeValues = { ...original.defaultAttributeValues };
-    material.transparent = false;
-    material.blending = NoBlending;
-    material.depthTest =
-      material.depthWrite =
-      material.toneMapped =
-      material.fog =
-        false;
-    material.onBeforeCompile = (shader, renderer) => {
-      compile.call(original, shader, renderer);
-      Object.assign(shader.uniforms, uniforms, {
-        surfaceChannels: { value: flags.clone() },
-      });
-      shader.fragmentShader =
-        /* glsl */ `
-        layout(location=1) out highp vec4 reflectionAlbedo;
-        layout(location=2) out highp vec4 reflectionGeometry;
-        #ifdef HEX_PACK_SPECULAR_OUTPUT
-          layout(location=3) out highp vec4 reflectionSpecular;
-        #endif
-        uniform sampler2D surfaceDepth;uniform vec2 surfaceResolution;
-        uniform vec3 surfaceChannels;
-        vec2 surfaceOctEncode(vec3 n){
-          n/=abs(n.x)+abs(n.y)+abs(n.z);
-          vec2 e=n.xy;
-          if(n.z<0.0)e=(1.0-abs(e.yx))*mix(vec2(-1.0),vec2(1.0),step(vec2(0.0),e));
-          return e*0.5+0.5;
-        }
-        vec3 surfaceEncodeAlbedo(vec3 c){
-          return mix(c*12.92,1.055*pow(max(c,vec3(0.0)),vec3(1.0/2.4))-0.055,step(vec3(0.0031308),c));
-        }
-      ` +
-        shader.fragmentShader.replace(
-          '// HEX_SURFACE_DATA_READY',
-          /* glsl */ `// HEX_SURFACE_DATA_READY
-        float surfaceDepthValue=texture2D(surfaceDepth,gl_FragCoord.xy/surfaceResolution).r;
-        if(gl_FragCoord.z>surfaceDepthValue+0.000001)discard;
-        vec3 surfaceWorldNormal=normalize(inverseTransformDirection(normal,viewMatrix));
-        float coverage=surfaceChannels.z>0.5?surfacePuddleCoverage:0.0;
-        gl_FragColor=vec4(surfaceChannels.x,max(surfaceChannels.y,step(0.025,coverage)),coverage,1.0);
-        reflectionAlbedo=vec4(surfaceEncodeAlbedo(diffuseColor.rgb),(floor(vSurfaceOptics+0.5)+1.0)/255.0);
-        reflectionGeometry=vec4(surfaceOctEncode(surfaceWorldNormal),sqrt(clamp(surfaceSkyLevel,0.0,1.0)),surfaceHasSpec);
-        #ifdef HEX_PACK_SPECULAR_OUTPUT
-          reflectionSpecular=surfacePackSpec;
-        #endif
-        return;`,
-        );
-    };
-    material.customProgramCacheKey = () =>
-      original.customProgramCacheKey() +
-      '-reflection-gbuffer-v2-' +
+    const key =
+      surfaceProgramKey(original) +
+      '/' +
+      (flags.x + flags.y * 2 + flags.z * 4) +
+      '/' +
       Number(this.specularEnabled);
-    if (this.specularEnabled)
-      material.defines = { ...material.defines, HEX_PACK_SPECULAR_OUTPUT: 1 };
+    if (variants.has(key)) return variants.get(key);
+    const material = createSurfaceRecordMaterial(
+      original,
+      this.material.uniforms,
+      flags,
+      this.specularEnabled,
+    );
+    material.name = 'SurfaceRecords-' + original.name;
+    material.blending = NoBlending;
     variants.set(key, material);
     this.ownedMaterials.add(material);
     return material;

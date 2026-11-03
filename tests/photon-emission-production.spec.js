@@ -34,6 +34,11 @@ for (const gallery of [
     makeSave: daylightSave,
     shader: 'hexFoliageWind',
   },
+  {
+    name: 'owned-surface-program',
+    makeSave: wetGallery,
+    shader: 'hexSurfaceDirect',
+  },
 ])
   test(`release draws ${gallery.name} materials and preserves a v16 gallery through native UI and device recovery`, async ({
     page,

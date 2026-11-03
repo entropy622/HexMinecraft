@@ -1,5 +1,6 @@
 import { wetPorosity } from './wet-surfaces.js';
 import { applySkylight, visionUniforms } from './skylight.js';
+import { createSurfaceMaterial } from './surface-material.js';
 import {
   foliageUniforms,
   leafMaterials,
@@ -179,12 +180,8 @@ export class Graphics {
     this.terrain = new THREE.Group();
     this.scene.add(this.terrain);
     this.chunks = new Map();
-    this.material = new THREE.MeshLambertMaterial({
-      vertexColors: true,
-      map: this.textures.atlas,
-    });
-    this.weatherUniforms = applySkylight(
-      this.material,
+    const terrainSurface = createSurfaceMaterial(
+      { vertexColors: true, map: this.textures.atlas },
       {
         ...this.dynamicLight.uniforms,
         ...this.textures.materials.uniforms,
@@ -193,8 +190,9 @@ export class Graphics {
         surfaceBounce: { value: 1 },
         wetSky: { value: new THREE.Color('#7c96a5') },
       },
-      true,
     );
+    this.material = terrainSurface.material;
+    this.weatherUniforms = terrainSurface.uniforms;
     this.material.userData.wetSurface = true;
     this.distantTerrain = new DistantTerrain(
       this.scene,

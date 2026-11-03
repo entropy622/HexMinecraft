@@ -4,11 +4,17 @@
 
 [在线游玩](https://entropy622.github.io/HexMinecraft/) · [操作说明](#操作) · [本地开发](#开发与验证)
 
+## 0.138：材质与渲染流程重构
+
+地形、树叶、草花与远景表面改用项目维护的材质程序，统一解码颜料、法线、光学参数与自发光，再分别输出光照和材质记录。渲染阶段显式声明数据依赖，为后续接入环境遮蔽与透射照明提供入口。
+
+森林与湿面场景的原始缓冲保持一致；当前仍是前向着色，整体 Photon 画面目标继续推进。受控 GPU 对照中，每个视图的场景阶段仍增加约 0.6 ms。[架构、验证与成本](docs/surface-pipeline-verification.md)。
+
 ## 0.137：天气驱动的树叶与草花风动
 
 树叶与原生草花接入 Photon 参考的定向阵风、多频摆动与持续天气风强，随雨量和天光遮蔽变化，草花根部保持固定。可见面、阴影和水面捕获使用一致的位移；落叶飘动同步主风向。[自然森林对照、来源与验证](docs/foliage-wind-verification.md)。
 
-本批交付后暂时停止开发。整体 MC 与 Photon 还原仍有差距，后续范围保留在[开发状态](docs/development-status.md)和[迁移矩阵](docs/photon-migration.md)中。
+整体 MC 与 Photon 还原仍有差距，后续范围保留在[开发状态](docs/development-status.md)和[迁移矩阵](docs/photon-migration.md)中。
 
 ## 0.136：日间云边缘重建
 

@@ -11,6 +11,7 @@ import { postSettings } from './render-settings.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { PhotonOutputPass } from './photon-output.js';
+import { installRenderPipeline } from './render-pipeline.js';
 
 // Allocated only for the opt-in light-effects preset. One final output owns grading/transfer.
 export function createPostprocessing(
@@ -53,26 +54,70 @@ export function createPostprocessing(
   const antialias = new SMAAPass();
   const exposure = new ExposurePass();
   const output = new PhotonOutputPass();
-  composer.addPass(frame);
-  composer.addPass(protection);
-  composer.addPass(contact);
-  composer.addPass(wet);
-  composer.addPass(
-    new AtmospherePass(
-      camera,
-      sun,
-      atmosphere,
-      lightUniforms,
-      frame,
-      cloudUniforms,
-    ),
+  const air = new AtmospherePass(
+    camera,
+    sun,
+    atmosphere,
+    lightUniforms,
+    frame,
+    cloudUniforms,
   );
-  composer.addPass(temporal);
-  composer.addPass(bloom);
-  composer.addPass(exposure);
-  // Three.js SMAA operates in linear-sRGB, before the final display conversion.
-  composer.addPass(antialias);
-  composer.addPass(output);
+  installRenderPipeline(composer, [
+    {
+      id: 'forward-scene',
+      pass: frame,
+      writes: ['depth', 'hdr.scene', 'water.capture'],
+    },
+    {
+      id: 'surface-records',
+      pass: protection,
+      reads: ['depth'],
+      writes: ['surface.records'],
+    },
+    {
+      id: 'contact-occlusion',
+      pass: contact,
+      reads: ['depth', 'surface.records', 'hdr.scene'],
+      writes: ['hdr.contact'],
+    },
+    {
+      id: 'reflections',
+      pass: wet,
+      reads: ['depth', 'surface.records', 'hdr.contact'],
+      writes: ['hdr.reflections'],
+    },
+    {
+      id: 'atmosphere',
+      pass: air,
+      reads: ['depth', 'hdr.reflections'],
+      writes: ['hdr.atmosphere'],
+    },
+    {
+      id: 'temporal',
+      pass: temporal,
+      reads: ['depth', 'surface.records', 'hdr.atmosphere'],
+      writes: ['hdr.temporal'],
+    },
+    {
+      id: 'bloom',
+      pass: bloom,
+      reads: ['hdr.temporal'],
+      writes: ['hdr.bloom'],
+    },
+    {
+      id: 'exposure',
+      pass: exposure,
+      reads: ['hdr.bloom'],
+      writes: ['hdr.exposure'],
+    },
+    {
+      id: 'spatial-aa',
+      pass: antialias,
+      reads: ['hdr.exposure'],
+      writes: ['hdr.aa'],
+    },
+    { id: 'display', pass: output, reads: ['hdr.aa'], writes: ['display'] },
+  ]);
   composer.effects = {
     contact,
     wet,
