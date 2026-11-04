@@ -3,6 +3,7 @@ import { materialNames } from './material-pack.js';
 import { BLOCKS } from './core.js';
 import { effectImage } from './texture-pack.js';
 import { BiomeColors, TINT_BASES, biomeTintKind } from './biome-colors.js';
+import { createNativeMaterialDetail } from './native-material-detail.js';
 
 export function installMaterialAtlas(textures, tiles, names) {
   const rows = Math.ceil(names.length / 8),
@@ -38,6 +39,14 @@ export function installMaterialAtlas(textures, tiles, names) {
   const nativeOverlay = readImage(
     effectImage('mcl_core_grass_block_side_overlay'),
   ) || { width: 1, height: 1, data: new Uint8Array(4) };
+  const nativeDetails = new Map();
+  for (const name of names) {
+    const detail = createNativeMaterialDetail(
+      name,
+      readImage(tiles.get(name).canvas),
+    );
+    if (detail) nativeDetails.set(name, detail);
+  }
   textures.biomes = new BiomeColors({
     grass: readImage(effectImage('mcl_core_palette_grass')),
     foliage: readImage(effectImage('mcl_core_palette_foliage')),
@@ -186,9 +195,10 @@ export function installMaterialAtlas(textures, tiles, names) {
       const nextOverlay =
         next?.images.get('grass_block_side_overlay:color') || nativeOverlay;
       const overlay = prepareOverlay(nextOverlay);
-      const nData = next?.hasNormals
-          ? new Uint8Array(color.width * color.height * 4)
-          : null,
+      const nData =
+          next?.hasNormals || nativeDetails.size
+            ? new Uint8Array(color.width * color.height * 4)
+            : null,
         sData = next?.hasSpecular
           ? new Uint8Array(color.width * color.height * 4)
           : null;
@@ -264,11 +274,14 @@ export function installMaterialAtlas(textures, tiles, names) {
           size / 2,
           size * 2,
         );
-        const n = imageFor(next, name, 'normal'),
+        const importedNormal = imageFor(next, name, 'normal'),
+          native = !image && !importedNormal ? nativeDetails.get(name) : null,
+          n = importedNormal || native,
           s = imageFor(next, name, 'specular');
         if (n) {
           numericTile(nData, n, i, nextLayout);
           mask[i * 4] = 255;
+          mask[i * 4 + 2] = native ? 255 : 0;
         }
         if (s) {
           numericTile(sData, s, i, nextLayout);
@@ -325,7 +338,7 @@ export function installMaterialAtlas(textures, tiles, names) {
         newSpecular = sData
           ? dataTexture(sData, color.width, color.height)
           : null,
-        newFlags = next ? dataTexture(mask, names.length, 1) : null;
+        newFlags = next || nData ? dataTexture(mask, names.length, 1) : null;
       // All decode/allocation/UV preparation succeeded; publish coherently.
       for (const { geometry, name, key, canonical, result } of changes) {
         if (next) geometry.userData[key] = canonical;
@@ -357,7 +370,7 @@ export function installMaterialAtlas(textures, tiles, names) {
       layout = nextLayout;
       pack = next;
       manager.specIndices = specIndices;
-      uniforms.surfacePackEnabled.value = next ? 1 : 0;
+      uniforms.surfacePackEnabled.value = next || normal ? 1 : 0;
       uniforms.surfacePackNormal.value = normal;
       uniforms.surfacePackSpecular.value = specular;
       uniforms.surfacePackFlags.value = flags;

@@ -15,7 +15,17 @@ struct SurfaceData {
 // Preserve the existing compact reflection layout while making its ownership
 // explicit. Later lighting stages can consume this contract without cloning a
 // lit shader and searching for a marker inside its material decoder.
+export const surfaceRecordOpticsGLSL = /* glsl */ `
+// RGBA8 geometry alpha: 0 = class defaults, 1..254 = native base roughness,
+// 255 = labPBR specular attachment. Keep native roughness before wet blending.
+bool surfaceRecordLabPbr(float tag){return tag>254.5/255.0;}
+float surfaceRecordRoughness(float tag){return clamp((tag*255.0-1.0)/253.0,0.0,1.0);}
+float surfaceEncodeRecordOptics(float roughness,bool nativeDetail,bool labPbr){
+  return labPbr?1.0:nativeDetail?(1.0+floor(clamp(roughness,0.0,1.0)*253.0+0.5))/255.0:0.0;
+}
+`;
 export const surfaceRecordParsGLSL = /* glsl */ `
+${surfaceRecordOpticsGLSL}
 layout(location=1) out highp vec4 reflectionAlbedo;
 layout(location=2) out highp vec4 reflectionGeometry;
 #ifdef HEX_PACK_SPECULAR_OUTPUT
@@ -41,7 +51,7 @@ vec3 surfaceWorldNormal=normalize(inverseTransformDirection(material.normal,view
 float coverage=surfaceChannels.z>0.5?surfacePuddleCoverage:0.0;
 gl_FragColor=vec4(surfaceChannels.x,max(surfaceChannels.y,step(0.025,coverage)),coverage,1.0);
 reflectionAlbedo=vec4(surfaceEncodeAlbedo(material.diffuseColor),(floor(vSurfaceOptics+0.5)+1.0)/255.0);
-reflectionGeometry=vec4(surfaceOctEncode(surfaceWorldNormal),sqrt(clamp(material.squaredSky,0.0,1.0)),surfaceHasSpec);
+reflectionGeometry=vec4(surfaceOctEncode(surfaceWorldNormal),sqrt(clamp(material.squaredSky,0.0,1.0)),surfaceEncodeRecordOptics(surfaceNativeRoughness,surfaceNativeRoughness>=0.0,surfaceHasSpec>0.5));
 #ifdef HEX_PACK_SPECULAR_OUTPUT
 reflectionSpecular=surfacePackSpec;
 #endif
@@ -58,7 +68,8 @@ export const SURFACE_RECORDS = Object.freeze({
   }),
   geometry: Object.freeze({
     attachment: 2,
-    channels: 'oct world normal, raw sky level, has labPBR specular',
+    channels:
+      'oct world normal, raw sky level, optics tag: 0 class / 1..254 native roughness / 255 labPBR',
   }),
   specular: Object.freeze({
     attachment: 3,

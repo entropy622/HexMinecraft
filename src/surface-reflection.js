@@ -1,7 +1,9 @@
 // Photon 6e67b36 lighting/specular_lighting.glsl: GGX VNDF, Smith weighting,
 // fixed-material reflection mask and skylight fallback. Host SSR shares the
 // existing wet-surface tracer and current-frame HDR, not Iris history buffers.
+import { surfaceRecordOpticsGLSL } from './surface-data.js';
 export const surfaceReflectionGLSL = /* glsl */ `
+${surfaceRecordOpticsGLSL}
 vec3 surfaceDecodeNormal(vec2 e){
   vec2 f=e*2.0-1.0;vec3 n=vec3(f,1.0-abs(f.x)-abs(f.y));
   float t=clamp(-n.z,0.0,1.0);n.xy+=mix(vec2(t),vec2(-t),step(vec2(0.0),n.xy));
@@ -35,11 +37,12 @@ vec3 surfaceSky(vec3 direction,float skylight){
 }
 vec3 surfaceEnvironment(vec3 position,vec3 view,vec4 data,vec4 geometry){
   float mask=floor(data.a*255.0+0.5)-1.0;
-  bool mapped=surfaceSpecularEnabled>0.5&&geometry.a>0.5;
+  bool mapped=surfaceSpecularEnabled>0.5&&surfaceRecordLabPbr(geometry.a);
   float coverage=texture2D(surfaceMask,vUv).b;
   if(environmentStrength<=0.0||(!mapped&&!surfaceReflectiveClass(mask)&&coverage<0.001))return vec3(0.0);
   vec3 albedo=surfaceDecodeAlbedo(data.rgb);
   PhotonSurfaceOptics optical=photonSurfaceOptics(albedo,mask);
+  if(geometry.a>0.5/255.0&&!surfaceRecordLabPbr(geometry.a))optical.roughness=surfaceRecordRoughness(geometry.a);
   if(mapped)photonDecodeLabPbr(texture2D(surfaceSpecular,vUv),albedo,optical);
   if(coverage>0.001)photonPuddleOptics(optical,coverage);
   if(optical.ssr<0.001)return vec3(0.0);

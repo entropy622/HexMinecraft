@@ -9,7 +9,7 @@ const aliases = {
   planks: 'oak_planks',
   cobble: 'cobblestone',
   mossybrick: 'mossy_cobblestone',
-  brick: 'bricks',
+  brick: 'stone_bricks',
   ingot: 'iron_ingot',
   ironBlock: 'iron_block',
   coalOre: 'coal_ore',

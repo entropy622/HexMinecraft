@@ -231,11 +231,11 @@ test('ZIP controls apply raw labPBR to native surfaces, persist, recover and rel
     g.composer.effects.protection.render(g.renderer);
     return {
       attachments: g.composer.effects.protection.target.textures.length,
-      normal: g.textures.materials.uniforms.surfacePackNormal.value,
+      nativeNormal: !!g.textures.materials.uniforms.surfacePackNormal.value,
       spec: g.textures.materials.uniforms.surfacePackSpecular.value,
     };
   });
-  expect(reset).toEqual({ attachments: 3, normal: null, spec: null });
+  expect(reset).toEqual({ attachments: 3, nativeNormal: true, spec: null });
   await page.reload();
   await expect(page.locator('#material-pack-status')).toContainText('默认材质');
   expect(messages).toEqual([]);

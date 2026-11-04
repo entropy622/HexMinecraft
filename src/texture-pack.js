@@ -1,4 +1,5 @@
-// Pixel Perfection / VoxeLibre. Asset provenance and licenses: public/textures/NOTICE.md.
+// Pixel Perfection / VoxeLibre + curated Voxels Reworked media.
+// Asset provenance and licenses: public/textures/NOTICE.md.
 import { POTIONS } from './brewing-data.js';
 import { DYE_ITEMS, isPigmentPlant } from './dye-data.js';
 import { paintPigment } from './pigment-art.js';
@@ -7,7 +8,11 @@ import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
 import { WOOD_BLOCKS, TREES } from './wood-data.js';
 import { paintJungle } from './jungle-art.js';
 import { paintVine } from './vine-art.js';
+import { REWORKED_TEXTURES } from './native-texture-sources.js';
 export const blockTextures = {
+  calcite: ['mcl_amethyst_calcite_block'],
+  tuff: ['mcl_deepslate_tuff'],
+  basalt: ['mcl_blackstone_basalt_smooth'],
   cobble: ['default_cobble'],
   cobbledDeepslate: ['mcl_cobbled_deepslate'],
   coalBlock: ['default_coal_block'],
@@ -250,7 +255,7 @@ for (const species of ['birch', 'spruce']) {
   itemTextures[ids.gate] = `mcl_fences_fence_gate_${species}`;
 }
 export const textureURL = (name) =>
-  `${import.meta.env.BASE_URL}textures/pixel-perfection/${name}.png`;
+  `${import.meta.env.BASE_URL}textures/${REWORKED_TEXTURES.has(name) ? 'voxels-reworked' : 'pixel-perfection'}/${name}.png`;
 const images = new Map();
 const mobTextures = [
   'mobs_mc_shulker_purple',

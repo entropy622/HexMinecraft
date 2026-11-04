@@ -1,5 +1,14 @@
 # Pixel Perfection / VoxeLibre textures
 
+Version 0.139 adds a separate selection of 27 unmodified PNGs from
+**Voxels Reworked 0.7.0 by Chiragon, based on Pixel Perfection by XSSheep**.
+These common stone, ground, wood and ore surfaces take precedence over the
+same-named older default tiles. Source files, pinned archive hashes and
+CC BY-SA 4.0 attribution are in [voxels-reworked/NOTICE.md](voxels-reworked/NOTICE.md).
+Runtime atlas, icon and numeric surface-detail derivatives from that selection
+retain CC BY-SA 4.0. Older media remains available below under its existing
+licenses; the independent material-generation code remains MIT licensed.
+
 Files in `pixel-perfection/` are copied without file modification from
 [VoxeLibre](https://github.com/VoxeLibre/VoxeLibre), commit
 `4492ce6ff8d856daa4567abe2ea689f4e7a39842`, directory `textures/`.

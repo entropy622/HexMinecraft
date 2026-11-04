@@ -1,0 +1,145 @@
+{
+  "name": "Voxels Reworked",
+  "authors": ["Chiragon", "XSSheep"],
+  "license": "CC-BY-SA-4.0",
+  "url": "https://content.luanti.org/packages/Chiragon/voxels_reworked/",
+  "release": 33761,
+  "archiveSha256": "6756f89ed5c6380aa7589ba99cbd59d8a2d5fa1b2226a4fd7a3f5b95cb79c822",
+  "files": [
+    {
+      "file": "default_stone.png",
+      "source": "voxels_reworked(WIP)/stone/default_stone.png",
+      "sha256": "30145db29105b6908beef6a934fe03b7ea79d48f8d6937d9b1f41f54c8381ecc"
+    },
+    {
+      "file": "default_cobble.png",
+      "source": "voxels_reworked(WIP)/stone/default_cobble.png",
+      "sha256": "dfabf65a3b48563d6e8b884c7c748f18683b68b400d9b5510d87767d55c50a03"
+    },
+    {
+      "file": "default_stone_brick.png",
+      "source": "voxels_reworked(WIP)/stone/default_stone_brick.png",
+      "sha256": "4eae101eab92a954383040cd5dea3c3b270698f0c94aafd3778ab8b62bc1b3d0"
+    },
+    {
+      "file": "mcl_stairs_stone_slab_top.png",
+      "source": "voxels_reworked(WIP)/stone/mcl_stairs_stone_slab_top.png",
+      "sha256": "48c82529760552a4218858ac59e15635fa0f8c92e5f65ea136bd7f17509ad04e"
+    },
+    {
+      "file": "mcl_stairs_stone_slab_side.png",
+      "source": "voxels_reworked(WIP)/stone/mcl_stairs_stone_slab_side.png",
+      "sha256": "f31132777e0054847f26d57b62ff6977056f6b22bb75006f0f84a35057e3f7df"
+    },
+    {
+      "file": "default_mossycobble.png",
+      "source": "voxels_reworked(WIP)/stone/default_mossycobble.png",
+      "sha256": "98841cf8473e507735a017df532e5bd2b0004c923dafa975145b4a760f8f2def"
+    },
+    {
+      "file": "default_dirt.png",
+      "source": "voxels_reworked(WIP)/ground/default_dirt.png",
+      "sha256": "3b4c35a9cba2c2e486fc8094a0c78737e38a5ccf6398a9d026b645d142040be7"
+    },
+    {
+      "file": "default_gravel.png",
+      "source": "voxels_reworked(WIP)/ground/default_gravel.png",
+      "sha256": "479b10332c0c6f694920eb55b989185b13904e04c2f5012de6eb3658e406c55c"
+    },
+    {
+      "file": "default_tree.png",
+      "source": "voxels_reworked(WIP)/wood/oak/default_tree.png",
+      "sha256": "fef744da2fd4b7aa70e0e9b04e1fa1a861bddd9394a3a7632ff22ebc8b4f04e0"
+    },
+    {
+      "file": "default_tree_top.png",
+      "source": "voxels_reworked(WIP)/wood/oak/default_tree_top.png",
+      "sha256": "ca7852174ba77651dd68136f7968de3f6ccc0771bf1eeff542f9f59a452b3ce0"
+    },
+    {
+      "file": "default_wood.png",
+      "source": "voxels_reworked(WIP)/planks/default_wood.png",
+      "sha256": "ca3e74dec06549b701407f4465856e73bb4bec7bfd286d9532e77b983c0d4d4c"
+    },
+    {
+      "file": "mcl_core_planks_birch.png",
+      "source": "voxels_reworked(WIP)/planks/mcl_core_planks_birch.png",
+      "sha256": "5c81014dc5e9808405a845d846505e18bcefc45022e198b4c1a753d193197f77"
+    },
+    {
+      "file": "mcl_core_planks_spruce.png",
+      "source": "voxels_reworked(WIP)/planks/mcl_core_planks_spruce.png",
+      "sha256": "2d4e8dc210ef024421d728101a12a9d0f021b9e02c62e8868f6b626984d273af"
+    },
+    {
+      "file": "mcl_core_log_birch.png",
+      "source": "voxels_reworked(WIP)/wood/brich/mcl_core_log_birch.png",
+      "sha256": "49e2a1fe15f80c348899008d78df567eac80004fc40499b496ff19526cd35b20"
+    },
+    {
+      "file": "mcl_core_log_birch_top.png",
+      "source": "voxels_reworked(WIP)/wood/brich/mcl_core_log_birch_top.png",
+      "sha256": "abfff9570e35d7e2fb5d4eee5b490e12b835a7e117f71d9d38776237cbdae4bd"
+    },
+    {
+      "file": "mcl_core_log_spruce.png",
+      "source": "voxels_reworked(WIP)/wood/spruce/mcl_core_log_spruce.png",
+      "sha256": "185840e0f42428dad0266515bad439d75b21f74470fa5c09dd2b5326e1f95df1"
+    },
+    {
+      "file": "mcl_core_log_spruce_top.png",
+      "source": "voxels_reworked(WIP)/wood/spruce/mcl_core_log_spruce_top.png",
+      "sha256": "5ad1da0e98680f1257b291413302eda3fbd584b5a5314a3124c23d9714bb13de"
+    },
+    {
+      "file": "mcl_core_coal_ore.png",
+      "source": "voxels_reworked(WIP)/ore/mcl_core_coal_ore.png",
+      "sha256": "0a52aa919a4623a0c1df838386b48ee09aaa4ad977322b0cac28b12da85f3834"
+    },
+    {
+      "file": "mcl_core_iron_ore.png",
+      "source": "voxels_reworked(WIP)/ore/mcl_core_iron_ore.png",
+      "sha256": "1705ccbd396318abfe5545c14d351d03e094c9d24b282add0cd0287e54701c8d"
+    },
+    {
+      "file": "mcl_core_gold_ore.png",
+      "source": "voxels_reworked(WIP)/ore/mcl_core_gold_ore.png",
+      "sha256": "445ee66a52a00efeca7d35160c0ffaeb31bcc3b2129cafcd572125c94a849412"
+    },
+    {
+      "file": "mcl_core_diamond_ore.png",
+      "source": "voxels_reworked(WIP)/ore/mcl_core_diamond_ore.png",
+      "sha256": "951f2e7fd1587c3d34c78c26ccb760da0f41c67d500dbaf073a5a1920fd2852a"
+    },
+    {
+      "file": "mcl_copper_ore.png",
+      "source": "voxels_reworked(WIP)/ore/mcl_copper_ore.png",
+      "sha256": "6be17f50cade0f527f5c34facfcc1ea4d03b46a5e1b813bdf2ef85709f2fbe9a"
+    },
+    {
+      "file": "mcl_core_lapis_ore.png",
+      "source": "voxels_reworked(WIP)/ore/mcl_core_lapis_ore.png",
+      "sha256": "1c32a74ce284da8feb974158e711e59966d1d8b8656f4bb2e52f1866ab4c4b84"
+    },
+    {
+      "file": "mcl_amethyst_calcite_block.png",
+      "source": "voxels_reworked(WIP)/mcl_amethyst_calcite_block.png",
+      "sha256": "381f9bd3e54d2ef6282585d4db9abbb545ba40d451e7c1e87502376f7ee2dfe5"
+    },
+    {
+      "file": "mcl_blackstone_basalt_smooth.png",
+      "source": "voxels_reworked(WIP)/mcl_blackstone_basalt_smooth.png",
+      "sha256": "54d506fcbd3c70990745a3917262cb8c0c49e4fbf9ca52f4365259f6ccea4433"
+    },
+    {
+      "file": "mcl_deepslate_tuff.png",
+      "source": "voxels_reworked(WIP)/ground/mcl_deepslate_tuff.png",
+      "sha256": "0692af05312e1aeae30542c9ff43b508f3f491d8d4f2d5ed0128de8599c33de5"
+    },
+    {
+      "file": "mcl_core_bedrock.png",
+      "source": "voxels_reworked(WIP)/mcl_core_bedrock.png",
+      "sha256": "5ac6b114153f7460e9093b54e573723f665ab69489e9d49d9b08518f60c7d216"
+    }
+  ]
+}
