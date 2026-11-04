@@ -1,5 +1,5 @@
-// Selected, unmodified Voxels Reworked 0.7 media by Chiragon / XSSheep.
-// CC BY-SA 4.0; source archive and per-file hashes: public/textures/voxels-reworked/source.json.
+// Unmodified Voxels Reworked 0.7 media; CC BY-SA 4.0.
+// Provenance: public/textures/voxels-reworked/NOTICE.md and source.json.
 export const REWORKED_TEXTURES = new Set([
   'default_stone',
   'default_cobble',
@@ -28,4 +28,29 @@ export const REWORKED_TEXTURES = new Set([
   'mcl_blackstone_basalt_smooth',
   'mcl_deepslate_tuff',
   'mcl_core_bedrock',
+  'default_obsidian',
+  'mcl_copper_block_cut',
+  'mcl_copper_block_raw',
+  'default_steel_block',
+  'mcl_raw_ores_raw_iron_block',
+  'default_gold_block',
+  'mcl_raw_ores_raw_gold_block',
+  'default_diamond_block',
+  'mcl_amethyst_budding_amethyst',
+  'mcl_amethyst_amethyst_block',
+  'mcl_enchanting_table_top',
+  'mcl_enchanting_table_side',
+  'mcl_core_redstone_ore',
+  'mcl_end_end_stone',
+  'mcl_end_end_bricks',
+  'default_jungletree',
+  'default_jungletree_top',
+  'mcl_nether_soul_sand',
+  'mcl_nether_glowstone',
+  'mcl_nether_netherrack',
+  'mcl_nether_nether_wart_block',
+  'smoker_front_on',
+  'smoker_side',
+  'smoker_front',
+  'smoker_top',
 ]);

@@ -34,6 +34,10 @@ export function readNativeSurfaceOptics(g, points, full = true) {
       // interpolated float immediately before its source rounding step.
       if(nativeOpticsMode==3)nativeOpticsData=vec3(floor(vSurfaceOptics+0.5));
       if(nativeOpticsMode==4)nativeOpticsData=reflectedLight.directDiffuse;
+      if(nativeOpticsMode==5){
+        vec3 nativeChannels=surfacePackChannels(vMapUv);
+        nativeOpticsData=vec3(nativeChannels.r>0.5?texture2D(surfacePackNormal,vMapUv).b:0.0,nativeChannels.b,nativeChannels.r);
+      }
       vec2 nativeOpticsDelta=vLightPosition.xz-nativeOpticsRoot.xz;
       bool nativeOpticsTop=abs(vLightPosition.y-nativeOpticsRoot.y)<0.02 && dot(nativeOpticsDelta,nativeOpticsDelta)<0.36;
       gl_FragColor=vec4(nativeOpticsData,nativeOpticsTop?3.0:0.0);`,
@@ -81,6 +85,7 @@ export function readNativeSurfaceOptics(g, points, full = true) {
         [2, 'albedo'],
         [3, 'category'],
         [4, 'diffuse'],
+        [5, 'nativeDetail'],
       ])
         if (full || component === 0) data[name] = read(point, component);
       return { ...point, data };

@@ -1,11 +1,97 @@
 import { BLOCKS } from './core.js';
+import { isGlass } from './dye-data.js';
+import { isWool } from './wool-data.js';
 
 // Subtle pixel relief, with per-material roughness. These are native-only
 // numerical channels, not labPBR: RG tangent normal, B roughness, A height.
 // Imported colour never inherits relief from an unrelated native bitmap.
 export function nativeMaterialProfile(tile) {
   const [id, face] = tile.split(':'),
-    base = BLOCKS[id]?.base || id;
+    base =
+      BLOCKS[id]?.tile ||
+      BLOCKS[id]?.base ||
+      (BLOCKS[id]?.cauldronLiquid ? 'cauldron' : id),
+    def = BLOCKS[base];
+  if (
+    isGlass(base) ||
+    def?.foliage ||
+    def?.nonSolid ||
+    [
+      'glowstone',
+      'lantern',
+      'endRod',
+      'glowBerry',
+      'sporeCenter',
+      'redstoneLamp',
+      'redstoneLampOn',
+      'redstoneWire',
+      'redstoneWireOn',
+      'redstoneTorch',
+      'portal',
+      'endportal',
+      'endGateway',
+    ].includes(base) ||
+    /Lit$|Output/.test(base)
+  )
+    return null;
+  if (isWool(base) || base === 'bed')
+    return { kind: 'cloth', relief: 0.16, roughness: 0.94 };
+  if (
+    def?.wooden ||
+    [
+      'workbench',
+      'chest',
+      'bookshelf',
+      'pistonRod',
+      'campfireLog',
+      'grindstoneFrame',
+    ].includes(base)
+  )
+    return { kind: 'grain', relief: 0.2, roughness: 0.65 };
+  if (
+    [
+      'ironBlock',
+      'goldBlock',
+      'copperBlock',
+      'rawIronBlock',
+      'rawGoldBlock',
+      'rawCopperBlock',
+      'anvil',
+      'chippedAnvil',
+      'damagedAnvil',
+      'anvilBase',
+      'cauldron',
+      'hopper',
+      'brewingBase',
+    ].includes(base)
+  )
+    return { kind: 'metal', relief: 0.12, roughness: null };
+  if (
+    def?.amethyst ||
+    [
+      'obsidian',
+      'diamondBlock',
+      'crystal',
+      'purpur',
+      'purpurPillar',
+      'enchantingTable',
+    ].includes(base)
+  )
+    return { kind: 'gem', relief: 0.1, roughness: null };
+  if (['snow', 'powderSnow'].includes(base))
+    return { kind: 'frost', relief: 0.12, roughness: null };
+  if (
+    ['grass', 'farmland', 'mossBlock', 'hayBale', 'cactus', 'shroom'].includes(
+      base,
+    )
+  )
+    return { kind: 'organic', relief: 0.14, roughness: 0.86 };
+  if (
+    /^(?:furnace|blastFurnace|smoker|stonecutter|grindstone|dispenser|dropper|observer|piston|stickyPiston|comparator|repeater|stoneButton|stonePressurePlate)/.test(
+      base,
+    )
+  )
+    return { kind: 'mineral', relief: 0.16, roughness: 0.74 };
   if (BLOCKS[base]?.log)
     return {
       kind: face === 'top' ? 'rings' : /[Bb]irch/.test(base) ? 'birch' : 'bark',
@@ -14,11 +100,14 @@ export function nativeMaterialProfile(tile) {
     };
   if (/^(?:planks|birchPlanks|sprucePlanks|junglePlanks)$/.test(base))
     return { kind: 'grain', relief: 0.26, roughness: 0.58 };
-  if (
-    /(?:Ore)$/.test(base) &&
-    !['netherQuartzOre', 'redstoneOre'].includes(base)
-  )
-    return { kind: 'ore', relief: 0.22, roughness: 0.76 };
+  if (/(?:Ore)$/.test(base))
+    return {
+      kind: 'ore',
+      relief: 0.22,
+      roughness: ['netherQuartzOre', 'redstoneOre'].includes(base)
+        ? null
+        : 0.76,
+    };
   if (['dirt', 'gravel', 'sand', 'soulSand'].includes(base))
     return { kind: 'soil', relief: 0.18, roughness: 0.9 };
   if (
@@ -40,6 +129,10 @@ export function nativeMaterialProfile(tile) {
       'calcite',
       'smoothStone',
       'smoothStoneSlab',
+      'smoothBasalt',
+      'coalBlock',
+      'dripstoneBlock',
+      'pointedDripstone',
     ].includes(base)
   )
     return {
@@ -96,6 +189,20 @@ export function createNativeMaterialDetail(tile, image) {
         case 'soil':
           relief[i] = 0.4 + 0.22 * level;
           break;
+        case 'cloth':
+          relief[i] =
+            0.5 + (x % 4 < 2 ? 0.08 : -0.08) + (y % 4 < 2 ? 0.08 : -0.08);
+          break;
+        case 'metal':
+        case 'gem':
+          relief[i] = 0.45 + 0.12 * level;
+          break;
+        case 'frost':
+          relief[i] = 0.5 + 0.05 * level;
+          break;
+        case 'organic':
+          relief[i] = 0.42 + 0.15 * level;
+          break;
         default:
           relief[i] = 0.3 + 0.4 * level;
       }
@@ -115,7 +222,7 @@ export function createNativeMaterialDetail(tile, image) {
         0.32,
         Math.min(
           0.98,
-          profile.roughness - deposit * 0.22 + (relief[i] - 0.5) * 0.1,
+          (profile.roughness ?? 1) - deposit * 0.22 + (relief[i] - 0.5) * 0.1,
         ),
       );
       out.set(
@@ -128,5 +235,10 @@ export function createNativeMaterialDetail(tile, image) {
         i * 4,
       );
     }
-  return { width: size, height: size, data: out };
+  return {
+    width: size,
+    height: size,
+    data: out,
+    preserveOptics: profile.roughness === null,
+  };
 }

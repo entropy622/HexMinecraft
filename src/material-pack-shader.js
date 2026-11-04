@@ -27,11 +27,13 @@ export const materialPackFragment = /* glsl */ `
       if(channels.r>0.5){
         vec4 mapped=texture2D(surfacePackNormal,vMapUv);
         normal=surfacePackPerturb(normal,-vViewPosition,vMapUv,mapped.rg,faceDirection);
-        if(channels.b>0.5){
+        if(channels.b>0.25){
           // Native B stores roughness, not labPBR visibility. External _s
           // below retains priority over this native surface response.
-          surfaceOptical.roughness=mapped.b;
-          surfaceNativeRoughness=mapped.b;
+          if(channels.b>0.75){
+            surfaceOptical.roughness=mapped.b;
+            surfaceNativeRoughness=mapped.b;
+          }
         }else{
           float ao=mix(0.7,1.0,mapped.b);surfaceSkyLevel*=ao*ao;surfaceBlockLevel*=ao*ao;
         }

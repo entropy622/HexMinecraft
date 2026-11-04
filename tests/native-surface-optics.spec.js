@@ -203,6 +203,10 @@ test('native metal/gem/wood blocks carry optical bytes into real glints and pres
           masks[index],
         ),
         expected = [optical.roughness, optical.f0, optical.metal];
+      // Native roughness is now texture-authored. Compare against an independent
+      // raw texture/flag draw; preserved optical classes still use the oracle.
+      const detail = s.data.nativeDetail[i];
+      if (detail[2] > 0.5 && detail[1] > 0.75) expected[0] = detail[0];
       for (let c = 0; c < 3; c++)
         parameterError = Math.max(
           parameterError,

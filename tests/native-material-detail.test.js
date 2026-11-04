@@ -9,7 +9,7 @@ import {
   nativeMaterialProfile,
 } from '../src/native-material-detail.js';
 
-test('selected material media retains source hashes, native resolution and opaque pixels', async () => {
+test('selected material media retains source hashes, native frames and visible pixels', async () => {
   const root = new URL('../public/textures/voxels-reworked/', import.meta.url),
     source = JSON.parse(await readFile(new URL('source.json', root), 'utf8'));
   assert.equal(source.license, 'CC-BY-SA-4.0');
@@ -26,9 +26,11 @@ test('selected material media retains source hashes, native resolution and opaqu
       entry.file,
     );
     assert.equal(image.width, 16, entry.file);
-    assert.equal(image.height, 16, entry.file);
+    assert.equal(image.height % 16, 0, entry.file);
+    let visible = 0;
     for (let i = 3; i < image.data.length; i += 4)
-      assert.equal(image.data[i], 255, entry.file);
+      visible += Number(image.data[i] > 0);
+    assert.ok(visible > 0, entry.file);
   }
 });
 
@@ -75,20 +77,40 @@ test('cut stone reuses the parent profile while foliage, transparent and emissiv
     nativeMaterialProfile('stoneSlab:top'),
     nativeMaterialProfile('stone:top'),
   );
-  for (const tile of [
-    'leaves:top',
-    'vine:side',
-    'glass:side',
-    'glowstone:top',
-    'redstoneOre:top',
-    'amethystBlock:top',
-  ])
+  for (const tile of ['leaves:top', 'vine:side', 'glass:side', 'glowstone:top'])
     assert.equal(nativeMaterialProfile(tile), null, tile);
   const data = new Uint8Array(16 * 16 * 4).fill(255);
   data[3] = 0;
   assert.equal(
     createNativeMaterialDetail('stone:top', { width: 16, height: 16, data }),
     null,
+  );
+});
+
+test('metal, gemstone and snow relief preserves native optical classes and wool has a weave', () => {
+  const image = {
+    width: 16,
+    height: 16,
+    data: Uint8Array.from({ length: 1024 }, (_, i) =>
+      i % 4 === 3 ? 255 : (Math.floor(i / 4) % 16) * 13,
+    ),
+  };
+  for (const name of [
+    'goldBlock:top',
+    'ironBlock:side',
+    'amethystBlock:side',
+    'obsidian:top',
+    'snow:top',
+  ]) {
+    const detail = createNativeMaterialDetail(name, image);
+    assert.ok(detail, name);
+    assert.equal(detail.preserveOptics, true, name);
+    assert.equal(nativeMaterialProfile(name).roughness, null, name);
+  }
+  const cloth = createNativeMaterialDetail('redWool:top', image);
+  assert.equal(cloth.preserveOptics, false);
+  assert.ok(
+    [...cloth.data].some((v, i) => i % 4 === 0 && Math.abs(v - 128) > 1),
   );
 });
 

@@ -21,9 +21,17 @@ async function state(page) {
     const target = g.composer.effects.protection;
     // Dry matte surfaces intentionally do not produce reflection records.
     // Exercise the real wet receiver path without changing the dry screenshot.
-    const wet = g.weatherUniforms.terrainWetness.value;
+    const wet = g.weatherUniforms.terrainWetness.value,
+      previousTarget = g.renderer.getRenderTarget();
     try {
       g.weatherUniforms.terrainWetness.value = Math.max(wet, 0.02);
+      // Rebuild the matching depth input in this same browser turn, including
+      // after context restoration, and do not leak this probe's render target.
+      g.composer.passes[0].render(
+        g.renderer,
+        g.composer.writeBuffer,
+        g.composer.readBuffer,
+      );
       target.render(g.renderer);
       g.renderer.readRenderTargetPixels(
         target.target,
@@ -37,6 +45,7 @@ async function state(page) {
       );
     } finally {
       g.weatherUniforms.terrainWetness.value = wet;
+      g.renderer.setRenderTarget(previousTarget);
     }
     const channels = (name) => {
       const [u, v] = g.textures.uv(name, 0.5, 0.5),
@@ -159,6 +168,29 @@ test('native material detail draws, yields to imported colour and survives defau
     })
     .toBeGreaterThan(restoredStart + 20);
   const restored = await state(page);
+  await writeFile(
+    info.outputPath('native-restored.json'),
+    JSON.stringify(
+      {
+        restored,
+        diagnostics: await page.evaluate(() => {
+          const g = window.__hexwild.graphics;
+          return {
+            wet: g.composer.effects.wet.enabled,
+            weatherShared:
+              g.composer.effects.wet.weather.terrainWetness ===
+              g.weatherUniforms.terrainWetness,
+            cameraLayers: g.camera.layers.mask,
+            camera: g.camera.position.toArray(),
+            rendered: g.chunks.size,
+            recovering: g.recovering,
+          };
+        }),
+      },
+      null,
+      2,
+    ),
+  );
   expect(restored).toEqual(native);
   expect(errors).toEqual([]);
   await writeFile(

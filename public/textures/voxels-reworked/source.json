@@ -140,6 +140,131 @@
       "file": "mcl_core_bedrock.png",
       "source": "voxels_reworked(WIP)/mcl_core_bedrock.png",
       "sha256": "5ac6b114153f7460e9093b54e573723f665ab69489e9d49d9b08518f60c7d216"
+    },
+    {
+      "file": "default_obsidian.png",
+      "source": "voxels_reworked(WIP)/obsidian/default_obsidian.png",
+      "sha256": "8d23528ed1bb97182ebb3df3df76abb04d0fa31c528bcac8479a9da5a734c837"
+    },
+    {
+      "file": "mcl_copper_block_cut.png",
+      "source": "voxels_reworked(WIP)/copper/mcl_copper_block_cut.png",
+      "sha256": "04dcfc356e961ca79e561fb178eecdbd312fec0dfb597de20d4ce18e6c43558f"
+    },
+    {
+      "file": "mcl_copper_block_raw.png",
+      "source": "voxels_reworked(WIP)/copper/mcl_copper_block_raw.png",
+      "sha256": "ce1a2c94580bf8f78acf078ad3fc9a12729a8aecfc1f8c34f1bd9e35e006bb2a"
+    },
+    {
+      "file": "default_steel_block.png",
+      "source": "voxels_reworked(WIP)/iron/default_steel_block.png",
+      "sha256": "a981455f134b22e7f75f727e423de5a778074af182f04925128c0323535467b7"
+    },
+    {
+      "file": "mcl_raw_ores_raw_iron_block.png",
+      "source": "voxels_reworked(WIP)/iron/mcl_raw_ores_raw_iron_block.png",
+      "sha256": "d438c0809a4894a854bbac2189f02d612a44fdbfe8ab90a95e3d020b07cd839d"
+    },
+    {
+      "file": "default_gold_block.png",
+      "source": "voxels_reworked(WIP)/gold/default_gold_block.png",
+      "sha256": "fdd4a5c0fed176d1f273076620c8188a6a46f6679fd201d210e400be3c75964e"
+    },
+    {
+      "file": "mcl_raw_ores_raw_gold_block.png",
+      "source": "voxels_reworked(WIP)/gold/mcl_raw_ores_raw_gold_block.png",
+      "sha256": "3774aad609297073519a7eccc4bfc09f25fa7c728faaa01b790a560afe18db07"
+    },
+    {
+      "file": "default_diamond_block.png",
+      "source": "voxels_reworked(WIP)/diamond/default_diamond_block.png",
+      "sha256": "7772fe9c023bfcfa664f5bc3945d7ab15bb09fa674324713125df18ff761f431"
+    },
+    {
+      "file": "mcl_amethyst_budding_amethyst.png",
+      "source": "voxels_reworked(WIP)/amethyst/mcl_amethyst_budding_amethyst.png",
+      "sha256": "92f426804904b7015772714c0d6c404d77c7c524eddd0427337a6c0583d28625"
+    },
+    {
+      "file": "mcl_amethyst_amethyst_block.png",
+      "source": "voxels_reworked(WIP)/amethyst/mcl_amethyst_amethyst_block.png",
+      "sha256": "1494e64e10fe34d14705dbc942f2ae3f7790725e020cdbc10866a194101d68ed"
+    },
+    {
+      "file": "mcl_enchanting_table_top.png",
+      "source": "voxels_reworked(WIP)/enchanting_table/mcl_enchanting_table_top.png",
+      "sha256": "6e01cce192544e4dfea40dc45b6f4c7e7bf506f8190395a25fb40e5eb914b2a5"
+    },
+    {
+      "file": "mcl_enchanting_table_side.png",
+      "source": "voxels_reworked(WIP)/enchanting_table/mcl_enchanting_table_side.png",
+      "sha256": "edcd0e982e098dedc964a7e30451cd73980918e2a3520d9a71378436841f0f3b"
+    },
+    {
+      "file": "mcl_core_redstone_ore.png",
+      "source": "voxels_reworked(WIP)/ore/mcl_core_redstone_ore.png",
+      "sha256": "b0d5743cbf3cb1d2540ad0d733459da1b0f761e3b0bc6622200e7664fe296651"
+    },
+    {
+      "file": "mcl_end_end_stone.png",
+      "source": "voxels_reworked(WIP)/end_stone/mcl_end_end_stone.png",
+      "sha256": "0c979032827ecfef51d5cd5ef4e7b768f93b0842c3379663bb8cd30a224c4d87"
+    },
+    {
+      "file": "mcl_end_end_bricks.png",
+      "source": "voxels_reworked(WIP)/end_stone/mcl_end_end_bricks.png",
+      "sha256": "87f53c5c3c049f037d67fbf28cc64eeb58a5c4ffd581b2d8be3775cdb7eb03e5"
+    },
+    {
+      "file": "default_jungletree.png",
+      "source": "voxels_reworked(WIP)/wood/jungle/default_jungletree.png",
+      "sha256": "8527e9cc62fd7eb07c1c8a89c55f9fdb60449a229df532cd1bdd26158ba538a0"
+    },
+    {
+      "file": "default_jungletree_top.png",
+      "source": "voxels_reworked(WIP)/wood/jungle/default_jungletree_top.png",
+      "sha256": "47c3b79c2b443989330d8d17d421f6b5489affb9e7dd62b5143e30527e247b7f"
+    },
+    {
+      "file": "mcl_nether_soul_sand.png",
+      "source": "voxels_reworked(WIP)/soul_sand/mcl_nether_soul_sand.png",
+      "sha256": "4930e6e53a9512793dae258114c3dcce8edaca5447177a78a24b039d467de82b"
+    },
+    {
+      "file": "mcl_nether_glowstone.png",
+      "source": "voxels_reworked(WIP)/nether/mcl_nether_glowstone.png",
+      "sha256": "d55af9c00d6291577f50ac739eee34e0ed64763a9212c05337f8ea173145c496"
+    },
+    {
+      "file": "mcl_nether_netherrack.png",
+      "source": "voxels_reworked(WIP)/nether/mcl_nether_netherrack.png",
+      "sha256": "347389d8fa7e1c51bb3eaa753f714eb56c17eeef1b5f22ac911a47bbab8f4cca"
+    },
+    {
+      "file": "mcl_nether_nether_wart_block.png",
+      "source": "voxels_reworked(WIP)/nether/mcl_nether_nether_wart_block.png",
+      "sha256": "01810ecd41c8d8b3f2074b2b5c647c748d01196f82e8225673c97552fec05433"
+    },
+    {
+      "file": "smoker_front_on.png",
+      "source": "voxels_reworked(WIP)/smoker/smoker_front_on.png",
+      "sha256": "d418c55c324f593b4466dea680a90154e4f41ac191598c22028cadff263465ca"
+    },
+    {
+      "file": "smoker_side.png",
+      "source": "voxels_reworked(WIP)/smoker/smoker_side.png",
+      "sha256": "be2c11019c013f2ed5673570b36ccccff0fca3515352930ff90c197f82ee039e"
+    },
+    {
+      "file": "smoker_front.png",
+      "source": "voxels_reworked(WIP)/smoker/smoker_front.png",
+      "sha256": "f7a05ce3a063c56bfb362b8469ae36f754916a51cd7c74e07f877cd9c2e7b1cd"
+    },
+    {
+      "file": "smoker_top.png",
+      "source": "voxels_reworked(WIP)/smoker/smoker_top.png",
+      "sha256": "3f2bd8d8edf09f8d338067adc7d8a98866b7ed2adcd3e204efbde5c318d79081"
     }
   ]
 }

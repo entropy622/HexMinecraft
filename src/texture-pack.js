@@ -9,7 +9,15 @@ import { WOOD_BLOCKS, TREES } from './wood-data.js';
 import { paintJungle } from './jungle-art.js';
 import { paintVine } from './vine-art.js';
 import { REWORKED_TEXTURES } from './native-texture-sources.js';
+import { nativeTextureRoute } from './native-material-catalog.js';
+import { paintNativeSupplement } from './native-material-art.js';
+export { nativeMaterialCoverage } from './native-material-catalog.js';
 export const blockTextures = {
+  smoothBasalt: ['mcl_blackstone_basalt_smooth'],
+  amethystBlock: ['mcl_amethyst_amethyst_block'],
+  buddingAmethyst: ['mcl_amethyst_budding_amethyst'],
+  jungleWood: ['default_jungletree_top', 'default_jungletree'],
+  shroom: ['mcl_nether_nether_wart_block'],
   calcite: ['mcl_amethyst_calcite_block'],
   tuff: ['mcl_deepslate_tuff'],
   basalt: ['mcl_blackstone_basalt_smooth'],
@@ -529,13 +537,22 @@ export async function loadTexturePack() {
         }),
     ),
   );
+  const missing = [...new Set(Object.values(blockTextures).flat())].filter(
+    (name) => !images.has(name),
+  );
+  if (missing.length)
+    throw Error('默认方块贴图未能载入：' + missing.join(', '));
 }
 export function paintPackTile(ctx, id, top, grassOverlay = true) {
+  const route = nativeTextureRoute(id, blockTextures);
+  if (route?.kind === 'alias')
+    return paintPackTile(ctx, route.tile, top, grassOverlay);
+  if (paintNativeSupplement(ctx, id, top)) return;
   if (id === 'vine') {
     paintVine(ctx);
     return;
   }
-  if (paintJungle(ctx, id, top)) return;
+  if (!blockTextures[id] && paintJungle(ctx, id, top)) return;
   if (id === 'powderSnow') {
     paintPackTile(ctx, 'snow', top);
     for (let i = 0; i < 14; i++) {

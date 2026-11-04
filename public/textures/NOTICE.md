@@ -1,5 +1,12 @@
 # Pixel Perfection / VoxeLibre textures
 
+Version 0.140 expands the separate Voxels Reworked selection to 52 unchanged
+PNG files (25 additions), retaining CC BY-SA 4.0 and the same pinned release.
+See [the selection notice](voxels-reworked/NOTICE.md). Generated glass, cactus,
+moss, cave-plant and three-dimensional crystal-facet patterns are original
+Hexwild art. Atlas/normal/icon derivatives of source imagery retain the source
+license; original material-generation code and independent patterns remain MIT.
+
 Version 0.139 adds a separate selection of 27 unmodified PNGs from
 **Voxels Reworked 0.7.0 by Chiragon, based on Pixel Perfection by XSSheep**.
 These common stone, ground, wood and ore surfaces take precedence over the

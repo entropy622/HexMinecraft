@@ -7,6 +7,8 @@ import { isGlass } from './dye-data.js';
 import { paintPigment } from './pigment-art.js';
 import { installMaterialAtlas } from './material-atlas.js';
 import { currentMaterialPack } from './material-pack.js';
+import { nativeTextureRoute } from './native-material-catalog.js';
+import { blockTextures } from './texture-pack.js';
 
 // Pixel Perfection tiles with procedural fallbacks and original fantasy materials.
 // Wide gutters prevent color bleeding between mipmapped tiles.
@@ -100,6 +102,8 @@ export function createTextures(maxTextureSize = 16384) {
     tile.width = tile.height = SIZE;
     const c = tile.getContext('2d');
     const [id, face] = name.split(':');
+    if (!nativeTextureRoute(id, blockTextures))
+      throw Error('未分类的默认材质：' + name);
     const top = face === 'top';
     const base =
       (id === 'glowBerry'

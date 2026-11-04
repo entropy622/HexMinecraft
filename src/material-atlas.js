@@ -281,7 +281,7 @@ export function installMaterialAtlas(textures, tiles, names) {
         if (n) {
           numericTile(nData, n, i, nextLayout);
           mask[i * 4] = 255;
-          mask[i * 4 + 2] = native ? 255 : 0;
+          mask[i * 4 + 2] = native ? (native.preserveOptics ? 128 : 255) : 0;
         }
         if (s) {
           numericTile(sData, s, i, nextLayout);

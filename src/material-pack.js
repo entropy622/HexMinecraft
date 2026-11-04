@@ -32,7 +32,23 @@ const aliases = {
 const snake = (s) => s.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
 export function materialNames(tile) {
   const [id, face = 'side'] = tile.split(':'),
-    base = BLOCKS[id]?.base || id;
+    base =
+      BLOCKS[id]?.tile ||
+      BLOCKS[id]?.base ||
+      (BLOCKS[id]?.cauldronLiquid ? 'cauldron' : id);
+  const def = BLOCKS[base];
+  if (def?.wooden && def.planks) {
+    const species =
+      def.planks === 'planks' ? 'oak' : def.planks.replace(/Planks$/, '');
+    if (def.shape === 'door')
+      return [
+        face === 'top'
+          ? species + '_planks'
+          : species + '_door_' + (def.doorLower ? 'top' : 'bottom'),
+      ];
+    if (def.shape === 'trapdoor') return [species + '_trapdoor'];
+    return [species + '_planks'];
+  }
   let stem = aliases[base] || snake(base);
   if (base.endsWith('Wood')) stem = snake(base.slice(0, -4)) + '_log';
   if (base === 'grass')
@@ -52,6 +68,8 @@ export function materialNames(tile) {
     ];
   if (stem === 'crafting_table')
     return ['crafting_table_' + (face === 'top' ? 'top' : 'side')];
+  if (stem === 'cauldron')
+    return ['cauldron_' + (face === 'top' ? 'top' : 'side'), 'cauldron'];
   if (
     ['sandstone', 'red_sandstone', 'purpur_pillar', 'hay_block'].includes(stem)
   )
