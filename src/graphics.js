@@ -75,6 +75,8 @@ import { DISTANT_CAMERA_FAR } from './distant-config.js';
 // Fade before the nearest loaded edge, including an off-centre player.
 const terrainFogFar = VIEW_RADIUS * CHUNK_SIZE * 1.5 - 2;
 const terrainFogNear = terrainFogFar * 0.74;
+// Photon POM_DISTANCE on the shader tier; balanced keeps only nearby blocks.
+export const PARALLAX_DISTANCE = { 0.65: 0, 1: 16, 1.7: 32 };
 const corners = Array.from({ length: 6 }, (_, i) => [
   Math.cos(((i * 60 - 30) * Math.PI) / 180),
   Math.sin(((i * 60 - 30) * Math.PI) / 180),
@@ -415,6 +417,8 @@ export class Graphics {
     this.quality = value;
     this.weatherEffects.quality = value;
     this.usePost = value >= 1.7;
+    this.textures.materials.uniforms.surfaceParallaxDistance.value =
+      PARALLAX_DISTANCE[value];
     this.renderer.shadowMap.type = this.usePost
       ? THREE.BasicShadowMap
       : THREE.PCFShadowMap;

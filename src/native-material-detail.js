@@ -6,6 +6,42 @@ import { isWool } from './wool-data.js';
 // numerical channels, not labPBR: RG tangent normal, B roughness, A height.
 // Imported colour never inherits relief from an unrelated native bitmap.
 export function nativeMaterialProfile(tile) {
+  const profile = reliefProfile(tile);
+  if (!profile) return null;
+  const id = tile.split(':')[0];
+  return {
+    ...profile,
+    depth: parallaxDepth(profile, BLOCKS[id]?.tile || BLOCKS[id]?.base || id),
+  };
+}
+
+// POM depth span as a fraction of the 0.25-block maximum. Joints, grain and
+// bark carry readable height; luminance noise on plain stone and soil stays
+// shallow so it does not turn into lumps at grazing angles.
+const MASONRY = new Set([
+  'cobble',
+  'cobbledDeepslate',
+  'brick',
+  'mossybrick',
+  'netherbrick',
+  'endstoneBricks',
+]);
+const KIND_DEPTH = {
+  grain: 0.35,
+  bark: 0.45,
+  rings: 0.2,
+  birch: 0.15,
+  ore: 0.25,
+  cloth: 0.2,
+  soil: 0.12,
+  organic: 0.12,
+};
+function parallaxDepth(profile, base) {
+  if (profile.kind === 'mineral') return MASONRY.has(base) ? 0.45 : 0.12;
+  return KIND_DEPTH[profile.kind] ?? 0.08;
+}
+
+function reliefProfile(tile) {
   const [id, face] = tile.split(':'),
     base =
       BLOCKS[id]?.tile ||
@@ -210,6 +246,15 @@ export function createNativeMaterialDetail(tile, image) {
   const sample = (x, y) =>
       relief[((y + size) % size) * size + ((x + size) % size)],
     out = new Uint8Array(rgba.length);
+  // Height is labPBR-like for POM: the highest texel is the face itself and
+  // the depth span follows the material's normal strength.
+  let top = 0,
+    bottom = 1;
+  for (const r of relief) {
+    top = Math.max(top, r);
+    bottom = Math.min(bottom, r);
+  }
+  const span = top - bottom > 1e-6 ? profile.depth / (top - bottom) : 0;
   for (let y = 0; y < size; y++)
     for (let x = 0; x < size; x++) {
       const i = y * size + x,
@@ -230,7 +275,7 @@ export function createNativeMaterialDetail(tile, image) {
           Math.round((nx * inv * 0.5 + 0.5) * 255),
           Math.round((ny * inv * 0.5 + 0.5) * 255),
           Math.round(roughness * 255),
-          Math.round(relief[i] * 255),
+          Math.round((1 - (top - relief[i]) * span) * 255),
         ],
         i * 4,
       );

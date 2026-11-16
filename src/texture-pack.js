@@ -7,7 +7,7 @@ import { isWool, WOOL_BLOCKS, WOOL_TYPES } from './wool-data.js';
 import { CUT_MATERIALS, WOOD_BUILDINGS } from './building-data.js';
 import { WOOD_BLOCKS, TREES } from './wood-data.js';
 import { paintJungle } from './jungle-art.js';
-import { paintVine } from './vine-art.js';
+import { VINE_BLOCKS } from './vine-data.js';
 import { REWORKED_TEXTURES } from './native-texture-sources.js';
 import { nativeTextureRoute } from './native-material-catalog.js';
 import { paintNativeSupplement } from './native-material-art.js';
@@ -89,6 +89,8 @@ export const blockTextures = {
   spawner: ['mob_spawner'],
   torch: ['default_tree'],
   grass: ['mcl_core_grass_block_top', 'default_dirt'],
+  tuft: ['mcl_flowers_tallgrass'],
+  vine: ['mcl_core_vine'],
   dirt: ['default_dirt'],
   stone: ['default_stone'],
   sand: ['default_sand'],
@@ -548,10 +550,6 @@ export function paintPackTile(ctx, id, top, grassOverlay = true) {
   if (route?.kind === 'alias')
     return paintPackTile(ctx, route.tile, top, grassOverlay);
   if (paintNativeSupplement(ctx, id, top)) return;
-  if (id === 'vine') {
-    paintVine(ctx);
-    return;
-  }
   if (!blockTextures[id] && paintJungle(ctx, id, top)) return;
   if (id === 'powderSnow') {
     paintPackTile(ctx, 'snow', top);
@@ -609,7 +607,12 @@ export function paintPackTile(ctx, id, top, grassOverlay = true) {
     ctx.fillRect(0, 0, 16, 16);
     ctx.globalCompositeOperation = 'source-over';
   }
-  const leafTint = id === 'leaves' ? '#79a94d' : WOOD_BLOCKS[id]?.leafTint;
+  const leafTint =
+    id === 'leaves'
+      ? '#79a94d'
+      : id === 'tuft'
+        ? '#91b95d'
+        : (VINE_BLOCKS[id] ?? WOOD_BLOCKS[id])?.leafTint;
   if (leafTint || (id === 'grass' && top)) {
     ctx.globalCompositeOperation = 'multiply';
     ctx.fillStyle = leafTint || '#91b95d';

@@ -53,4 +53,7 @@ export const REWORKED_TEXTURES = new Set([
   'smoker_side',
   'smoker_front',
   'smoker_top',
+  'mcl_core_grass_block_top',
+  'mcl_core_vine',
+  'mcl_flowers_tallgrass',
 ]);

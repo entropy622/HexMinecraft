@@ -114,6 +114,34 @@ test('metal, gemstone and snow relief preserves native optical classes and wool 
   );
 });
 
+test('parallax height keeps the face at the top and masonry deeper than plain stone', async () => {
+  const root = new URL('../public/textures/voxels-reworked/', import.meta.url),
+    span = async (file, tile) => {
+      const detail = createNativeMaterialDetail(
+        tile,
+        decodeMaterialPNG(await readFile(new URL(file + '.png', root))),
+      );
+      let min = 255,
+        max = 0;
+      for (let i = 3; i < detail.data.length; i += 4) {
+        min = Math.min(min, detail.data[i]);
+        max = Math.max(max, detail.data[i]);
+      }
+      assert.equal(max, 255, tile);
+      return (255 - min) / 255;
+    };
+  const stone = await span('default_stone', 'stone:top'),
+    cobble = await span('default_cobble', 'cobble:top'),
+    planks = await span('default_wood', 'planks:top');
+  assert.ok(Math.abs(stone - nativeMaterialProfile('stone:top').depth) < 0.01);
+  assert.ok(
+    Math.abs(cobble - nativeMaterialProfile('cobble:top').depth) < 0.01,
+  );
+  assert.ok(cobble > stone * 3, 'Joints read deeper than luminance noise');
+  assert.ok(planks > stone * 2, 'Plank seams read deeper than luminance noise');
+  assert.equal(nativeMaterialProfile('brick:top').depth, 0.45);
+});
+
 test('birch pigment changes do not turn its marks into relief', () => {
   const make = (value) => ({
     width: 16,

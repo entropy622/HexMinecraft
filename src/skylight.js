@@ -60,6 +60,7 @@ export function applySkylight(
   uniforms.surfaceSpecular ??= { value: 1 };
   uniforms.surfaceLightRadius ??= { value: Math.PI / 90 };
   uniforms.surfacePackEnabled ??= { value: 0 };
+  uniforms.surfaceParallaxDistance ??= { value: 0 };
   uniforms.surfacePackGrid ??= { value: new Vector2(1, 1) };
   uniforms.biomeGrassOverlay ??= { value: null };
   uniforms.biomeTileSize ??= { value: 16 };

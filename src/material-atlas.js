@@ -17,6 +17,7 @@ export function installMaterialAtlas(textures, tiles, names) {
   const reflectiveCache = new WeakMap();
   const uniforms = {
     surfacePackEnabled: { value: 0 },
+    surfaceParallaxDistance: { value: 0 },
     surfacePackNormal: { value: null },
     surfacePackSpecular: { value: null },
     surfacePackFlags: { value: null },

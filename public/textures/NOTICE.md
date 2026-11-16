@@ -2,6 +2,9 @@
 
 Version 0.140 expands the separate Voxels Reworked selection to 52 unchanged
 PNG files (25 additions), retaining CC BY-SA 4.0 and the same pinned release.
+Version 0.141 adds its grass-block top, vine and short-grass masks (55 files);
+the Pixel Perfection grass-block top remains in this folder but is no longer
+used by default, and the former hand-drawn vine pattern is removed.
 See [the selection notice](voxels-reworked/NOTICE.md). Generated glass, cactus,
 moss, cave-plant and three-dimensional crystal-facet patterns are original
 Hexwild art. Atlas/normal/icon derivatives of source imagery retain the source

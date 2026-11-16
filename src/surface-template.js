@@ -99,7 +99,10 @@ void main(){
   ReflectedLight reflectedLight=ReflectedLight(vec3(0),vec3(0),vec3(0),vec3(0));
   vec3 totalEmissiveRadiance=emissive;
   #include <logdepthbuf_fragment>
-  #include <map_fragment>
+  #ifdef USE_MAP
+    vec2 surfaceUv=surfaceParallaxMap(vMapUv);
+    diffuseColor*=textureGrad(map,surfaceUv,surfaceParallaxDx,surfaceParallaxDy);
+  #endif
   #ifdef USE_COLOR_ALPHA
     diffuseColor.a*=vColor.a;
   #endif
@@ -112,7 +115,7 @@ void main(){
   #include <normal_fragment_maps>
   #include <emissivemap_fragment>
   #ifdef USE_MAP
-    diffuseColor.rgb=biomeSurfaceTint(diffuseColor.rgb,vMapUv);
+    diffuseColor.rgb=biomeSurfaceTint(diffuseColor.rgb,surfaceUv);
   #endif
   #include <hex_material_decode>
   SurfaceData material=SurfaceData(diffuseColor.rgb,normal,clamp(vAmbientOcclusion,0.0,1.0),surfaceSkyLevel,surfaceBlockLevel,surfaceOptical,totalEmissiveRadiance);

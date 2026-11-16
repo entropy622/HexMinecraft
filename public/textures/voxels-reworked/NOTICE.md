@@ -1,6 +1,6 @@
 # Voxels Reworked selection
 
-52 unmodified block PNGs with 16 x 16 frames by **Chiragon**, based on **Pixel Perfection by XSSheep**. Native transparency and animation strips are preserved; the runtime atlas uses the first frame.
+55 unmodified block PNGs with 16 x 16 frames by **Chiragon**, based on **Pixel Perfection by XSSheep**. Native transparency and animation strips are preserved; the runtime atlas uses the first frame.
 
 - Project: https://content.luanti.org/packages/Chiragon/voxels_reworked/
 - Release: **33761**, `0.7.0 - Bleeding Edge Hud Elements`.
@@ -21,7 +21,11 @@ redstone ore, End stone/bricks, Nether surfaces, glowstone and smoker faces.
 Transparent source pixels are retained rather than filled. The source archive
 and its license are unchanged; all new per-file hashes are in `source.json`.
 
-The relief is a modest host-generated approximation from pixel values and
+Version 0.141 adds the grayscale grass-block top, vine and short-grass masks
+(55 files). Hexwild multiplies them by its existing biome base tints at
+runtime; the PNG files remain unchanged.
+
+The relief and parallax height are a modest host-generated approximation from pixel values and
 material categories, not a height map supplied by Voxels Reworked. Native
 numeric channels are separate from imported labPBR semantics. Hexwild's code
 remains MIT licensed. Other default textures retain their existing notices in

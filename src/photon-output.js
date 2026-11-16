@@ -10,6 +10,18 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { photonGradingGLSL, photonWhiteBalance } from './photon-grading.js';
 import { photonCasGLSL } from './photon-cas.js';
 
+// Photon final.fsh: a 16x16 Bayer offset within half an 8-bit step, applied
+// once to the encoded display color, so dark sky and fog gradients do not band.
+export const photonDitherGLSL = /* glsl */ `
+float photonBayer2(vec2 a){a=floor(a);return fract(dot(a,vec2(0.5,a.y*0.75)));}
+float photonBayer16(vec2 a){
+  return 0.25*(0.25*(0.25*photonBayer2(0.125*a)+photonBayer2(0.25*a))+photonBayer2(0.5*a))+photonBayer2(a);
+}
+vec3 photonDither8(vec3 display){
+  return clamp(display+(photonBayer16(gl_FragCoord.xy)-0.5)/255.0,0.0,1.0);
+}
+`;
+
 // Use Three's documented CustomToneMapping slot. Default grading also reaches
 // direct-rendered balanced/fast materials, without another render target/pass.
 export function installPhotonOutput() {
@@ -77,6 +89,7 @@ export class PhotonOutputPass extends OutputPass {
       #include <tonemapping_pars_fragment>
       #include <colorspace_pars_fragment>
       ${photonCasGLSL}
+      ${photonDitherGLSL}
       vec3 photonCasTap(ivec2 p){
         // Explicit repeated-edge taps; texelFetch outside the image is undefined.
         p=clamp(p,ivec2(0),textureSize(tDiffuse,0)-1);
@@ -90,7 +103,7 @@ export class PhotonOutputPass extends OutputPass {
             vec3 taps[9];
             for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)taps[(y+1)*3+x+1]=photonCasTap(p+ivec2(x,y));
             // CAS already operates in display RGB; do not encode it again.
-            outputColor=vec4(photonCas(taps,photonSharpness),texelFetch(tDiffuse,p,0).a);
+            outputColor=vec4(photonDither8(photonCas(taps,photonSharpness)),texelFetch(tDiffuse,p,0).a);
             return;
           }
         #endif
@@ -98,6 +111,7 @@ export class PhotonOutputPass extends OutputPass {
         color.rgb=photonGrade(color.rgb*toneMappingExposure,photonInputGrade,photonSelective,photonWhiteBalance);
         #ifdef SRGB_TRANSFER
           color=sRGBTransferOETF(color);
+          color.rgb=photonDither8(color.rgb);
         #endif
         outputColor=color;
       }`;

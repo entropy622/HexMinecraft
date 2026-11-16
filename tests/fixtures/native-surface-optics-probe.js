@@ -36,7 +36,8 @@ export function readNativeSurfaceOptics(g, points, full = true) {
       if(nativeOpticsMode==4)nativeOpticsData=reflectedLight.directDiffuse;
       if(nativeOpticsMode==5){
         vec3 nativeChannels=surfacePackChannels(vMapUv);
-        nativeOpticsData=vec3(nativeChannels.r>0.5?texture2D(surfacePackNormal,vMapUv).b:0.0,nativeChannels.b,nativeChannels.r);
+        // Same parallax-displaced texel as the shaded surface.
+        nativeOpticsData=vec3(nativeChannels.r>0.5?textureGrad(surfacePackNormal,surfaceUv,surfaceParallaxDx,surfaceParallaxDy).b:0.0,nativeChannels.b,nativeChannels.r);
       }
       vec2 nativeOpticsDelta=vLightPosition.xz-nativeOpticsRoot.xz;
       bool nativeOpticsTop=abs(vLightPosition.y-nativeOpticsRoot.y)<0.02 && dot(nativeOpticsDelta,nativeOpticsDelta)<0.36;

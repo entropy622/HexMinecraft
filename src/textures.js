@@ -338,32 +338,24 @@ export function createTextures(maxTextureSize = 16384) {
           else if (v < -0.8) fill(id === 'water' ? '#2e60a6' : '#aa2a0c', x, y);
         }
     }
-    if (id === 'tuft' || id === 'flower') {
+    if (id === 'flower') {
       c.clearRect(0, 0, 16, 16);
       for (let i = 0; i < 6; i++) {
         const x = 2 + i * 2,
           h = 4 + Math.floor(rand(i, 3) * 9);
         for (let y = 15; y > 15 - h; y--)
           fill(
-            id === 'tuft'
-              ? i % 2
-                ? '#91b95d'
-                : '#668241'
-              : i % 2
-                ? '#619c35'
-                : '#37732c',
+            i % 2 ? '#619c35' : '#37732c',
             x + Math.floor((15 - y) / 5) * (i % 2 ? 1 : -1),
             y,
             2,
             1,
           );
       }
-      if (id === 'flower') {
-        fill('#3d822e', 8, 4, 1, 12);
-        fill('#eee8ce', 5, 3, 7, 3);
-        fill('#eee8ce', 7, 1, 3, 7);
-        fill('#edc345', 7, 3, 3, 3);
-      }
+      fill('#3d822e', 8, 4, 1, 12);
+      fill('#eee8ce', 5, 3, 7, 3);
+      fill('#eee8ce', 7, 1, 3, 7);
+      fill('#edc345', 7, 3, 3, 3);
     }
     if (id === 'cobweb') {
       c.clearRect(0, 0, 16, 16);

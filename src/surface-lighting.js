@@ -114,6 +114,7 @@ IncidentLight directLight;
       reflectedLight.indirectDiffuse+=material.diffuseColor*geometricIncident*
         (0.033*surfaceBounce*(1.0-geometricShadow)*(1.0-0.1*geometricUp)*sqrt(geometricAO)*pow(clamp(material.squaredSky,0.0,1.0),2.0));
     #endif
+    directLight.color*=surfaceParallaxShadow(directLight.direction);
     if(surfaceSpecular>0.5){
       float surfaceLoV=clamp(dot(directLight.direction,geometryViewDir),-1.0,1.0);
       reflectedLight.directSpecular+=directLight.color*photonSurfaceHighlight(material.diffuseColor,material.optical,

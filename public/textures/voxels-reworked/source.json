@@ -265,6 +265,21 @@
       "file": "smoker_top.png",
       "source": "voxels_reworked(WIP)/smoker/smoker_top.png",
       "sha256": "3f2bd8d8edf09f8d338067adc7d8a98866b7ed2adcd3e204efbde5c318d79081"
+    },
+    {
+      "file": "mcl_core_grass_block_top.png",
+      "source": "voxels_reworked(WIP)/ground/mcl_core_grass_block_top.png",
+      "sha256": "8d4df2b547c7e87ffcb9970d23d0e964147cbc764db42ec71171fbf27e69ce70"
+    },
+    {
+      "file": "mcl_core_vine.png",
+      "source": "voxels_reworked(WIP)/foliage/mcl_core_vine.png",
+      "sha256": "db661a72d157872e78005e2b97675b32b3eee8918749265b979db031d62ebf3f"
+    },
+    {
+      "file": "mcl_flowers_tallgrass.png",
+      "source": "voxels_reworked(WIP)/ground/mcl_flowers_tallgrass.png",
+      "sha256": "7caba16f0669f21efd7d9d8c4d0f1878aeda4cb12acf08905a71956f06453ecc"
     }
   ]
 }
