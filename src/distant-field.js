@@ -5,6 +5,7 @@ import {
   decodeDetail,
   FULL_DETAIL,
   encodeDetailType,
+  packDistantSky,
   DETAIL_TYPE_MASK,
 } from './distant-detail.js';
 import { distantAmbient } from './distant-ambient.js';
@@ -89,6 +90,7 @@ export class DistantField {
       refined = new Uint8Array(length),
       details = new Uint16Array(DISTANT_DETAIL_SAMPLES ** 2 * detailHeight),
       priorities = new Uint8Array(details.length),
+      occupancy = new Uint8Array(details.length),
       meta = new Map(),
       fine = new Map();
     const sample = (q, y, r) => {
@@ -132,6 +134,7 @@ export class DistantField {
       const a = Math.floor(x / DISTANT_DETAIL_STEP),
         b = Math.floor(z / DISTANT_DETAIL_STEP),
         cell = (a * DISTANT_DETAIL_SAMPLES + b) * detailHeight + y;
+      occupancy[cell]++;
       const priority = v.solid ? (v.info.foliage ? 2 : v.info.log ? 1 : 3) : 0,
         previous = details[cell];
       if (previous && priority < priorities[cell]) return;
@@ -259,7 +262,7 @@ export class DistantField {
       }
     // Exact blocks and carved air both displace the pooled natural canopy.
     // Retain their real neighbours instead of filling the edited cell again.
-    const promote = (x, y, z) => {
+    const promote = (x, y, z, forestOnly = false) => {
       if (
         x < 0 ||
         x >= extent ||
@@ -280,7 +283,8 @@ export class DistantField {
           const px = a * DISTANT_DETAIL_STEP + dx,
             pz = b * DISTANT_DETAIL_STEP + dz,
             v = sample(q0 + px, y, r0 + pz);
-          if (v) record(px, y, pz, v, true);
+          if (v && (!forestOnly || v.info?.log || v.info?.foliage))
+            record(px, y, pz, v, true);
         }
     };
     for (const cell of [...fine.keys()]) {
@@ -296,6 +300,25 @@ export class DistantField {
         const [q, y, r] = key.split(',').map(Number);
         promote(q - q0, y, r - r0);
       }
+    // A lone twig or the end of a bough previously filled a whole 2x2
+    // group. Preserve its occupied source columns; dense crowns stay pooled.
+    for (let i = 0; i < details.length; i++) {
+      const id = details[i],
+        count = occupancy[i],
+        y = i % detailHeight;
+      if (!id || count > 2) continue;
+      const thinTrunk = count === 1 && BLOCKS[DISTANT_TYPES[id - 1]]?.log;
+      // Bottom-up: upper neighbours have not been refined by this loop.
+      const tip = y + 1 === detailHeight || !details[i + 1];
+      if (!thinTrunk && !tip) continue;
+      const column = Math.floor(i / detailHeight);
+      promote(
+        Math.floor(column / DISTANT_DETAIL_SAMPLES) * DISTANT_DETAIL_STEP,
+        i % detailHeight,
+        (column % DISTANT_DETAIL_SAMPLES) * DISTANT_DETAIL_STEP,
+        true,
+      );
+    }
     const ambient = distantAmbient(world, q0, r0, extent);
     for (let a = 0; a < DISTANT_DETAIL_SAMPLES; a++)
       for (let b = 0; b < DISTANT_DETAIL_SAMPLES; b++)
@@ -352,6 +375,7 @@ export class DistantField {
       detailHeight,
       detailMeta,
       fineDetails,
+      skyRuns: packDistantSky(ambient.sky),
       residentChunks: world.chunks.size,
       residentBlocks: world.blocks.size,
     };

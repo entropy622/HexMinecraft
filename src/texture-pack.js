@@ -17,6 +17,7 @@ export const blockTextures = {
   amethystBlock: ['mcl_amethyst_amethyst_block'],
   buddingAmethyst: ['mcl_amethyst_budding_amethyst'],
   jungleWood: ['default_jungletree_top', 'default_jungletree'],
+  jungleLeaves: ['default_jungleleaves'],
   shroom: ['mcl_nether_nether_wart_block'],
   calcite: ['mcl_amethyst_calcite_block'],
   tuff: ['mcl_deepslate_tuff'],

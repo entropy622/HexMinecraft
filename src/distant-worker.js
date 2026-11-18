@@ -31,6 +31,7 @@ self.onmessage = ({ data }) => {
           tile.details.buffer,
           tile.detailMeta.buffer,
           tile.fineDetails.buffer,
+          tile.skyRuns.buffer,
         ],
       );
     }

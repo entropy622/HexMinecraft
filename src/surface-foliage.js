@@ -66,7 +66,7 @@ export function leafSurfaceFeature(uniforms, thin) {
 export function distantLeafSurfaceFeature(uniforms) {
   return {
     id: 'distant-foliage',
-    version: 1,
+    version: 2,
     order: 40,
     uniforms,
     stages: {
@@ -96,7 +96,7 @@ export function distantLeafSurfaceFeature(uniforms) {
         float mu=dot(normalize(vLightPosition-cameraPosition),leafSunDirection);
         float NoL=dot(inverseTransformDirection(geometryNormal,viewMatrix),leafSunDirection);
         vec3 transmission=leafBeerTransmission(diffuseColor.rgb,0.0,leafSssAmount)*leafRangeResponse(1.0,NoL,vAmbientOcclusion,0.5*clamp(vDistantLeafAmbient,0.0,1.0));
-        outgoingLight+=leafSunColor*clamp(distantLeafFilter,vec3(0),vec3(1))*leafSolarResponse(diffuseColor.rgb,mu,transmission,leafSheen,leafSssAmount);
+        outgoingLight+=surfaceSkyLevel*leafSunColor*clamp(distantLeafFilter,vec3(0),vec3(1))*leafSolarResponse(diffuseColor.rgb,mu,transmission,leafSheen,leafSssAmount);
       }`,
     },
   };

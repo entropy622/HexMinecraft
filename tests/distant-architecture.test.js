@@ -187,3 +187,39 @@ test('surface edits remain visible and generated village roofs are tracked witho
     village.palette.roof + 'Slab',
   );
 });
+
+test('single-column natural trunks and crown tips retain their hex and leave adjacent air unfilled', () => {
+  const world = new World(624, 'overworld', { load: false });
+  for (let q = 0; q < 5; q++)
+    for (let r = 0; r < 5; r++) world.generateChunk(q, r);
+  const tile = new DistantField({ seed: 624 }).tile(0, 0),
+    exact = fine(tile);
+  let trunks = 0,
+    tips = 0;
+  for (let q = 4; q < 36; q += 2)
+    for (let r = 4; r < 36; r += 2)
+      for (let y = 24; y < 64; y++) {
+        const cells = [
+          [q, r],
+          [q, r + 1],
+          [q + 1, r],
+          [q + 1, r + 1],
+        ].map(([x, z]) => [x, z, world.get(x, y, z)]);
+        const occupied = cells.filter((c) => c[2]);
+        if (occupied.length !== 1) continue;
+        const [x, z, id] = occupied[0];
+        if (!BLOCKS[id].log && !BLOCKS[id].foliage) continue;
+        if (!BLOCKS[id].log && cells.some(([a, b]) => world.get(a, y + 1, b)))
+          continue;
+        assert.equal(
+          detailType(tile.details[((q / 2) * 20 + r / 2) * 64 + y]),
+          0,
+        );
+        assert.equal(exact.get(`${x},${y},${z}`)?.type, id);
+        for (const [a, b, t] of cells)
+          if (!t) assert.equal(exact.has(`${a},${y},${b}`), false);
+        if (BLOCKS[id].log) trunks++;
+        else tips++;
+      }
+  assert.ok(trunks > 0 && tips > 0);
+});

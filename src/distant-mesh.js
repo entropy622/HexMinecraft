@@ -6,7 +6,7 @@ import {
   Uint8BufferAttribute,
   Uint16BufferAttribute,
 } from 'three';
-import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
+import { BLOCKS, DIRECTIONS, axialToWorld, worldToAxial } from './core.js';
 import { biomeTintKind } from './biome-colors.js';
 import { surfaceOpticsClass } from './surface-optics.js';
 import { DISTANT_TYPES } from './distant-field.js';
@@ -15,6 +15,7 @@ import {
   detailMetadata,
   detailType,
   detailAmbient,
+  unpackDistantSky,
 } from './distant-detail.js';
 import { pillarFace } from './pillar-faces.js';
 import { isGlass } from './dye-data.js';
@@ -34,6 +35,7 @@ const corners = Array.from({ length: 6 }, (_, i) => [
 export function distantMesh(tile, textures, world, material) {
   const positions = [],
     normals = [],
+    skyBytes = [],
     colors = [],
     uv = [],
     biomes = [],
@@ -45,6 +47,13 @@ export function distantMesh(tile, textures, world, material) {
       tile.tq * DISTANT_TILE + 1.5,
       tile.tr * DISTANT_TILE + 1.5,
     );
+  const extent = DISTANT_SAMPLES * DISTANT_STEP,
+    detailH = tile.detailHeight;
+  const sky = unpackDistantSky(tile.skyRuns, extent * extent * detailH);
+  const localOrigin = axialToWorld(1.5, 1.5);
+  const squaredSky = Array.from({ length: 16 }, (_, level) =>
+    Math.round(255 * (level / 15) ** 2),
+  );
   function polygon(points, normal, type, face, q, r, coords, ambient) {
     if (face === 'bottom') {
       if (type === 'grass') type = 'dirt';
@@ -61,7 +70,24 @@ export function distantMesh(tile, textures, world, material) {
       tint = textures.biomes.tint(world, q, r, biomeTintKind(name)),
       shade = normal[1] > 0.5 ? 1 : 0.86,
       category = surfaceOpticsClass(id, BLOCKS[id]);
+    // Probe outside the visible face, biased inward from its corners to
+    // keep shared edges from sampling an unrelated adjacent solid.
+    const center = [0, 0, 0];
+    for (const p of points)
+      for (let k = 0; k < 3; k++) center[k] += p[k] / points.length;
     points.forEach((p, i) => {
+      const { q: x, r: z } = worldToAxial(
+        localOrigin.x + p[0] * 0.75 + center[0] * 0.25 + normal[0] * 0.12,
+        localOrigin.z + p[2] * 0.75 + center[2] * 0.25 + normal[2] * 0.12,
+      );
+      const y = Math.floor(p[1] * 0.75 + center[1] * 0.25 + normal[1] * 0.12);
+      skyBytes.push(
+        y >= detailH
+          ? 255
+          : y < 0
+            ? 0
+            : squaredSky[sky[(x * extent + z) * detailH + y]],
+      );
       positions.push(...p);
       normals.push(...normal);
       colors.push(shade, shade, shade, isGlass(id) ? BLOCKS[id].opacity : 1);
@@ -177,8 +203,6 @@ export function distantMesh(tile, textures, world, material) {
       });
     }
   const detailN = DISTANT_DETAIL_SAMPLES,
-    detailH = tile.detailHeight,
-    extent = DISTANT_SAMPLES * DISTANT_STEP,
     metadata = detailMetadata(tile),
     full = { bottom: 0, top: 1, axis: 0 },
     empty = { id: 0, state: null },
@@ -356,7 +380,7 @@ export function distantMesh(tile, textures, world, material) {
   );
   geometry.setAttribute(
     'skylight',
-    new Uint8BufferAttribute(new Uint8Array(count).fill(255), 1, true),
+    new Uint8BufferAttribute(skyBytes, 1, true),
   );
   geometry.setAttribute(
     'blocklight',

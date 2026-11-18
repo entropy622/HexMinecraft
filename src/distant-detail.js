@@ -33,3 +33,26 @@ export function detailMetadata(tile) {
     ]),
   );
 }
+
+// Four bits per light level; the long runs of sky and buried rock in the
+// worker field are expanded only while building one mesh.
+export function packDistantSky(sky) {
+  const runs = [];
+  for (let i = 0; i < sky.length;) {
+    const start = i++,
+      level = sky[start];
+    while (i < sky.length && i - start < 4096 && sky[i] === level) i++;
+    runs.push(((i - start - 1) << 4) | level);
+  }
+  return new Uint16Array(runs);
+}
+export function unpackDistantSky(runs, length) {
+  const sky = new Uint8Array(length);
+  let i = 0;
+  for (const word of runs) {
+    const end = i + (word >>> 4) + 1;
+    sky.fill(word & 15, i, end);
+    i = end;
+  }
+  return sky;
+}

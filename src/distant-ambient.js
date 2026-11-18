@@ -1,5 +1,6 @@
-import { BLOCKS } from './core.js';
+import { BLOCKS, DIRECTIONS } from './core.js';
 import { blockLight } from './light-data.js';
+import { skyColumns } from './sky-columns.js';
 import { LeafAmbient } from './leaf-ambient.js';
 
 // Reuse the near canopy's actual hex-ray visibility on the worker's real world.
@@ -47,5 +48,29 @@ export function distantAmbient(world, minQ, minR, extent) {
     }
   const ambient = new LeafAmbient();
   ambient.update(field, cells);
-  return { values: ambient.values, medium: field.medium };
+  // A four-column tile halo covers the face sample and three propagation
+  // steps. Each pass reads the previous one, including at tile boundaries.
+  let sky = skyColumns(world, field),
+    next = new Uint8Array(sky.length);
+  for (let pass = 0; pass < 3; pass++) {
+    next.set(sky);
+    for (let q = 1; q < extent - 1; q++)
+      for (let r = 1; r < extent - 1; r++) {
+        const col = (q * extent + r) * height;
+        for (let y = 0; y < height; y++) {
+          const i = col + y,
+            cost = field.cost[i];
+          if (cost >= 16 || sky[i] >= 15 - cost) continue;
+          let max = Math.max(
+            y ? sky[i - 1] : 0,
+            y + 1 < height ? sky[i + 1] : 15,
+          );
+          for (const [dq, dr] of DIRECTIONS)
+            max = Math.max(max, sky[i + (dq * extent + dr) * height]);
+          next[i] = Math.max(sky[i], max - cost);
+        }
+      }
+    [sky, next] = [next, sky];
+  }
+  return { values: ambient.values, medium: field.medium, sky };
 }

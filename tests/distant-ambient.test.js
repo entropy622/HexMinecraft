@@ -5,7 +5,11 @@ import { VoxelLight } from '../src/voxel-light.js';
 import { BLOCKS, axialToWorld } from '../src/core.js';
 import { distantAmbient } from '../src/distant-ambient.js';
 import { DistantField, DISTANT_TYPES } from '../src/distant-field.js';
-import { detailType, detailAmbient } from '../src/distant-detail.js';
+import {
+  detailType,
+  detailAmbient,
+  unpackDistantSky,
+} from '../src/distant-detail.js';
 import { distantMesh } from '../src/distant-mesh.js';
 
 test('distant natural canopy visibility agrees with the real near field and survives coarse type packing', () => {
@@ -108,4 +112,27 @@ test('a real edited leaf loses ambient transmission inside a closed room without
         if (q !== 10 || y !== 56 || r !== 10)
           edits.set(`${q},${y},${r}`, 'stone');
   assert.equal(inspect(false), 0);
+});
+
+test('a roof at the LOD seam shades both tiles and opening its centre restores direct sky', () => {
+  const edits = [];
+  for (let q = 30; q <= 41; q++)
+    for (let r = 10; r <= 20; r++) edits.push([`${q},52,${r}`, 'stone']);
+  const f = new DistantField({ seed: 624, edits });
+  const column = (tq) => {
+    const tile = f.tile(tq, 0);
+    const sky = unpackDistantSky(tile.skyRuns, 40 * 40 * 64);
+    return (q, y, r) => sky[((q - tq * 32) * 40 + r) * 64 + y];
+  };
+  const west = column(0),
+    east = column(1);
+  for (const q of [35, 36])
+    for (let r = 4; r < 36; r++)
+      for (let y = 0; y < 64; y++) assert.equal(west(q, y, r), east(q, y, r));
+  assert.equal(west(35, 53, 15), 15);
+  assert.equal(east(35, 51, 15), 0);
+  assert.equal(east(35, 51, 10), 14); // one lateral step below the eave
+  f.patch([{ key: '35,52,15', edit: null }]);
+  assert.equal(column(0)(35, 51, 15), 15);
+  assert.equal(column(1)(35, 51, 15), 15);
 });

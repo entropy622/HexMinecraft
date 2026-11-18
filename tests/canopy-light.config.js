@@ -5,6 +5,7 @@ export default defineConfig({
   ...base,
   testMatch: [
     'canopy-light.spec.js',
+    'forest-depth.spec.js',
     'foliage-wind.spec.js',
     'temporal.spec.js',
     'air-transport.spec.js',

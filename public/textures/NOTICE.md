@@ -12,6 +12,11 @@ license; original material-generation code and independent patterns remain MIT.
 
 The 0.142 canopy sprigs mask the currently selected oak, birch, spruce and jungle leaf pigments. The default derived tiles and normal maps retain the source texture licenses.
 
+Version 0.143 adds the original 16×16
+[jungle leaf tile](https://github.com/VoxeLibre/VoxeLibre/blob/4492ce6ff8d856daa4567abe2ea689f4e7a39842/textures/default_jungleleaves.png)
+from the pinned VoxeLibre artwork below (Pixel Perfection, CC BY-SA 3.0).
+The default jungle foliage, its sprig cutout and derived normal tile use this pigment and alpha mask.
+
 Version 0.139 adds a separate selection of 27 unmodified PNGs from
 **Voxels Reworked 0.7.0 by Chiragon, based on Pixel Perfection by XSSheep**.
 These common stone, ground, wood and ore surfaces take precedence over the

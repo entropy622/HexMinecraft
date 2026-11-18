@@ -5,6 +5,8 @@ import {
   DISTANT_SAMPLES,
   DISTANT_TYPES,
 } from '../src/distant-field.js';
+import { inDistantBand } from '../src/distant-config.js';
+import { axialToWorld } from '../src/core.js';
 import { World } from '../src/world.js';
 import { distantMesh } from '../src/distant-mesh.js';
 import { detailType } from '../src/distant-detail.js';
@@ -159,6 +161,7 @@ test('a continuous crown spanning every tile edge has no internal vertical walls
     tr: 0,
     details,
     detailHeight: 64,
+    skyRuns: new Uint16Array(25).fill(65535), // 40 x 40 x 64 open-sky cells
     groundHeights: new Float32Array(100),
     groundTypes: new Uint16Array(100),
   };
@@ -199,4 +202,37 @@ test('visual edit versions ignore generation and previews but observe same-cell 
   assert.equal(w.fluids.editVersion, 1);
   w.fluids.write(5, 41, 5, null, false);
   assert.equal(w.fluids.editVersion, 1);
+});
+
+test('culling the fog band keeps visible hex corners and the view down from high altitude', () => {
+  const eye = { ...axialToWorld(-120, 4), y: 33 };
+  const near = 87.32,
+    detailFar = 118,
+    far = 238;
+  assert.equal(inDistantBand(-4, 0, eye, near, detailFar, far), false);
+  assert.equal(
+    inDistantBand(-4, 0, { ...eye, y: 140 }, near, detailFar, far),
+    true,
+  );
+  assert.equal(inDistantBand(3, 3, eye, near, detailFar, far), false);
+  for (let tq = -10; tq < 4; tq++)
+    for (let tr = -6; tr < 7; tr++) {
+      if (inDistantBand(tq, tr, eye, near, detailFar, far)) continue;
+      for (const q of [5.5, 33.5])
+        for (const r of [5.5, 33.5])
+          for (let i = 0; i < 6; i++) {
+            const c = axialToWorld(tq * 32 + q, tr * 32 + r),
+              a = ((i * 60 - 30) * Math.PI) / 180;
+            const x = c.x + 4 * Math.cos(a) - eye.x,
+              z = c.z + 4 * Math.sin(a) - eye.z;
+            const d = Math.min(
+              Math.hypot(x, z),
+              Math.cbrt(
+                Math.abs((Math.sqrt(3) * x) / 2 - z / 2) ** 3 +
+                  Math.abs(z) ** 3,
+              ),
+            );
+            assert.ok(d < near || d >= far);
+          }
+    }
 });

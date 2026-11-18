@@ -15,6 +15,7 @@ import {
   DISTANT_RADIUS,
   DISTANT_TILE,
   DISTANT_INSET,
+  inDistantBand,
   DISTANT_CACHE_TILES,
   DISTANT_CACHE_BYTES,
 } from './distant-config.js';
@@ -358,6 +359,21 @@ export class DistantTerrain {
     u.airDistantDepth.value = this.target.depthTexture;
     u.airDistantResolution.value.copy(size);
     u.airProjectionMatrix.value.copy(camera.projectionMatrix);
+    // Skip whole meshes only when every fragment would be discarded by the
+    // fog band. Other camera transforms keep the usual per-fragment decision.
+    const mainView = camera.matrixWorld.equals(u.airCameraWorld.value);
+    for (const { tile, mesh } of this.tiles.values()) {
+      mesh.visible =
+        !mainView ||
+        inDistantBand(
+          tile.tq,
+          tile.tr,
+          u.airCameraPosition.value,
+          this.scene.fog.near,
+          this.scene.fog.far,
+          u.airDistantRange.value.y,
+        );
+    }
     this.sun.color.copy(this.sourceSun.color);
     this.sun.intensity = this.sourceSun.intensity;
     this.sun.position.copy(this.sourceSun.position);

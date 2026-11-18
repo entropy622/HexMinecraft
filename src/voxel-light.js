@@ -1,5 +1,5 @@
 import { Float32BufferAttribute } from 'three';
-import { WATER_EXTINCTION } from './fluids.js';
+import { skyColumns } from './sky-columns.js';
 import {
   BLOCKS,
   DIRECTIONS,
@@ -206,27 +206,9 @@ export class VoxelLight {
     this.leafAmbient = this.leafAmbientField.values;
     this.leafAmbientCells = this.leafAmbientField.cells;
     this.leafAmbientVersion = this.leafAmbientField.version;
-    this.sky = new Uint8Array(size);
+    this.sky = skyColumns(this.world, this);
     this.rgb = Array.from({ length: 3 }, () => new Uint8Array(size));
     const skyBuckets = Array.from({ length: 16 }, () => []);
-    for (let column = 0; column < size; column += HEIGHT) {
-      let level = this.world.dimension === 'nether' ? 0 : 15;
-      for (let y = HEIGHT - 1; y >= 0 && level > 0; y--) {
-        const i = column + y;
-        if (cost[i] === 16) break;
-        if (this.medium[i] >= 1 && this.medium[i] <= 9) {
-          // Sky visibility follows optical distance through water. Keeping the
-          // running level fractional avoids truncating a full level per cell.
-          const q = this.minQ + Math.floor(column / (this.depth * HEIGHT)),
-            r = this.minR + ((column / HEIGHT) % this.depth);
-          level *= Math.exp(
-            -WATER_EXTINCTION[1] * this.world.fluids.height(q, y, r),
-          );
-        } else level = Math.max(0, level - (cost[i] > 1 ? cost[i] : 0));
-        const quantized = Math.floor(level);
-        this.sky[i] = quantized;
-      }
-    }
     if (this.world.dimension !== 'nether') this.seedSkylight(skyBuckets);
     this.spread(this.sky, skyBuckets);
     for (let channel = 0; channel < 3; channel++) {
