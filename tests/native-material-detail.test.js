@@ -71,13 +71,13 @@ test('native relief is bounded and stone and ore keep different roughness', asyn
   );
 });
 
-test('cut stone reuses the parent profile while foliage, transparent and emissive tiles stay separate', () => {
+test('cut stone reuses its parent while transparent and emissive surfaces retain their own shading', () => {
   assert.deepEqual(materialNames('brick:side'), ['stone_bricks']);
   assert.deepEqual(
     nativeMaterialProfile('stoneSlab:top'),
     nativeMaterialProfile('stone:top'),
   );
-  for (const tile of ['leaves:top', 'vine:side', 'glass:side', 'glowstone:top'])
+  for (const tile of ['vine:side', 'glass:side', 'glowstone:top'])
     assert.equal(nativeMaterialProfile(tile), null, tile);
   const data = new Uint8Array(16 * 16 * 4).fill(255);
   data[3] = 0;
@@ -154,4 +154,21 @@ test('birch pigment changes do not turn its marks into relief', () => {
     createNativeMaterialDetail('birchWood:side', make(10)),
     createNativeMaterialDetail('birchWood:side', make(245)),
   );
+});
+
+test('cutout leaves have pigment relief, flat holes and no parallax depth', () => {
+  const data = new Uint8Array(4 * 4 * 4);
+  for (let i = 0; i < 16; i++) data.set([80, 120, 60, 255], i * 4);
+  data.fill(0, 4, 8);
+  const leaf = () =>
+    createNativeMaterialDetail('leaves:top', { width: 4, height: 4, data });
+  const flat = leaf();
+  assert.equal(flat.preserveOptics, true);
+  for (let i = 0; i < 16; i++)
+    assert.deepEqual(
+      [...flat.data.subarray(i * 4, i * 4 + 4)],
+      [128, 128, 0, 255],
+    );
+  data.set([40, 60, 30, 255], 12);
+  assert.ok(leaf().data[0] < 128);
 });

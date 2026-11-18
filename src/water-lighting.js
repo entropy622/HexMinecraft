@@ -18,10 +18,10 @@ vec2 waterOffset(vec2 entry, vec3 sun, float depth) {
   vec3 ray = refract(-sun, waterNormal(entry, waterTime), 1.0 / waterIOR);
   return ray.xz * (depth / max(0.2, -ray.y));
 }
-vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float skylight, out vec3 bounceResponse) {
+vec3 waterSunResponse(vec3 position, vec3 normal, inout vec3 sun, float dryVisibility, out vec3 bounceResponse) {
   bounceResponse=vec3(1.0);
   float footprint = max(length(dFdx(position)), length(dFdy(position)));
-  vec3 ordinary = vec3(smoothstep(0.45, 0.95, skylight));
+  vec3 ordinary = vec3(dryVisibility);
   if (waterSunlight < 0.5 || sun.y <= 0.05) return ordinary;
   vec3 start = position + normal * 0.045;
   ivec3 initial = lightCell(start);

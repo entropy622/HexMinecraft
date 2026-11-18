@@ -123,7 +123,7 @@ test('native material detail draws, yields to imported colour and survives defau
   );
   expect(native.stone).toEqual([255, 0, 255, 0]);
   expect(native.dirt).toEqual([255, 0, 255, 0]);
-  expect(native.leaves).toEqual([0, 0, 0, 0]);
+  expect(native.leaves).toEqual([255, 0, 128, 0]);
   expect(native.hasSpecular).toBe(false);
   expect(native.attachments).toBe(3);
   expect(native.record[3]).toBeGreaterThan(180);

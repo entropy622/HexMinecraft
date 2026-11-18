@@ -36,6 +36,8 @@ import { isCircuit, pistonPartner } from './redstone-data.js';
 import { isHangingPlant } from './cave-data.js';
 import { blockLight } from './light-data.js';
 
+import { OVERWORLD_SEA_LEVEL } from './world-scale.js';
+
 export const CHUNK_SIZE = 8;
 export const WORLD_HEIGHT = 64;
 export const VIEW_RADIUS = 10;
@@ -45,7 +47,7 @@ export const DIMENSIONS = {
     subtitle: '风、森林与远方',
     color: '#8dcc98',
     fog: '#b5d9cf',
-    liquid: 5.15,
+    liquid: OVERWORLD_SEA_LEVEL,
     liquidColor: '#59a9ae',
     gravity: 24,
   },

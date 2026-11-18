@@ -1,3 +1,4 @@
+import { overworldAir } from './air-profile.js';
 import { Color, MathUtils, Matrix4, Vector2, Vector3 } from 'three';
 import { airTransportGLSL } from './air-transport.js';
 import { FogBiomes, photonFogParameters } from './photon-fog.js';
@@ -17,10 +18,10 @@ export class Atmosphere {
       airCameraWorld: { value: camera.matrixWorld },
       airCameraPosition: { value: camera.position },
       airDensity: { value: 0.009 },
-      airBaseHeight: { value: 8 },
-      airFalloff: { value: 0.14 },
-      airRayleighBaseHeight: { value: 8 },
-      airRayleighFalloff: { value: (0.14 * 7) / 30 },
+      airBaseHeight: { value: overworldAir.mieBase },
+      airFalloff: { value: overworldAir.mieFalloff },
+      airRayleighBaseHeight: { value: overworldAir.rayleighBase },
+      airRayleighFalloff: { value: overworldAir.rayleighFalloff },
       airRayleigh: {
         value: new Vector3(),
       },
@@ -121,10 +122,18 @@ export class Atmosphere {
       : u.airRayleigh.value.y + u.airMieExtinction.value;
     u.airDirectMultiplier.value = fog.direct;
     u.airScatterMultiplier.value = fog.glow;
-    u.airBaseHeight.value = dimension === 'end' ? 20 : 8;
-    u.airFalloff.value = overworld ? 0.14 : 0.035;
-    u.airRayleighBaseHeight.value = u.airBaseHeight.value;
-    u.airRayleighFalloff.value = (u.airFalloff.value * 7) / 30;
+    u.airBaseHeight.value = overworld
+      ? overworldAir.mieBase
+      : dimension === 'end'
+        ? 20
+        : 8;
+    u.airFalloff.value = overworld ? overworldAir.mieFalloff : 0.035;
+    u.airRayleighBaseHeight.value = overworld
+      ? overworldAir.rayleighBase
+      : u.airBaseHeight.value;
+    u.airRayleighFalloff.value = overworld
+      ? overworldAir.rayleighFalloff
+      : (0.035 * 7) / 30;
     u.airFogDistance.value = fogSnapshot?.distance || 118;
     u.airSkyFogActive.value = overworld && fogSnapshot ? 1 : 0;
     u.airBorderSky.value = sky?.skyRadianceMap.value || null;

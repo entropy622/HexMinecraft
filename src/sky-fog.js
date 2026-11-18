@@ -1,3 +1,4 @@
+import { overworldAir } from './air-profile.js';
 // Photon-style sky fog composition using the host's shared RGB height kernel.
 // The raw clear-sky incident light stays separate from the fogged environment.
 import { Vector3 } from 'three';
@@ -5,10 +6,10 @@ import { airTransportGLSL } from './air-transport.js';
 
 export function skyFogUniforms() {
   return {
-    airBaseHeight: { value: 8 },
-    airFalloff: { value: 0.14 },
-    airRayleighBaseHeight: { value: 8 },
-    airRayleighFalloff: { value: (0.14 * 7) / 30 },
+    airBaseHeight: { value: overworldAir.mieBase },
+    airFalloff: { value: overworldAir.mieFalloff },
+    airRayleighBaseHeight: { value: overworldAir.rayleighBase },
+    airRayleighFalloff: { value: overworldAir.rayleighFalloff },
     airRayleigh: { value: new Vector3() },
     airMieExtinction: { value: 0 },
     airMieScattering: { value: 0 },

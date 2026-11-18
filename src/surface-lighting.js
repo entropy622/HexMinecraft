@@ -1,3 +1,4 @@
+import { directSkyGate } from './direct-sky.js';
 // Application-owned lighting. Three supplies light/shadow uniforms and geometry
 // transforms, but neither its Lambert loop nor regex rewrites define shading.
 export const surfaceLightingPars = /* glsl */ `
@@ -95,15 +96,16 @@ IncidentLight directLight;
     getDirectionalLightInfo( directionalLight, directLight );
     #include <hex_directional_filter>
     #include <hex_directional_capture>
+    ${directSkyGate('material.squaredSky')}
     vec3 geometricIncident=directLight.color;
     #ifdef HEX_WATER_RECEIVER
       vec3 waterLightDirection=inverseTransformDirection(directLight.direction,viewMatrix);
       vec3 waterBounceResponse;
-      directLight.color*=waterSunResponse(vLightPosition,inverseTransformDirection(normal,viewMatrix),waterLightDirection,material.squaredSky,waterBounceResponse);
+      directLight.color*=waterSunResponse(vLightPosition,inverseTransformDirection(normal,viewMatrix),waterLightDirection,directSkyGate,waterBounceResponse);
       geometricIncident*=waterBounceResponse;
       directLight.direction=normalize((viewMatrix*vec4(waterLightDirection,0.0)).xyz);
     #else
-      directLight.color*=smoothstep(0.45,0.95,material.squaredSky);
+      directLight.color*=directSkyGate;
     #endif
     #if defined(USE_SHADOWMAP) && UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS
       directionalLightShadow=directionalLightShadows[i];

@@ -75,7 +75,8 @@ float airSunVisibility(vec3 position, float sky) {
   float lit = mix(
     mix(step(p.z - 0.0005, texture2D(airShadow, a).r), step(p.z - 0.0005, texture2D(airShadow, vec2(b.x, a.y)).r), f.x),
     mix(step(p.z - 0.0005, texture2D(airShadow, vec2(a.x, b.y)).r), step(p.z - 0.0005, texture2D(airShadow, b).r), f.x), f.y);
-  return mix(sky, lit * min(1.0, sky * 2.0), smoothstep(0.0, 0.08, edge));
+  float skyGate = waterCamera > 0.5 ? min(1.0,sky*2.0) : smoothstep(0.0,2.0/15.0,sqrt(sky));
+  return mix(sky, lit * skyGate, smoothstep(0.0, 0.08, edge));
 }
 void main() {
   airColumnBuffer=vec2(0.0);
@@ -131,16 +132,20 @@ void main() {
   }
   // First-person models and nearby surfaces stay crisp.
   if (distance < 0.8 || airDensity <= 0.0) { airColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  float stepLength = distance / float(AIR_STEPS);
+  distance = fullAirDistance;
   // Spatially fixed dither avoids a temporally crawling grain pattern.
   float jitter = airHash(floor(vUv * fogResolution));
   vec2 phase = airDirectPhase(dot(direction, airSunDirection));
   vec3 scattering = vec3(0.0);
   vec3 transmission = vec3(1.0);
-  // One cloud-field sample per ray keeps the half-resolution fog pass bounded.
-  float cloudSun = hexCloudShadow(airCameraPosition + direction * distance * 0.5);
+  // Interpolate two cloud-shadow samples across the air path.
+  float cloudNear = hexCloudShadow(airCameraPosition + direction * distance * 0.25);
+  float cloudFar = hexCloudShadow(airCameraPosition + direction * distance * 0.75);
   for (int i = 0; i < AIR_STEPS; i++) {
-    float t = (float(i) + jitter) * stepLength;
+    float a=float(i)/float(AIR_STEPS), b=float(i+1)/float(AIR_STEPS);
+    float start=distance*a*(0.5+0.5*a), end=distance*b*(0.5+0.5*b);
+    float stepLength=end-start,t=mix(start,end,jitter);
+    float cloudSun=mix(cloudNear,cloudFar,clamp(2.0*t/distance-0.5,0.0,1.0));
     vec3 position = airCameraPosition + direction * t;
     vec4 packedLight = airVoxel(position);
     float medium = mod(packedLight.a, 16.0);
@@ -149,7 +154,7 @@ void main() {
     if (medium < 11.5) continue;
     float sky = pow(floor(packedLight.a / 16.0) / 15.0, 2.0);
     vec3 block = pow(packedLight.rgb / 15.0, vec3(2.0));
-    vec2 columns=airColumns(airCameraPosition+direction*float(i)*stepLength,direction,stepLength);
+    vec2 columns=airColumns(airCameraPosition+direction*start,direction,stepLength);
     columns.y *= 0.65 + airNoise(position.xz * 0.09 + vec2(airTime * 0.018, -airTime * 0.012)) * 0.7;
     vec3 attenuation=exp(-airOpticalDepth(columns));
     float visibility = airSunVisibility(position, sky) * cloudSun;
@@ -157,26 +162,6 @@ void main() {
     scattering += transmission * airScattering(columns,phase,sky,block,airSunColor*airSunPower*sun);
     transmission *= attenuation;
     airColumnBuffer+=columns;
-  }
-  // Preserve the established near-field steps and beam detail. Beyond their
-  // range, compose one analytic air segment instead of silently stopping fog.
-  // The segment begins exactly at the near march's endpoint, never overlaps it.
-  if(fullAirDistance>distance){
-    float tailLength=fullAirDistance-distance;
-    vec3 position=airCameraPosition+direction*(distance+tailLength*0.5);
-    ivec3 cell=lightCell(position);
-    vec4 packedLight=cell.x<0 ? vec4(0,0,0,252) : readLightCell(cell);
-    float medium=mod(packedLight.a,16.0);
-    if(medium>=11.5){
-      float sky=cell.x<0 ? airCameraSky : pow(floor(packedLight.a/16.0)/15.0,2.0);
-      vec3 block=pow(packedLight.rgb/15.0,vec3(2.0));
-      vec2 columns=airColumns(airCameraPosition+direction*distance,direction,tailLength);
-      float visibility=airSunVisibility(position,sky)*hexCloudShadow(position);
-      vec3 sun=visibility>0.0001 ? glassTransmittance(position,airSunDirection)*visibility : vec3(0);
-      scattering+=transmission*airScattering(columns,phase,sky,block,airSunColor*airSunPower*sun);
-      transmission*=exp(-airOpticalDepth(columns));
-      airColumnBuffer+=columns;
-    }
   }
   // Alpha remains the green-channel diagnostic transmission. The composite
   // reconstructs all three channels from the independent column attachment.

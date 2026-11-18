@@ -14,4 +14,10 @@ vec3 surfaceSkyCone(vec3 viewNormal, vec3 coefficients[9], float visibility) {
   float firstBand=v>0.0001 ? (1.0-closed*sqrt(closed))/v : 1.5;
   return max(vec3(0.0),band0+band1*firstBand+band2*(4.0-3.0*v));
 }
+#ifdef USE_LIGHT_PROBES
+vec3 surfaceSkyFill(vec3 normal, vec3 sh[9], float visibility, float squaredSky) {
+  vec3 up=max(vec3(0.0),shGetIrradianceAt(vec3(0,1,0),sh));
+  return mix(up,surfaceSkyCone(normal,sh,visibility),clamp(squaredSky,0.0,1.0));
+}
+#endif
 `;

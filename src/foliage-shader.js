@@ -61,6 +61,7 @@ function subsurfaceMaterials(atlas, weather, uniforms, thin) {
     {
       map: atlas,
       vertexColors: true,
+      flatShading: true,
       alphaTest: 0.5,
       side: DoubleSide,
     },

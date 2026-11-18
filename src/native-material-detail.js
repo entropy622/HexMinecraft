@@ -37,6 +37,7 @@ const KIND_DEPTH = {
   organic: 0.12,
 };
 function parallaxDepth(profile, base) {
+  if (profile.kind === 'leaf') return 0;
   if (profile.kind === 'mineral') return MASONRY.has(base) ? 0.45 : 0.12;
   return KIND_DEPTH[profile.kind] ?? 0.08;
 }
@@ -48,9 +49,9 @@ function reliefProfile(tile) {
       BLOCKS[id]?.base ||
       (BLOCKS[id]?.cauldronLiquid ? 'cauldron' : id),
     def = BLOCKS[base];
+  if (def?.foliage) return { kind: 'leaf', relief: 0.42, roughness: null };
   if (
     isGlass(base) ||
-    def?.foliage ||
     def?.nonSolid ||
     [
       'glowstone',
@@ -186,6 +187,37 @@ export function createNativeMaterialDetail(tile, image) {
   const { width: size, height, data: rgba } = image;
   if (size !== height || rgba.length !== size * size * 4)
     throw Error('Native detail needs a square RGBA tile');
+  if (profile.kind === 'leaf') {
+    // Pigment changes within a leaf bend its normal. A hole has no surface:
+    // extend the center pigment into it instead of beveling a black cut edge.
+    const data = new Uint8Array(rgba.length);
+    const pigment = (i) =>
+      (0.2126 * rgba[i] + 0.7152 * rgba[i + 1] + 0.0722 * rgba[i + 2]) / 255;
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const i = 4 * (y * size + x),
+          center = pigment(i);
+        const neighbor = (dx, dy) => {
+          const j =
+            4 * (((y + dy + size) % size) * size + ((x + dx + size) % size));
+          return rgba[j + 3] >= 128 ? pigment(j) : center;
+        };
+        const k = rgba[i + 3] >= 128 ? profile.relief : 0;
+        const nx = k * (neighbor(-1, 0) - neighbor(1, 0)),
+          ny = k * (neighbor(0, 1) - neighbor(0, -1));
+        const inv = 1 / Math.hypot(nx, ny, 1);
+        data.set(
+          [
+            Math.round(127.5 * (1 + nx * inv)),
+            Math.round(127.5 * (1 + ny * inv)),
+            0,
+            255,
+          ],
+          i,
+        );
+      }
+    return { width: size, height: size, data, preserveOptics: true };
+  }
   const values = new Float32Array(size * size),
     chroma = new Float32Array(values.length);
   let lo = 1,

@@ -44,7 +44,7 @@ export function leafSurfaceFeature(uniforms, thin) {
       directional_capture:
         'leafLightTransmission=directLight.color/max(vec3(0.00001),directionalLight.color);',
       sky_irradiance: /* glsl */ `vec3 leafSkyUp=max(vec3(0),shGetIrradianceAt(vec3(0,1,0),lightProbe));
-      ${thin ? 'irradiance+=surfaceSkyLevel*mix(surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion),0.5*leafSkyUp,leafSssAmount);' : 'irradiance+=0.5*surfaceSkyLevel*leafSkyUp;'}`,
+      ${thin ? 'irradiance+=surfaceSkyLevel*mix(surfaceSkyFill(geometryNormal,lightProbe,vAmbientOcclusion,surfaceSkyLevel),0.5*leafSkyUp,leafSssAmount);' : 'irradiance+=0.5*surfaceSkyLevel*leafSkyUp;'}`,
       after_indirect: /* glsl */ `
       #if defined(USE_LIGHT_PROBES)
         vec3 leafFaceShade=vec3(1);
@@ -78,7 +78,7 @@ export function distantLeafSurfaceFeature(uniforms) {
         'if(int(floor(vSurfaceOptics+0.5))==5)distantLeafFilter=directLight.color/max(vec3(0.00001),directionalLight.color);',
       sky_irradiance: /* glsl */ `
       if(int(floor(vSurfaceOptics+0.5))==5){vec3 leafSkyUp=max(vec3(0),shGetIrradianceAt(vec3(0,1,0),lightProbe));irradiance+=0.5*surfaceSkyLevel*leafSkyUp;}
-      else irradiance+=surfaceSkyLevel*surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);`,
+      else irradiance+=surfaceSkyLevel*surfaceSkyFill(geometryNormal,lightProbe,vAmbientOcclusion,surfaceSkyLevel);`,
       after_indirect: /* glsl */ `
       #if defined(USE_LIGHT_PROBES)
         if(int(floor(vSurfaceOptics+0.5))==5){

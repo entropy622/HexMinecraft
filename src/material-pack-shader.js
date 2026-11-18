@@ -17,12 +17,23 @@ vec3 surfaceParallaxHit=vec3(0.0),surfaceParallaxGu=vec3(0.0),surfaceParallaxGv=
 vec2 surfaceParallaxDx=vec2(0.0),surfaceParallaxDy=vec2(0.0);
 float surfaceParallaxScale=0.0;
 vec2 surfaceParallaxUv(vec2 local){return surfaceParallaxTile.xy+surfaceParallaxTile.zw*fract(local);}
+// Limit the footprint to a single tile, including at the grazing horizon.
+vec2 surfaceDetailDx, surfaceDetailDy;
 float surfaceParallaxDepth(vec2 local){
-  return 1.0-textureGrad(surfacePackNormal,surfaceParallaxUv(local),surfaceParallaxDx,surfaceParallaxDy).a;
+  return 1.0-textureGrad(surfacePackNormal,surfaceParallaxUv(local),surfaceDetailDx,surfaceDetailDy).a;
 }
 vec2 surfaceParallaxMap(vec2 uv){
   surfaceParallaxDx=dFdx(uv);surfaceParallaxDy=dFdy(uv);
-  if(surfacePackEnabled<0.5||surfaceParallaxDistance<=0.0)return uv;
+  if(surfacePackEnabled<0.5)return uv;
+  vec2 dims=vec2(textureSize(surfacePackNormal,0));
+  vec2 px=surfaceParallaxDx*dims,py=surfaceParallaxDy*dims;
+  float limit=0.5*dims.x/surfacePackGrid.x;
+  float k=min(1.0,limit*inversesqrt(max(1.0,max(dot(px,px),dot(py,py)))));
+  surfaceDetailDx=surfaceParallaxDx*k;surfaceDetailDy=surfaceParallaxDy*k;
+  #ifdef HEX_LEAF_PRIMARY_SSS
+    return uv;
+  #endif
+  if(surfaceParallaxDistance<=0.0)return uv;
   vec3 eye=-vViewPosition,q0=dFdx(eye),q1=dFdy(eye),n=normalize(cross(q0,q1));
   if(dot(n,vViewPosition)<0.0)n=-n;
   float viewDistance=length(vViewPosition);
@@ -68,7 +79,11 @@ float surfaceParallaxShadow(vec3 lightDirection){
   return 1.0-smoothstep(0.01,0.08,occlusion);
 }
 vec3 surfacePackPerturb(vec3 n,vec3 eye,vec2 texUv,vec2 encoded,float facing){
-  vec3 q0=dFdx(eye),q1=dFdy(eye);vec2 st0=dFdx(texUv),st1=dFdy(texUv);
+  vec3 q0=dFdx(eye),q1=dFdy(eye);
+  // Atlas UV axes have different units. Use texels for the cotangent frame:
+  // packing more tile rows must not flatten the green normal channel.
+  vec2 dims=vec2(textureSize(surfacePackNormal,0));
+  vec2 st0=dFdx(texUv)*dims,st1=dFdy(texUv)*dims;
   vec3 p1=cross(q1,n),p0=cross(n,q0),t=p1*st0.x+p0*st1.x,b=p1*st0.y+p0*st1.y;
   float det=max(dot(t,t),dot(b,b)),scale=det>0.0?inversesqrt(det):0.0;
   vec2 xy=(encoded*2.0-1.0)*facing;
@@ -84,7 +99,7 @@ export const materialPackFragment = /* glsl */ `
     if(surfacePackEnabled>0.5){
       vec3 channels=surfacePackChannels(vMapUv);
       if(channels.r>0.5){
-        vec4 mapped=textureGrad(surfacePackNormal,surfaceUv,surfaceParallaxDx,surfaceParallaxDy);
+        vec4 mapped=textureGrad(surfacePackNormal,surfaceUv,surfaceDetailDx,surfaceDetailDy);
         normal=surfacePackPerturb(normal,-vViewPosition,vMapUv,mapped.rg,faceDirection);
         if(channels.b>0.25){
           // Native B stores roughness, not labPBR visibility. External _s

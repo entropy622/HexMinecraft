@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { cutSprig } from './canopy-sprigs.js';
 import { paintPackTile } from './texture-pack.js';
 import { BLOCKS, hash } from './core.js';
 import { woodKey } from './wood-data.js';
@@ -71,6 +72,9 @@ export function createTextures(maxTextureSize = 16384) {
     'campfireLog:side',
     'campfireAsh:top',
     'campfireAsh:side',
+    ...Object.keys(BLOCKS)
+      .filter((id) => BLOCKS[id].foliage)
+      .map((id) => id + ':sprig'),
   );
   const canvas = document.createElement('canvas');
   canvas.width = COLS * CELL;
@@ -504,6 +508,7 @@ export function createTextures(maxTextureSize = 16384) {
         }
     }
     paintPackTile(c, id, top);
+    if (face === 'sprig') cutSprig(c, 0, 0, SIZE);
     const ox = (index % COLS) * CELL + PAD,
       oy = Math.floor(index / COLS) * CELL + PAD;
     ctx.imageSmoothingEnabled = false;

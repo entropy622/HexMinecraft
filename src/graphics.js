@@ -69,6 +69,7 @@ import {
   worldToAxial,
 } from './core.js';
 import { DIMENSIONS, VIEW_RADIUS, CHUNK_SIZE, WORLD_HEIGHT } from './world.js';
+import { canopySprig } from './canopy-sprigs.js';
 import { DistantTerrain } from './distant-terrain.js';
 import { DISTANT_CAMERA_FAR } from './distant-config.js';
 // A chunk spans 1.5 * CHUNK_SIZE perpendicular to either axial boundary.
@@ -441,6 +442,14 @@ export class Graphics {
       disposePostprocessing(this.composer);
       this.composer = null;
     }
+    const shadowExtent = this.usePost ? 48 : 24;
+    Object.assign(this.sun.shadow.camera, {
+      left: -shadowExtent,
+      right: shadowExtent,
+      top: shadowExtent,
+      bottom: -shadowExtent,
+    });
+    this.sun.shadow.camera.updateProjectionMatrix();
     const shadowSize = value >= 1.7 ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== shadowSize) {
       this.sun.shadow.mapSize.set(shadowSize, shadowSize);
@@ -779,6 +788,7 @@ export class Graphics {
       opticalClass = 0,
       biomeQ = 0,
       biomeR = 0;
+    const sprigs = [];
     const shaped = [];
     const chestCells = [];
     const enchantCells = [];
@@ -1043,6 +1053,22 @@ export class Graphics {
               v1 = [x + b[0], y, z + b[1]],
               v2 = [x + b[0], y + 1, z + b[1]],
               v3 = [x + a[0], y + 1, z + a[1]];
+            if (
+              out === leaves &&
+              !world.get(q + dq, y, r + dr) &&
+              !world.persistentLeaves.has(q + ',' + y + ',' + r)
+            ) {
+              const fan = canopySprig(
+                q,
+                y,
+                r,
+                x,
+                z,
+                i,
+                !world.get(q, y + 1, r),
+              );
+              if (fan) sprigs.push({ q, y, r, type, fan });
+            }
             const bottom = opaque(q + dq, y - 1, r + dr) ? 0.78 : 1;
             const shade = tint * (0.82 + Math.cos((i * Math.PI) / 3) * 0.07);
             blockFace(
@@ -1115,6 +1141,41 @@ export class Graphics {
             );
           }
         }
+    const pickableLeaves = leaves.p.length / 3;
+    out = leaves;
+    for (const {
+      q,
+      y,
+      r,
+      type,
+      fan: [a, b, c, d],
+    } of sprigs) {
+      biomeQ = q;
+      biomeR = r;
+      rainExposure = 0;
+      porosity = wetPorosity(type);
+      const start = leaves.p.length / 3,
+        tile = type + ':sprig';
+      tri(
+        [a, b, d],
+        [
+          [0, 0],
+          [1, 0],
+          [0, 1],
+        ],
+        tile,
+      );
+      tri(
+        [b, c, d],
+        [
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ],
+        tile,
+      );
+      leaves.leafRanges.push(q, y, r, start, start + 6);
+    }
     const geometry = (data) => {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(data.p, 3));
@@ -1273,6 +1334,18 @@ export class Graphics {
         geometry(leaves),
         this.leafMaterials.material,
       );
+      // Keep cosmetic tips out of mining/placement without a second render draw.
+      if (sprigs.length)
+        canopy.raycast = function (ray, hits) {
+          const range = this.geometry.drawRange,
+            count = range.count;
+          range.count = pickableLeaves;
+          try {
+            THREE.Mesh.prototype.raycast.call(this, ray, hits);
+          } finally {
+            range.count = count;
+          }
+        };
       canopy.customDepthMaterial = this.leafMaterials.depth;
       canopy.castShadow = canopy.receiveShadow = true;
       mesh.add(canopy);
@@ -1818,10 +1891,12 @@ export class Graphics {
     this.caveAmbience.frame(dt, time, this.world, this.camera);
     this.dripstoneEffects.frame(dt, time, this.world, this.camera);
     this.hemi.intensity += flash * 0.85;
-    this.shadowTimer = (this.shadowTimer || 0) - dt;
-    if (this.shadowTimer <= 0) {
+    if (
+      this.shadowTime === undefined ||
+      Math.abs(time - this.shadowTime) >= (this.usePost ? 1 / 24 : 0.25)
+    ) {
       this.renderer.shadowMap.needsUpdate = true;
-      this.shadowTimer = 0.25;
+      this.shadowTime = time;
     }
     this.skyObjects.position.copy(this.camera.position);
     this.cloudSystem.frame({

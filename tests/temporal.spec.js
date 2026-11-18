@@ -242,6 +242,31 @@ test('a moving production mob rejects history and clears its vacated silhouette'
             m = window.temporalMob,
             old = m.position.clone().add({ x: 0, y: 0.7, z: 0 });
           m.position.x += 2.5;
+          // Capture the unaccumulated HDR input in this exact jitter phase.
+          // composer.readBuffer after the frame already includes spatial AA,
+          // exposure and later passes, which change even a fully reactive pixel.
+          const pass = g.composer.effects.temporal,
+            render = pass.render,
+            source = {};
+          const centers = [
+            old.clone(),
+            m.position.clone().add({ x: 0, y: 0.7, z: 0 }),
+          ].map((p) => p.project(g.camera));
+          pass.render = function (renderer, write, read) {
+            this.render = render;
+            source.jitter = [
+              this.jitter.x * read.width,
+              this.jitter.y * read.height,
+            ];
+            source.pixels = centers.map((p) => {
+              const raw = new Uint16Array(9 * 9 * 4);
+              const x = Math.round((p.x * 0.5 + 0.5) * read.width),
+                y = Math.round((p.y * 0.5 + 0.5) * read.height);
+              renderer.readRenderTargetPixels(read, x - 4, y - 4, 9, 9, raw);
+              return Array.from(raw);
+            });
+            return render.call(this, renderer, write, read);
+          };
           requestAnimationFrame(() => {
             const next = m.position.clone().add({ x: 0, y: 0.7, z: 0 }),
               target = g.composer.effects.temporal.history[0],
@@ -276,6 +301,7 @@ test('a moving production mob rejects history and clears its vacated silhouette'
               };
             };
             resolve({
+              source,
               old: sample(old),
               next: sample(next),
               gl: g.renderer.getContext().getError(),
@@ -284,29 +310,33 @@ test('a moving production mob rejects history and clears its vacated silhouette'
         });
       }),
   );
-  await page.evaluate(
-    () => (window.__hexwild.graphics.composer.effects.temporal.enabled = false),
-  );
-  await frames(page, 4);
-  const baseline = await page.evaluate(
-    (points) => {
-      const g = window.__hexwild.graphics,
-        target = g.composer.readBuffer;
-      return points.map(({ x, y }) => {
-        const pixels = new Uint16Array(7 * 7 * 4);
-        g.renderer.readRenderTargetPixels(target, x - 3, y - 3, 7, 7, pixels);
-        return Array.from(pixels);
-      });
-    },
-    [moved.old, moved.next],
-  );
+  const expectedMean = (j, c) => {
+    const raw = moved.source.pixels[j],
+      [dx, dy] = moved.source.jitter;
+    let sum = 0;
+    for (let y = 1; y <= 7; y++)
+      for (let x = 1; x <= 7; x++) {
+        const sx = x + dx,
+          sy = y + dy,
+          ix = Math.floor(sx),
+          iy = Math.floor(sy);
+        for (let v = 0; v < 2; v++)
+          for (let u = 0; u < 2; u++) {
+            const w =
+              (u ? sx - ix : 1 - (sx - ix)) * (v ? sy - iy : 1 - (sy - iy));
+            sum +=
+              w * DataUtils.fromHalfFloat(raw[((iy + v) * 9 + ix + u) * 4 + c]);
+          }
+      }
+    return sum / 49;
+  };
   const mean = (values, c) =>
     values
       .filter((_, i) => i % 4 === c)
       .reduce((n, v) => n + DataUtils.fromHalfFloat(v), 0) / 49;
   const differences = [moved.old, moved.next].map((sample, j) =>
     [0, 1, 2].reduce(
-      (n, c) => n + Math.abs(mean(sample.pixels, c) - mean(baseline[j], c)),
+      (n, c) => n + Math.abs(mean(sample.pixels, c) - expectedMean(j, c)),
       0,
     ),
   );

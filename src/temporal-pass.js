@@ -90,6 +90,7 @@ export class TemporalResolvePass extends Pass {
         bool sky=depth>=.999999;
         float distance=sky?0.0:linearDepth(depth),nearDepth=cameraFar,farDepth=0.0,reactive=0.0;
         bool neighborhoodSky=false,neighborhoodSolid=false;
+        ivec2 closest=center; float closestDepth=depth;
         vec3 lower=vec3(1e10),upper=vec3(-1e10),sum=vec3(0.0),squares=vec3(0.0);
         for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
           ivec2 p=clamp(center+ivec2(x,y),ivec2(0),size-1);
@@ -99,6 +100,7 @@ export class TemporalResolvePass extends Pass {
           reactive=max(reactive,texelFetch(protection,p,0).g);
           reactive=max(reactive,sampleColor.a<.999?1.0:0.0);
           float d=texelFetch(sceneDepth,p,0).r;
+          if(d<closestDepth){closestDepth=d;closest=p;}
           if(d>=.999999)neighborhoodSky=true;
           else {float z=linearDepth(d);nearDepth=min(nearDepth,z);farDepth=max(farDepth,z);neighborhoodSolid=true;}
         }
@@ -109,6 +111,15 @@ export class TemporalResolvePass extends Pass {
         vec4 oldClip=previousProjection*oldView;
         if(sky)oldClip=previousProjection*vec4(mat3(previousView)*mat3(cameraWorld)*normalize(view.xyz),0.0);
         vec2 oldUv=oldClip.xy/max(oldClip.w,.00001)*.5+.5;
+        // At a silhouette use foreground camera motion for coverage, not sky or
+        // the distant valley seen through a moving subpixel gap. History alpha
+        // is still checked against the center surface, not the picked neighbor.
+        if(closestDepth<depth && (sky || distance-nearDepth>max(.1,.01*distance))){
+          vec2 tap=(vec2(closest)+0.5)/resolution;
+          vec4 front=inverseProjection*vec4(tap*2.0-1.0,closestDepth*2.0-1.0,1.0);
+          vec4 prev=previousProjection*(previousView*(cameraWorld*front));
+          if(prev.w>0.0)oldUv=vUv+(prev.xy/prev.w*.5+.5)-(tap-jitter);
+        }
         float expected=max(0.0,-oldView.z),motion=length((oldUv-vUv)*resolution);
         bool inside=all(greaterThanEqual(oldUv,halfPixel))&&all(lessThanEqual(oldUv,1.0-halfPixel))&&oldClip.w>0.0;
         if(ready&&reactive<.5&&inside){

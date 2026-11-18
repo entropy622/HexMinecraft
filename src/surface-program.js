@@ -80,7 +80,7 @@ export function buildSurfaceProgram(material) {
     source = state.source || material;
   stages.hex_shadow_pars = '#include <shadowmap_pars_fragment>';
   stages.hex_sky_irradiance =
-    'irradiance += surfaceSkyLevel * surfaceSkyCone(geometryNormal,lightProbe,vAmbientOcclusion);';
+    'irradiance += surfaceSkyLevel * surfaceSkyFill(geometryNormal,lightProbe,vAmbientOcclusion,surfaceSkyLevel);';
   const claimed = new Set();
   for (const feature of features)
     for (const [slot, code] of Object.entries(feature.stages || {})) {

@@ -1,3 +1,4 @@
+import { directSkyGate } from './direct-sky.js';
 import { ShaderChunk, Vector2 } from 'three';
 import { waterLightingGLSL } from './water-lighting.js';
 import { installSurfaceProgram } from './surface-program.js';
@@ -12,19 +13,20 @@ export const voxelLightingChunk = ShaderChunk.lights_fragment_begin
   .replace(
     'getDirectionalLightInfo( directionalLight, directLight );',
     `getDirectionalLightInfo( directionalLight, directLight );
+    ${directSkyGate('vSkylight')}
     #ifdef HEX_GEOMETRIC_SHADE
       vec3 geometricIncident=directLight.color;
     #endif
     #ifdef HEX_WATER_RECEIVER
       vec3 waterLightDirection = inverseTransformDirection(directLight.direction, viewMatrix);
       vec3 waterBounceResponse;
-      directLight.color *= waterSunResponse(vLightPosition, inverseTransformDirection(normal, viewMatrix), waterLightDirection, vSkylight,waterBounceResponse);
+      directLight.color *= waterSunResponse(vLightPosition, inverseTransformDirection(normal, viewMatrix), waterLightDirection, directSkyGate,waterBounceResponse);
       #ifdef HEX_GEOMETRIC_SHADE
         geometricIncident*=waterBounceResponse;
       #endif
       directLight.direction = normalize((viewMatrix * vec4(waterLightDirection, 0.0)).xyz);
     #else
-      directLight.color *= smoothstep(0.45, 0.95, vSkylight);
+      directLight.color *= directSkyGate;
     #endif`,
   )
   .replace(

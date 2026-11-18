@@ -1,5 +1,12 @@
 # Photon rendering assets and optics
 
+In 0.142 the source references are `include/fog/overworld/constants.glsl`,
+`include/lighting/shadows/common.glsl`, `include/lighting/diffuse_lighting.glsl`
+and `program/c4_taa_exposure.fsh` at the same pinned revision. The host applies
+sea-relative half-lives, shadow-map coverage, up-sky fill and foreground-motion
+dilation to its hex geometry and WebGL2 renderer. The supplementary leaf
+geometry and pixel silhouette are Hexwild artwork.
+
 Since 0.138, the host owns its surface shader templates, named feature stages
 and lighting loops. Existing attributed optics and foliage responses now run
 through `src/surface-lighting.js`, `src/surface-foliage.js` and the shared

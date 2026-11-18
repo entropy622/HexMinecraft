@@ -1,4 +1,11 @@
-import { DataTexture, NearestFilter, RGBAFormat, Vector2 } from 'three';
+import {
+  DataTexture,
+  NearestFilter,
+  NearestMipmapLinearFilter,
+  RGBAFormat,
+  Vector2,
+} from 'three';
+import { cutSprig } from './canopy-sprigs.js';
 import { materialNames } from './material-pack.js';
 import { BLOCKS } from './core.js';
 import { effectImage } from './texture-pack.js';
@@ -241,6 +248,7 @@ export function installMaterialAtlas(textures, tiles, names) {
           ctx.clearRect(x, y, size, size);
           ctx.drawImage(tinted, x, y);
         }
+        if (image && face === 'sprig') cutSprig(ctx, x, y, size);
         ctx.drawImage(color, x, y, size, 1, x, y - size / 2, size, size / 2);
         ctx.drawImage(
           color,
@@ -340,6 +348,10 @@ export function installMaterialAtlas(textures, tiles, names) {
           ? dataTexture(sData, color.width, color.height)
           : null,
         newFlags = next || nData ? dataTexture(mask, names.length, 1) : null;
+      if (newNormal) {
+        newNormal.minFilter = NearestMipmapLinearFilter;
+        newNormal.generateMipmaps = true;
+      }
       // All decode/allocation/UV preparation succeeded; publish coherently.
       for (const { geometry, name, key, canonical, result } of changes) {
         if (next) geometry.userData[key] = canonical;

@@ -10,6 +10,8 @@ moss, cave-plant and three-dimensional crystal-facet patterns are original
 Hexwild art. Atlas/normal/icon derivatives of source imagery retain the source
 license; original material-generation code and independent patterns remain MIT.
 
+The 0.142 canopy sprigs mask the currently selected oak, birch, spruce and jungle leaf pigments. The default derived tiles and normal maps retain the source texture licenses.
+
 Version 0.139 adds a separate selection of 27 unmodified PNGs from
 **Voxels Reworked 0.7.0 by Chiragon, based on Pixel Perfection by XSSheep**.
 These common stone, ground, wood and ore surfaces take precedence over the
