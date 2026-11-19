@@ -219,6 +219,55 @@ function geometry(c, b, desc) {
   mesh.translate(-bp.x, -bp.y, -bp.z);
   return mesh;
 }
+// A textured Bedrock patch uses one cube face. Build a bone's whole batch at
+// once: no five unused faces per patch, no thousands of transient box meshes.
+function northBatch(cubes, bone, desc) {
+  const n = cubes.length,
+    position = new Float32Array(n * 12),
+    normal = new Float32Array(n * 12),
+    uv = new Float32Array(n * 8),
+    indices = [],
+    bp = vec(bone.pivot || zero),
+    p = new T.Vector3(),
+    q = new T.Quaternion(),
+    front = new T.Vector3();
+  for (let i = 0; i < n; i++) {
+    const c = cubes[i],
+      center = vec(c.origin.map((x, j) => x + c.size[j] / 2)),
+      pivot = vec(c.pivot || zero),
+      inflate = c.inflate ?? bone.inflate ?? 0,
+      [w, h, d] = c.size.map((x) => Math.max(0.001, x + 2 * inflate)),
+      face = c.uv.north,
+      [x, y] = face.uv,
+      [sw, sh] = face.uv_size || c.size;
+    q.setFromEuler(angles(c.rotation || zero));
+    front.set(0, 0, 1).applyQuaternion(q);
+    for (let j = 0; j < 4; j++) {
+      const s = j % 2,
+        t = j >> 1,
+        at = 4 * i + j;
+      p.set((s - 0.5) * w, (0.5 - t) * h, d / 2)
+        .add(center)
+        .sub(pivot)
+        .applyQuaternion(q)
+        .add(pivot)
+        .sub(bp)
+        .toArray(position, 3 * at);
+      front.toArray(normal, 3 * at);
+      uv[2 * at] = (x + s * sw) / desc.texture_width;
+      uv[2 * at + 1] = 1 - (y + t * sh) / desc.texture_height;
+    }
+    const k = i * 4;
+    indices.push(k, k + 2, k + 1, k + 2, k + 3, k + 1);
+  }
+  const g = new T.BufferGeometry();
+  g.setAttribute('position', new T.BufferAttribute(position, 3));
+  g.setAttribute('normal', new T.BufferAttribute(normal, 3));
+  g.setAttribute('uv', new T.BufferAttribute(uv, 2));
+  g.setIndex(indices);
+  return g;
+}
+
 export function makeSkeleton(g, material) {
   const root = new T.Group(),
     nodes = new Map(),
@@ -231,10 +280,23 @@ export function makeSkeleton(g, material) {
     parents.set(b.name, b.parent);
     n.position.copy(vec(b.pivot || zero));
     n.rotation.copy(angles(b.rotation || zero));
-    const shapes = (b.cubes || []).map((c) => geometry(c, b, g.description));
+    const patches = [],
+      shapes = [];
+    for (const c of b.cubes || []) {
+      if (
+        !c.surfaceCut &&
+        c.uv?.north &&
+        Object.keys(c.uv).length === 1 &&
+        !c.uv.north.uv_rotation
+      )
+        patches.push(c);
+      else shapes.push(geometry(c, b, g.description));
+    }
+    if (patches.length) shapes.push(northBatch(patches, b, g.description));
     if (shapes.length) {
-      const combined = mergeGeometries(shapes);
-      shapes.forEach((v) => v.dispose());
+      const combined =
+        shapes.length === 1 ? shapes[0] : mergeGeometries(shapes);
+      if (shapes.length > 1) shapes.forEach((v) => v.dispose());
       const mesh = new T.Mesh(combined, material);
       mesh.castShadow = mesh.receiveShadow = true;
       n.add(mesh);

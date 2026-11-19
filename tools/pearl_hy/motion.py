@@ -63,9 +63,9 @@ def main():
             for part, mult in [
                 ("Arm", -0.78),
                 ("ForeArm", -0.18),
-                ("Leg", 1),
-                ("LowerLeg", 0.19),
-                ("Skirt", 0.70),
+                ("Leg", 0.58),
+                ("LowerLeg", 0.12),
+                ("Skirt", 0.34),
                 ("Lock", -0.10),
             ]:
                 d[side + part] = wave(
@@ -81,7 +81,7 @@ def main():
                 for i in range(5)
             }
         }
-        d["Skirt"] = wave([1.6, 2.4, 1.1], period, 0.3)
+        d["Skirt"] = wave([0.8, 1.2, 0.55], period, 0.3)
         clips[name] = pose(d, period)
     clips["sneak"] = pose(
         {"AllBody": {"position": [0, -1.6, 0]}, "UpperBody": rot(13), "Head": rot(-8)}

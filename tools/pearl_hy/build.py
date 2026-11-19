@@ -9,9 +9,9 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from model import Model, construct
+from model import pieces
 from motion import main
-from paint import Painter
+from paint import bake
 from scan import Scan
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -38,9 +38,9 @@ def geo(name, bones, atlas):
 
 def build(src, out):
     scan = Scan(src)
-    paint = Painter(scan, ROOT / "art/models")
-    bones = construct(Model(paint))
-    atlas = paint.finish()
+    rig, surfaces = pieces(scan)
+    atlas = bake(scan, rig, surfaces)
+    bones = list(rig.values())
     arms = []
     for bone in bones:
         if bone["name"].endswith(("Arm", "HandLocator")):

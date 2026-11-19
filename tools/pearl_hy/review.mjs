@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 const out = process.argv[2] || 'test-results/pearl-hy';
 await mkdir(out, { recursive: true });
@@ -13,6 +13,13 @@ await s.listen();
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 520, height: 690 } });
+  const pack = process.argv.find((v) => v.startsWith('--pack='))?.slice(7);
+  if (pack) {
+    const bytes = await readFile(pack);
+    await page.route('**/models/pearl-dragon-hy.zip', (r) =>
+      r.fulfill({ body: bytes }),
+    );
+  }
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(

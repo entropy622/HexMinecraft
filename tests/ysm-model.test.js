@@ -185,7 +185,21 @@ test('the HY playable pack uses native surfaces, real wing and tail joints and t
   rig.traverse((n) => {
     if (n.isMesh) triangles += n.geometry.index.count / 3;
   });
-  assert.ok(triangles > 0 && triangles <= 3000, 'single-avatar render budget');
+  // The source-fitted hero retains the actual fringe, cuffs and scaled tail.
+  // Bound the submitted mesh, including eye variants, independently of the studio floor.
+  let vertices = 0,
+    draws = 0;
+  rig.traverse((o) => {
+    if (o.isMesh) {
+      draws++;
+      vertices += o.geometry.attributes.position.count;
+    }
+  });
+  assert.ok(triangles > 0 && triangles <= 16000, 'native hero triangle budget');
+  assert.ok(
+    vertices <= 32000 && draws <= 32,
+    'compact vertex and batch budget',
+  );
   const w = g.description.texture_width,
     h = g.description.texture_height;
   for (const b of g.bones)
@@ -226,4 +240,34 @@ test('the HY playable pack uses native surfaces, real wing and tail joints and t
   ctl.reset();
   ctl.play('swing_hand', 0.12);
   assert.ok(rig.getObjectByName('RightArm').rotation.x < -1.4);
+});
+
+test('batched north faces match the box path across rotations, inflated dimensions and signed UVs', () => {
+  const desc = { texture_width: 32, texture_height: 48 };
+  const face = { uv: [9, 12], uv_size: [-4, 8] };
+  const cube = {
+    origin: [-2, 3, 5],
+    size: [3, 4, 0.02],
+    pivot: [1, -2, 3],
+    rotation: [23, 43, -82],
+    uv: { north: face },
+  };
+  const rig = (cubes) =>
+    makeSkeleton({
+      description: desc,
+      bones: [{ name: 'Head', pivot: [1, 3, 7], inflate: 0.12, cubes }],
+    }).getObjectByName('Head').children[0].geometry;
+  const batch = rig([cube, cube]);
+  const box = rig([{ ...cube, uv: { north: face, west: { uv: [0, 0] } } }]);
+  assert.equal(batch.attributes.position.count, 8);
+  // In Three's BoxGeometry the four vertices of north start at index 16.
+  for (const key of ['position', 'normal', 'uv']) {
+    const a = batch.attributes[key],
+      b = box.attributes[key],
+      size = a.itemSize;
+    for (let i = 0; i < 4 * size; i++) {
+      assert.ok(Math.abs(a.array[i] - b.array[16 * size + i]) < 2e-6, key);
+      assert.equal(a.array[i], a.array[4 * size + i]);
+    }
+  }
 });

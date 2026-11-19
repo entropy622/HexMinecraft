@@ -33,15 +33,25 @@ test('back, front and eyes share the same player; inventory shows the actual mod
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.graphics.viewMode))
     .toBe(2);
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
+    const { axialToWorld } = await import('/src/core.js');
     const h = window.__hexwild,
       w = h.state.world;
+    const actors = h.graphics.scene.children.filter((o) => o.userData.body);
+    // Keep the real herd in the world; choose a clear sightline for the portrait.
+    const clearOfAnimals = (q, r) => {
+      const p = axialToWorld(q, r + 1);
+      return actors.every(
+        (o) => Math.hypot(o.position.x - p.x, o.position.z - p.z) > 9,
+      );
+    };
     let best = null;
     for (let q = -11; q < 12; q++)
       for (let r = -11; r < 12; r++) {
         const y = w.terrainHeight(q, r);
         if (
           (!best || best.y < y) &&
+          clearOfAnimals(q, r) &&
           [0, 1, 2, 3].every(
             (k) =>
               !w.get(q, y + 1, r + k) &&

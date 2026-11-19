@@ -1,4 +1,4 @@
-"""Read the supplied textured HY GLB in its +Z-facing bind pose, in Bedrock units."""
+"""Surface and albedo queries against the unedited, +Z-facing HY export."""
 
 import io
 import json
@@ -6,6 +6,8 @@ import struct
 from pathlib import Path
 
 import numpy as np
+from embreex.mesh_construction import TriangleMesh
+from embreex.rtcore_scene import EmbreeScene
 from PIL import Image
 from scipy.spatial import cKDTree
 
@@ -17,48 +19,58 @@ class Scan:
         g = json.loads(raw[20 : 20 + length])
         buf = memoryview(raw)[28 + length :]
 
-        def read(idx, width):
+        def accessor(idx, dtype, width):
             a = g["accessors"][idx]
             view = g["bufferViews"][a["bufferView"]]
             return np.frombuffer(
                 buf,
-                "<f4",
+                dtype,
                 a["count"] * width,
                 view.get("byteOffset", 0) + a.get("byteOffset", 0),
             ).reshape(-1, width)
 
         q = g["meshes"][0]["primitives"][0]
-        self.p = p = read(q["attributes"]["POSITION"], 3)
+        p = accessor(q["attributes"]["POSITION"], "<f4", 3)
         self.p = p * (34 / p[:, 1].max())
-        uv = read(q["attributes"]["TEXCOORD_0"], 2)
-        view = g["bufferViews"][g["images"][0]["bufferView"]]
-        start = view.get("byteOffset", 0)
-        image = np.asarray(
-            Image.open(io.BytesIO(buf[start : start + view["byteLength"]])).convert(
-                "RGB"
-            )
+        self.uv = accessor(q["attributes"]["TEXCOORD_0"], "<f4", 2)
+        self.faces = accessor(q["indices"], "<u4", 1).reshape(-1, 3)
+        self.triangles = len(self.faces)
+        v = g["bufferViews"][g["images"][0]["bufferView"]]
+        start = v.get("byteOffset", 0)
+        self.skin = np.array(
+            Image.open(io.BytesIO(buf[start : start + v["byteLength"]])).convert("RGB")
         )
-        iy, ix = image.shape[:2]
-        self.rgb = image[
-            (uv[:, 1] * iy).astype(int).clip(0, iy - 1),
-            (uv[:, 0] * ix).astype(int).clip(0, ix - 1),
-        ]
         self.tree = cKDTree(self.p)
-        self.triangles = g["accessors"][q["indices"]]["count"] // 3
+        self.scene = EmbreeScene()
+        self.mesh = TriangleMesh(self.scene, self.p, self.faces.astype("i4"))
 
-    def pigment(self, xyz):
-        d, i = self.tree.query(xyz, k=3)
-        w = 1 / np.maximum(d, 0.012) ** 2
-        return (self.rgb[i] * w[..., None]).sum(-2) / w.sum(-1)[..., None], d[..., 0]
+    def rays(self, origins, direction):
+        d = np.broadcast_to(direction, origins.shape)
+        return self.scene.run(
+            np.ascontiguousarray(origins, dtype="f4"),
+            np.ascontiguousarray(d, dtype="f4"),
+            output=True,
+        )
 
-    def wing(self):
-        # Outline of the actual near membrane in frontal projection. Fold both sides
-        # onto the same half-space; the two wings then coincide exactly in profile.
-        x, y, z = self.p.T
-        mask = (abs(x) > 5.6) & (y > 12.4) & (y < 22.7) & (z < -1.8)
-        x, y, z = abs(x[mask]), y[mask], z[mask]
-        stations = []
-        for u in [5.85, 6.7, 7.5, 8.25, 8.9, 9.65, 10.35, 10.95, 11.18]:
-            band = abs(x - u) < 0.10
-            stations.append((u, *np.percentile(y[band], [97, 3]), np.median(z[band])))
-        return np.array(stations)
+    def color(self, xyz, normal):
+        # Recover source UVs at the outer skin. A newly exposed joint cap takes
+        # its colour from the closest local material instead of projecting through the body.
+        pts = xyz.reshape(-1, 3)
+        hit = self.rays(pts + 0.15 * normal, -normal)
+        good = (hit["primID"] >= 0) & (hit["tfar"] < 0.36)
+        f = self.faces[hit["primID"][good]]
+        u, v = hit["u"][good, None], hit["v"][good, None]
+        st = np.empty((len(pts), 2))
+        st[good] = (
+            (1 - u - v) * self.uv[f[:, 0]] + u * self.uv[f[:, 1]] + v * self.uv[f[:, 2]]
+        )
+        if not good.all():
+            st[~good] = self.uv[self.tree.query(pts[~good])[1]]
+        h, w = self.skin.shape[:2]
+        x, y = (st * [w, h] - 0.5).clip([0, 0], [w - 1.001, h - 1.001]).T
+        i, j = x.astype(int), y.astype(int)
+        x, y = (x - i)[:, None], (y - j)[:, None]
+        rgb = (1 - y) * ((1 - x) * self.skin[j, i] + x * self.skin[j, i + 1]) + y * (
+            (1 - x) * self.skin[j + 1, i] + x * self.skin[j + 1, i + 1]
+        )
+        return rgb.reshape(xyz.shape).astype("uint8")
