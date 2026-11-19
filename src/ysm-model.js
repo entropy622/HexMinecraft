@@ -37,6 +37,9 @@ export function readYsm(bytes) {
     p = m.files?.player;
   if (!p?.model?.main || !p.texture?.length)
     throw Error('缺少玩家几何或贴图。');
+  // Ordinary YSM readers use the same silhouette in the PNG alpha. In Hexwild
+  // the authored boundary supplies real vertices and continuous cheek normals.
+  const cuts = m.hexwild?.surface_cuts ? json(m.hexwild.surface_cuts) : null;
   const geo = (path) => {
     const g = json(path)['minecraft:geometry']?.[0];
     if (
@@ -47,6 +50,27 @@ export function readYsm(bytes) {
       throw Error('需要 Bedrock 方块骨骼模型（最多 16000 个方块）。');
     if (!(g.description.texture_width > 0 && g.description.texture_height > 0))
       throw Error('模型缺少 UV 尺寸。');
+    if (cuts)
+      for (const bone of g.bones)
+        for (const cube of bone.cubes || []) {
+          const face = cube.uv?.north;
+          const key = Array.isArray(face?.uv) ? face.uv.join(',') : null;
+          const polygon = key && cuts[key];
+          if (!polygon || Object.keys(cube.uv).length !== 1) continue;
+          if (
+            !Array.isArray(polygon) ||
+            polygon.length < 3 ||
+            polygon.length > 32 ||
+            !polygon.every(
+              (v) =>
+                Array.isArray(v) &&
+                (v.length === 3 || v.length === 6) &&
+                v.every(Number.isFinite),
+            )
+          )
+            throw Error('模型面片的顶点无效。');
+          cube.surfaceCut = polygon;
+        }
     return g;
   };
   const skins = p.texture
@@ -91,7 +115,42 @@ function boxUV([u, v], [x, y, z]) {
     down: [u + z + x, v + z, x, -z],
   };
 }
-function geometry(c, b, desc) {
+function cutGeometry(c, desc) {
+  const geometry = new T.BufferGeometry(),
+    positions = [],
+    normals = [],
+    uvs = [],
+    index = [];
+  const [w, h, d] = c.size,
+    {
+      uv: [x, y],
+      uv_size: [uw, vh],
+    } = c.uv.north;
+  for (const [u, v, z, nx = 0, ny = 0, nz = 1] of c.surfaceCut) {
+    positions.push((u - 0.5) * w, (0.5 - v) * h, d / 2 + z);
+    normals.push(nx, ny, nz);
+    uvs.push(
+      (x + u * uw) / desc.texture_width,
+      1 - (y + v * vh) / desc.texture_height,
+    );
+  }
+  // Convex sections and triangular wing gores. Front points toward local +Z.
+  for (let j = 1; j < c.surfaceCut.length - 1; j++) {
+    const [ax, ay] = c.surfaceCut[0],
+      [bx, by] = c.surfaceCut[j],
+      [cx, cy] = c.surfaceCut[j + 1];
+    if ((bx - ax) * (cy - ay) - (by - ay) * (cx - ax) > 0)
+      index.push(0, j + 1, j);
+    else index.push(0, j, j + 1);
+  }
+  geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new T.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(index);
+  return geometry;
+}
+
+function boxGeometry(c, b, desc) {
   const { origin, size } = c,
     inflate = c.inflate ?? b.inflate ?? 0;
   const mesh = new T.BoxGeometry(
@@ -141,6 +200,11 @@ function geometry(c, b, desc) {
   });
   mesh.clearGroups();
   mesh.setIndex(indices);
+  return mesh;
+}
+function geometry(c, b, desc) {
+  const { origin, size } = c;
+  const mesh = c.surfaceCut ? cutGeometry(c, desc) : boxGeometry(c, b, desc);
   const center = vec(origin.map((v, i) => v + size[i] / 2));
   mesh.translate(...center.toArray());
   if (c.rotation) {

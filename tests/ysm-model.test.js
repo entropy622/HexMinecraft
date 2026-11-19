@@ -53,6 +53,60 @@ test('the distributable contains two native rigs, a skin and playable Bedrock cl
   for (const p of Object.values(m.files.player.animation))
     assert.equal(JSON.parse(strFromU8(files[p])).format_version, '1.8.0');
 });
+test('authored expressions move in front of the face for the right action and return under the skin', () => {
+  const pack = readYsm(bytes),
+    rig = makeSkeleton(pack.geometry);
+  const ctl = animator(rig, pack.animations);
+  for (const [clip, name] of [
+    ['gui', 'CuriousEyes'],
+    ['swing_hand', 'IntentEyes'],
+    ['attacked', 'WideEyes'],
+  ]) {
+    const card = rig.getObjectByName(name),
+      z = card.position.z;
+    ctl.play(clip, 0.12);
+    assert.ok(card.position.z - z > 0.08);
+    for (const other of ['CuriousEyes', 'IntentEyes', 'WideEyes'].filter(
+      (n) => n !== name,
+    ))
+      assert.equal(rig.getObjectByName(other).position.z, z);
+    ctl.reset();
+    assert.equal(card.position.z, z);
+  }
+});
+test('the cheek carries curved vertices; standard Bedrock still has a textured face without the contour file', () => {
+  const pack = readYsm(bytes);
+  const cheek = pack.geometry.bones.find((b) => b.name === 'IntentEyes');
+  assert.ok(
+    cheek.cubes.some((c) =>
+      c.surfaceCut.some(
+        ([u, v, z, x]) => Math.abs(z) > 1e-5 && Math.abs(x) > 0.001,
+      ),
+    ),
+  );
+  const mesh = makeSkeleton({
+    ...pack.geometry,
+    bones: [{ ...cheek, parent: undefined }],
+  }).getObjectByName(cheek.name).children[0];
+  const expected = cheek.cubes.reduce(
+    (count, c) => count + c.surfaceCut.length,
+    0,
+  );
+  assert.equal(mesh.geometry.attributes.position.count, expected);
+  const files = unzipSync(bytes);
+  const m = JSON.parse(strFromU8(files['ysm.json']));
+  delete files[m.hexwild.surface_cuts];
+  delete m.hexwild;
+  files['ysm.json'] = strToU8(JSON.stringify(m));
+  const native = readYsm(zipSync(files)).geometry;
+  assert.ok(
+    !native.bones.find((b) => b.name === cheek.name).cubes[0].surfaceCut,
+  );
+  assert.ok(
+    makeSkeleton(native).getObjectByName(cheek.name).children[0].geometry
+      .attributes.uv.count,
+  );
+});
 test('a rotated cube follows its own pivot before the parent joint', () => {
   const g = {
     description: { texture_width: 16, texture_height: 16 },

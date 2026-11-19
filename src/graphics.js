@@ -2131,6 +2131,8 @@ export class Graphics {
       this.renderer.shadowMap.needsUpdate = true;
     const stepOffset = this.stepOffset || 0;
     let restoreView;
+    const hurtAge = this.avatarHurtAge ?? Infinity;
+    if (Number.isFinite(hurtAge)) this.avatarHurtAge = hurtAge + dt;
     if (this.viewMode && this.playerPose) {
       const a = (this.avatar ||= dragonAvatar());
       if (!a.root.parent) this.scene.add(a.root);
@@ -2172,6 +2174,7 @@ export class Graphics {
           : this.swingTime > 0
             ? 1 - this.swingTime / 0.28
             : 0,
+        hurtAge,
         pitch: p.pitch,
         crouch: p.crouch,
       });

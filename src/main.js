@@ -5794,6 +5794,7 @@ function hurt(amount, cause = 'combat', source = null) {
   }
   survival.exhaust(0.1);
   health = Math.max(0, health - amount);
+  if (amount > 0) graphics.avatarHurtAge = 0;
   damageCooldown = cause === 'cactus' ? 0.5 : 0.8;
   $('#damage').style.opacity = '.6';
   $('#damage').dataset.cause = cause;

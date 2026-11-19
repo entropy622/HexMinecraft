@@ -137,7 +137,10 @@ export function dragonAvatar({ portrait = false } = {}) {
     armor.push([i, o]);
   }
   if (model.geometry.description.identifier === 'geometry.pearl_dragon.main') {
-    equip(0, head, [8.43, 0.63, 7.07], [0, 5.09, 0.02]);
+    const crown = head.children.find((n) => n.isMesh).geometry;
+    crown.computeBoundingBox();
+    const width = crown.boundingBox.max.x - crown.boundingBox.min.x;
+    equip(0, head, [width * 0.95, 0.63, 7.07], [0, 5.09, 0.02]);
     equip(1, find('UpperBody'), [4.86, 3.33, 3.5], [0, 4.94, 0]);
     for (const [side, s] of [
       ['Left', 1],
@@ -152,6 +155,7 @@ export function dragonAvatar({ portrait = false } = {}) {
   return {
     root,
     grips,
+    clips: model.animations,
     revision: avatarRevision,
     dispose() {
       armor.forEach(([, o]) => {
@@ -180,11 +184,20 @@ export function dragonAvatar({ portrait = false } = {}) {
         }
       }
     },
-    update(dt, { walk = 0, strike = 0, crouch = false, pitch = 0 } = {}) {
+    update(
+      dt,
+      {
+        walk = 0,
+        strike = 0,
+        crouch = false,
+        pitch = 0,
+        hurtAge = Infinity,
+      } = {},
+    ) {
       t += dt;
       controls.reset();
       if (head) head.rotation.x = headRest;
-      controls.play('idle', t);
+      controls.play(portrait && model.animations.gui ? 'gui' : 'idle', t);
       if (crouch && walk && model.animations.sneaking)
         controls.play('sneaking', t);
       else {
@@ -196,6 +209,11 @@ export function dragonAvatar({ portrait = false } = {}) {
           'swing_hand',
           strike * (model.animations.swing_hand?.animation_length || 0.42),
         );
+      if (
+        hurtAge >= 0 &&
+        hurtAge < (model.animations.attacked?.animation_length || 0.55)
+      )
+        controls.play('attacked', hurtAge);
       if (head) head.rotation.x -= pitch * 0.42;
     },
   };

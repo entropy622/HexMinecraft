@@ -64,6 +64,31 @@ test('back, front and eyes share the same player; inventory shows the actual mod
       ),
   );
   await page.screenshot({ path: testInfo.outputPath('field.png') });
+  // Sample the live bone on animation frames so the test can see the brief startled look.
+  const reaction = await page.evaluate(async () => {
+    const h = window.__hexwild,
+      eyes = h.graphics.avatar.root.getObjectByName('WideEyes');
+    const rest = eyes.position.z;
+    const next = () => new Promise((done) => requestAnimationFrame(done));
+    const before = h.state.health,
+      deadline = performance.now() + 45000;
+    while (h.state.health === before && performance.now() < deadline) {
+      h.damage(1, 'fall');
+      await next();
+    }
+    const peak = eyes.position.z;
+    while (eyes.position.z > rest + 0.01 && performance.now() < deadline)
+      await next();
+    return {
+      hit: h.state.health < before,
+      wide: peak - rest,
+      relaxed: eyes.position.z - rest,
+    };
+  });
+  expect(reaction.hit).toBe(true);
+  expect(reaction.wide).toBeGreaterThan(0.15);
+  expect(reaction.relaxed).toBeCloseTo(0);
+
   await page.keyboard.press('F1');
   await page.keyboard.press('F5');
   await expect
@@ -112,8 +137,11 @@ test('an imported YSM changes the rig, survives reload and can be reset', async 
   const path = manifest.files.player.model.main;
   const g = JSON.parse(strFromU8(files[path]));
   g['minecraft:geometry'][0].bones.find((b) => b.name === 'Head').cubes.pop();
-  g['minecraft:geometry'][0].bones.find((b) => b.name === 'Tail8').name =
-    'IndigoTail';
+  g['minecraft:geometry'][0].bones.push({
+    name: 'IndigoTail',
+    parent: 'AllBody',
+    pivot: [0, 13, 2],
+  });
   files[path] = strToU8(JSON.stringify(g));
   const setPack = (name, buffer) =>
     page

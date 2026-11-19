@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { animator } from '../src/ysm-model.js';
 import { dragonAvatar, loadDragon } from '../src/dragon-avatar.js';
 import { createMob } from '../src/mob-graphics.js';
 import { createVillager } from '../src/villager-graphics.js';
@@ -51,13 +52,14 @@ let root,
   t = 0,
   walk = false,
   paused = false,
-  strike = 0;
+  strike = 0,
+  hurtAge = Infinity;
 await Promise.all([loadTexturePack(), loadDragon()]);
-function select(id) {
+function select(id, portrait = false) {
   if (model) model.dispose();
   if (root) scene.remove(root);
   kind = id;
-  model = id === 'dragon' ? dragonAvatar() : null;
+  model = id === 'dragon' ? dragonAvatar({ portrait }) : null;
   root =
     model?.root ||
     (['farmer', 'smith', 'merchant', 'fisher'].includes(id)
@@ -70,13 +72,17 @@ function select(id) {
 }
 function orient(angle) {
   const y = kind === 'dragon' ? 0.98 : 0.89;
-  c.position.set(Math.sin(angle) * 4, y + 0.3, Math.cos(angle) * 4);
+  c.position.set(
+    Math.sin(angle) * 4,
+    y + (kind === 'dragon' ? 0.045 : 0.3),
+    Math.cos(angle) * 4,
+  );
   ctl.target.set(0, y, 0);
   ctl.update();
 }
 function step(dt) {
   t += dt;
-  if (model) model.update(dt, { walk: walk ? 0.85 : 0, strike });
+  if (model) model.update(dt, { walk: walk ? 0.85 : 0, strike, hurtAge });
   else animateRig(root, dt, t, walk ? 0.05 : 0, null);
   ctl.update();
   r.render(scene, c);
@@ -101,8 +107,56 @@ motion.onclick = () => {
   motion.textContent = walk ? '待机' : '行走';
 };
 export async function glb() {
-  const data = await new GLTFExporter().parseAsync(root, { binary: true });
-  return new Blob([data], { type: 'model/gltf-binary' });
+  const fresh = model ? dragonAvatar() : null;
+  const rig = fresh?.root || root,
+    animations = [];
+  if (fresh) {
+    const pose = animator(rig, fresh.clips);
+    for (const [name, clip] of Object.entries(fresh.clips)) {
+      const tracks = [];
+      for (const [bone, properties] of Object.entries(clip.bones || {})) {
+        const node = rig.getObjectByName(bone);
+        if (!node) continue;
+        for (const [key, value] of Object.entries(properties)) {
+          if (!['position', 'rotation', 'scale'].includes(key)) continue;
+          const times = [
+            ...new Set([
+              0,
+              clip.animation_length || 1,
+              ...(Array.isArray(value)
+                ? []
+                : Object.keys(value).map(Number).filter(Number.isFinite)),
+            ]),
+          ].sort((a, b) => a - b);
+          const attr = key === 'rotation' ? 'quaternion' : key,
+            values = [];
+          for (const t of times) {
+            pose.reset();
+            pose.play(name, t);
+            values.push(...node[attr].toArray());
+          }
+          const Track =
+            key === 'rotation'
+              ? T.QuaternionKeyframeTrack
+              : T.VectorKeyframeTrack;
+          tracks.push(new Track(node.uuid + '.' + attr, times, values));
+        }
+      }
+      animations.push(
+        new T.AnimationClip(name, clip.animation_length || 1, tracks),
+      );
+    }
+    pose.reset();
+  }
+  try {
+    const data = await new GLTFExporter().parseAsync(rig, {
+      binary: true,
+      animations,
+    });
+    return new Blob([data], { type: 'model/gltf-binary' });
+  } finally {
+    fresh?.dispose();
+  }
 }
 save.onclick = async () => {
   let u = URL.createObjectURL(await glb()),
@@ -125,6 +179,9 @@ window.studio = {
   },
   walk(v) {
     walk = v;
+  },
+  hurt(v) {
+    hurtAge = v;
   },
   strike(v) {
     strike = v;
