@@ -2,7 +2,9 @@
 import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { unzipSync, strFromU8 } from 'three/addons/libs/fflate.module.js';
-const files = unzipSync(await readFile('public/models/pearl-dragon.zip'));
+const pack = process.argv[2] || 'public/models/pearl-dragon.zip';
+const project = process.argv[3] || 'art/models/pearl-dragon.bbmodel';
+const files = unzipSync(await readFile(pack));
 const read = (path) => JSON.parse(strFromU8(files[path]));
 const manifest = read('ysm.json'),
   p = manifest.files.player;
@@ -65,7 +67,7 @@ try {
       'Blockbench round trip lost geometry, animations or embedded skin.',
     );
   await mkdir('art/models', { recursive: true });
-  await writeFile('art/models/pearl-dragon.bbmodel', JSON.stringify(doc));
+  await writeFile(project, JSON.stringify(doc));
   console.log(
     'Blockbench',
     result.version,

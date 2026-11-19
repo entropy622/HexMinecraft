@@ -1,7 +1,8 @@
 import * as T from 'three';
 import { readYsm, makeSkeleton, animator } from './ysm-model.js';
 
-export const dragonURL = import.meta.env.BASE_URL + 'models/pearl-dragon.zip';
+export const dragonURL =
+  import.meta.env.BASE_URL + 'models/pearl-dragon-hy.zip';
 let asset, pending, builtin;
 export let avatarRevision = 0;
 const dbPromise = () =>
@@ -136,18 +137,41 @@ export function dragonAvatar({ portrait = false } = {}) {
     parent.add(o);
     armor.push([i, o]);
   }
-  if (model.geometry.description.identifier === 'geometry.pearl_dragon.main') {
+  const hy = model.geometry.description.identifier === 'geometry.pearl_hy.main';
+  if (
+    hy ||
+    model.geometry.description.identifier === 'geometry.pearl_dragon.main'
+  ) {
     const crown = head.children.find((n) => n.isMesh).geometry;
     crown.computeBoundingBox();
     const width = crown.boundingBox.max.x - crown.boundingBox.min.x;
-    equip(0, head, [width * 0.95, 0.63, 7.07], [0, 5.09, 0.02]);
-    equip(1, find('UpperBody'), [4.86, 3.33, 3.5], [0, 4.94, 0]);
+    equip(
+      0,
+      head,
+      [width * (hy ? 1.01 : 0.95), 0.63, hy ? 10.8 : 7.07],
+      [0, hy ? 6.65 : 5.09, hy ? -0.18 : 0.02],
+    );
+    equip(1, find('UpperBody'), hy ? [5.32, 3.48, 4.44] : [4.86, 3.33, 3.5], [
+      0,
+      4.94,
+      hy ? 0.76 : 0,
+    ]);
     for (const [side, s] of [
       ['Left', 1],
       ['Right', -1],
     ]) {
-      equip(2, find(side + 'Leg'), [1.8, 4.2, 1.96], [0, -3.3, -0.06]);
-      equip(3, find(side + 'LowerLeg'), [2.03, 1.43, 2.72], [0, -6.04, 0.4]);
+      equip(
+        2,
+        find(side + 'Leg'),
+        hy ? [2.28, 4.2, 2.6] : [1.8, 4.2, 1.96],
+        [0, -3.3, -0.06],
+      );
+      equip(
+        3,
+        find(side + 'LowerLeg'),
+        hy ? [2.53, 1.49, 3.99] : [2.03, 1.43, 2.72],
+        [0, -6.04, hy ? 1.28 : 0.4],
+      );
     }
   }
   const headRest = head?.rotation.x || 0;

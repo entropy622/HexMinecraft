@@ -64,6 +64,73 @@ test('back, front and eyes share the same player; inventory shows the actual mod
       ),
   );
   await page.screenshot({ path: testInfo.outputPath('field.png') });
+  if (process.env.PEARL_PROFILE) {
+    // Sample the same camera and world with only the avatar's mesh layers toggled.
+    // A freshly teleported view is still building full terrain meshes, two
+    // chunks per frame. Exclude that one-time cost from both timing windows.
+    await page.waitForFunction(
+      () => !window.__hexwild.graphics.queue.length,
+      null,
+      { timeout: 120000 },
+    );
+    const session = process.env.PEARL_CPU_PROFILE
+      ? await page.context().newCDPSession(page)
+      : null;
+    if (session) {
+      await session.send('Profiler.enable');
+      await session.send('Profiler.start');
+    }
+    const perf = await page.evaluate(async () => {
+      const g = window.__hexwild.graphics,
+        gl = g.renderer.getContext();
+      const ext = gl.getExtension('WEBGL_debug_renderer_info'),
+        nodes = [];
+      g.avatar.root.traverse((n) => {
+        if (n.isMesh && n.visible) nodes.push([n, n.layers.mask]);
+      });
+      const samples = [[], []],
+        next = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      try {
+        for (const on of [1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0]) {
+          for (const [n, mask] of nodes) n.layers.mask = on ? mask : 0;
+          for (let i = 0; i < 3; i++) await next();
+          let prev = await next();
+          for (let i = 0; i < 8; i++) {
+            const now = await next();
+            samples[on].push(now - prev);
+            prev = now;
+          }
+        }
+      } finally {
+        for (const [n, mask] of nodes) n.layers.mask = mask;
+      }
+      const stats = (xs) => {
+        xs.sort((a, b) => a - b);
+        return { median: xs[32], p90: xs[57] };
+      };
+      return {
+        gpu: ext
+          ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+          : gl.getParameter(gl.RENDERER),
+        withAvatarMs: stats(samples[1]),
+        withoutAvatarMs: stats(samples[0]),
+        samplesPerState: 64,
+      };
+    });
+    if (session) {
+      const { profile } = await session.send('Profiler.stop');
+      await session.detach();
+      await testInfo.attach('world.cpuprofile', {
+        body: JSON.stringify(profile),
+        contentType: 'application/json',
+      });
+    }
+    await testInfo.attach('avatar-frame-times', {
+      body: JSON.stringify(perf),
+      contentType: 'application/json',
+    });
+    console.log('F5 avatar frame times', perf);
+  }
   // Sample the live bone on animation frames so the test can see the brief startled look.
   const reaction = await page.evaluate(async () => {
     const h = window.__hexwild,
@@ -130,7 +197,7 @@ test('an imported YSM changes the rig, survives reload and can be reset', async 
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.locator('#menu-help').click({ timeout: 120000 });
-  const files = unzipSync(await readFile('public/models/pearl-dragon.zip'));
+  const files = unzipSync(await readFile('public/models/pearl-dragon-hy.zip'));
   const manifest = JSON.parse(strFromU8(files['ysm.json']));
   manifest.metadata.name = '靛蓝试装';
   files['ysm.json'] = strToU8(JSON.stringify(manifest));

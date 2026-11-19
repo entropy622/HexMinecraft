@@ -2,7 +2,7 @@
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { execFileSync } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 const base = '0b775e0',
   dir = 'test-results/pearl-clay';
 const previous = execFileSync(
@@ -21,10 +21,13 @@ try {
     const page = await browser.newPage({
       viewport: { width: 620, height: 780 },
     });
-    if (id === 'previous')
-      await page.route('**/models/pearl-dragon.zip', (route) =>
-        route.fulfill({ contentType: 'application/zip', body: previous }),
-      );
+    const body =
+      id === 'previous'
+        ? previous
+        : await readFile('public/models/pearl-dragon.zip');
+    await page.route('**/models/pearl-dragon-hy.zip', (route) =>
+      route.fulfill({ contentType: 'application/zip', body }),
+    );
     await page.goto('http://127.0.0.1:5205/tools/model-studio.html');
     await page.waitForFunction(() => window.studio);
     await page.addStyleTag({ content: 'aside,nav{display:none}' });

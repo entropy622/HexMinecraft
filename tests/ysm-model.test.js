@@ -163,3 +163,67 @@ test('nested packages load; ambiguous manifests, broken hierarchies and encrypte
   };
   assert.throws(() => makeSkeleton(g), /层级/);
 });
+
+test('the HY playable pack uses native surfaces, real wing and tail joints and two working grip chains', () => {
+  const data = readYsm(
+    readFileSync(
+      new URL('../public/models/pearl-dragon-hy.zip', import.meta.url),
+    ),
+  );
+  const g = data.geometry,
+    rig = makeSkeleton(g),
+    arm = makeSkeleton(data.arm);
+  assert.equal(g.description.identifier, 'geometry.pearl_hy.main');
+  assert.deepEqual(
+    g.bones
+      .filter((b) => b.name.endsWith('Wing'))
+      .map((b) => b.name)
+      .sort(),
+    ['LeftWing', 'RightWing'],
+  );
+  let triangles = 0;
+  rig.traverse((n) => {
+    if (n.isMesh) triangles += n.geometry.index.count / 3;
+  });
+  assert.ok(triangles > 0 && triangles <= 3000, 'single-avatar render budget');
+  const w = g.description.texture_width,
+    h = g.description.texture_height;
+  for (const b of g.bones)
+    for (const c of b.cubes || [])
+      for (const {
+        uv: [x, y],
+        uv_size: [du, dv],
+      } of Object.values(c.uv)) {
+        assert.ok(x >= 0 && y >= 0 && x + du <= w && y + dv <= h);
+        assert.ok(!c.surfaceCut);
+      }
+  for (const [name, clip] of Object.entries(data.animations)) {
+    for (const bone of Object.keys(clip.bones || {}))
+      assert.ok(rig.getObjectByName(bone), name + ' / ' + bone);
+  }
+  for (const side of ['Left', 'Right']) {
+    assert.equal(
+      arm.getObjectByName(side + 'HandLocator').parent.name,
+      side + 'ForeArm',
+    );
+    assert.equal(
+      arm.getObjectByName(side + 'ForeArm').parent.name,
+      side + 'Arm',
+    );
+  }
+  const ctl = animator(rig, data.animations);
+  const tail = rig.getObjectByName('Tail6');
+  assert.equal(tail.parent.name, 'Tail5');
+  ctl.play('idle', 1.1);
+  assert.notEqual(tail.rotation.y, 0);
+  ctl.reset();
+  ctl.play('walk', 0.2);
+  assert.ok(
+    rig.getObjectByName('LeftLeg').rotation.x *
+      rig.getObjectByName('RightLeg').rotation.x <
+      0,
+  );
+  ctl.reset();
+  ctl.play('swing_hand', 0.12);
+  assert.ok(rig.getObjectByName('RightArm').rotation.x < -1.4);
+});

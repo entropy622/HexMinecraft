@@ -277,7 +277,7 @@ const camera = graphics.camera;
 const avatarControls = document.createElement('fieldset');
 avatarControls.className = 'post-settings';
 avatarControls.innerHTML =
-  '<legend>角色模型</legend><div class="two-col"><button id="avatar-select">导入 YSM ZIP</button><button id="avatar-reset">恢复白龙娘</button></div><input id="avatar-file" type="file" accept=".zip" hidden><p id="avatar-status" class="panel-note" role="status"></p><a id="avatar-download" download="pearl-dragon.zip">下载白龙娘模型包</a>';
+  '<legend>角色模型</legend><div class="two-col"><button id="avatar-select">导入 YSM ZIP</button><button id="avatar-reset">恢复白龙娘</button></div><input id="avatar-file" type="file" accept=".zip" hidden><p id="avatar-status" class="panel-note" role="status"></p><a id="avatar-download" download="pearl-dragon-hy.zip">下载白龙娘模型包</a>';
 $('#option-page .video-options').before(avatarControls);
 $('#avatar-download').href = dragonURL;
 const avatarStatus = $('#avatar-status'),
