@@ -10,7 +10,26 @@ export class FoliageRenderPass extends RenderPass {
     this.saved = [];
     this.materials = new Map();
   }
-  render(renderer, writeBuffer, readBuffer) {
+  drawBeauty(renderer, writeBuffer, readBuffer, select) {
+    if (typeof select !== 'function') {
+      super.render(renderer, writeBuffer, readBuffer);
+      return;
+    }
+    // Three r186: filter the sorted draw lists without mutating object layers
+    // or material visibility, so the shadow pass still sees the full scene.
+    const list = renderer.renderLists.get(this.scene, 0),
+      sort = list.sort;
+    list.sort = (...args) => {
+      sort(...args);
+      select(list);
+    };
+    try {
+      super.render(renderer, writeBuffer, readBuffer);
+    } finally {
+      list.sort = sort;
+    }
+  }
+  render(renderer, writeBuffer, readBuffer, select, excludeDepth) {
     if (
       !this.depthPrepassEnabled ||
       !this.depthOnly ||
@@ -22,7 +41,7 @@ export class FoliageRenderPass extends RenderPass {
       this.clearAlpha !== null ||
       this.clearDepth
     ) {
-      super.render(renderer, writeBuffer, readBuffer);
+      this.drawBeauty(renderer, writeBuffer, readBuffer, select);
       return;
     }
     const scene = this.scene,
@@ -60,6 +79,7 @@ export class FoliageRenderPass extends RenderPass {
         const material = object.material;
         if (
           object.isMesh &&
+          !excludeDepth?.has(object) &&
           object.customDepthMaterial &&
           material?.userData?.foliageDepthPrepass &&
           material?.visible &&
@@ -102,7 +122,7 @@ export class FoliageRenderPass extends RenderPass {
         renderer.autoClearDepth = false;
         this.clear = false;
       }
-      super.render(renderer, writeBuffer, readBuffer);
+      this.drawBeauty(renderer, writeBuffer, readBuffer, select);
       completed = true;
     } finally {
       restoreObjects();

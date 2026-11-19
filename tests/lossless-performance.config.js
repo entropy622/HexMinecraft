@@ -4,7 +4,12 @@ import base from './atmosphere.playwright.config.js';
 const url = 'http://127.0.0.1:5204';
 export default defineConfig({
   ...base,
-  testMatch: 'lossless-performance.spec.js',
+  testMatch: [
+    'lossless-performance.spec.js',
+    'water-shared.spec.js',
+    'water-interface.spec.js',
+    'foliage-depth.spec.js',
+  ],
   timeout: 600000,
   outputDir: '../test-results/lossless-performance',
   use: {

@@ -10,6 +10,7 @@ export function probeFoliageDepth(g) {
     beauty = frame.beauty,
     previous = r.getRenderTarget(),
     enabled = beauty.depthPrepassEnabled,
+    shareWaterOpaque = frame.shareWaterOpaque,
     wind = g.leafUniforms.leafWind.value,
     time = g.leafUniforms.leafTime.value,
     medium = g.fluidRenderer.medium,
@@ -52,8 +53,9 @@ export function probeFoliageDepth(g) {
     if (g.leafUniforms.leafDepthOnly.value > 0.5) depthDraws++;
     return render.apply(this, args);
   };
-  const read = (prepass) => {
+  const read = (prepass, share = shareWaterOpaque) => {
     beauty.depthPrepassEnabled = prepass;
+    frame.shareWaterOpaque = share;
     // The optimization must leave a pending full-scene shadow update intact.
     r.shadowMap.needsUpdate = true;
     frame.render(r, g.composer.writeBuffer, g.composer.readBuffer);
@@ -96,7 +98,7 @@ export function probeFoliageDepth(g) {
       g.leafUniforms.leafTime.value = mode.time;
       g.fluidRenderer.medium = mode.guard ? 'water' : medium;
       read(false);
-      const baseline = read(false),
+      const baseline = read(false, false),
         candidate = read(true);
       for (let t = 0; t < baseline.length; t++) {
         const a = baseline[t],
@@ -138,6 +140,7 @@ export function probeFoliageDepth(g) {
   } finally {
     r.render = render;
     beauty.depthPrepassEnabled = enabled;
+    frame.shareWaterOpaque = shareWaterOpaque;
     g.leafUniforms.leafWind.value = wind;
     g.leafUniforms.leafTime.value = time;
     g.fluidRenderer.medium = medium;

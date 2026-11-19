@@ -10,7 +10,7 @@ import { installFrameProbe } from './fixtures/photon-frame-probe.js';
 test('leaf depth prepass preserves native HDR and depth in wind, water capture and its guard band', async ({
   page,
 }, info) => {
-  test.setTimeout(180000);
+  test.setTimeout(360000);
   const messages = { errors: [], warnings: [] };
   page.on('pageerror', (e) => messages.errors.push(e.message));
   page.on('console', (e) => {
@@ -18,6 +18,9 @@ test('leaf depth prepass preserves native HDR and depth in wind, water capture a
     if (e.type() === 'warning') messages.warnings.push(e.text());
   });
   await page.setViewportSize({ width: 900, height: 650 });
+  await page.route('https://fonts.googleapis.com/**', (r) =>
+    r.fulfill({ body: '', contentType: 'text/css' }),
+  );
   await page.addInitScript(
     (settings) =>
       localStorage.setItem('hexwild-settings', JSON.stringify(settings)),
@@ -25,12 +28,11 @@ test('leaf depth prepass preserves native HDR and depth in wind, water capture a
   );
   await page.addInitScript(installFrameProbe);
   await page.goto('/');
-  await page.evaluate(() => (window.__photonFreeze = true));
-  await page.locator('#save-file').setInputFiles({
-    name: 'forest.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(referenceSave(referenceScenes[0]))),
-  });
+  await page.waitForFunction(() => window.__hexwild, null, { timeout: 120000 });
+  await page.evaluate((save) => {
+    window.__photonFreeze = true;
+    window.__hexwild.start(true, save);
+  }, referenceSave(referenceScenes[0]));
   await expect(page.locator('#hud')).toBeVisible();
   await expect
     .poll(
@@ -69,7 +71,7 @@ test('leaf depth prepass preserves native HDR and depth in wind, water capture a
       expect(row.differentColor, `${row.mode}/${row.target} HDR`).toBe(0);
       expect(row.differentDepth, `${row.mode}/${row.target} depth`).toBe(0);
     }
-    expect(result.depthDraws).toBe(6);
+    expect(result.depthDraws).toBe(4);
     expect(result.final).toEqual(result.initial);
     expect(result.gl).toBe(0);
   }

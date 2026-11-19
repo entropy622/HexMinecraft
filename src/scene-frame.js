@@ -19,6 +19,7 @@ export class SceneFramePass extends Pass {
   constructor(scene, camera, fluids, cloudUniforms, foliageUniforms) {
     super();
     this.needsSwap = false;
+    this.shareWaterOpaque = true;
     this.scene = scene;
     this.camera = camera;
     this.fluids = fluids;
@@ -54,70 +55,179 @@ export class SceneFramePass extends Pass {
     this.opaque.setSize(this.target.width, this.target.height);
     this.clouds.setSize(this.target.width, this.target.height);
   }
+  publishWaterCapture() {
+    const { fluids, camera, opaque } = this,
+      uniforms = fluids.waterUniforms;
+    uniforms.waterProjection.value.copy(camera.projectionMatrix);
+    uniforms.waterInverseProjection.value.copy(camera.projectionMatrixInverse);
+    uniforms.waterSceneColor.value = opaque.texture;
+    uniforms.waterSceneDepth.value = opaque.depthTexture;
+    uniforms.waterResolution.value.set(opaque.width, opaque.height);
+    uniforms.waterSceneReady.value = 1;
+    fluids.materials.water.depthWrite = true;
+  }
+  captureWater(renderer, work, hidden) {
+    const { camera, fluids, opaque } = this;
+    const autoClear = renderer.autoClear;
+    this.projectionBackup.copy(camera.projectionMatrix);
+    try {
+      // Refraction can leave the main view when the eye is under water.
+      if (fluids.medium === 'water') {
+        camera.projectionMatrix.elements[0] *= 0.4;
+        camera.projectionMatrix.elements[5] *= 0.4;
+        camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+      }
+      for (const object of hidden) object.visible = false;
+      this.beauty.render(renderer, work, opaque);
+      this.clouds.render(renderer, opaque, work);
+      this.publishWaterCapture();
+    } finally {
+      renderer.autoClear = autoClear;
+      camera.projectionMatrix.copy(this.projectionBackup);
+      camera.projectionMatrixInverse.copy(this.projectionBackup).invert();
+      for (const object of hidden) object.visible = true;
+    }
+  }
+  copyOpaque(renderer) {
+    const { target, opaque } = this,
+      gl = renderer.getContext();
+    renderer.initRenderTarget(opaque);
+    // Match WebGLRenderer r186's own depth-copy path, but blit both attachments
+    // together. The targets share color/depth formats and are single-sampled.
+    const source = renderer.properties.get(target).__webglFramebuffer,
+      destination = renderer.properties.get(opaque).__webglFramebuffer,
+      { width, height } = target;
+    renderer.state.bindFramebuffer(gl.READ_FRAMEBUFFER, source);
+    try {
+      renderer.state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, destination);
+      gl.blitFramebuffer(
+        0,
+        0,
+        width,
+        height,
+        0,
+        0,
+        width,
+        height,
+        gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT,
+        gl.NEAREST,
+      );
+    } finally {
+      renderer.setRenderTarget(target);
+    }
+  }
+  renderSharedWater(renderer, work, waters, overlays) {
+    const { scene, beauty, target, opaque, clouds } = this,
+      exclude = new Set(waters),
+      held = new Set(),
+      casters = [],
+      background = scene.background,
+      autoClear = renderer.autoClear,
+      clear = beauty.clear;
+    for (const root of overlays)
+      root.traverseVisible((object) => {
+        held.add(object);
+        exclude.add(object);
+        if (object.castShadow) casters.push(object);
+      });
+
+    const retain = (queue, predicate) => {
+      let kept = 0;
+      for (const item of queue)
+        if (predicate(item.object)) queue[kept++] = item;
+      queue.length = kept;
+    };
+    try {
+      for (const object of casters) object.castShadow = false;
+      beauty.render(
+        renderer,
+        work,
+        target,
+        (list) => {
+          retain(list.opaque, (object) => !exclude.has(object));
+          list.transparent.length = 0;
+        },
+        exclude,
+      );
+      for (const object of casters) object.castShadow = true;
+      this.copyOpaque(renderer);
+
+      beauty.clear = false;
+      scene.background = null;
+      beauty.render(renderer, work, opaque, (list) => {
+        list.opaque.length = 0;
+        retain(list.transparent, (object) => !exclude.has(object));
+      });
+      clouds.render(renderer, opaque, work);
+      this.publishWaterCapture();
+      // First-person equipment is depth-tested against the common world before
+      // Three draws the original sorted transparent queue (including water).
+      beauty.render(renderer, work, target, (list) => {
+        retain(list.opaque, (object) => held.has(object));
+      });
+    } finally {
+      for (const object of casters) object.castShadow = true;
+      scene.background = background;
+      renderer.autoClear = autoClear;
+      beauty.clear = clear;
+    }
+  }
+  drawColor(renderer, texture, target) {
+    const autoClear = renderer.autoClear;
+    try {
+      renderer.autoClear = false;
+      renderer.setRenderTarget(target);
+      this.copy.uniforms.tDiffuse.value = texture;
+      this.quad.render(renderer);
+    } finally {
+      renderer.autoClear = autoClear;
+    }
+  }
   render(renderer, writeBuffer, readBuffer) {
     this.clouds.coverage.prepare(renderer, this.camera);
-    const fluids = this.fluids,
-      uniforms = fluids.waterUniforms;
-    uniforms.waterSceneReady.value = 0;
+    const { scene, camera, fluids, beauty } = this;
+    fluids.waterUniforms.waterSceneReady.value = 0;
     fluids.materials.water.depthWrite = false;
-    if (this.scene.matrixWorldAutoUpdate) this.scene.updateMatrixWorld();
+    if (scene.matrixWorldAutoUpdate) scene.updateMatrixWorld();
     this.frustum.setFromProjectionMatrix(
       this.viewProjection.multiplyMatrices(
-        this.camera.projectionMatrix,
-        this.camera.matrixWorldInverse,
+        camera.projectionMatrix,
+        camera.matrixWorldInverse,
       ),
     );
     const waters = [];
     fluids.group.traverseVisible((object) => {
       if (object.userData.liquid === 'water') waters.push(object);
     });
-    if (
+    const needsCapture =
       (!fluids.medium || fluids.medium === 'water') &&
-      waters.some((object) => this.frustum.intersectsObject(object))
-    ) {
-      const hidden = [
-        ...waters,
-        ...this.camera.children.filter(
+      waters.some((object) => this.frustum.intersectsObject(object));
+    const overlays = needsCapture
+      ? camera.children.filter(
           (object) => object.visible && object.userData.skipOcclusion,
-        ),
-      ];
-      const autoClear = renderer.autoClear;
-      this.projectionBackup.copy(this.camera.projectionMatrix);
-      try {
-        // A guard band exposes nearby reflection/refraction destinations just
-        // outside the main view, using the same target and camera orientation.
-        if (fluids.medium === 'water') {
-          this.camera.projectionMatrix.elements[0] *= 0.4;
-          this.camera.projectionMatrix.elements[5] *= 0.4;
-          this.camera.projectionMatrixInverse
-            .copy(this.camera.projectionMatrix)
-            .invert();
-        }
-        for (const object of hidden) object.visible = false;
-        this.beauty.render(renderer, writeBuffer, this.opaque);
-        this.clouds.render(renderer, this.opaque, writeBuffer);
-        uniforms.waterProjection.value.copy(this.camera.projectionMatrix);
-        uniforms.waterInverseProjection.value.copy(
-          this.camera.projectionMatrixInverse,
-        );
-      } finally {
-        renderer.autoClear = autoClear;
-        this.camera.projectionMatrix.copy(this.projectionBackup);
-        this.camera.projectionMatrixInverse
-          .copy(this.projectionBackup)
-          .invert();
-        for (const object of hidden) object.visible = true;
-      }
-      uniforms.waterSceneColor.value = this.opaque.texture;
-      uniforms.waterSceneDepth.value = this.opaque.depthTexture;
-      uniforms.waterResolution.value.set(this.opaque.width, this.opaque.height);
-      uniforms.waterSceneReady.value = 1;
-      fluids.materials.water.depthWrite = true;
+        )
+      : [];
+    const shared =
+      needsCapture &&
+      this.shareWaterOpaque &&
+      !fluids.medium &&
+      renderer.sortObjects &&
+      !renderer.shadowMap.autoUpdate &&
+      !scene.overrideMaterial &&
+      !beauty.overrideMaterial;
+    if (shared) {
+      this.renderSharedWater(renderer, writeBuffer, waters, overlays);
+    } else {
+      if (needsCapture)
+        this.captureWater(renderer, writeBuffer, [...waters, ...overlays]);
+      beauty.render(renderer, writeBuffer, this.target);
     }
-    this.beauty.render(renderer, writeBuffer, this.target);
     this.clouds.render(renderer, this.target, writeBuffer);
-    renderer.setRenderTarget(this.renderToScreen ? null : readBuffer);
-    this.quad.render(renderer);
+    this.drawColor(
+      renderer,
+      this.target.texture,
+      this.renderToScreen ? null : readBuffer,
+    );
   }
   dispose() {
     this.clouds.dispose();

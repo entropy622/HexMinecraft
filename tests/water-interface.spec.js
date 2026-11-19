@@ -6,13 +6,22 @@ test.setTimeout(240000);
 test.beforeEach(async ({ page }) => {
   await page.route('https://fonts.googleapis.com/**', (r) => r.abort());
 });
+async function quality(page, value) {
+  await page.keyboard.press('Escape');
+  await page.locator('#show-options').click();
+  const video = page.locator('.video-options');
+  if ((await video.getAttribute('open')) === null)
+    await video.locator(':scope > summary').click();
+  await page.locator('#quality').selectOption(value);
+  await page.locator('#back-options').click();
+  await page.locator('#resume').click();
+}
 async function pool(page) {
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
-  await page.locator('#creative').click();
-  await page.keyboard.press('Escape');
-  await page.locator('#quality').selectOption('1.7');
-  await page.locator('#resume').click();
+  await page.waitForFunction(() => window.__hexwild, null, { timeout: 150000 });
+  await page.locator('#creative').click({ timeout: 150000 });
+  await quality(page, '1.7');
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -343,9 +352,7 @@ test('a tall water column uses the actual vertical side normal for transmission 
       ...frontRed.rgb.map((v, i) => v - frontWhite.rgb[i]),
     ),
     side = Math.hypot(...sideRed.rgb.map((v, i) => v - sideWhite.rgb[i]));
-  await page.keyboard.press('Escape');
-  await page.locator('#quality').selectOption('0.65');
-  await page.locator('#resume').click();
+  await quality(page, '0.65');
   await page.evaluate((c) => {
     const g = window.__hexwild;
     g.setPlaying(false);
@@ -558,9 +565,7 @@ test('capture guard band restores the actual lens after GPU failure, resize, med
     );
   });
   await fresh(page);
-  await page.keyboard.press('Escape');
-  await page.locator('#quality').selectOption('0.65');
-  await page.locator('#resume').click();
+  await quality(page, '0.65');
   const low = await page.evaluate(() => {
     const g = window.__hexwild.graphics;
     return {
@@ -570,9 +575,7 @@ test('capture guard band restores the actual lens after GPU failure, resize, med
     };
   });
   expect(low).toEqual({ composer: null, ready: 0, depthWrite: false });
-  await page.keyboard.press('Escape');
-  await page.locator('#quality').selectOption('1.7');
-  await page.locator('#resume').click();
+  await quality(page, '1.7');
   await page.evaluate(() => window.__hexwild.setPlaying(false));
   await fresh(page);
   await page.evaluate(() => {

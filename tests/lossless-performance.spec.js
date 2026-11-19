@@ -43,9 +43,13 @@ async function measureGpuPasses() {
       }
     };
   };
-  instrument(scene.beauty, (_r, _write, target) =>
-    target === scene.opaque ? 'opaque water capture' : 'scene beauty',
-  );
+  instrument(scene.beauty, (_r, _write, target, select) => {
+    if (select) {
+      if (scene.beauty.clear) return 'shared opaque scene';
+      return target === scene.opaque ? 'water capture tail' : 'main view tail';
+    }
+    return target === scene.opaque ? 'opaque water capture' : 'scene beauty';
+  });
   instrument(scene.clouds, (_r, target) =>
     target === scene.opaque ? 'clouds in water capture' : 'clouds in main view',
   );
