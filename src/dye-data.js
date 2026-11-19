@@ -126,10 +126,10 @@ export const DYE_RECIPES = [
   ].map(([out, a, b]) => recipe(out + 'Dye', [a + 'Dye', b + 'Dye'], 2)),
   ...Object.entries(DYES).map(([color, { name }]) => ({
     id: color + 'StainedGlass',
-    count: 8,
+    count: 6,
     station: true,
     title: name + '染色玻璃',
-    desc: '八块普通玻璃加一份染料，制成八块染色玻璃。',
+    desc: '六块普通玻璃加一份染料，制成六块染色玻璃。',
     pattern: [
       'glass',
       'glass',
@@ -139,7 +139,6 @@ export const DYE_RECIPES = [
       'glass',
       'glass',
     ],
-    patternCounts: [2, 1, 1, 1, 1, 1, 2],
-    cost: { glass: 8, [color + 'Dye']: 1 },
+    cost: { glass: 6, [color + 'Dye']: 1 },
   })),
 ];

@@ -53,6 +53,7 @@ test('current slot crafting consumes materials, requires its station, and fails 
     grid = newCraftingGrid();
   pack.insert('wood', 10);
   pack.insert('cobble', 10);
+  pack.insert('stick', 4);
   const planks = RECIPES.findIndex((r) => r.id === 'planks'),
     pick = RECIPES.findIndex((r) => r.id === 'pick2');
   assert.ok(fillCraftingRecipe(pack, grid, RECIPES[planks]).ok);
@@ -64,8 +65,8 @@ test('current slot crafting consumes materials, requires its station, and fails 
   assert.equal(quickCraft(pack, grid, pick, false, 1).count, 0);
   assert.deepEqual({ pack: pack.serialize(), grid }, before);
   assert.equal(quickCraft(pack, grid, pick, true, 1).count, 1);
-  assert.equal(pack.count('wood'), 7);
-  assert.equal(pack.count('cobble'), 5);
+  assert.equal(pack.count('stick'), 2);
+  assert.equal(pack.count('cobble'), 7);
   assert.equal(pack.count('pick2'), 1);
   assert.ok(fillCraftingRecipe(pack, grid, RECIPES[pick]).ok);
   assert.equal(quickCraft(pack, grid, pick, true, 1).count, 1);
@@ -73,7 +74,7 @@ test('current slot crafting consumes materials, requires its station, and fails 
   assert.equal(fillCraftingRecipe(pack, grid, RECIPES[pick]).ok, false);
   assert.deepEqual({ pack: pack.serialize(), grid }, emptyBefore);
 });
-test('nine-item storage recipes fit the seven cells and unpack without item loss', () => {
+test('seven-item storage recipes fit the seven cells and unpack without item loss', () => {
   const pack = new PlayerInventory(),
     grid = newCraftingGrid();
   pack.insert('coal', 9);
@@ -81,10 +82,10 @@ test('nine-item storage recipes fit the seven cells and unpack without item loss
     unpack = RECIPES.findIndex((r) => r.id === 'coal' && r.cost.coalBlock);
   assert.ok(fillCraftingRecipe(pack, grid, RECIPES[block]).ok);
   assert.equal(quickCraft(pack, grid, block, true, 1).count, 1);
-  assert.equal(pack.count('coal'), 0);
+  assert.equal(pack.count('coal'), 2);
   assert.equal(pack.count('coalBlock'), 1);
   assert.ok(fillCraftingRecipe(pack, grid, RECIPES[unpack]).ok);
-  assert.equal(quickCraft(pack, grid, unpack, false, 1).count, 9);
+  assert.equal(quickCraft(pack, grid, unpack, false, 1).count, 7);
   assert.equal(pack.count('coal'), 9);
   assert.equal(pack.count('coalBlock'), 0);
 });

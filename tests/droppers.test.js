@@ -235,12 +235,12 @@ test('pending pulses freeze unloaded, persist through the native save schema, an
   assert.equal(copy.redstone.timers.has('0,40,0'), false);
 });
 
-test('real seven-cell crafting consumes seven cobblestone and redstone, including deepslate substitutes', () => {
+test('real seven-cell crafting consumes six cobblestone and redstone, including deepslate substitutes', () => {
   const i = RECIPES.findIndex((r) => r.id === 'dropper');
   for (const cobble of ['cobble', 'cobbledDeepslate']) {
     const p = new PlayerInventory(),
       grid = newCraftingGrid();
-    p.insert(cobble, 7);
+    p.insert(cobble, 6);
     p.insert('redstone', 1);
     fillCraftingRecipe(p, grid, RECIPES[i]);
     assert.equal(quickCraft(p, grid, i, false, 1).count, 0);

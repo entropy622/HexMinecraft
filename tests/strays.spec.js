@@ -19,6 +19,7 @@ async function skeletonRoom(page) {
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(async () => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -301,7 +302,7 @@ test('a real spawner skeleton converts inside powder snow without freezing to de
     const g = window.__hexwild;
     g.save();
     const drops = JSON.parse(
-      localStorage.getItem('hexwild-save-v16'),
+      localStorage.getItem('hexwild-save-v17'),
     ).dimensions.overworld.drops.filter((d) => d.item === 'slownessArrow');
     const carried = g.state.inventory.slownessArrow || 0;
     if (drops.length) {
@@ -328,7 +329,7 @@ test('a real spawner skeleton converts inside powder snow without freezing to de
   await expect(page.locator('#effect-list')).toContainText('缓慢 I');
   const effect = await page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16')).survival.effects
+    return JSON.parse(localStorage.getItem('hexwild-save-v17')).survival.effects
       .slowness;
   });
   expect(effect.rank).toBe(1);
@@ -379,6 +380,7 @@ for (const scenario of [
     await page.setViewportSize({ width: 800, height: 600 });
     await page.goto('/');
     await page.locator('#start').click();
+    await page.locator('#new-world').click();
     const site = await page.evaluate(({ snow, roof }) => {
       const g = window.__hexwild,
         w = g.state.world;

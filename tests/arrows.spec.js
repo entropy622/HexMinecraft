@@ -21,7 +21,7 @@ test('creative inventory exposes a distinct Slowness arrow stack', async ({
   await page.keyboard.press('KeyE');
   const inventory = await page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16')).inventory;
+    return JSON.parse(localStorage.getItem('hexwild-save-v17')).inventory;
   });
   expect(inventory.slots[8]).toMatchObject({
     item: 'slownessArrow',
@@ -61,7 +61,7 @@ async function waitGame(page, seconds) {
 async function snapshot(page) {
   return page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
 }
 async function load(page, saved) {
@@ -81,6 +81,7 @@ async function load(page, saved) {
 async function platform(page) {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;

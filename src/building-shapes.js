@@ -1,3 +1,4 @@
+import { trackParts } from './rail-track.js';
 import { BLOCKS, DIRECTIONS, axialToWorld } from './core.js';
 import { cutBlockParts, polygonContains, HEX_POLYGON } from './cut-blocks.js';
 import { isChorus } from './chorus-data.js';
@@ -40,6 +41,7 @@ export function buildingParts(world, q, y, r, collision = false) {
   const shape = BLOCKS[type]?.shape,
     angle = facingAngle(state.facing);
   const planks = BLOCKS[type]?.planks || 'planks';
+  if (shape === 'rail') return collision ? [] : trackParts(world, [q, y, r]);
   if (shape === 'amethyst') return amethystParts(type, state, collision);
   if (shape === 'vine') return vineParts(state, collision);
   if (shape === 'cocoa') {

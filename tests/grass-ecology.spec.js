@@ -33,7 +33,7 @@ test.afterEach(async ({ page }, info) => {
           : gl.getParameter(gl.RENDERER),
         gl: gl.getError(),
         grassCircuitTrace: window.__grassCircuitTrace,
-        fauna: JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+        fauna: JSON.parse(localStorage.getItem('hexwild-save-v17')).dimensions
           .overworld.fauna,
       };
     })
@@ -62,10 +62,11 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const saved = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
   const { World } = await import('../src/world.js');
   const w = new World(saved.seed, 'overworld', {
@@ -184,7 +185,7 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
           const g = window.__hexwild,
             p = axialToWorld(4, 4);
           g.save();
-          const mobs = JSON.parse(localStorage.getItem('hexwild-save-v16'))
+          const mobs = JSON.parse(localStorage.getItem('hexwild-save-v17'))
             .dimensions.overworld.fauna.mobs;
           return mobs.every(
             (m) => Math.hypot(m.position[0] - p.x, m.position[2] - p.z) > 1.6,
@@ -211,7 +212,7 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
             y - 1.65 + 0.005,
             y - 1.65 + 1.8 - 0.03,
           ),
-          mobs: JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+          mobs: JSON.parse(localStorage.getItem('hexwild-save-v17')).dimensions
             .overworld.fauna.mobs,
           villagers: [...g.villagers.residents.values()].map((m) => ({
             position: m.mesh.position.toArray(),
@@ -453,7 +454,7 @@ test('a grazed pasture recovers, opaque cover kills grass, and streaming/continu
   const manifest = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     const sheep = s.dimensions.overworld.fauna.mobs.find(
       (m) => m.kind === 'sheep',
     );

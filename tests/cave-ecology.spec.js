@@ -8,6 +8,7 @@ test('lush cave contains harvestable ceiling vines, flowers and ambient bats', a
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const cave = await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;
@@ -147,6 +148,7 @@ test('ceiling planting, bone meal, light removal, blossom and reload use real in
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;
@@ -271,6 +273,7 @@ test('touch interaction ripens and harvests berries without native pointer lock'
     const page = await context.newPage();
     await page.goto(baseURL);
     await page.locator('#start').tap();
+    await page.locator('#new-world').tap();
     await page.evaluate(() => {
       const g = window.__hexwild,
         w = g.state.world;
@@ -319,12 +322,13 @@ test('berries feed the player and a planted vine chain supports climbing', async
 }, testInfo) => {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const foodSave = await page.evaluate(() => {
     const g = window.__hexwild;
     g.give('glowBerries', 2);
     g.selectItem('glowBerries');
     g.save();
-    const save = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const save = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     save.hunger = 16;
     save.survival.saturation = 0;
     save.survival.exhaustion = 0;
@@ -333,7 +337,7 @@ test('berries feed the player and a planted vine chain supports climbing', async
   // beforeunload saves the live game. Seed the next document after that hook,
   // then let the normal Continue flow validate and restore this hungry player.
   await page.addInitScript(
-    (save) => localStorage.setItem('hexwild-save-v16', JSON.stringify(save)),
+    (save) => localStorage.setItem('hexwild-save-v17', JSON.stringify(save)),
     foodSave,
   );
   await page.reload();

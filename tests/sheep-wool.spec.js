@@ -21,7 +21,7 @@ test.afterEach(async ({ page }, info) => {
       if (!g) return { developmentFixture: false };
       const { worldToAxial } = await import('/src/core.js');
       g.save();
-      const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+      const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
       return {
         fauna: s.dimensions.overworld.fauna,
         inventory: s.inventory,
@@ -59,7 +59,7 @@ async function use(page) {
 async function snapshot(page) {
   return page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
 }
 async function load(page, saved) {
@@ -76,6 +76,7 @@ async function load(page, saved) {
 async function pasture(page) {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -123,7 +124,7 @@ async function aimSheep(page, id, side = -1) {
       const g = window.__hexwild;
       g.save();
       const m = JSON.parse(
-        localStorage.getItem('hexwild-save-v16'),
+        localStorage.getItem('hexwild-save-v17'),
       ).dimensions.overworld.fauna.mobs.find((m) => m.id === id);
       const [x, y, z] = m.position,
         r = z / 1.5,
@@ -271,7 +272,7 @@ async function bodyRGB(page, id) {
       g = api.graphics;
     api.save();
     const record = JSON.parse(
-      localStorage.getItem('hexwild-save-v16'),
+      localStorage.getItem('hexwild-save-v17'),
     ).dimensions.overworld.fauna.mobs.find((m) => m.id === id);
     const point = g.camera.position.clone().fromArray(record.position);
     const roots = g.scene.children.filter((m) => m.userData.kind === 'sheep');
@@ -463,6 +464,8 @@ test('real personal crafting recolors actual colored wool and weaving pays four 
     g.give('string', 4);
   });
   await page.keyboard.press('KeyE');
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('蓝色羊毛');
   await page
     .locator('[data-recipe]')
@@ -478,6 +481,8 @@ test('real personal crafting recolors actual colored wool and weaving pays four 
   expect(
     await page.evaluate(() => window.__hexwild.state.inventory.blueDye || 0),
   ).toBe(0);
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('白色羊毛');
   // The available white-wool recipe here is weaving: no white dye was supplied.
   await page
@@ -634,7 +639,7 @@ test('a sheared sheep waits on stone and in a paused menu, eats real grass and r
       { worldToAxial } = await import('/src/core.js');
     g.save();
     const sheep = JSON.parse(
-      localStorage.getItem('hexwild-save-v16'),
+      localStorage.getItem('hexwild-save-v17'),
     ).dimensions.overworld.fauna.mobs.find((m) => m.id === id);
     const [x, y, z] = sheep.position,
       a = worldToAxial(x, z);

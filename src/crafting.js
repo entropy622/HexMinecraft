@@ -13,72 +13,31 @@ import {
   validStack,
 } from './inventory.js';
 
-// Matches the seven UI cells: upper-left, top, upper-right, centre,
-// lower-left, bottom, lower-right. Geometry, not array order, defines recipes.
-export const CRAFT_CELLS = [
-  [-1, 0],
-  [0, -1],
-  [1, -1],
-  [0, 0],
-  [-1, 1],
-  [0, 1],
-  [1, 0],
-];
-const cellAt = new Map(CRAFT_CELLS.map(([q, r], i) => [q + ',' + r, i]));
-const rotate = ([q, r]) => [-r, q + r];
-const reflect = ([q, r]) => [-q, q + r];
+export { TABLE as CRAFT_CELLS } from './craft-shapes.js';
+import { TABLE, placements, rotate, reflect } from './craft-shapes.js';
 const signature = (cells) =>
   cells.map((s) => ingredientKey(s?.item || '')).join('|');
-export const newCraftingGrid = () => Array(7).fill(null);
-export const validCraftingGrid = (grid) =>
-  Array.isArray(grid) && grid.length === 7 && grid.every(validStack);
-export const recipeCells = (recipe) =>
-  recipe.pattern.map((item, i) =>
-    item ? { item, count: recipe.patternCounts?.[i] || 1 } : null,
-  );
-
-function compileRecipes() {
-  const registry = new Map();
-  RECIPES.forEach((recipe, index) => {
-    const seen = new Set();
-    const original = recipeCells(recipe).flatMap((s, i) =>
-      s ? [{ ...s, point: CRAFT_CELLS[i] }] : [],
-    );
-    for (const mirror of [false, true]) {
-      let cells = original.map((s) => ({
-        ...s,
-        point: mirror ? reflect(s.point) : s.point,
-      }));
-      for (let turn = 0; turn < 6; turn++) {
-        // Crop empty margins like a shaped recipe, then translate anywhere it fits.
-        for (const target of CRAFT_CELLS) {
-          const dq = target[0] - cells[0].point[0],
-            dr = target[1] - cells[0].point[1];
-          const variant = newCraftingGrid();
-          let fits = true;
-          for (const s of cells) {
-            const i = cellAt.get(s.point[0] + dq + ',' + (s.point[1] + dr));
-            if (i === undefined) {
-              fits = false;
-              break;
-            }
-            variant[i] = { item: s.item, count: s.count };
-          }
-          if (!fits) continue;
-          const key = signature(variant),
-            fullKey = key + ':' + variant.map((s) => s?.count || 0).join(',');
-          if (seen.has(fullKey)) continue;
-          seen.add(fullKey);
-          if (!registry.has(key)) registry.set(key, []);
-          registry.get(key).push({ index, recipe, cells: variant });
-        }
-        cells = cells.map((s) => ({ ...s, point: rotate(s.point) }));
-      }
-    }
-  });
-  return registry;
+export const newCraftingGrid = (size = 7) => Array(size).fill(null);
+export const validCraftingGrid = (grid, size = 7) =>
+  Array.isArray(grid) && grid.length === size && grid.every(validStack);
+const layoutCache = new Map();
+export function recipeCells(recipe, size = 7) {
+  const pattern = size === 7 ? recipe.pattern : layoutCache.get(recipe);
+  return pattern?.map((item) => (item ? { item, count: 1 } : null)) || null;
 }
-const registry = compileRecipes();
+const registry = new Map();
+RECIPES.forEach((recipe, index) => {
+  for (const size of recipe.station ? [7] : [4, 7]) {
+    for (const layout of placements(recipe.pattern, size)) {
+      if (size === 4 && !layoutCache.has(recipe))
+        layoutCache.set(recipe, layout);
+      const cells = layout.map((item) => (item ? { item, count: 1 } : null)),
+        key = signature(cells);
+      if (!registry.has(key)) registry.set(key, []);
+      registry.get(key).push({ index, recipe, cells });
+    }
+  }
+});
 export function craftingMatches(grid, station = true) {
   const matches = registry.get(signature(grid)) || [],
     seen = new Set();
@@ -145,7 +104,8 @@ export function fillCraftingRecipe(
   creative = false,
 ) {
   const stock = craftingStock(pack, grid),
-    cells = recipeCells(recipe);
+    cells = recipeCells(recipe, grid.length);
+  if (!cells) return { ok: false, reason: 'station' };
   const maximum = creative
     ? Math.min(
         ...cells
@@ -176,11 +136,17 @@ export function fillCraftingRecipe(
             }
           : null,
       )
-    : recipeMaterials(recipe, stock, batches, grid);
+    : recipeMaterials(
+        recipe,
+        stock,
+        batches,
+        grid,
+        cells.map((s) => s?.item || null),
+      );
   if (!materials) return { ok: false, reason: 'missing' };
   const draft = new PlayerInventory(pack.serialize()),
     rest = structuredClone(grid);
-  const filled = newCraftingGrid();
+  const filled = newCraftingGrid(grid.length);
   for (let i = 0; i < cells.length; i++) {
     const need = materials[i];
     if (!need) continue;
@@ -205,7 +171,7 @@ export function fillCraftingRecipe(
     if (s && draft.insertStack(s) !== s.count)
       return { ok: false, reason: 'full' };
   pack.slots = draft.slots;
-  grid.splice(0, 7, ...filled);
+  grid.splice(0, grid.length, ...filled);
   return { ok: true, batches };
 }
 
@@ -257,12 +223,13 @@ export function returnCraftingGrid(pack, grid) {
   return remaining;
 }
 export function transformCraftingGrid(grid, mirror = false) {
+  if (grid.length !== 7) return;
   const transformed = newCraftingGrid();
   grid.forEach((s, i) => {
-    const [q, r] = (mirror ? reflect : rotate)(CRAFT_CELLS[i]);
-    transformed[cellAt.get(q + ',' + r)] = s;
+    const [q, r] = (mirror ? reflect : rotate)(TABLE[i]);
+    transformed[TABLE.findIndex((p) => p[0] === q && p[1] === r)] = s;
   });
-  grid.splice(0, 7, ...transformed);
+  grid.splice(0, grid.length, ...transformed);
 }
 
 // Shift-click crafts the actual grid repeatedly. It never refills from the bag.
@@ -289,7 +256,7 @@ export function quickCraft(pack, grid, preferred, station = true, limit = 64) {
       if (moved < s.count) remainders.push(copyStack(s, s.count - moved));
     }
     pack.slots = draft.slots;
-    grid.splice(0, 7, ...next);
+    grid.splice(0, grid.length, ...next);
     recipeId = output.item;
     count += output.count;
   }

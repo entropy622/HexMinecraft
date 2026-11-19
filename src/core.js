@@ -1,3 +1,5 @@
+import { RAIL_BLOCKS, CART_ITEMS, RAIL_RECIPES } from './rail-data.js';
+import { placements } from './craft-shapes.js';
 import {
   EXPLORATION_BLOCKS,
   EXPLORATION_ITEMS,
@@ -69,6 +71,7 @@ export const DIRECTIONS = [
   [1, -1],
 ];
 export const BLOCKS = {
+  ...RAIL_BLOCKS,
   ...AMETHYST_BLOCKS,
   ...VINE_BLOCKS,
   ...COCOA_BLOCKS,
@@ -271,6 +274,7 @@ export const BLOCKS = {
 };
 applyMiningHardness(BLOCKS);
 export const ITEMS = {
+  ...CART_ITEMS,
   ...AMETHYST_ITEMS,
   ...DYE_ITEMS,
   ...CAVE_ITEMS,
@@ -294,6 +298,7 @@ export const ITEMS = {
   powderSnowBucket: { name: '细雪桶', color: '#e5f4fa', bucket: 'powderSnow' },
   lavaBucket: { name: '岩浆桶', color: '#ff792b', bucket: 'lava' },
   glowBucket: { name: '萤晶液桶', color: '#7ef8cb', bucket: 'glow' },
+  stick: { name: '木棍', color: '#af8352' },
   pick1: { name: '木镐', color: '#cba16a' },
   pick2: { name: '石镐', color: '#a9b8b3' },
   pick3: { name: '铁镐', color: '#e5d8c5' },
@@ -351,28 +356,36 @@ export const RECIPES = [
     cost: { wood: 1 },
   },
   {
+    id: 'stick',
+    count: 4,
+    title: '木棍',
+    desc: '将两块木板相邻摆放，削成四根工具柄。',
+    pattern: [null, null, null, 'planks', null, null, 'planks'],
+    cost: { planks: 2 },
+  },
+  {
     id: 'workbench',
     count: 1,
     title: '六向工坊',
-    desc: '放置后靠近它，解锁进阶合成。',
-    pattern: ['planks', 'planks', 'planks', null, 'planks', 'planks', 'planks'],
-    cost: { planks: 6 },
+    desc: '四块木板铺满随身蜂巢。放下工作台后右键打开七格蜂巢。',
+    pattern: [null, 'planks', 'planks', 'planks', null, null, 'planks'],
+    cost: { planks: 4 },
   },
   {
     id: 'pick1',
     count: 1,
     title: '第一把工具',
     desc: '装入快捷栏并手持。开采岩石与煤矿。',
-    pattern: ['planks', 'planks', 'planks', 'wood', null, 'wood', null],
-    cost: { planks: 3, wood: 2 },
+    pattern: ['planks', 'planks', 'planks', 'stick', null, 'stick', null],
+    cost: { planks: 3, stick: 2 },
   },
   {
     id: 'pick2',
     count: 1,
     title: '深入岩层',
     desc: '装入快捷栏并手持。可以开采萤晶和铁矿。',
-    pattern: ['cobble', 'cobble', 'cobble', 'wood', 'cobble', 'wood', 'cobble'],
-    cost: { cobble: 5, wood: 2 },
+    pattern: ['cobble', 'cobble', 'cobble', 'stick', null, 'stick', null],
+    cost: { cobble: 3, stick: 2 },
     cobbleGroup: true,
     requires: 1,
     station: true,
@@ -425,8 +438,8 @@ export const RECIPES = [
     count: 1,
     title: '铁器时代',
     desc: '装入快捷栏并手持。开采速度进一步提升。',
-    pattern: ['ingot', 'ingot', 'ingot', 'wood', null, 'wood', null],
-    cost: { ingot: 3, wood: 2 },
+    pattern: ['ingot', 'ingot', 'ingot', 'stick', null, 'stick', null],
+    cost: { ingot: 3, stick: 2 },
     requires: 2,
     station: true,
   },
@@ -474,6 +487,7 @@ export const RECIPES = [
 ];
 RECIPES.push(
   ...CAULDRON_RECIPES,
+  ...RAIL_RECIPES,
   ...CIRCUIT_RECIPES,
   ...WOOD_RECIPES,
   {
@@ -500,8 +514,8 @@ RECIPES.push(
     count: 1,
     title: '钻石时代',
     desc: '装入快捷栏并手持。最快的开采工具。',
-    pattern: ['diamond', 'diamond', 'diamond', 'wood', null, 'wood', null],
-    cost: { diamond: 3, wood: 2 },
+    pattern: ['diamond', 'diamond', 'diamond', 'stick', null, 'stick', null],
+    cost: { diamond: 3, stick: 2 },
     requires: 3,
     station: true,
   },
@@ -721,6 +735,12 @@ RECIPES.push(
   ...WOOL_RECIPES,
   ...CARPET_RECIPES,
 );
+// A smaller board only advertises shapes that actually fit. Canonical art,
+// autofill and debit all read the same one-item-per-cell pattern.
+for (const recipe of RECIPES) {
+  recipe.station =
+    !!recipe.station || placements(recipe.pattern, 4).next().done;
+}
 export function canCraft(recipe, inventory, tool = 0, station = true) {
   return (
     (!recipe.station || station) &&

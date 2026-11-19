@@ -2,6 +2,7 @@ import { test, expect } from './browser-fixture.js';
 async function arena(page, creative = false) {
   await page.goto('/');
   await page.locator(creative ? '#creative' : '#start').click();
+  if (!creative) await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;

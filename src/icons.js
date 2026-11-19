@@ -118,6 +118,56 @@ const cache = new Map();
 export const clearItemIcons = () => cache.clear();
 export function itemIcon(id) {
   if (!cache.has(id)) {
+    if (id === 'workbench') {
+      const [top, side] = blockTextures.workbench.map(textureURL);
+      const face = (part, src) =>
+        '<img class="bench-' +
+        part +
+        '" src="' +
+        src +
+        '" alt="" draggable="false">';
+      const art =
+        '<span class="block-icon pixel-icon workbench-icon" title="工作台">' +
+        face('left', side) +
+        face('right', side) +
+        face('top', top) +
+        '</span>';
+      cache.set(id, art);
+      return art;
+    }
+    if (
+      [
+        'stick',
+        'minecart',
+        'chestCart',
+        'rail',
+        'poweredRail',
+        'detectorRail',
+      ].includes(id)
+    ) {
+      const rail = id.toLowerCase().includes('rail'),
+        metal = id === 'poweredRail' ? '#f2bd43' : '#c7d2d4';
+      const glyph =
+        id === 'stick'
+          ? '<path stroke="#62432c" stroke-width="3" d="M3 14 13 3"/><path stroke="#bd9464" stroke-width="1.5" d="M3 13 12 3"/>'
+          : rail
+            ? '<path stroke="#8c603b" stroke-width="2.7" d="M2 5h12M2 11h12"/><path stroke="' +
+              metal +
+              '" stroke-width="2" d="M5 1v14M11 1v14"/>' +
+              (id === 'detectorRail'
+                ? '<path fill="#bd684c" d="M6 6h4v4H6z"/>'
+                : '')
+            : '<path fill="#384147" d="M1 6h14l-2 7H3zM3 13h3v2H3zm7 0h3v2h-3z"/><path fill="#9caaae" d="M2 7h12l-2 4H4z"/>' +
+              (id === 'chestCart'
+                ? '<path fill="#a5783f" stroke="#644a32" d="M4 2h8v6H4z"/><path fill="#dfbc68" d="M7 4h2v3H7z"/>'
+                : '');
+      const art =
+        '<span class="block-icon pixel-icon item-tile"><svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">' +
+        glyph +
+        '</svg></span>';
+      cache.set(id, art);
+      return art;
+    }
     if (materialIconURL(id, 'top') || materialIconURL(id, 'side')) {
       cache.set(id, cutBlockIcon(id));
       return cache.get(id);

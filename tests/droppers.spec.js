@@ -19,7 +19,7 @@ test.afterEach(async ({ page }, info) => {
             g.state.target,
           ),
         position: g.state.position,
-        save: JSON.parse(localStorage.getItem('hexwild-save-v16')),
+        save: JSON.parse(localStorage.getItem('hexwild-save-v17')),
       };
     })
     .catch((e) => ({ error: e.message }));
@@ -60,7 +60,7 @@ async function waitGame(page, seconds) {
 async function snapshot(page) {
   return page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
 }
 
@@ -71,6 +71,7 @@ test('player crafts, aims and fills a nine-slot dropper, pulses horizontal trans
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -85,12 +86,14 @@ test('player crafts, aims and fills a nine-slot dropper, pulses horizontal trans
     cells.push([-2, 40, 0]);
     g.graphics.updateCells(cells);
     g.teleport(-3, 40, 0);
-    g.give('cobble', 7);
+    g.give('cobble', 6);
     g.give('redstone', 1);
   });
   await aim(page, -2, 40.5, 0, 'workbench');
   await use(page);
   await expect(page.locator('#craft-overlay')).toBeVisible();
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('投掷器');
   const recipe = page.locator('[data-recipe]').filter({ hasText: '投掷器' });
   await expect(recipe).toBeVisible();

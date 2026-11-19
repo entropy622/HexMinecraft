@@ -153,6 +153,8 @@ test('natural crystal harvesting funds real crafting and both-hand spyglass use,
   await page.mouse.up({ button: 'right' });
   await expect(page.locator('#craft-overlay')).toBeVisible();
   for (const name of ['望远镜', '遮光玻璃']) {
+    if (await page.locator('#recipe-book').isHidden())
+      await page.locator('#recipe-book-toggle').click();
     await page.locator('#recipe-search').fill(name);
     await page
       .locator('[data-recipe].can-fill')

@@ -30,6 +30,7 @@ test('shipped UI grows cocoa and keeps cactus, carpet and observer through Conti
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.keyboard.press('Escape');
   await page.locator('#quality').selectOption('1.7');
   const saved = await exported(),

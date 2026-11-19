@@ -1,3 +1,5 @@
+import { validCarts } from './minecarts.js';
+import { isRail } from './rail-data.js';
 import { validFurnace } from './furnaces.js';
 import { validBrewing } from './brewing.js';
 import { validFalling } from './gravity.js';
@@ -10,16 +12,17 @@ import { validFauna } from './fauna.js';
 import { validDrops } from './item-drops.js';
 import { validWeather } from './weather.js';
 import { validPlant } from './farming-data.js';
-import { validPlayerInventory } from './inventory.js';
+import { PlayerInventory, validPlayerInventory } from './inventory.js';
 import { validCraftingGrid } from './crafting.js';
 import { validWorkstationItems } from './workstation-items.js';
 import { validDragonFight } from './end-data.js';
 import { validFlight } from './glider.js';
 import { LIQUIDS } from './fluids.js';
-import { BLOCKS, DIRECTIONS } from './core.js';
+import { BLOCKS, ITEMS, DIRECTIONS } from './core.js';
 import { isPiston, isPistonHead, pistonPartner } from './redstone-data.js';
 import { DIMENSIONS, WORLD_HEIGHT } from './world.js';
-export const SAVE_KEY = 'hexwild-save-v16';
+export const LEGACY_SAVE_KEY = 'hexwild-save-v16';
+export const SAVE_KEY = 'hexwild-save-v17';
 const cell = (k) => {
   if (typeof k !== 'string' || !/^-?\d+,\d+,-?\d+$/.test(k)) return false;
   const [q, y, r] = k.split(',').map(Number);
@@ -42,13 +45,19 @@ const position = (p) =>
 export function validateSave(s) {
   if (
     !s ||
-    s.version !== 16 ||
+    ![16, 17].includes(s.version) ||
     !Number.isInteger(s.seed) ||
     s.seed < 0 ||
     s.seed > 999999 ||
     !Object.hasOwn(DIMENSIONS, s.dimension) ||
     !validPlayerInventory(s.inventory) ||
-    !validCraftingGrid(s.crafting) ||
+    !(s.version === 16
+      ? validCraftingGrid(s.crafting)
+      : ['personal', 'table'].includes(s.crafting?.kind) &&
+        validCraftingGrid(
+          s.crafting.slots,
+          s.crafting.kind === 'table' ? 7 : 4,
+        )) ||
     !validWorkstationItems(s.workstations) ||
     !Number.isInteger(s.selected) ||
     s.selected < 0 ||
@@ -137,6 +146,16 @@ export function validateSave(s) {
       if (
         [...states].some(
           ([k, state]) =>
+            (state.track !== undefined &&
+              (!isRail(edits.get(k)) ||
+                !Array.isArray(state.track) ||
+                state.track.length !== 2 ||
+                !state.track.every(
+                  (d) => Number.isInteger(d) && d >= 0 && d < 6,
+                ) ||
+                ![3, ...(edits.get(k) === 'rail' ? [2, 4] : [])].includes(
+                  Math.abs(state.track[0] - state.track[1]),
+                ))) ||
             (state.facing > 5 &&
               ![
                 'dropper',
@@ -321,6 +340,11 @@ export function validateSave(s) {
     }
     if (d.fauna !== undefined && !validFauna(d.fauna))
       throw Error('动物存档无效');
+    if (
+      (d.carts !== undefined || d.mountedCart != null) &&
+      !validCarts(d.carts, d.mountedCart)
+    )
+      throw Error('矿车数据无效');
     if (d.boats !== undefined && !validBoats(d.boats, d.mountedBoat ?? null))
       throw Error('船只存档无效');
     if (!validOrbs(d.experienceOrbs)) throw Error('经验光球数据无效');
@@ -453,4 +477,47 @@ export function validateSave(s) {
       throw Error('生存状态无效');
   if (!Number.isFinite(s.time) || s.time < 0) throw Error('时间数据无效');
   return s;
+}
+
+export function upgradeInventorySave(legacy) {
+  validateSave(legacy);
+  if (legacy.version === 17) return legacy;
+  const next = structuredClone(legacy),
+    bag = new PlayerInventory(next.inventory),
+    area = next.dimensions[next.dimension];
+  for (const stack of [...next.crafting, next.inventory.cursor].filter(
+    Boolean,
+  )) {
+    const count = stack.count - bag.insertStack(stack);
+    if (!count) continue;
+    const [x, y, z] = next.position;
+    area.drops.push({
+      item: stack.item,
+      count,
+      position: [x, Math.max(-99, y - (area.crouching ? 1.27 : 1.62) + 0.2), z],
+      velocity: [0, 0, 0],
+      wear: ITEMS[stack.item].durability
+        ? {
+            [stack.item]: [
+              structuredClone(stack.wear ?? ITEMS[stack.item].durability),
+            ],
+          }
+        : {},
+      ...(stack.contents ? { contents: structuredClone(stack.contents) } : {}),
+      life: 300,
+      delay: 0.8,
+    });
+  }
+  for (const dim of Object.values(next.dimensions)) {
+    dim.structureFeatures = [
+      ...new Set([
+        ...(dim.structureFeatures || []),
+        ...(dim.discoveredStructures || []).map((id) => 'legacy-mine:' + id),
+      ]),
+    ];
+  }
+  next.inventory = bag.serialize(null);
+  next.crafting = { kind: 'personal', slots: Array(4).fill(null) };
+  next.version = 17;
+  return validateSave(next);
 }

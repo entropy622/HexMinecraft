@@ -302,7 +302,7 @@ test('natural age persistence records its block, notifies facing observers, and 
   w.setState(4, 40, 4, { facing: 0, open: false, age: 8 });
   tick(w, 40, 0);
   assert.equal(w.get(4, 41, 4), 'cactusFlower');
-  assert.equal(validateSave(currentSave(w)).version, 16);
+  assert.equal(validateSave(currentSave(w)).version, 17);
   w.unloadChunk(0, 0);
   w.generateChunk(0, 0);
   assert.equal(w.get(4, 41, 4), 'cactusFlower');

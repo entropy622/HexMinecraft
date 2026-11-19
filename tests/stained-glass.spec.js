@@ -17,6 +17,7 @@ test('a survival player crafts blue dye and eight stained glass through real inv
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       cells = [];
@@ -31,9 +32,11 @@ test('a survival player crafts blue dye and eight stained glass through real inv
     g.graphics.updateCells(cells);
     g.teleport(-2, 40, 0);
     g.give('lapis', 1);
-    g.give('glass', 8);
+    g.give('glass', 6);
   });
   await page.keyboard.press('KeyE');
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('蓝色染料');
   const dye = page.locator('[data-recipe]').filter({ hasText: /^蓝色染料/ });
   await expect(dye).toBeVisible();
@@ -55,6 +58,8 @@ test('a survival player crafts blue dye and eight stained glass through real inv
     for (const type of ['mousedown', 'mouseup'])
       canvas.dispatchEvent(new MouseEvent(type, { button: 2, bubbles: true }));
   });
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('蓝色染色玻璃');
   await page
     .locator('[data-recipe]')
@@ -69,7 +74,7 @@ test('a survival player crafts blue dye and eight stained glass through real inv
       blue: g.state.inventory.blueStainedGlass || 0,
     };
   });
-  expect(stock).toEqual({ glass: 0, dye: 0, blue: 8 });
+  expect(stock).toEqual({ glass: 0, dye: 0, blue: 6 });
   await page.keyboard.press('Escape');
   await page.evaluate(() => {
     const g = window.__hexwild;
@@ -103,16 +108,16 @@ test('a survival player crafts blue dye and eight stained glass through real inv
     await page.evaluate(
       () => window.__hexwild.state.inventory.blueStainedGlass,
     ),
-  ).toBe(7);
+  ).toBe(5);
   await page.screenshot({ path: info.outputPath('crafted-blue-glass.png') });
   await writeFile(
     info.outputPath('blue-glass-crafting.json'),
     JSON.stringify(
       {
-        spent: { lapis: 1, glass: 8 },
-        produced: 8,
+        spent: { lapis: 1, glass: 6 },
+        produced: 6,
         placed: 1,
-        remaining: 7,
+        remaining: 5,
         continued: true,
         errors,
       },
@@ -160,6 +165,7 @@ test('real harvesting supplies red dye and removing cactus sand drops the comple
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => window.__hexwild.graphics.setQuality(1.7));
   await page.evaluate(() => {
     const g = window.__hexwild,
@@ -275,6 +281,8 @@ test('real harvesting supplies red dye and removing cactus sand drops the comple
     )
     .toBe(1);
   await page.keyboard.press('KeyE');
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('红色染料');
   await page
     .locator('[data-recipe]')
@@ -352,6 +360,7 @@ test('an actual fishing cast and timely reel preserve ten ink sacs through the g
   await page.setViewportSize({ width: 720, height: 540 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -408,6 +417,8 @@ test('an actual fishing cast and timely reel preserve ten ink sacs through the g
     )
     .toBe(10);
   await page.keyboard.press('KeyE');
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('黑色染料');
   await page
     .locator('[data-recipe]')

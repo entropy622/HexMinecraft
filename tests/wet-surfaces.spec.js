@@ -81,7 +81,7 @@ async function weather(page, wetness, rain = 0) {
   const saved = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
   saved.weather = {
     kind: rain ? 'rain' : 'clear',

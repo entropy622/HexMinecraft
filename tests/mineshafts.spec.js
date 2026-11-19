@@ -23,6 +23,7 @@ async function platform(page, creative = false) {
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');
   await page.locator(creative ? '#creative' : '#start').click();
+  if (!creative) await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -60,6 +61,7 @@ test('a natural mine contains connected exploration routes, cobwebs and recovera
   await page.setViewportSize({ width: 960, height: 640 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const mine = await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -286,7 +288,7 @@ test('sword yields string, shears recover a placeable web and saved mining remai
     page.evaluate(async () => {
       const { wearValue } = await import('/src/enchanting-data.js');
       window.__hexwild.save();
-      const slots = JSON.parse(localStorage.getItem('hexwild-save-v16'))
+      const slots = JSON.parse(localStorage.getItem('hexwild-save-v17'))
         .inventory.slots;
       return Object.fromEntries(
         ['sword', 'shears'].map((id) => [
@@ -368,6 +370,7 @@ test('a natural cave spider bite respects a raised shield, poisons after lowerin
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const nest = await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -490,7 +493,7 @@ test('a natural cave spider bite respects a raised shield, poisons after lowerin
   await page.keyboard.press('Escape');
   const saved = await page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
   expect(saved.survival.effects.poison.time).toBeGreaterThan(3);
   await page.reload();

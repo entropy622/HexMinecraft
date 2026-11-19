@@ -31,16 +31,22 @@ export const ingredientName = (recipe, id, name) =>
 // Assign one real material to each cell, since a slot cannot hold a mixture of
 // wood species. Quantized planning also bounds bulk autofill to what fits the
 // seven cells, rather than treating the aggregate resource count as sufficient.
-export function recipeMaterials(recipe, stock, batches, preferred = []) {
+export function recipeMaterials(
+  recipe,
+  stock,
+  batches,
+  preferred = [],
+  pattern = recipe.pattern,
+) {
   const remaining = { ...stock },
-    plan = Array(recipe.pattern.length).fill(null);
-  const needs = recipe.pattern.flatMap((item, index) =>
+    plan = Array(pattern.length).fill(null);
+  const needs = pattern.flatMap((item, index) =>
     item
       ? [
           {
             item,
             index,
-            count: (recipe.patternCounts?.[index] || 1) * batches,
+            count: batches,
             choices: ingredientChoices(recipe, item),
           },
         ]

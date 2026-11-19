@@ -160,15 +160,7 @@ export const BREW_ITEMS = {
   melonSeed: { name: '西瓜种子', color: '#9e9256', use: true },
   melonSlice: { name: '西瓜片', color: '#dc6d63' },
 };
-const recipe = (
-  id,
-  count,
-  pattern,
-  desc,
-  station = false,
-  cost = null,
-  patternCounts = null,
-) => ({
+const recipe = (id, count, pattern, desc, station = false, cost = null) => ({
   id,
   count,
   pattern,
@@ -183,7 +175,6 @@ const recipe = (
     pattern
       .filter(Boolean)
       .reduce((all, item) => ((all[item] = (all[item] || 0) + 1), all), {}),
-  ...(patternCounts ? { patternCounts } : {}),
 });
 export const BREW_RECIPES = [
   recipe(
@@ -208,9 +199,9 @@ export const BREW_RECIPES = [
   ),
   recipe(
     'goldNugget',
-    9,
+    7,
     [null, null, null, 'goldIngot', null, null, null],
-    '金锭拆成九金粒。',
+    '金锭拆成七金粒。',
   ),
   recipe(
     'goldIngot',
@@ -224,10 +215,9 @@ export const BREW_RECIPES = [
       'goldNugget',
       'goldNugget',
     ],
-    '九金粒合成金锭。',
+    '七金粒合成金锭。',
     false,
-    { goldNugget: 9 },
-    [1, 1, 1, 3, 1, 1, 1],
+    { goldNugget: 7 },
   ),
   recipe(
     'goldenCarrot',
@@ -241,10 +231,9 @@ export const BREW_RECIPES = [
       'goldNugget',
       'goldNugget',
     ],
-    '胡萝卜裹八金粒，酿造夜视药水。',
+    '胡萝卜裹六金粒，酿造夜视药水。',
     true,
-    { goldNugget: 8, carrot: 1 },
-    [2, 1, 1, 1, 1, 1, 2],
+    { goldNugget: 6, carrot: 1 },
   ),
   recipe(
     'glisteringMelon',
@@ -258,10 +247,9 @@ export const BREW_RECIPES = [
       'goldNugget',
       'goldNugget',
     ],
-    '西瓜片裹八金粒，酿造治疗药水。',
+    '西瓜片裹六金粒，酿造治疗药水。',
     true,
-    { goldNugget: 8, melonSlice: 1 },
-    [2, 1, 1, 1, 1, 1, 2],
+    { goldNugget: 6, melonSlice: 1 },
   ),
   recipe(
     'magmaCream',

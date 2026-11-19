@@ -52,13 +52,13 @@ const pulse = (w, target) => {
   w.set(...target, 'stone');
 };
 
-test('the workbench consumes all nine ingredients, rejects shortages atomically and accepts cobbled deepslate', () => {
+test('the workbench consumes all seven ingredients, rejects shortages atomically and accepts cobbled deepslate', () => {
   const recipe = RECIPES.find((r) => r.id === 'observer');
   for (const cobble of ['cobble', 'cobbledDeepslate']) {
     const pack = new PlayerInventory(),
       grid = newCraftingGrid();
     for (const [id, n] of [
-      [cobble, 6],
+      [cobble, 4],
       ['redstone', 2],
       ['netherQuartz', 1],
     ])
@@ -83,7 +83,7 @@ test('the workbench consumes all nine ingredients, rejects shortages atomically 
     const pack = new PlayerInventory(),
       grid = newCraftingGrid();
     for (const [id, n] of [
-      ['cobble', 6],
+      ['cobble', 4],
       ['redstone', 2],
       ['netherQuartz', 1],
     ])

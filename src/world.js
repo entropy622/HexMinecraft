@@ -301,6 +301,7 @@ export class World {
         upper: state.upper === true,
         double: state.double === true,
         axis: state.axis ?? 0,
+        ...(state.track ? { track: state.track } : {}),
         ...(state.powered !== undefined ? { powered: state.powered } : {}),
         ...(state.mount !== undefined ? { mount: state.mount } : {}),
         ...(state.delay !== undefined ? { delay: state.delay } : {}),

@@ -55,11 +55,38 @@ export class InventoryControls {
       if (this.active() && e.target.matches('[data-inv-slot]'))
         this.hover = e.target.dataset.invSlot;
     });
+    document.addEventListener('click', (e) => {
+      if (!this.active()) return;
+      if (e.target.closest('[data-category]')) {
+        const b = e.target.closest('[data-category]');
+        document
+          .querySelectorAll('[data-category]')
+          .forEach((t) => t.setAttribute('aria-pressed', String(t === b)));
+        document
+          .querySelector('#creative-search')
+          .dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      if (
+        e.target.closest('[data-creative-trash]') &&
+        this.options.creative()
+      ) {
+        e.preventDefault();
+        this.session.cursor = null;
+        this.session.origin = null;
+        this.changed();
+        return;
+      }
+    });
     document.addEventListener('input', (e) => {
       if (e.target.id !== 'creative-search') return;
       const query = e.target.value.trim().toLowerCase();
       document.querySelectorAll('[data-creative-item]').forEach((b) => {
-        b.hidden = !b.dataset.search.includes(query);
+        const cat = document.querySelector('[data-category][aria-pressed=true]')
+          ?.dataset.category;
+        b.hidden =
+          (cat && cat !== '全部' && b.dataset.kind !== cat) ||
+          !b.dataset.search.includes(query);
       });
     });
     this.touchMode = 'normal';

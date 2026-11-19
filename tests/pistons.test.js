@@ -241,15 +241,15 @@ test('the real swept collision path lifts a standing actor and cannot push a bod
   assert.equal(b.w.state(...b.origin).open, true);
 });
 
-test('actual crafting pays all nine ingredients and a pending or extended save resumes without duplicated movement', () => {
+test('actual crafting pays all seven ingredients and a pending or extended save resumes without duplicated movement', () => {
   for (const wood of ['planks', 'birchPlanks', 'sprucePlanks'])
     for (const cobble of ['cobble', 'cobbledDeepslate']) {
       const pack = new PlayerInventory(),
         grid = newCraftingGrid(),
         recipe = RECIPES.find((r) => r.id === 'piston');
       for (const [id, n] of [
-        [wood, 3],
-        [cobble, 4],
+        [wood, 2],
+        [cobble, 3],
         ['ingot', 1],
         ['redstone', 1],
       ])

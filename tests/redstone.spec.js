@@ -178,6 +178,7 @@ test('wall and ceiling controls mount to the clicked face and drop with support'
 async function scene(page, url = '/') {
   await page.goto(url);
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -367,7 +368,7 @@ test('build a working circuit by ray, light the scene, break and restore it', as
     .toBe(null);
   await page.evaluate(() => window.__hexwild.save());
   const saved = await page.evaluate(() =>
-    JSON.parse(localStorage.getItem('hexwild-save-v16')),
+    JSON.parse(localStorage.getItem('hexwild-save-v17')),
   );
   expect(
     saved.dimensions.overworld.drops.some((d) => d.item === 'redstone'),

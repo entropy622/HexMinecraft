@@ -26,6 +26,7 @@ async function platform(page) {
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -186,6 +187,7 @@ test('touch controls cycle all repeater delays and support loss washes component
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(baseURL);
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;
@@ -277,21 +279,23 @@ test('survival recipes require the real workbench and a mined repeater is picked
     );
   });
   await page.keyboard.press('KeyE');
+  await page.locator('#recipe-book-toggle').click();
   for (let batch = 0; batch < 2; batch++) {
     await page.locator(`[data-recipe="${recipes[0]}"]`).click();
     await expect(page.locator('#craft-button')).toBeEnabled();
     await page.locator('#craft-button').click({ modifiers: ['Shift'] });
   }
-  await page.locator(`[data-recipe="${recipes[1]}"]`).click();
-  await expect(page.locator('#craft-button')).toBeDisabled();
+  await expect(page.locator(`[data-recipe="${recipes[1]}"]`)).toHaveCount(0);
   await page.keyboard.press('KeyE');
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.state.world.set(0, 31, 0, 'workbench');
     g.graphics.updateBlock(0, 31, 0);
     g.teleport(0, 31, -1);
+    g.setTarget({ q: 0, y: 31, r: 0, type: 'workbench' });
+    g.interact(true);
   });
-  await page.keyboard.press('KeyE');
+  await page.locator('#recipe-book-toggle').click();
   await page.locator(`[data-recipe="${recipes[1]}"]`).click();
   await expect(page.locator('#craft-button')).toBeEnabled();
   await page.screenshot({ path: info.outputPath('repeater-crafting.png') });
@@ -439,7 +443,7 @@ test('real side input locks output while a feedback clock burns out and pauses a
   const stored = await page.evaluate(
     () =>
       JSON.parse(
-        localStorage.getItem('hexwild-save-v16'),
+        localStorage.getItem('hexwild-save-v17'),
       ).dimensions.overworld.torchBurnouts.find(([k]) => k === '5,31,0')[1]
         .cooldown,
   );

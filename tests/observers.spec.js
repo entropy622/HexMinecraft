@@ -37,7 +37,7 @@ test.afterEach(async ({ page }, info) => {
     if (!g) return { ready: false };
     g.save();
     const w = g.state.world,
-      saved = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+      saved = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return {
       observerCells: [...w.edits]
         .filter(([, type]) => type === 'observer')
@@ -121,6 +121,7 @@ test('player crafts, places and saves an observer delivery machine that pulses o
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -136,7 +137,7 @@ test('player crafts, places and saves an observer delivery machine that pulses o
     g.graphics.updateCells(cells);
     g.teleport(-3, 40, 0);
     for (const [item, n] of [
-      ['cobble', 6],
+      ['cobble', 4],
       ['redstone', 2],
       ['netherQuartz', 1],
     ])
@@ -144,6 +145,8 @@ test('player crafts, places and saves an observer delivery machine that pulses o
   });
   await aim(page, -2, 40.5, 0, 'workbench');
   await use(page);
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('侦测器');
   await page
     .locator('[data-recipe]')
@@ -283,6 +286,7 @@ test('player collision rejects ordinary and shaped trial placements without fals
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -361,6 +365,7 @@ test('player places a floating observer and removes both side and floor supports
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -416,7 +421,7 @@ test('player places a floating observer and removes both side and floor supports
     const g = window.__hexwild,
       w = g.state.world;
     g.save();
-    const saved = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const saved = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return {
       observers: [
         [-1, 42, 0],

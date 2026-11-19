@@ -13,6 +13,7 @@ test('natural cave route, mining, building, save and light-effects lifecycle', a
   });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const cave = await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;

@@ -13,6 +13,7 @@ test('landing, survival movement, crafting, save round-trip and map', async ({
   await expect(page.locator('#start')).toBeVisible();
   await page.screenshot({ path: 'test-results/landing.png' });
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await expect(page.locator('#hud')).toBeVisible();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/survival.png' });
@@ -30,21 +31,26 @@ test('landing, survival movement, crafting, save round-trip and map', async ({
     window.__hexwild.give('wood', 20);
     window.__hexwild.selectRecipe(0);
   });
-  await page.locator('#craft-button').click();
+  await page.locator('#craft-button').click({ modifiers: ['Shift'] });
   expect(
     await page.evaluate(() => window.__hexwild.state.inventory.planks),
-  ).toBe(8);
-  await page.locator('[data-recipe="2"]').click();
-  await page.locator('#craft-button').click();
-  expect(await page.evaluate(() => window.__hexwild.state.tool)).toBe(1);
+  ).toBe(4);
+  await page.locator('#recipe-book-toggle').click();
+  await page.locator('#recipe-search').fill('工作台');
+  const table = await page.evaluate(async () =>
+    (await import('/src/core.js')).RECIPES.findIndex(
+      (r) => r.id === 'workbench',
+    ),
+  );
+  await page.locator(`[data-recipe="${table}"]`).click();
+  await page.locator('#craft-button').click({ modifiers: ['Shift'] });
   await page.screenshot({ path: 'test-results/crafting.png' });
   await page.evaluate(() => window.__hexwild.save());
   await page.reload();
   await page.locator('#continue').click();
-  expect(await page.evaluate(() => window.__hexwild.state.tool)).toBe(1);
   expect(
-    await page.evaluate(() => window.__hexwild.state.inventory.planks),
-  ).toBe(5);
+    await page.evaluate(() => window.__hexwild.state.inventory.workbench),
+  ).toBe(1);
   await page.keyboard.press('KeyM');
   await expect(page.locator('#map-overlay')).toBeVisible();
   await page.screenshot({ path: 'test-results/map.png' });
@@ -55,6 +61,7 @@ test('farming and food remain available without a quest line', async ({
 }) => {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.give('hoe', 1);
@@ -88,6 +95,7 @@ test('real ray mining, block placement, player collision and edit persistence', 
 }) => {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;
@@ -176,6 +184,7 @@ test('workbench progression, chest transfer, smelting and interrupted job refund
 }) => {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.give('stone', 10);
@@ -247,6 +256,7 @@ test('workbench progression, chest transfer, smelting and interrupted job refund
 test('camp bed skips night and persists respawn point', async ({ page }) => {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const result = await page.evaluate(() => {
     const g = window.__hexwild;
     g.step(300);

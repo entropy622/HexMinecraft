@@ -180,6 +180,10 @@ for (const [material, label, color, multiplier, points] of [
     pattern[3] = null;
     for (let j = 6; pattern.filter(Boolean).length > count; j--)
       if (j !== 3) pattern[j] = null;
+    if (slot === 'legs') {
+      pattern[5] = null;
+      pattern[3] = material;
+    }
     recipe(
       id,
       pattern,

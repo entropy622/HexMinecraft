@@ -1,3 +1,7 @@
+import { seedMineRails } from './rail-mineshaft.js';
+import { Minecarts, cartPosition } from './minecarts.js';
+import { isRail, CART_ITEMS } from './rail-data.js';
+import { ports, planTrack, connectTrack, railPoint } from './rail-track.js';
 import { powderContact, powderSupport } from './powder-snow.js';
 import { COLOR_SETTINGS, DEFAULT_COLOR_SETTINGS } from './photon-grading.js';
 import { DYES, dyeColor, isPigmentPlant } from './dye-data.js';
@@ -68,6 +72,8 @@ import { features as villageFeatures, ROLES, trade } from './villages.js';
 import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
 import './style.css';
+import './survival-ui.css';
+import { equipmentPreview, meterIcons } from './survival-ui.js';
 import * as THREE from 'three';
 import { ARROW_ITEMS } from './arrow-data.js';
 import {
@@ -177,7 +183,9 @@ import { escapeHTML } from './ui-text.js';
 import { bookshelfPower, enchantOffers } from './enchanting.js';
 import { enchantingPanel } from './enchanting-ui.js';
 import { World, DIMENSIONS, WORLD_HEIGHT } from './world.js';
-import { SAVE_KEY, validateSave } from './save.js';
+import { worldMenu, WorldLibrary } from './world-library.js';
+import release from '../package.json';
+import { validateSave, upgradeInventorySave } from './save.js';
 import { loadTexturePack, textureURL } from './texture-pack.js';
 import {
   currentMaterialPack,
@@ -212,20 +220,21 @@ import { isChorus, isChorusFlower } from './chorus-data.js';
 import { itemIcon as icon, clearItemIcons } from './icons.js';
 import { configureMaterialIcons } from './material-icons.js';
 const soundFX = new GameAudio();
+const library = new WorldLibrary(localStorage);
 
 const $ = (s) => document.querySelector(s);
 const isTouch = matchMedia('(pointer:coarse)').matches;
 $('#app').innerHTML = `
- <canvas id="world" aria-label="六野三维世界"></canvas>
+ <canvas id="world" tabindex="-1" aria-label="六野三维世界"></canvas>
  <div id="loading"><span class="brand-icon"></span><span>正在生成你的六边形世界</span></div>
  <div id="render-recovery" class="hidden" role="status" aria-live="polite"><span id="render-recovery-message">正在恢复画面…</span><button id="render-recovery-retry" class="hidden">重试</button></div>
  <section id="landing">
   <header class="topline"><div class="brand"><span class="brand-icon"></span> HEXWILD</div><div class="pill"><i class="dot"></i> A HEXAGONAL SANDBOX</div></header>
   <div class="intro"><div class="eyebrow">SIX SIDES. ENDLESS POSSIBILITIES.</div><h1>HEXWILD</h1><h2 class="cn">六 野</h2><p class="desc">世界，换一个角度。<br>在六边形的旷野里，采集、创造、安一个家。<br>穿过森林、余烬与虚空。你的世界，没有终点。</p>
-   <div class="menu-actions"><button class="primary" id="start">单人游戏 · 生存 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">自由建造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">操作指南 / 世界设置</button></div>
+   <div class="menu-actions"><button class="primary" id="start">单人游戏 <span aria-hidden="true">↗</span></button><button class="secondary" id="creative">快速创造 <span aria-hidden="true">◇</span></button><button class="tertiary hidden" id="continue">↳ 继续上次的旅程</button><button class="tertiary" id="menu-help">选项</button></div>
   </div>
   <div class="vista-label"><strong>INFINITE WORLDS</strong><div class="line"></div><small>主世界 / 下界 / 末地</small></div>
-  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v0.85 — WILD GARDENS</div></footer>
+  <footer class="landing-footer"><div class="tags"><span><b>⬡</b> 六棱世界</span><span><b>✧</b> 生存与创造</span><span><b>◈</b> 每一面，都有可能</span></div><div class="edition">AN EXPERIMENT IN SIX DIRECTIONS<br>v${release.version} · HEXWILD</div></footer>
  </section>
  <div id="hud" class="hidden">
   <div class="hud-top"><div><div class="wordmark">HEXWILD <small>六野</small></div><div class="world-info" id="world-info"></div></div><div class="world-badge"><span id="dimension-name">主世界</span><strong id="biome-name">青翠平原</strong><span id="weather-hud"></span><div id="compass">N · NE · SE · S · SW · NW</div></div></div>
@@ -235,8 +244,10 @@ $('#app').innerHTML = `
   <div id="mobile-controls"><div class="mobile-top"><button data-action="craft" aria-label="合成">E</button><button data-action="map" aria-label="地图">M</button><button data-action="pause" aria-label="暂停">Ⅱ</button><button data-action="swap" aria-label="交换主副手">F</button><button data-action="eat" aria-label="按住食用或饮用">吃</button></div><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="mobile-actions"><button data-action="mine" aria-label="采集">挖</button><button data-action="place" aria-label="使用物品或放置方块">用</button><button data-key="Space" aria-label="跳跃">↟</button><button data-key="KeyR" id="mobile-shield" aria-label="按住举盾">盾</button><button data-action="interact" aria-label="交互">交</button><button data-key="ShiftLeft" aria-label="下降或蹲伏">⇣</button><button data-key="ControlLeft" aria-label="冲刺">跑</button></div></div>
  </div>
  <div id="pickups" aria-live="polite"></div><div id="travel" aria-live="polite"><span>穿越维度</span></div><div id="underwater"></div><div id="powder-overlay" aria-hidden="true"></div><div id="frost-overlay" aria-hidden="true"></div><div id="fire-overlay" aria-hidden="true"></div><div id="portal-overlay" aria-hidden="true"></div><div id="damage"></div><div id="toast" role="status" aria-live="polite"></div>
+ <section class="overlay hidden" id="death-overlay"><div class="panel world-menu death-panel"><h2>你倒下了</h2><p id="death-location"></p><button id="revive">重生</button></div></section>
+ ${worldMenu}
  ${workshopPanel()}
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><div class="two-col"><button id="export">导出存档</button><button id="import">导入存档</button></div><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><button id="home">保存并返回首页</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><label for="fov">基础视野</label><input id="fov" type="range" min="60" max="110" step="1" value="72"><output id="fov-value" for="fov">72°</output></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 体积云与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="exposure-toggle">明暗适应</label><input id="exposure-toggle" type="checkbox" title="进入洞穴后缓慢适应，走入日光时更快收敛；关闭使用固定曝光"></div><div class="settings-row"><label for="antialias-toggle">时域抗锯齿</label><input id="antialias-toggle" type="checkbox" checked title="积累多帧细节，减轻远处轮廓闪烁；移动物体和手持物优先使用当前画面"></div><div class="settings-row"><label for="sharpening-toggle">自适应锐化</label><input id="sharpening-toggle" type="checkbox" checked title="根据局部对比度保留细节；取消勾选可完全关闭"></div><div class="settings-row"><label for="sharpness-strength">锐化强度</label><input id="sharpness-strength" type="range" min="0" max="1" step="0.01" value="0.5"><output id="sharpness-value" for="sharpness-strength">50%</output></div><div class="settings-row"><label for="environment-reflections-toggle">场景反射</label><input id="environment-reflections-toggle" type="checkbox" checked title="金属、宝石与水洼周围的场景倒影；大面积反射会增加显卡开销"></div><div class="settings-row"><label for="sky-reflections-toggle">天空反射</label><input id="sky-reflections-toggle" type="checkbox" checked title="物体反射天空；室内随天光减弱"></div><div class="settings-row"><label for="reflection-rays">反射采样</label><select id="reflection-rays"><option value="1">快速</option><option value="2">轻量</option><option value="4" selected>标准</option><option value="8">精细</option></select></div><div class="settings-row"><label for="reflection-steps">反射细节</label><select id="reflection-steps"><option value="4">低</option><option value="8" selected>标准</option><option value="16">高</option><option value="32">极高</option></select></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset>${photonColorControls()}<p class="panel-note">光影档增加体积云、近景柔影、玻璃滤色体积光束、雨后水洼与建筑倒影、明暗适应与抗锯齿，显卡开销较高；细节可单独调整。光影云层可透光并遮蔽日月；均衡保留几何云与移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或右键穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Ctrl 或双击 W 冲刺 / Shift 蹲伏防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>右键</kbd>交互 / 耕种 / 收获</span><span><kbd>E / B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 停住</span><span><kbd>门 / 栅栏门</kbd>右键开关 · Shift 旁建</span><span><kbd>地毯</kbd>两块同色羊毛合成三张 · 右键铺设</span><span><kbd>侦测器</kbd>双眼检测正面变化 · 相反红点输出短脉冲</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>细雪</kbd>皮靴站立 / Shift 下沉 / 空格攀出 · 皮甲保温</span><span><kbd>创造模式</kbd>双击空格切换飞行 · 空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div><div class="world-form"><label for="seed">新世界种子</label><input id="seed" type="number" min="0" max="999999" value="624"><button id="new-world">创建新世界</button></div><p class="panel-note">自动保存在本浏览器。创建新世界会替换当前存档，可先导出备份。手机：左侧方向键移动，拖动右半屏转动视角。</p><input class="hidden" type="file" id="save-file" accept=".json,application/json"></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><button id="show-options">选项</button><button id="home">保存并返回标题</button></div><div id="option-page" hidden><button id="back-options">‹ 返回</button><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><details class="video-options"><summary>视频设置</summary><div class="settings-row"><label for="gui-scale">界面缩放</label><select id="gui-scale"><option value="0">自动</option><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option></select></div><div class="settings-row"><label for="fov">基础视野</label><input id="fov" type="range" min="60" max="110" step="1" value="72"><output id="fov-value" for="fov">72°</output></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 体积云与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="exposure-toggle">明暗适应</label><input id="exposure-toggle" type="checkbox" title="进入洞穴后缓慢适应，走入日光时更快收敛；关闭使用固定曝光"></div><div class="settings-row"><label for="antialias-toggle">时域抗锯齿</label><input id="antialias-toggle" type="checkbox" checked title="积累多帧细节，减轻远处轮廓闪烁；移动物体和手持物优先使用当前画面"></div><div class="settings-row"><label for="sharpening-toggle">自适应锐化</label><input id="sharpening-toggle" type="checkbox" checked title="根据局部对比度保留细节；取消勾选可完全关闭"></div><div class="settings-row"><label for="sharpness-strength">锐化强度</label><input id="sharpness-strength" type="range" min="0" max="1" step="0.01" value="0.5"><output id="sharpness-value" for="sharpness-strength">50%</output></div><div class="settings-row"><label for="environment-reflections-toggle">场景反射</label><input id="environment-reflections-toggle" type="checkbox" checked title="金属、宝石与水洼周围的场景倒影；大面积反射会增加显卡开销"></div><div class="settings-row"><label for="sky-reflections-toggle">天空反射</label><input id="sky-reflections-toggle" type="checkbox" checked title="物体反射天空；室内随天光减弱"></div><div class="settings-row"><label for="reflection-rays">反射采样</label><select id="reflection-rays"><option value="1">快速</option><option value="2">轻量</option><option value="4" selected>标准</option><option value="8">精细</option></select></div><div class="settings-row"><label for="reflection-steps">反射细节</label><select id="reflection-steps"><option value="4">低</option><option value="8" selected>标准</option><option value="16">高</option><option value="32">极高</option></select></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset>${photonColorControls()}<p class="panel-note">光影档增加体积云、近景柔影、玻璃滤色体积光束、雨后水洼与建筑倒影、明暗适应与抗锯齿，显卡开销较高；细节可单独调整。光影云层可透光并遮蔽日月；均衡保留几何云与移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p></details><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或右键穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Ctrl 或双击 W 冲刺 / Shift 蹲伏防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>右键</kbd>交互 / 耕种 / 收获</span><span><kbd>E / B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 停住</span><span><kbd>门 / 栅栏门</kbd>右键开关 · Shift 旁建</span><span><kbd>地毯</kbd>两块同色羊毛合成三张 · 右键铺设</span><span><kbd>侦测器</kbd>双眼检测正面变化 · 相反红点输出短脉冲</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>细雪</kbd>皮靴站立 / Shift 下沉 / 空格攀出 · 皮甲保温</span><span><kbd>创造模式</kbd>双击空格切换飞行 · 空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div></div></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◌ 洞穴入口　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -416,6 +427,14 @@ let workstationItems = newWorkstationItems(),
   pendingStationEffects = [];
 const smithState = { name: '' };
 const stonecutState = { selection: null, cuts: 0 };
+const carts = new Minecarts(graphics.scene);
+const railGhost = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({ color: 0xffe8a1, depthTest: false }),
+);
+railGhost.visible = false;
+railGhost.renderOrder = 900;
+graphics.scene.add(railGhost);
 const boats = new Boats(graphics.scene, graphics.textures, {
   drop: (position) =>
     drops.spawn('boat', 1, [position[0], position[1] + 0.6, position[2]]),
@@ -575,10 +594,10 @@ let saveTimer = 0,
   stationKey = null,
   moved = 0,
   simulationAccumulator = 0;
-let craftingGrid = newCraftingGrid(),
+let craftingGrid = newCraftingGrid(4),
   craftingReturns = [];
 let showCraftGuide = true,
-  recipeBookOpen = innerWidth >= 700,
+  recipeBookOpen = false,
   craftingPreviewOnly = false;
 const spawn = new THREE.Vector3();
 equipment.bind(pack);
@@ -754,6 +773,7 @@ function resolveInventorySlot(ref) {
         : {}),
     };
   }
+  if (kind === 'box' && carts.open) return carts.slots(carts.open)[name];
   if (kind === 'furnace' || kind === 'brew' || kind === 'box') {
     if (!stationKey) return null;
     const slot = blockSlots(world, ...stationKey.split(',').map(Number))?.[
@@ -880,6 +900,7 @@ function refreshInventoryPanel() {
     else if (currentEnchanting()) renderEnchanting();
     else if (currentSmithing()) renderSmithing();
     else if (currentStonecutter()) renderStonecutter();
+    else if (tradingWith && $('.village-trades')) renderTrade();
   }
   if (panel) panel.scrollTop = scroll;
   if (focus)
@@ -904,7 +925,7 @@ function settleInventoryCursor() {
   const remainder = inventorySession.returnCursor(
     [...packRefs(9), ...packRefs(0, 9)].map(resolveInventorySlot),
   );
-  if (remainder) dropInventoryStack(remainder);
+  if (remainder) dropInventoryStack(remainder, false);
   inventoryControls?.refresh();
 }
 function beep(freq = 300, duration = 0.06, type = 'sine', volume = 0.035) {
@@ -947,6 +968,7 @@ function safeSpawn() {
   throwables.clear();
   throwHeldItem = null;
   boats.riding = null;
+  carts.riding = null;
   fishing.clear();
   if (respawnPoint) {
     const a = worldToAxial(respawnPoint[0], respawnPoint[2]);
@@ -975,8 +997,10 @@ function safeSpawn() {
     camera.position.y++;
 }
 function startGame(mode = false, save = null) {
+  if (save?.version === 16) save = upgradeInventorySave(save);
   fishing.clear();
   boats.load();
+  carts.load();
   boatTarget = null;
   const seed = save?.seed ?? Number($('#seed').value || 624);
   dimension = save?.dimension || 'overworld';
@@ -1014,7 +1038,7 @@ function startGame(mode = false, save = null) {
   hotbar = pack.hotbar;
   inventorySession.cursor = structuredClone(save?.inventory.cursor ?? null);
   inventorySession.origin = null;
-  craftingGrid = structuredClone(save?.crafting || newCraftingGrid());
+  craftingGrid = structuredClone(save?.crafting?.slots || newCraftingGrid(4));
   craftingReturns = [];
   workstationItems = structuredClone(
     save?.workstations || newWorkstationItems(),
@@ -1030,11 +1054,6 @@ function startGame(mode = false, save = null) {
           ...(ITEMS[id].durability ? { wear: ITEMS[id].durability } : {}),
         };
       });
-    else {
-      pack.insert('dirt', 12);
-      pack.insert('apple', 3);
-      pack.insert('seed', 3);
-    }
   }
   survival = new Survival(save?.survival);
   glider.load(save?.flight);
@@ -1095,6 +1114,7 @@ function startGame(mode = false, save = null) {
   drops.load(data.drops);
   experience.load(data.experienceOrbs);
   boats.load(data.boats, data.mountedBoat);
+  carts.load(data.carts, data.mountedCart);
   if (boats.riding) {
     const p = boats.riding.position;
     camera.position.set(p[0], p[1] + BOAT_EYE, p[2]);
@@ -1129,6 +1149,8 @@ function captureDimension() {
     drops: drops.serialize(),
     experienceOrbs: experience.serialize(),
     boats: boats.serialize(),
+    carts: structuredClone(carts.records),
+    mountedCart: carts.riding?.id ?? null,
     mountedBoat: boats.riding?.id ?? null,
     lastDeath,
     crops: [...crops],
@@ -1173,6 +1195,10 @@ function syncDecor() {
     ) {
       world.discoveredStructures.add(s.id);
       toast('发现 ' + STRUCTURE_NAMES[s.kind] + ' · 已标记地图');
+    }
+    if (s.kind === 'mine') {
+      const track = seedMineRails(world, carts, s);
+      if (track.length) graphics.updateCells(track);
     }
     for (const guard of structureGuards(s)) {
       const id = 'guard:' + key(guard.q, guard.y, guard.r);
@@ -1219,6 +1245,7 @@ function travel(to) {
   if (!hasGame || !DIMENSIONS[to] || to === dimension) return false;
   stopEating(true);
   boats.riding = null;
+  carts.riding = null;
   boatTarget = null;
   fishing.clear();
   projectiles.clear();
@@ -1232,6 +1259,7 @@ function travel(to) {
   flightEffects.clear();
   rocketCooldown = 0;
   boats.load();
+  carts.load();
   const seed = world.seed;
   world.clearLoaded();
   dimension = to;
@@ -1305,6 +1333,7 @@ function travel(to) {
   drops.load(data.drops);
   experience.load(data.experienceOrbs);
   boats.load(data.boats);
+  carts.load(data.carts);
   dragonFight.load(world, data.dragon);
   if (collides(camera.position.x, playerFeet(), camera.position.z)) safeSpawn();
   lastDeath = data.lastDeath || null;
@@ -1330,12 +1359,15 @@ function saveData() {
   const savedInventory = pack.serialize(inventorySession.cursor);
   captureDimension();
   return {
-    version: 16,
+    version: 17,
     dimension,
     dimensions: dimensionStates,
     seed: world.seed,
     inventory: savedInventory,
-    crafting: structuredClone(craftingGrid),
+    crafting: {
+      kind: craftingGrid.length === 7 ? 'table' : 'personal',
+      slots: structuredClone(craftingGrid),
+    },
     workstations: structuredClone(workstationItems),
     selected,
     survival: survival.serialize(),
@@ -1357,7 +1389,7 @@ function saveData() {
 function saveGame() {
   if (!hasGame) return;
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData()));
+    library.write(saveData());
     $('#continue').classList.remove('hidden');
   } catch {
     toast('本地存储不可用或已满，请在菜单导出存档。');
@@ -1365,8 +1397,7 @@ function saveGame() {
 }
 function readSave() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    return raw ? validateSave(JSON.parse(raw)) : null;
+    return library.read();
   } catch {
     toast('存档无法读取。可以导入备份，或创建新世界。');
     return null;
@@ -1388,7 +1419,7 @@ function lock() {
     toast('点击画面以进入鼠标控制。');
   }
 }
-function openOverlay(id) {
+function openOverlay(id, board = 'personal') {
   settleInventoryCursor();
   settleWorkstationItems();
   if (overlay === '#craft-overlay' && id !== '#craft-overlay')
@@ -1409,10 +1440,19 @@ function openOverlay(id) {
     .querySelectorAll('.overlay')
     .forEach((e) => e.classList.add('hidden'));
   $(id).classList.remove('hidden');
-  if (id === '#craft-overlay') renderCraft();
+  railGhost.visible = false;
+  if (id === '#craft-overlay') {
+    settleCraftingGrid();
+    craftingGrid = newCraftingGrid(board === 'table' ? 7 : 4);
+    selectedRecipe = 0;
+    craftingPreviewOnly = false;
+    recipeBookOpen = false;
+    renderCraft();
+  }
   if (id === '#map-overlay') drawMap($('#world-map'), true);
   if (id === '#pause-overlay') {
     fromMenu = !hasGame;
+    showOptions(false);
     $('#resume').textContent = hasGame ? '回到旷野' : '回到首页';
     $('#mode-toggle').textContent = creative ? '切换生存探索' : '切换自由建造';
     document
@@ -1422,11 +1462,11 @@ function openOverlay(id) {
           (b.disabled =
             !hasGame || !creative || b.dataset.dimension === dimension),
       );
-    $('#pause-title').textContent = hasGame ? '旷野会等你。' : '出发之前';
+    $('#pause-title').textContent = hasGame ? '游戏菜单' : '选项';
     $('#pause-description').textContent = hasGame
       ? '旅途已暂歇。世界会记住你留下的每一块砖。'
       : '无限六棱世界，三个维度。采集、建造、种植，按自己的节奏生活。';
-    for (const id of ['export', 'mode-toggle', 'respawn', 'home'])
+    for (const id of ['mode-toggle', 'respawn', 'home'])
       $('#' + id).disabled = !hasGame;
   }
 }
@@ -1439,6 +1479,7 @@ function closeOverlay() {
     .querySelectorAll('.overlay')
     .forEach((e) => e.classList.add('hidden'));
   overlay = null;
+  if (hasGame) $('#world').focus({ preventScroll: true });
   inventoryControls.refresh();
   if (hasGame) {
     fromMenu = false;
@@ -1447,28 +1488,12 @@ function closeOverlay() {
     lock();
   }
 }
-function nearbyType(type, radius = 5) {
-  const a = worldToAxial(camera.position.x, camera.position.z),
-    y = Math.floor(playerFeet());
-  for (let q = a.q - 3; q <= a.q + 3; q++)
-    for (let r = a.r - 3; r <= a.r + 3; r++) {
-      const p = axialToWorld(q, r);
-      if (Math.hypot(p.x - camera.position.x, p.z - camera.position.z) > radius)
-        continue;
-      for (let h = y - 2; h <= y + 2; h++)
-        if (world.get(q, h, r) === type) return true;
-    }
-  return false;
-}
 function currentCraftingMatch() {
-  const matches = craftingMatches(
-    craftingGrid,
-    creative || nearbyType('workbench'),
-  );
+  const matches = craftingMatches(craftingGrid, craftingGrid.length === 7);
   return matches.find((m) => m.index === selectedRecipe) || matches[0] || null;
 }
 function renderRecipeBook() {
-  const station = creative || nearbyType('workbench');
+  const station = craftingGrid.length === 7;
   $('#recipes').innerHTML = recipeBookHTML(
     craftingStock(pack, craftingGrid),
     craftingPreviewOnly
@@ -1483,18 +1508,26 @@ function renderRecipeBook() {
 function renderCraft() {
   containInventory();
   const paletteQuery = $('#creative-search')?.value || '';
-  const paletteOpen = $('.creative-palette')?.open ?? true;
+  const paletteTab =
+    $('[data-category][aria-pressed=true]')?.dataset.category || '全部';
   const paletteScroll = $('.palette-grid')?.scrollTop || 0;
   const recipeScroll = $('#recipes').scrollTop;
-  const station = creative || nearbyType('workbench'),
+  const station = craftingGrid.length === 7,
     match = currentCraftingMatch();
   const reference = RECIPES[selectedRecipe],
     recipe = craftingPreviewOnly ? reference : match?.recipe || reference;
-  const guide = showCraftGuide
-    ? (!craftingPreviewOnly && match?.cells) || recipeCells(reference)
-    : null;
+  const guide =
+    showCraftGuide && (recipeBookOpen || craftingPreviewOnly)
+      ? (!craftingPreviewOnly && match?.cells) ||
+        recipeCells(reference, craftingGrid.length)
+      : null;
   const stock = craftingStock(pack, craftingGrid);
-  renderRecipeBook();
+  if (recipeBookOpen) renderRecipeBook();
+  $('#recipe-book-toggle').textContent = recipeBookOpen
+    ? innerWidth <= 740
+      ? '返回背包'
+      : '收起配方'
+    : '配方册';
   $('#recipes').scrollTop = recipeScroll;
   $('#recipe-book').hidden = !recipeBookOpen;
   $('.workshop-layout').classList.toggle('book-closed', !recipeBookOpen);
@@ -1506,7 +1539,18 @@ function renderCraft() {
   $('#recipe-desc').textContent = recipe.desc;
   $('#craft-context').textContent = station
     ? '工作台 · 七格合成'
-    : '随身 · 七格合成';
+    : '随身 · 四格合成';
+  $('.workshop-panel').dataset.board = station ? 'table' : 'personal';
+  $('#bag-title').textContent = station
+    ? '工作台'
+    : creative
+      ? '创造背包'
+      : '物品栏';
+  $('#pattern').setAttribute(
+    'aria-label',
+    station ? '七格工作台' : '四格随身蜂巢',
+  );
+  $('#character').innerHTML = station ? '' : equipmentPreview(pack);
   $('#pattern').innerHTML = craftingGridHTML(craftingGrid, guide, recipe);
   $('#recipe-cost').innerHTML = Object.entries(recipe.cost)
     .map(
@@ -1539,7 +1583,7 @@ function renderCraft() {
           )
           .join('')
       : locked
-        ? '图案正确，需要附近的工作台'
+        ? '图案正确，请右键工作台'
         : output
           ? craftingPreviewOnly
             ? '当前网格产物：' + ITEMS[output.item].name + ' · 参考配方尚未填料'
@@ -1551,17 +1595,15 @@ function renderCraft() {
   $('#craft-guide').checked = showCraftGuide;
   $('#station-note').textContent =
     reference.station && !station
-      ? '此配方需要 5 格内的工作台'
+      ? '右键工作台制作此配方'
       : 'Shift 点击配方 / 填料：填入尽可能多的批次';
+  $('.workshop-panel').classList.toggle('creative-bag', creative && !station);
   $('#inventory').innerHTML =
-    playerSlots(pack, true) + (creative ? creativePalette() : '');
-  if (creative) {
+    (creative && !station ? creativePalette(paletteTab, paletteQuery) : '') +
+    playerSlots(pack);
+  if (creative && !station) {
     $('#creative-search').value = paletteQuery;
-    $('.creative-palette').open = paletteOpen;
     $('.palette-grid').scrollTop = paletteScroll;
-    document.querySelectorAll('[data-creative-item]').forEach((b) => {
-      b.hidden = !b.dataset.search.includes(paletteQuery.trim().toLowerCase());
-    });
   }
   $('#pack-capacity').textContent =
     `${usedSlots(inventory)} / ${INVENTORY_SLOTS} 格`;
@@ -1572,9 +1614,9 @@ function selectCraftRecipe(index, all = false) {
   selectedRecipe = index;
   craftingPreviewOnly = false;
   const recipe = RECIPES[index];
-  if (recipe.station && !creative && !nearbyType('workbench')) {
+  if (recipe.station && craftingGrid.length !== 7) {
     craftingPreviewOnly = true;
-    toast('需要在工作台 5 格范围内；已显示配方提示。');
+    toast('右键工作台打开七格蜂巢。');
   } else {
     const result = fillCraftingRecipe(
       pack,
@@ -1602,7 +1644,7 @@ function doCraft(event) {
     pack,
     craftingGrid,
     selectedRecipe,
-    creative || nearbyType('workbench'),
+    craftingGrid.length === 7,
     event?.shiftKey ? 64 : 1,
   );
   if (!result.count) {
@@ -1886,6 +1928,7 @@ function handCanUse(hand) {
   const id = handStack(hand)?.item,
     item = ITEMS[id];
   if (!item) return false;
+  if (CART_ITEMS[id] && isRail(target?.type)) return true;
   if (id === 'vine' && target && !target.fluid) return true;
   if (id === 'boneMeal' && target?.type === 'vine') return true;
   if (cauldronAction(target?.type, id)) return true;
@@ -1985,9 +2028,8 @@ function updateHUD() {
     fishingUse = null;
   }
   tool = miningStats('', heldItem()).tier;
-  $('#armor-hud').textContent = creative
-    ? ''
-    : '护甲 ' + equipment.protection() + ' / 20';
+  $('#hud').classList.toggle('creative-mode', creative);
+  meterIcons($('#armor-hud'), 'armor', equipment.protection(), '护甲');
   document
     .querySelectorAll('[data-dimension]')
     .forEach(
@@ -2017,17 +2059,27 @@ function updateHUD() {
         .join('');
   }
   const selectedEnchant = enchantLabel(pack.slots[selected]?.wear);
-  $('#selected-name').textContent =
+  const name =
     (heldItem()
       ? customName(pack.slots[selected]?.wear) || ITEMS[heldItem()].name
       : '') + (selectedEnchant ? ' · ' + selectedEnchant : '');
-  $('#health').textContent = creative
-    ? '◇ 自由建造'
-    : '♥'.repeat(Math.ceil(health / 2)) +
-      '♡'.repeat(10 - Math.ceil(health / 2));
-  $('#hunger').textContent = creative
-    ? '无限材料'
-    : `饱食 ${Math.ceil(hunger)} / 20`;
+  const label = $('#selected-name');
+  if (label.textContent !== name || label.dataset.slot !== String(selected)) {
+    label.textContent = name;
+    label.dataset.slot = selected;
+    label.getAnimations().forEach((a) => a.cancel());
+    if (name)
+      label.animate(
+        [
+          { opacity: 1, offset: 0 },
+          { opacity: 1, offset: 0.7 },
+          { opacity: 0 },
+        ],
+        { duration: 2100, fill: 'forwards' },
+      );
+  }
+  meterIcons($('#health'), 'heart', health, '生命');
+  meterIcons($('#hunger'), 'food', hunger, '饱食');
   const held = heldItem();
   $('#tool').textContent =
     held && ITEMS[held].durability
@@ -2429,6 +2481,7 @@ function leaveBoat() {
     return false;
   }
   boats.riding = null;
+  carts.riding = null;
   b.vx = b.vz = 0;
   camera.position.set(spot.x, spot.feet + 1.65, spot.z);
   vy = 0;
@@ -2515,6 +2568,18 @@ function useBoatItem() {
   updateHUD();
   saveGame();
   toast('已放船 · 对准船右键乘坐 · Shift 右键收回');
+  return true;
+}
+function attackCart() {
+  if (carts.riding || attackCooldown > 0) return false;
+  const c = carts.target(camera, target?.distance);
+  if (!c) return false;
+  const p = cartPosition(world, c);
+  for (const stack of c.cargo || []) if (stack) drops.spawnStack(stack, p);
+  if (!creative) drops.spawnStack({ item: c.kind, count: 1 }, p);
+  carts.remove(c);
+  attackCooldown = 0.35;
+  graphics.swing();
   return true;
 }
 function attackBoat() {
@@ -2729,6 +2794,7 @@ function useEndGateway(q, r) {
     return;
   }
   boats.riding = null;
+  carts.riding = null;
   fishing.clear();
   stopEating(true);
   combat.reset();
@@ -2908,6 +2974,7 @@ function resolveThrow(impact) {
     }
     const origin = camera.position.clone().add(new THREE.Vector3(0, -0.65, 0));
     boats.riding = null;
+    carts.riding = null;
     boatTarget = creatureTarget = villagerTarget = target = null;
     fishing.clear();
     stopEating(true);
@@ -3108,10 +3175,64 @@ function useCocoa() {
   updateHUD();
   return true;
 }
+function leaveCart() {
+  const c = carts.riding;
+  if (!c) return;
+  const [q, y, r] = c.p;
+  for (const [dq, dr] of [...DIRECTIONS, [0, 0]]) {
+    const p = axialToWorld(q + dq, r + dr),
+      feet = findFloor(world, p.x, p.z, y + 0.5, {
+        step: 1,
+        drop: 2,
+        height: 1.8,
+      });
+    if (feet === null || collides(p.x, feet + 0.02, p.z)) continue;
+    carts.riding = null;
+    camera.position.set(p.x, feet + playerEyeHeight() + 0.02, p.z);
+    vy = 0;
+    saveGame();
+    return;
+  }
+  toast('车旁空间不足，驶到开阔处下车。');
+}
+function cartUse() {
+  if (carts.riding) return false;
+  const near = carts.target(camera, target?.distance);
+  if (near) {
+    if (near.cargo) {
+      openOverlay('#station-overlay');
+      stationKey = null;
+      carts.open = near;
+      renderChest();
+    } else {
+      boats.riding = null;
+      carts.riding = near;
+      near.speed = Math.max(0.8, near.speed);
+      vy = 0;
+      toast('W 推车 · Shift 下车');
+    }
+    return true;
+  }
+  const id = useItem();
+  if (!CART_ITEMS[id] || !isRail(target?.type)) return false;
+  const p = [target.q, target.y, target.r];
+  if (carts.records.some((c) => c.p.every((a, i) => a === p[i]))) return true;
+  carts.spawn(
+    p,
+    id,
+    facingFromDirection(-Math.sin(yaw), -Math.cos(yaw)),
+    world,
+  );
+  consumeUseItem(id);
+  updateHUD();
+  saveGame();
+  return true;
+}
 function place() {
   if (!playing) return;
   if (!actionHand) return beginUse(place);
   if (combat.raised) return;
+  if (cartUse()) return;
   if (foodUse) stopEating();
   if (boatTarget && !creatureTarget && !villagerTarget && interactBoat())
     return;
@@ -3382,6 +3503,14 @@ function buildingOccupied(q, y, r) {
 }
 function placeBuilding(type, p) {
   const { q, y, r } = p;
+  if (
+    isRail(type) &&
+    world.get(q, y - 1, r) !== 'hopper' &&
+    !fullSupport(q, y - 1, r, true)
+  ) {
+    toast('铁轨下方需要支撑');
+    return;
+  }
   if (isCarpet(type) && !carpetSupport(world, q, y, r)) {
     toast('地毯下方需要方块或液体支撑。');
     return;
@@ -3537,8 +3666,10 @@ function placeBuilding(type, p) {
     toast('这里有船，先把船移开。');
     return;
   }
+  const track = isRail(type) ? planTrack(world, [q, y, r], type, facing) : null;
   for (const [a, b, c, t] of cells) world.set(a, b, c, t, false);
   const placementState = {
+    ...(track ? { track } : {}),
     facing,
     open: false,
     upper,
@@ -3567,6 +3698,7 @@ function placeBuilding(type, p) {
   world.blockStates.delete(key(q, y, r));
   for (const [a, b, c, t] of cells) world.set(a, b, c, t);
   world.setState(q, y, r, placementState);
+  if (track) graphics.updateCells(connectTrack(world, [q, y, r], track));
   if (['hopper', 'dropper', 'dispenser'].includes(type))
     blockSlots(world, q, y, r);
   if (type === 'chorusFlower')
@@ -4012,7 +4144,7 @@ function updateRedstone(dt) {
     beep(110, 0.05, 'triangle');
     maintainBuildings();
   }
-  world.hoppers.tick(dt, drops);
+  world.hoppers.tick(dt, drops, carts);
   return result.changed;
 }
 function endermanBlockChange(q, y, r, type) {
@@ -4344,7 +4476,7 @@ function interact(preferContext = false) {
     useFishingRod();
     return;
   }
-  if (!preferContext && interactBoat()) return;
+  if (!preferContext && (cartUse() || interactBoat())) return;
   if (interactCreature()) return;
   const contextual =
     villagerTarget ||
@@ -4453,7 +4585,7 @@ function interact(preferContext = false) {
     return;
   }
   if (type === 'workbench') {
-    openOverlay('#craft-overlay');
+    openOverlay('#craft-overlay', 'table');
     return;
   }
   if (type === 'stonecutter') {
@@ -4543,6 +4675,7 @@ function renderTrade() {
     Object.entries(obj)
       .map(([id, count]) => icon(id) + ITEMS[id].name + ' ×' + count)
       .join(' ');
+  stationKey = null;
   $('#station-content').innerHTML =
     `<p>绿宝石 ${inventory.emerald || 0} · 每项交易每天可进行 4 次。</p><div class="village-trades">${ROLES[
       n.role
@@ -4560,7 +4693,7 @@ function renderTrade() {
       })
       .join(
         '',
-      )}</div><p class="panel-note">村民白天在村中活动，夜晚返回住处。收获农田、开采矿物或采集原木，都可以换取物资。</p>`;
+      )}</div><p class="panel-note">村民白天在村中活动，夜晚返回住处。收获农田、开采矿物或采集原木，都可以换取物资。</p>${playerSlots(pack)}`;
 }
 $('#station-content').addEventListener('click', (e) => {
   const b = e.target.closest('[data-trade]');
@@ -5120,6 +5253,7 @@ function updateBreweries(dt) {
   }
 }
 function closeChestLid() {
+  carts.open = null;
   if (!graphics.chestModels.openKey) return;
   const portable = graphics.chestModels.models.get(graphics.chestModels.openKey)
     ?.userData.portable;
@@ -5127,6 +5261,7 @@ function closeChestLid() {
   soundFX.play(portable ? 'shulkerClose' : 'chestClose');
 }
 function currentChest() {
+  if (carts.open) return carts.open.cargo;
   if (
     !stationKey ||
     !isStorage(world.get(...stationKey.split(',').map(Number)))
@@ -5144,7 +5279,9 @@ function currentChest() {
 function renderChest() {
   const chest = currentChest();
   if (!chest) return;
-  const type = world.get(...stationKey.split(',').map(Number));
+  const type = carts.open
+    ? 'chestCart'
+    : world.get(...stationKey.split(',').map(Number));
   $('#station-title').textContent = ITEMS[type].name;
   $('#station-content').innerHTML = chestPanel(chest, pack, type);
 }
@@ -5207,6 +5344,7 @@ function teleportChorusFruit() {
     return;
   }
   boats.riding = null;
+  carts.riding = null;
   fishing.clear();
   glider.reset();
   flightEffects.clear();
@@ -5615,6 +5753,10 @@ function hurt(amount, cause = 'combat', source = null) {
   $('#damage').style.opacity = '.6';
   $('#damage').dataset.cause = cause;
   setTimeout(() => ($('#damage').style.opacity = '0'), 250);
+  $('#health').animate(
+    [{ filter: 'brightness(3)' }, { filter: 'brightness(1)' }],
+    { duration: 170, iterations: 3 },
+  );
   soundFX.play(cause === 'drown' ? 'drown' : 'hurt');
   if (health <= 0) {
     fishing.clear();
@@ -5630,7 +5772,7 @@ function hurt(amount, cause = 'combat', source = null) {
       drops.spawnStack(stack, lastDeath, null, 600);
     }
     inventorySession.cursor = null;
-    craftingGrid = newCraftingGrid();
+    craftingGrid = newCraftingGrid(4);
     craftingReturns = [];
     workstationItems = newWorkstationItems();
     pendingStationEffects = [];
@@ -5646,17 +5788,11 @@ function hurt(amount, cause = 'combat', source = null) {
     safeSpawn();
     health = 20;
     hunger = 12;
-    toast(
-      (cause === 'drown'
-        ? '你溺水了。'
-        : cause === 'freeze'
-          ? '你在细雪中冻伤倒下了。'
-          : cause === 'burn'
-            ? '你被烧伤倒下了。'
-            : cause === 'cactus'
-              ? '你被仙人掌刺伤倒下了。'
-              : '') + '已在出生点醒来。物资留在死亡地点，M 查看红色 × 标记。',
-    );
+    const deathCell = worldToAxial(lastDeath[0], lastDeath[2]);
+    $('#death-location').textContent =
+      '物资留在 Q ' + deathCell.q + ' / R ' + deathCell.r + '，地图已标记。';
+    openOverlay('#death-overlay');
+    $('#revive').focus();
     saveGame();
     return 'dead';
   }
@@ -6072,6 +6208,18 @@ function moveGlider(dt) {
   }
 }
 function movePlayer(dt) {
+  if (carts.riding) {
+    const p = cartPosition(world, carts.riding);
+    camera.position.set(p[0], p[1] + 1.35, p[2]);
+    camera.rotation.set(pitch, yaw, 0);
+    vy = 0;
+    if (keys.has('ShiftLeft') || keys.has('ShiftRight')) {
+      leaveCart();
+      keys.delete('ShiftLeft');
+      keys.delete('ShiftRight');
+    }
+    return;
+  }
   if (boats.riding) {
     crouching = creativeFlying = false;
     glider.reset();
@@ -6560,7 +6708,16 @@ function drawMap(canvas, full = false) {
     ctx.fillStyle = '#b6c5ae';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(DIMENSIONS[dimension].name + ' · N', w / 2, 23);
+    ctx.fillText(DIMENSIONS[dimension].name, w / 2, 23);
+    const directions = ['北', '东北', '东南', '南', '西南', '西北'];
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      ctx.fillText(
+        directions[i],
+        w / 2 + Math.sin(a) * (w * 0.5 - 26),
+        h / 2 - Math.cos(a) * (h * 0.5 - 38),
+      );
+    }
     ctx.fillText(
       `种子 ${world.seed} · Q ${worldToAxial(camera.position.x, camera.position.z).q} / R ${worldToAxial(camera.position.x, camera.position.z).r}`,
       w / 2,
@@ -6569,31 +6726,72 @@ function drawMap(canvas, full = false) {
   }
 }
 
-$('#start').onclick = () => {
-  if (hasGame) {
-    creative = false;
-    closeOverlay();
-    return;
+function showOptions(open) {
+  $('#option-page').hidden = !open;
+  $('.pause-actions').hidden = open;
+  $('#pause-title').textContent = open ? '选项' : '游戏菜单';
+}
+$('#show-options').onclick = () => showOptions(true);
+$('#back-options').onclick = () => showOptions(false);
+function showWorlds(mode = 'survival') {
+  openOverlay('#worlds-overlay');
+  const rows = library.entries();
+  $('#world-mode').value = mode;
+  $('#world-create').open = mode === 'creative' || !rows.length;
+  const list = $('#world-list');
+  list.replaceChildren();
+  for (const w of rows) {
+    const row = document.createElement('div'),
+      select = document.createElement('button'),
+      play = document.createElement('button');
+    select.textContent = w.error
+      ? '读取失败 · ' + w.error
+      : '世界 ' +
+        w.seed +
+        ' · ' +
+        (w.creative ? '创造' : '生存') +
+        ' · 第 ' +
+        w.days +
+        ' 天';
+    const mark = () => {
+      library.key = w.key;
+      list
+        .querySelectorAll('button[aria-pressed]')
+        .forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      select.setAttribute('aria-pressed', 'true');
+    };
+    select.setAttribute('aria-pressed', String(library.key === w.key));
+    select.onclick = mark;
+    play.disabled = !!w.error;
+    play.textContent = '进入';
+    play.onclick = () => {
+      mark();
+      const save = readSave();
+      if (save) startGame(save.creative, save);
+    };
+    row.append(select, play);
+    list.append(row);
   }
-  const existing = readSave();
-  if (existing) {
-    startGame(false, existing);
-    creative = false;
-    updateHUD();
-    saveGame();
-    toast('已继续你的世界 · 生存模式');
-  } else startGame(false);
-};
+  $('#export').disabled = !rows.length;
+}
+$('#start').onclick = () => showWorlds();
 $('#creative').onclick = () => {
-  const existing = hasGame ? saveData() : readSave();
-  if (existing) existing.creative = true;
-  startGame(true, existing);
+  library.fresh();
+  startGame(true);
+};
+$('#worlds-back').onclick = () => {
+  overlay = null;
+  $('#worlds-overlay').classList.add('hidden');
 };
 $('#continue').onclick = () => {
   const s = readSave();
   if (s) startGame(s.creative, s);
 };
-$('#menu-help').onclick = () => openOverlay('#pause-overlay');
+$('#menu-help').onclick = () => {
+  openOverlay('#pause-overlay');
+  showOptions(true);
+};
+$('#revive').onclick = () => closeOverlay();
 $('#resume').onclick = () => {
   if (fromMenu) {
     document
@@ -6699,21 +6897,19 @@ $('#new-world').onclick = () => {
     toast('种子请输入 0–999999 之间的整数。');
     return;
   }
-  if (
-    readSave() &&
-    !confirm('创建新世界会替换当前自动存档。已导出备份，确定继续？')
-  )
-    return;
-  startGame(false);
+  library.fresh();
+  startGame($('#world-mode').value === 'creative');
 };
 $('#export').onclick = () => {
-  const blob = new Blob([JSON.stringify(saveData(), null, 2)], {
+  const raw = library.raw();
+  if (!raw) return;
+  const blob = new Blob([raw], {
       type: 'application/json',
     }),
     url = URL.createObjectURL(blob),
     a = document.createElement('a');
   a.href = url;
-  a.download = `hexwild-${world.seed}-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `hexwild-backup-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   toast('存档已导出。');
@@ -6725,6 +6921,7 @@ $('#save-file').onchange = async (e) => {
   try {
     if (file.size > 16e6) throw new Error('存档文件过大');
     const s = validateSave(JSON.parse(await file.text()));
+    library.fresh();
     startGame(s.creative, s);
     toast('存档已载入。');
   } catch (err) {
@@ -6937,50 +7134,65 @@ document.addEventListener(
 );
 document.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
-  if (
-    overlay === '#craft-overlay' &&
-    (e.code === 'Tab' || (e.code === 'Space' && e.target.matches('button')))
-  )
-    return;
-  if (
-    ['recipe-search', 'creative-search', 'smith-name'].includes(e.target.id) &&
-    e.code === 'Escape'
-  ) {
-    closeOverlay();
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (overlay === '#worlds-overlay') {
+      $('#worlds-back').click();
+      return;
+    }
+    if (overlay === '#death-overlay') return;
+    if (overlay === '#craft-overlay' && recipeBookOpen && innerWidth <= 740) {
+      recipeBookOpen = false;
+      renderCraft();
+      $('#recipe-book-toggle').focus();
+      return;
+    }
+    if (overlay === '#pause-overlay' && !$('#option-page').hidden) {
+      if (hasGame) showOptions(false);
+      else $('#resume').click();
+      return;
+    }
+    if (overlay) {
+      if (hasGame) closeOverlay();
+      else $('#resume').click();
+    } else if (hasGame) openOverlay('#pause-overlay');
     return;
   }
   if (
-    overlay === '#station-overlay' &&
-    (currentChest() ||
-      currentBrewing() ||
-      currentSmithing() ||
-      currentStonecutter() ||
-      (stationKey &&
-        world.get(...stationKey.split(',').map(Number)) ===
-          'enchantingTable')) &&
+    overlay &&
     (e.code === 'Tab' || (e.code === 'Space' && e.target.matches('button')))
   )
     return;
   if (e.target.matches('input, select, textarea')) return;
-  if (['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code))
+  if (!overlay && ['Space', 'Tab', 'ArrowUp', 'ArrowDown'].includes(e.code))
     e.preventDefault();
   if (e.repeat) return;
   if (overlay) {
-    if (['Escape', 'KeyE', 'KeyB', 'Tab', 'KeyM'].includes(e.code))
+    if (
+      ['KeyE', 'KeyB', 'KeyM'].includes(e.code) &&
+      hasGame &&
+      overlay !== '#death-overlay'
+    )
       closeOverlay();
     return;
   }
   if (!hasGame) return;
-  if (e.code === 'Escape') {
-    openOverlay('#pause-overlay');
-    return;
-  }
   if (e.code === 'KeyE' || e.code === 'KeyB' || e.code === 'Tab') {
     openOverlay('#craft-overlay');
     return;
   }
+  if (carts.riding && ['ShiftLeft', 'ShiftRight'].includes(e.code)) {
+    leaveCart();
+    return;
+  }
   if (e.code === 'KeyM') {
     openOverlay('#map-overlay');
+    return;
+  }
+  if (e.code === 'F3') {
+    e.preventDefault();
+    $('#hud').classList.toggle('debug-open');
     return;
   }
   if (e.code === 'F1') {
@@ -7163,6 +7375,8 @@ function frame(now) {
     updateShield(dt);
     updateBowUse(dt);
     boats.update(dt, world, keys);
+    const railsChanged = carts.update(dt, world, keys);
+    if (railsChanged.length) graphics.updateCells(railsChanged);
     const physicsSteps = Math.max(1, Math.ceil(dt / (1 / 60)));
     if (
       world.circuitCells.size &&
@@ -7198,13 +7412,37 @@ function frame(now) {
         heldItem() === 'glassBottle',
     );
     boatTarget = boats.target(camera, target?.distance ?? Infinity);
+    const pos = target?.place,
+      trackItem = heldItem();
+    railGhost.visible = !!(
+      pos &&
+      isRail(trackItem) &&
+      (fullSupport(pos.q, pos.y - 1, pos.r, true) ||
+        world.get(pos.q, pos.y - 1, pos.r) === 'hopper')
+    );
+    if (railGhost.visible) {
+      const p = [pos.q, pos.y, pos.r],
+        face = facingFromDirection(-Math.sin(yaw), -Math.cos(yaw)),
+        pair = planTrack(world, p, trackItem, face),
+        center = axialToWorld(pos.q, pos.r);
+      railGhost.geometry.setFromPoints(
+        Array.from({ length: 13 }, (_, i) => {
+          const [x, y, z] = railPoint(world, p, pair, i / 12);
+          return new THREE.Vector3(
+            center.x + x,
+            pos.y + y + 0.04,
+            center.z + z,
+          );
+        }),
+      );
+    }
     if (foodUse || combat.raised || bowUse) {
       mining = 0;
       miningKey = '';
       $('#mine-progress i').style.width =
         (bowUse ? bowPull(bowCharge) * 100 : 0) + '%';
     } else if (leftDown) {
-      if (!attackBoat() && !attack()) mine(dt);
+      if (!attackCart() && !attackBoat() && !attack()) mine(dt);
       else mining = 0;
     } else {
       mining = 0;
@@ -7631,7 +7869,7 @@ function frame(now) {
     mapTimer += dt;
     if (mapTimer > 0.3) {
       mapTimer = 0;
-      drawMap($('#minimap'));
+      if ($('#hud').classList.contains('debug-open')) drawMap($('#minimap'));
     }
   }
   if (
@@ -7806,11 +8044,24 @@ if (import.meta.env.DEV)
     damage: hurt,
     villagers,
     graphics,
+    carts,
   };
 
+function guiScale() {
+  const limit = innerWidth >= 1200 && innerHeight >= 960 ? 3 : 2;
+  const zoom = Math.min(Number($('#gui-scale').value) || 2, limit) / 2;
+  document.documentElement.style.setProperty('--gui-zoom', String(zoom));
+}
+$('#gui-scale').onchange = () => {
+  guiScale();
+  savePreferences();
+};
+addEventListener('resize', guiScale);
 function restorePreferences() {
   try {
     const p = JSON.parse(localStorage.getItem('hexwild-settings') || '{}');
+    if ([0, 1, 2, 3].includes(p.guiScale)) $('#gui-scale').value = p.guiScale;
+    guiScale();
     if (Number.isFinite(p.sensitivity))
       sensitivity = Math.max(0.5, Math.min(2, p.sensitivity));
     if (Number.isFinite(p.fieldOfView))
@@ -7845,6 +8096,7 @@ function savePreferences() {
       JSON.stringify({
         sensitivity,
         fieldOfView,
+        guiScale: Number($('#gui-scale').value),
         volume: soundFX.volume,
         sound,
         flashes: graphics.weatherEffects.flashes,

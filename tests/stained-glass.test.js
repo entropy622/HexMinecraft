@@ -52,19 +52,19 @@ test('all sixteen dyes convert or mix with real inventory, producing exactly the
       assert.equal(c.pack.count(id), 0);
   }
 });
-test('all sixteen stained glass recipes pay eight glass and one pigment, require a workbench and reject seven glass', () => {
+test('all sixteen stained glass recipes pay six glass and one pigment, require a workbench and reject five glass', () => {
   for (const color of Object.keys(DYES)) {
     const recipe = RECIPES.find((r) => r.id === color + 'StainedGlass');
-    const c = craft(recipe, { glass: 8, [color + 'Dye']: 1 }, true);
-    assert.equal(c.result.count, 8);
-    assert.equal(c.pack.count(recipe.id), 8);
+    const c = craft(recipe, { glass: 6, [color + 'Dye']: 1 }, true);
+    assert.equal(c.result.count, 6);
+    assert.equal(c.pack.count(recipe.id), 6);
     assert.equal(c.pack.count('glass') + c.pack.count(color + 'Dye'), 0);
     assert.equal(
-      craft(recipe, { glass: 7, [color + 'Dye']: 1 }, true).fill.ok,
+      craft(recipe, { glass: 5, [color + 'Dye']: 1 }, true).fill.ok,
       false,
     );
     assert.equal(
-      craft(recipe, { glass: 8, [color + 'Dye']: 1 }, false).result.count,
+      craft(recipe, { glass: 6, [color + 'Dye']: 1 }, false).result.count,
       0,
     );
     assert.equal(

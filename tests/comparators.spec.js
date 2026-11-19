@@ -12,7 +12,7 @@ async function transfer(page, item) {
   const slot = await page.evaluate((id) => {
     window.__hexwild.save();
     return JSON.parse(
-      localStorage.getItem('hexwild-save-v16'),
+      localStorage.getItem('hexwild-save-v17'),
     ).inventory.slots.findIndex((s) => s?.item === id);
   }, item);
   expect(slot).toBeGreaterThanOrEqual(0);
@@ -35,6 +35,7 @@ async function platform(page) {
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -87,7 +88,7 @@ test('a player-placed comparator reads real chest transfers live and preserves i
     const slot = await page.evaluate(() => {
       window.__hexwild.save();
       return JSON.parse(
-        localStorage.getItem('hexwild-save-v16'),
+        localStorage.getItem('hexwild-save-v17'),
       ).inventory.slots.findIndex((s) => s?.item === 'stone');
     });
     await page
@@ -420,7 +421,7 @@ test('naturally mined quartz crafts a comparator at a real workbench and the pla
     .poll(() =>
       page.evaluate(() => {
         window.__hexwild.save();
-        return JSON.parse(localStorage.getItem('hexwild-save-v16')).experience
+        return JSON.parse(localStorage.getItem('hexwild-save-v17')).experience
           .total;
       }),
     )
@@ -438,20 +439,22 @@ test('naturally mined quartz crafts a comparator at a real workbench and the pla
     );
   });
   await page.keyboard.press('KeyE');
+  await page.locator('#recipe-book-toggle').click();
   for (let i = 0; i < 3; i++) {
     await page.locator(`[data-recipe="${recipes[0]}"]`).click();
     await page.locator('#craft-button').click({ modifiers: ['Shift'] });
   }
-  await page.locator(`[data-recipe="${recipes[1]}"]`).click();
-  await expect(page.locator('#craft-button')).toBeDisabled();
+  await expect(page.locator(`[data-recipe="${recipes[1]}"]`)).toHaveCount(0);
   await page.keyboard.press('KeyE');
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.state.world.set(0, 40, 0, 'workbench');
     g.graphics.updateBlock(0, 40, 0);
     g.teleport(0, 40, -1);
+    g.setTarget({ q: 0, y: 40, r: 0, type: 'workbench' });
+    g.interact(true);
   });
-  await page.keyboard.press('KeyE');
+  await page.locator('#recipe-book-toggle').click();
   await page.locator(`[data-recipe="${recipes[1]}"]`).click();
   await expect(page.locator('#craft-button')).toBeEnabled();
   await expect(page.locator('#toast')).not.toHaveClass(/show/);
@@ -533,6 +536,7 @@ test('touch use toggles comparator mode without pointer lock and support loss or
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(baseURL);
   await page.locator('#start').tap();
+  await page.locator('#new-world').tap();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;
@@ -592,7 +596,7 @@ test('touch use toggles comparator mode without pointer lock and support loss or
   const recovered = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    const data = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const data = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return (
       (g.state.inventory.comparator || 0) +
       data.dimensions.overworld.drops

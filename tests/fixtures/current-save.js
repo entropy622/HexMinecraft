@@ -12,7 +12,7 @@ export function currentSave(
   const pack = new PlayerInventory();
   pack.insert('wood', 7);
   return {
-    version: 16,
+    version: 17,
     dimension: world.dimension,
     seed: world.seed,
     dimensions: {
@@ -27,7 +27,7 @@ export function currentSave(
       },
     },
     inventory: pack.serialize(),
-    crafting: newCraftingGrid(),
+    crafting: { kind: 'personal', slots: newCraftingGrid(4) },
     workstations: newWorkstationItems(),
     selected: 0,
     survival: new Survival().serialize(),

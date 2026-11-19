@@ -90,8 +90,8 @@ for (const [species, ids] of Object.entries(WOOD_BUILDINGS)) {
     make(
       ids.door,
       2,
-      [planks, planks, null, planks, planks, planks, planks],
-      '使用同种木板制作两格高木门；放置时面向决定朝向，右键开关。',
+      [planks, planks, null, log, planks, planks, planks],
+      '用同种木板和原木门轴制作两格高木门；放置时面向决定朝向，右键开关。',
     ),
     make(
       ids.fence,

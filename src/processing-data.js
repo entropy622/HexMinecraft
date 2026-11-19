@@ -49,9 +49,8 @@ export const PROCESSING_RECIPES = [
       'smoothStone',
       'smoothStone',
     ],
-    patternCounts: [2, 1, 2, 1, 1, 1, 1],
-    cost: { ingot: 5, furnace: 1, smoothStone: 3 },
-    desc: '五铁锭、三平滑石与熔炉。只炼矿石 / 原矿，速度与燃料消耗均为两倍。',
+    cost: { ingot: 3, furnace: 1, smoothStone: 3 },
+    desc: '三铁锭、三平滑石与熔炉。只炼矿石 / 原矿，速度与燃料消耗均为两倍。',
   },
   {
     id: 'smoker',

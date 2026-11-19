@@ -448,6 +448,7 @@ export class Redstone {
       const p = coords(k),
         type = w.get(...p);
       if (
+        type !== 'poweredRail' &&
         type !== 'redstoneLamp' &&
         type !== 'hopper' &&
         type !== 'dropper' &&

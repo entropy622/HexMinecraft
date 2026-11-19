@@ -77,6 +77,7 @@ test('player crafts and places a piston, powers a stone push and continues with 
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -92,8 +93,8 @@ test('player crafts and places a piston, powers a stone push and continues with 
     g.graphics.updateCells(cells);
     g.teleport(-3, 40, 0);
     for (const [item, count] of [
-      ['planks', 3],
-      ['cobble', 4],
+      ['planks', 2],
+      ['cobble', 3],
       ['ingot', 1],
       ['redstone', 1],
     ])
@@ -101,6 +102,8 @@ test('player crafts and places a piston, powers a stone push and continues with 
   });
   await aim(page, -2, 40.5, 0, 'workbench');
   await use(page);
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('活塞');
   const recipe = page.locator('[data-recipe]').filter({ hasText: /^活塞/ });
   await expect(recipe).toBeVisible();
@@ -231,6 +234,7 @@ test('a player crafts a sticky piston without a workbench, places its upward fac
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -249,6 +253,8 @@ test('a player crafts a sticky piston without a workbench, places its upward fac
     g.give('slimeBall', 1);
   });
   await page.keyboard.press('KeyE');
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('黏性活塞');
   const recipe = page.locator('[data-recipe]').filter({ hasText: /^黏性活塞/ });
   await expect(recipe).toContainText('随身合成');
@@ -311,7 +317,7 @@ test('a player crafts a sticky piston without a workbench, places its upward fac
     return {
       standingY: Math.round(g.state.position[1] - 1.65),
       state: g.state.world.state(0, 40, 0),
-      crouching: JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+      crouching: JSON.parse(localStorage.getItem('hexwild-save-v17')).dimensions
         .overworld.crouching,
     };
   });
@@ -351,6 +357,7 @@ test('pushing a portable box keeps its contents and mining the actual piston hea
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -386,7 +393,7 @@ test('pushing a portable box keeps its contents and mining the actual piston hea
   const box = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return s.dimensions.overworld.drops
       .filter((d) => d.item === 'shulkerBox')
       .map(({ item, count, contents }) => ({ item, count, contents }));
@@ -434,7 +441,7 @@ test('pushing a portable box keeps its contents and mining the actual piston hea
   const end = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return {
       inventory: g.state.inventory.piston || 0,
       drops: s.dimensions.overworld.drops
@@ -654,6 +661,7 @@ test('a real powered piston breaks a planted chorus flower once and saves no orp
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -692,7 +700,7 @@ test('a real powered piston breaks a planted chorus flower once and saves no orp
   const result = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return {
       growth: s.dimensions.overworld.chorus,
       flowers: s.dimensions.overworld.drops

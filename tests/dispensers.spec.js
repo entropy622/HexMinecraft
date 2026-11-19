@@ -15,7 +15,7 @@ test.afterEach(async ({ page }, info) => {
       const t = g.state.target;
       return {
         target: t && { q: t.q, y: t.y, r: t.r, type: t.type },
-        save: JSON.parse(localStorage.getItem('hexwild-save-v16')),
+        save: JSON.parse(localStorage.getItem('hexwild-save-v17')),
       };
     })
     .catch((e) => ({ error: e.message }));
@@ -48,7 +48,7 @@ async function aim(page, q, y, r, type) {
 async function snapshot(page) {
   return page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
 }
 async function waitGame(page, seconds) {
@@ -64,6 +64,7 @@ async function waitGame(page, seconds) {
 async function platform(page, creative = false) {
   await page.goto('/');
   await page.locator(creative ? '#creative' : '#start').click();
+  if (!creative) await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -166,7 +167,7 @@ test('player crafts and places a nine-slot dispenser whose pulse shoots a harmfu
     g.state.world.set(-2, 40, 0, 'workbench');
     g.graphics.updateCells([[-2, 40, 0]]);
     for (const [id, n] of [
-      ['cobble', 7],
+      ['cobble', 5],
       ['redstone', 1],
       ['bow', 1],
     ])
@@ -175,6 +176,8 @@ test('player crafts and places a nine-slot dispenser whose pulse shoots a harmfu
   await aim(page, -2, 40.5, 0, 'workbench');
   await use(page);
   await expect(page.locator('#craft-overlay')).toBeVisible();
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('发射器');
   const recipe = page.locator('[data-recipe]').filter({ hasText: '发射器' });
   await expect(recipe).toBeVisible();

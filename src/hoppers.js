@@ -11,7 +11,7 @@ export class Hoppers {
     this.world = world;
     this.cooldowns = new Map();
   }
-  tick(dt, drops) {
+  tick(dt, drops, carts) {
     const w = this.world;
     const cells = [...w.circuitCells]
       .filter((k) => w.get(...coords(k)) === 'hopper')
@@ -58,15 +58,13 @@ export class Hoppers {
       const own = blockSlots(w, q, y, r);
       const [dq, dr] = DIRECTIONS[state.facing || 0];
       const output = state.down !== false ? [q, y - 1, r] : [q + dq, y, r + dr];
-      const target = insertionSlots(
-        w,
-        ...output,
-        state.down !== false ? 'top' : 'side',
-      );
+      const target =
+        carts?.storage(output) ||
+        insertionSlots(w, ...output, state.down !== false ? 'top' : 'side');
       const pushed = move(own, target, k, key(...output));
       const above = [q, y + 1, r],
         aboveType = w.get(...above);
-      let source = blockSlots(w, ...above);
+      let source = carts?.storage(above) || blockSlots(w, ...above);
       if (source && isFurnace(aboveType)) {
         source = {
           output: source.output,

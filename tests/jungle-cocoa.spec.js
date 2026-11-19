@@ -29,7 +29,7 @@ test.afterEach(async ({ page }, info) => {
           ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER,
         ),
         gl: gl.getError(),
-        save: JSON.parse(localStorage.getItem('hexwild-save-v16')),
+        save: JSON.parse(localStorage.getItem('hexwild-save-v17')),
       };
     })
     .catch((error) => ({ error: error.message }));
@@ -105,6 +105,7 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const seed = await page.evaluate(() => window.__hexwild.state.world.seed);
   const world = new World(seed, 'overworld', { load: false });
   let jungle;
@@ -180,6 +181,8 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
     )
     .toBeGreaterThan(0);
   await page.keyboard.press('KeyE');
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('丛林木板');
   await page
     .locator('[data-recipe].can-fill')
@@ -414,7 +417,7 @@ test('explore a jungle, harvest and replant cocoa with inventory costs, stages a
     return {
       harvested: g.state.inventory.cocoaBeans,
       pod: g.state.world.get(5, 40, 4) || null,
-      version: JSON.parse(localStorage.getItem('hexwild-save-v16')).version,
+      version: JSON.parse(localStorage.getItem('hexwild-save-v17')).version,
       renderer: gl.getParameter(
         ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER,
       ),

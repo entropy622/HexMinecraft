@@ -8,6 +8,7 @@ test('natural dripstone cave contains pointed formations and remains explorable'
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const cave = await page.evaluate(() =>
     window.__hexwild.state.world
       .caves(0, 0, 160)
@@ -51,6 +52,7 @@ test('natural dripstone cave contains pointed formations and remains explorable'
 async function room(page) {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,

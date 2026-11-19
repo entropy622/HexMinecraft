@@ -30,6 +30,7 @@ async function room(page, snow = false) {
   await page.setViewportSize({ width: 720, height: 520 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   return page.evaluate((snow) => {
     const g = window.__hexwild,
       w = g.state.world;
@@ -65,7 +66,7 @@ async function snapshot(page) {
   return page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
 }
 
@@ -438,7 +439,7 @@ test('a production chicken sinks gradually through a deep snow trap, freezes and
       const g = window.__hexwild;
       g.save();
       const m = JSON.parse(
-        localStorage.getItem('hexwild-save-v16'),
+        localStorage.getItem('hexwild-save-v17'),
       ).dimensions.overworld.fauna.mobs.find((m) => m.id === id);
       return m ? { height: m.position[1], hp: m.hp } : null;
     }, id);

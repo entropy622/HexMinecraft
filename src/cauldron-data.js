@@ -69,8 +69,8 @@ export const CAULDRON_RECIPES = [
     id: 'cauldron',
     count: 1,
     station: true,
-    pattern: Array(7).fill('ingot'),
-    cost: { ingot: 7 },
-    desc: '七铁锭制成六棱炼药锅；用桶装取水或岩浆，水瓶每次取放一档水。放在钟乳石下收集滴液，也能露天接雨或接雪，细雪装满三档后用空桶取出。',
+    pattern: ['ingot', null, 'ingot', 'bucket', 'ingot', 'ingot', 'ingot'],
+    cost: { ingot: 5, bucket: 1 },
+    desc: '五铁锭围住铁桶，制成六棱炼药锅；用桶装取水或岩浆，水瓶每次取放一档水。放在钟乳石下收集滴液，也能露天接雨或接雪，细雪装满三档后用空桶取出。',
   },
 ];

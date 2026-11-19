@@ -140,7 +140,7 @@ test('native forest retains its fixed camera and lighting while a planted oak gr
     return {
       cropRemaining: a.state.crops.has(root),
       branchCount: expected.filter((c) => c[4]).length,
-      save: JSON.parse(localStorage.getItem('hexwild-save-v16')),
+      save: JSON.parse(localStorage.getItem('hexwild-save-v17')),
     };
   });
   expect(growth.cropRemaining).toBe(false);

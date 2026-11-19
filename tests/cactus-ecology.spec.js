@@ -12,7 +12,7 @@ test.afterEach(async ({ page }, info) => {
       const g = window.__hexwild;
       if (!g) return { game: false };
       g.save();
-      const saved = JSON.parse(localStorage.getItem('hexwild-save-v16')),
+      const saved = JSON.parse(localStorage.getItem('hexwild-save-v17')),
         gl = g.graphics.renderer.getContext(),
         ext = gl.getExtension('WEBGL_debug_renderer_info');
       return {
@@ -65,9 +65,10 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const saved = await page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
   const w = new World(saved.seed, 'overworld', {
     ...saved.dimensions.overworld,
@@ -134,7 +135,7 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
     .poll(() =>
       page.evaluate(() => {
         window.__hexwild.save();
-        return JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+        return JSON.parse(localStorage.getItem('hexwild-save-v17')).dimensions
           .overworld.fauna.mobs[0]?.hp;
       }),
     )
@@ -210,7 +211,7 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
       page.evaluate(() => {
         window.__hexwild.save();
         return JSON.parse(
-          localStorage.getItem('hexwild-save-v16'),
+          localStorage.getItem('hexwild-save-v17'),
         ).dimensions.overworld.drops.filter((d) => d.item === 'diamond').length;
       }),
     )
@@ -278,7 +279,7 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
     () => {
       window.__hexwild.save();
       const drop = JSON.parse(
-        localStorage.getItem('hexwild-save-v16'),
+        localStorage.getItem('hexwild-save-v17'),
       ).dimensions.overworld.drops.find((d) => d.item === 'cactusFlower');
       return drop && { item: drop.item, count: drop.count };
     },
@@ -308,6 +309,8 @@ test('a survival cactus garden grows, stings real bodies, destroys thrown items,
     await page.keyboard.up('KeyW');
   }
   await page.keyboard.press('KeyE');
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('粉红色染料');
   const flowerRecipe = RECIPES.findIndex(
     (recipe) => recipe.cost.cactusFlower === 1,

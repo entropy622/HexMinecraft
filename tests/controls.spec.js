@@ -27,6 +27,7 @@ async function releaseTap(page, code) {
 async function platform(page, creative = false) {
   await page.goto('/');
   await page.locator(creative ? '#creative' : '#start').click();
+  if (!creative) await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world;
@@ -402,7 +403,7 @@ test('Ctrl and double forward sprint; right-click interacts and Shift builds alo
     return { version: data.version, valid: !!validateSave(data), rejected };
   });
   expect(validation).toEqual({
-    version: 16,
+    version: 17,
     valid: true,
     rejected: [true, true, true],
   });

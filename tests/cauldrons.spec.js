@@ -30,6 +30,7 @@ async function room(page, viewport = { width: 1000, height: 700 }) {
   await page.setViewportSize(viewport);
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -95,7 +96,7 @@ async function floorColor(page) {
     );
   }, png);
 }
-test('seven iron becomes a placeable cauldron; bottles and buckets conserve water and survive Continue', async ({
+test('an iron bucket and five ingots become a placeable cauldron; bottles and buckets conserve water and survive Continue', async ({
   page,
 }, info) => {
   const errors = [];
@@ -103,13 +104,16 @@ test('seven iron becomes a placeable cauldron; bottles and buckets conserve wate
   await room(page);
   await page.evaluate(() => {
     const g = window.__hexwild;
-    g.give('ingot', 7);
+    g.give('ingot', 5);
+    g.give('bucket', 1);
     g.give('glassBottle', 4);
     g.give('waterBucket', 1);
   });
   await aim(page, -2, 40.5, 0, 'workbench');
   await use(page);
   await expect(page.locator('#craft-overlay')).toBeVisible();
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('炼药锅');
   const recipe = page.locator('[data-recipe]').filter({ hasText: '炼药锅' });
   await expect(recipe).toBeVisible({ timeout: 5000 });
@@ -208,7 +212,7 @@ test('seven iron becomes a placeable cauldron; bottles and buckets conserve wate
   });
   expect(
     await page.evaluate(() => {
-      const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+      const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
       return s.inventory.slots[s.selected]?.item;
     }),
   ).toBe('cauldron');
@@ -231,7 +235,7 @@ test('seven iron becomes a placeable cauldron; bottles and buckets conserve wate
   const recovered = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     const stacks = [
       ...s.inventory.slots.filter(Boolean),
       ...s.dimensions.overworld.drops.map((d) => ({
@@ -395,7 +399,7 @@ test('real source drips fill receivers, respect a cover and pause, drive compara
     const index = await page.evaluate((item) => {
       window.__hexwild.save();
       return JSON.parse(
-        localStorage.getItem('hexwild-save-v16'),
+        localStorage.getItem('hexwild-save-v17'),
       ).inventory.slots.findIndex((s) => s?.item === item);
     }, item);
     expect(index).toBeGreaterThanOrEqual(0);
@@ -487,7 +491,7 @@ test('the player enters the real cavity; water extinguishes once while lava burn
     const g = window.__hexwild;
     g.state.world.fluids.scoop(4, 40, 2);
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return {
       burning: s.survival.burning,
       air: s.survival.air,
@@ -507,7 +511,7 @@ test('the player enters the real cavity; water extinguishes once while lava burn
     .toBeLessThan(wet.health);
   const lava = await page.evaluate(() => {
     window.__hexwild.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return {
       cell: window.__hexwild.state.world.get(2, 40, 0),
       burning: s.survival.burning,
@@ -552,7 +556,7 @@ test('the player enters the real cavity; water extinguishes once while lava burn
     .toBeGreaterThan(1.2);
   const protectedEnd = await page.evaluate(() => {
     window.__hexwild.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return {
       health: s.health,
       burning: s.survival.burning,
@@ -650,7 +654,7 @@ test.describe('touch and precipitation', () => {
       g.give('pick2', 1);
       g.selectItem('pick2');
       g.save();
-      const s = JSON.parse(localStorage.getItem('hexwild-save-v16')),
+      const s = JSON.parse(localStorage.getItem('hexwild-save-v17')),
         bottles = s.inventory.slots.find((s) => s?.item === 'glassBottle'),
         pick = s.inventory.slots.find((s) => s?.item === 'pick2');
       s.creative = false;
@@ -662,7 +666,7 @@ test.describe('touch and precipitation', () => {
       return s;
     });
     await page.addInitScript(
-      (s) => localStorage.setItem('hexwild-save-v16', JSON.stringify(s)),
+      (s) => localStorage.setItem('hexwild-save-v17', JSON.stringify(s)),
       restored,
     );
     await page.reload();
@@ -675,7 +679,7 @@ test.describe('touch and precipitation', () => {
     const snapshot = await page.evaluate(() => {
       const g = window.__hexwild;
       g.save();
-      const s = JSON.parse(localStorage.getItem('hexwild-save-v16')),
+      const s = JSON.parse(localStorage.getItem('hexwild-save-v17')),
         stacks = [
           ...s.inventory.slots.filter(Boolean),
           ...s.inventory.gear.filter(Boolean),

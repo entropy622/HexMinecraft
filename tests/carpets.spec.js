@@ -37,7 +37,7 @@ test.afterEach(async ({ page }, info) => {
           : null,
         position: g?.state.position,
         inventory: g?.state.inventory,
-        saved: JSON.parse(localStorage.getItem('hexwild-save-v16') || 'null'),
+        saved: JSON.parse(localStorage.getItem('hexwild-save-v17') || 'null'),
       };
     })
     .catch((e) => ({ diagnosticError: e.message }));
@@ -84,7 +84,7 @@ async function aim(page, q, y, r, expected) {
 async function save(page) {
   return page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
 }
 async function platform(page) {
@@ -95,6 +95,7 @@ async function platform(page) {
   await page.setViewportSize({ width: 900, height: 650 });
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -182,6 +183,8 @@ test('personal UI crafts all sixteen colors, lays thin wool floors, mines one ba
   await page.keyboard.press('KeyE');
   for (const color of colors) {
     const name = DYES[color].name + '地毯';
+    if (await page.locator('#recipe-book').isHidden())
+      await page.locator('#recipe-book-toggle').click();
     await page.locator('#recipe-search').fill(name);
     await page
       .locator('[data-recipe].can-fill')

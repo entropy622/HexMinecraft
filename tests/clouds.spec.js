@@ -373,7 +373,7 @@ test('cloud thickness and illumination follow imported weather, world seed and n
   const night = await sample(page);
   const saved = await page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
   });
   saved.weather = {
     kind: 'storm',

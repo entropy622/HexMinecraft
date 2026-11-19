@@ -14,7 +14,7 @@ test.afterEach(async ({ page }, info) => {
       if (!g) return { ready: false };
       g.save();
       const w = g.state.world,
-        s = JSON.parse(localStorage.getItem('hexwild-save-v16')),
+        s = JSON.parse(localStorage.getItem('hexwild-save-v17')),
         t = g.state.target;
       return {
         playing: g.state.playing,
@@ -59,6 +59,7 @@ async function platform(page) {
   await page.setViewportSize({ width: 1000, height: 700 });
   await page.goto('/', { timeout: 90000 });
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild,
       w = g.state.world,
@@ -94,6 +95,8 @@ test('player places a five-slot hopper, transfers through its live UI, unlocks i
   await aim(page, -2, 40.5, 0, 'workbench');
   await use(page);
   await expect(page.locator('#craft-overlay')).toBeVisible();
+  if (await page.locator('#recipe-book').isHidden())
+    await page.locator('#recipe-book-toggle').click();
   await page.locator('#recipe-search').fill('漏斗');
   await page.locator('[data-recipe]').filter({ hasText: '漏斗' }).click();
   await page.locator('#craft-button').click({ modifiers: ['Shift'] });
@@ -138,7 +141,7 @@ test('player places a five-slot hopper, transfers through its live UI, unlocks i
   const index = await page.evaluate(() => {
     window.__hexwild.save();
     return JSON.parse(
-      localStorage.getItem('hexwild-save-v16'),
+      localStorage.getItem('hexwild-save-v17'),
     ).inventory.slots.findIndex((s) => s?.item === 'stone');
   });
   await page
@@ -188,7 +191,7 @@ test('player places a five-slot hopper, transfers through its live UI, unlocks i
   await page.keyboard.press('Escape');
   const before = await page.evaluate(() => {
     window.__hexwild.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17')).dimensions
       .overworld;
     return {
       slots: Object.fromEntries(s.chests)['0,41,0'].length,
@@ -283,7 +286,7 @@ test.describe('mobile hopper inventory', () => {
       .poll(() =>
         page.evaluate(() => {
           window.__hexwild.save();
-          return JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+          return JSON.parse(localStorage.getItem('hexwild-save-v17')).dimensions
             .overworld.crouching;
         }),
       )
@@ -327,7 +330,7 @@ test.describe('mobile hopper inventory', () => {
       .poll(() =>
         page.evaluate(() => {
           window.__hexwild.save();
-          return JSON.parse(localStorage.getItem('hexwild-save-v16')).dimensions
+          return JSON.parse(localStorage.getItem('hexwild-save-v17')).dimensions
             .overworld.crouching;
         }),
       )
@@ -341,7 +344,7 @@ test.describe('mobile hopper inventory', () => {
     const index = await page.evaluate(() => {
       window.__hexwild.save();
       return JSON.parse(
-        localStorage.getItem('hexwild-save-v16'),
+        localStorage.getItem('hexwild-save-v17'),
       ).inventory.slots.findIndex((s) => s?.item === 'egg');
     });
     await page.locator('#station-overlay [data-inventory-mode="single"]').tap();
@@ -534,7 +537,7 @@ test('restored loose equipment and a filled portable box enter the open mouth, t
     g.teleport(-2, 40, 0);
     g.lookAt(0, 41.9, 0);
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     const contents = Array(27).fill(null);
     contents[0] = { item: 'egg', count: 16 };
     const drop = (item, count, extra = {}) => ({
@@ -555,7 +558,7 @@ test('restored loose equipment and a filled portable box enter the open mouth, t
     return s;
   }, wear);
   await page.addInitScript(
-    (s) => localStorage.setItem('hexwild-save-v16', JSON.stringify(s)),
+    (s) => localStorage.setItem('hexwild-save-v17', JSON.stringify(s)),
     fixture,
   );
   await page.reload();
@@ -572,7 +575,7 @@ test('restored loose equipment and a filled portable box enter the open mouth, t
   const absorbed = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16'));
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
     return {
       slots: g.state.world.chests.get('0,41,0'),
       remaining: s.dimensions.overworld.drops.filter((d) =>
@@ -607,7 +610,7 @@ test('restored loose equipment and a filled portable box enter the open mouth, t
   const spilled = await page.evaluate(() => {
     const g = window.__hexwild;
     g.save();
-    const s = JSON.parse(localStorage.getItem('hexwild-save-v16')),
+    const s = JSON.parse(localStorage.getItem('hexwild-save-v17')),
       d = s.dimensions.overworld;
     return {
       stored: d.chests.some(([k]) => k === '0,41,0'),

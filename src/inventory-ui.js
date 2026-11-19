@@ -1,4 +1,4 @@
-import { ITEMS } from './core.js';
+import { ITEMS, BLOCKS } from './core.js';
 import { ARMOR_SLOTS } from './gear-data.js';
 import { GEAR_SLOTS, stackSize } from './inventory.js';
 import { enchantLabel, customName, wearValue } from './enchanting-data.js';
@@ -80,18 +80,38 @@ export function playerSlots(pack, gear = false) {
       .map((s, i) => inventorySlot(s, 'pack:' + i))
       .join('')}</div>`;
 }
-export function creativePalette() {
-  return `<details class="creative-palette" open><summary>创造物品库</summary><input id="creative-search" placeholder="搜索物品…" aria-label="搜索创造物品"><div class="palette-grid">${Object.entries(
-    ITEMS,
-  )
-    .filter(([id, item]) => id !== 'bedrock' && !item.internal)
-    .map(
-      ([id, item]) =>
-        `<button class="mc-slot" data-creative-item="${id}" data-search="${escape(item.name + ' ' + id.toLowerCase())}" aria-label="${escape(item.name)}">${icon(id)}</button>`,
-    )
+export function creativePalette(category = '全部', query = '') {
+  const categoryFor = (id, v) =>
+    BLOCKS[id]
+      ? BLOCKS[id].shape === 'rail' ||
+        [
+          'hopper',
+          'redstoneLamp',
+          'piston',
+          'observer',
+          'dispenser',
+          'dropper',
+        ].includes(id)
+        ? '机关'
+        : '方块'
+      : v.durability
+        ? '装备'
+        : FOODS[id]
+          ? '食物'
+          : '材料';
+  const tabs = ['全部', '方块', '机关', '装备', '食物', '材料'];
+  const items = Object.entries(ITEMS).filter(
+    ([id, item]) => id !== 'bedrock' && !item.internal,
+  );
+  return `<section class="creative-palette"><nav class="creative-tabs" aria-label="物品分类">${tabs.map((c) => `<button data-category="${c}" aria-pressed="${c === category}">${c}</button>`).join('')}</nav><input id="creative-search" placeholder="搜索名称或 ID" aria-label="搜索创造物品" value="${escape(query)}"><div class="palette-grid">${items
+    .map(([id, item]) => {
+      const cat = categoryFor(id, item),
+        search = item.name + ' ' + id.toLowerCase();
+      return `<button class="mc-slot" data-creative-item="${id}" data-kind="${cat}" data-search="${escape(search)}" ${(category !== '全部' && cat !== category) || !search.includes(query.trim().toLowerCase()) ? 'hidden' : ''} aria-label="${escape(item.name)}">${icon(id)}</button>`;
+    })
     .join(
       '',
-    )}</div><p class="inventory-help">点击拿取一组，放进背包或快捷栏；鼠标中键可复制一组。</p></details>`;
+    )}</div><button class="trash-slot" data-creative-trash title="销毁手中的物品">× 销毁</button></section>`;
 }
 export function cursorMarkup(s) {
   return s

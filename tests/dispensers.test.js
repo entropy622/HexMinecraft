@@ -35,12 +35,12 @@ function rig() {
   return { w, slots, drops: new ItemDrops(new THREE.Scene(), null) };
 }
 
-test('dispenser crafting consumes a real bow and seven cobblestone substitutes at a workbench', () => {
+test('dispenser crafting consumes a real bow and five cobblestone substitutes at a workbench', () => {
   const i = RECIPES.findIndex((r) => r.id === 'dispenser');
   for (const cobble of ['cobble', 'cobbledDeepslate']) {
     const pack = new PlayerInventory(),
       grid = newCraftingGrid();
-    pack.insert(cobble, 7);
+    pack.insert(cobble, 5);
     pack.insert('redstone', 1);
     fillCraftingRecipe(pack, grid, RECIPES[i]);
     assert.equal(quickCraft(pack, grid, i, true, 1).count, 0);

@@ -71,6 +71,7 @@ test('survival portal recipe, actual ray interaction and generated return portal
 }) => {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   await page.evaluate(() => {
     const g = window.__hexwild;
     g.give('obsidian', 6);
@@ -240,6 +241,7 @@ test('footsteps and hand animation run; sound settings persist', async ({
 }) => {
   await page.goto('/');
   await page.locator('#start').click();
+  await page.locator('#new-world').click();
   const hand = await page.evaluate(
     () => window.__hexwild.graphics.hand.position.y,
   );
