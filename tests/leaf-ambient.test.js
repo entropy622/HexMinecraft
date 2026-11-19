@@ -270,6 +270,11 @@ test('normalized geometry bytes use leaf cell ranges and skip uploads on held-li
   assert.equal(attr.getX(0), attr.array[0] / 255);
   assert.ok(attr.array[0] > attr.array[3]);
   const version = attr.version;
+  const skyVersion = g.attributes.skylight.version;
+  const blockVersion = g.attributes.blocklight.version;
+  light.relight(mesh);
+  assert.equal(g.attributes.skylight.version, skyVersion);
+  assert.equal(g.attributes.blocklight.version, blockVersion);
   const p = axialToWorld(3, 3);
   light.setHeld('torch', { ...p, y: 44 });
   light.update(1);
@@ -279,4 +284,29 @@ test('normalized geometry bytes use leaf cell ranges and skip uploads on held-li
   assert.ok(!Object.values(g.userData).includes(light.leafAmbient));
   g.dispose();
   mesh.material.dispose();
+});
+
+test('transport-neutral medium changes reuse leaf ambient; leaf and blocker changes match a fresh field', () => {
+  const f = field(),
+    ambient = new LeafAmbient();
+  const roots = [f.index(0, 32, 0), f.index(-4, 0, 4), f.index(4, 63, 0)];
+  const neighbor = f.index(1, 32, 0);
+  ambient.update(f, roots);
+  const baseline = ambient.values,
+    version = ambient.version;
+  f.cost = f.cost.slice();
+  f.medium = f.medium.slice();
+  f.cost[neighbor] = 2;
+  f.medium[neighbor] = 7;
+  ambient.update(f, roots);
+  assert.equal(ambient.values, baseline);
+  assert.equal(ambient.version, version);
+  for (const medium of [12, 13, 0]) {
+    f.medium = f.medium.slice();
+    f.medium[neighbor] = medium;
+    ambient.update(f, roots);
+    const oracle = new LeafAmbient();
+    oracle.update(f, roots);
+    assert.deepEqual(ambient.values, oracle.values);
+  }
 });

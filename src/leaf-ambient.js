@@ -67,11 +67,41 @@ const paths = directions.map((direction) => {
   return segments;
 });
 
-function equal(a, b) {
-  if (!a || a.length !== b.length) return false;
+// The rays classify a cell as a blocker, a leaf, or a clear segment. A
+// different water height, glass tint or emitter does not change any ray.
+function sameTransmission(cost, medium, oldCost, oldMedium) {
+  for (let i = 0; i < cost.length; i++) {
+    if (cost[i] === oldCost[i] && medium[i] === oldMedium[i]) continue;
+    const before = oldCost[i] >= 16 || oldMedium[i] === 13;
+    const after = cost[i] >= 16 || medium[i] === 13;
+    if (
+      before !== after ||
+      (!after && (oldMedium[i] === 12) !== (medium[i] === 12))
+    )
+      return false;
+  }
+  return true;
+}
+
+function equalCells(a, b) {
+  if (!b || a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
+
+const segmentBounds = paths
+  .flat()
+  .reduce(
+    (box, { q, y, r }) => [
+      Math.min(q, box[0]),
+      Math.max(q, box[1]),
+      Math.min(y, box[2]),
+      Math.max(y, box[3]),
+      Math.min(r, box[4]),
+      Math.max(r, box[5]),
+    ],
+    [0, 0, 0, 0, 0, 0],
+  );
 
 export class LeafAmbient {
   constructor() {
@@ -79,38 +109,73 @@ export class LeafAmbient {
   }
 
   update(field, cells) {
-    const bounds = `${field.minQ},${field.minR},${field.width},${field.depth}`,
+    const { minQ, minR, width, depth, cost, medium } = field,
+      bounds = `${minQ},${minR},${width},${depth}`,
       unchanged =
         bounds === this.bounds &&
-        equal(cells, this.cells) &&
-        equal(field.cost, this.cost) &&
-        equal(field.medium, this.medium);
+        equalCells(cells, this.cells) &&
+        sameTransmission(cost, medium, this.cost, this.medium);
     this.bounds = bounds;
-    this.cost = field.cost;
-    this.medium = field.medium;
+    this.cost = cost;
+    this.medium = medium;
     if (unchanged) return;
+    if (depth !== this.pathDepth) {
+      this.pathDepth = depth;
+      this.offsetPaths = paths.map((path) =>
+        path.map(({ q, y, r, transmission }) => [
+          (q * depth + r) * HEIGHT + y,
+          transmission,
+        ]),
+      );
+    }
+    const [minX, maxX, minY, maxY, minZ, maxZ] = segmentBounds;
     this.cells = Int32Array.from(cells);
-    this.values = new Uint8Array(field.cost.length);
+    this.values = new Uint8Array(cost.length);
     for (const index of cells) {
       const y = index % HEIGHT,
-        q = field.minQ + Math.floor(index / (field.depth * HEIGHT)),
-        r = field.minR + (Math.floor(index / HEIGHT) % field.depth);
+        column = Math.floor(index / HEIGHT),
+        x = Math.floor(column / depth),
+        z = column % depth;
       let visible = 0;
-      for (const path of paths) {
-        let transmission = 1;
-        for (const segment of path) {
-          if (y + segment.y >= HEIGHT) break;
-          const i = field.index(q + segment.q, y + segment.y, r + segment.r);
-          // Unloaded cells, bedrock and partially represented solid shapes
-          // are conservative blockers. Air, glass and fluids use the existing
-          // skylight field for their attenuation, avoiding a second water tint.
-          if (i < 0 || field.cost[i] >= 16 || field.medium[i] === 13) {
-            transmission = 0;
-            break;
+      if (
+        x + minX >= 0 &&
+        x + maxX < width &&
+        z + minZ >= 0 &&
+        z + maxZ < depth &&
+        y + minY >= 0 &&
+        y + maxY < HEIGHT
+      ) {
+        for (const path of this.offsetPaths) {
+          let transmission = 1;
+          for (const [offset, attenuation] of path) {
+            const i = index + offset;
+            if (cost[i] >= 16 || medium[i] === 13) {
+              transmission = 0;
+              break;
+            }
+            if (medium[i] === 12) transmission *= attenuation;
           }
-          if (field.medium[i] === 12) transmission *= segment.transmission;
+          visible += transmission;
         }
-        visible += transmission;
+      } else {
+        // Above-world samples leave the volume. Sides and bedrock block.
+        for (const path of paths) {
+          let transmission = 1;
+          for (const segment of path) {
+            if (y + segment.y >= HEIGHT) break;
+            const i = field.index(
+              x + minQ + segment.q,
+              y + segment.y,
+              z + minR + segment.r,
+            );
+            if (i < 0 || cost[i] >= 16 || medium[i] === 13) {
+              transmission = 0;
+              break;
+            }
+            if (medium[i] === 12) transmission *= segment.transmission;
+          }
+          visible += transmission;
+        }
       }
       this.values[index] = Math.round((255 * visible) / paths.length);
     }

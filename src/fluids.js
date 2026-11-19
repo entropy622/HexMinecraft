@@ -114,7 +114,9 @@ export class Fluids {
       k = key(q, y, r),
       cells = this.chunks.get(ck);
     if (!cells) return;
-    if (equal(cells.get(k), f)) return;
+    const previous = cells.get(k);
+    if (equal(previous, f)) return;
+    if (!!previous !== !!f) this.world.validatedVines.delete(k);
     const removed = this.world.get(q, y, r);
     if (f && (removed === 'cobweb' || removed === 'powderSnow')) {
       this.world.set(q, y, r, null);

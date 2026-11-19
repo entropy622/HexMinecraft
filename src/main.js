@@ -5860,7 +5860,7 @@ function updateWeather(dt) {
   weatherColumns.update(dt, world);
   weatherGrowthTimer += dt;
   if (weatherGrowthTimer < 1) return;
-  updatePlants(weatherGrowthTimer);
+  graphics.batchGeometry(() => updatePlants(weatherGrowthTimer));
   const collected = tickCauldrons(
     world,
     weatherGrowthTimer,

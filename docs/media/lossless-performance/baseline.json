@@ -1,0 +1,766 @@
+{
+  "summary": {
+    "extension": true,
+    "counterBits": 64,
+    "disjointEvents": 0,
+    "busy": 0,
+    "pendingQueries": 0,
+    "adapter": "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 (0x00002882) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "framebuffer": [
+      1366,
+      768
+    ],
+    "tiles": 169,
+    "vines": 17364,
+    "shaderErrors": 0,
+    "interval": {
+      "median": 99.90000000002328,
+      "p95": 933.5,
+      "max": 1233.3999999999942,
+      "mean": 210.09154929577466
+    },
+    "fps": 4.759829718767807,
+    "frameCpu": {
+      "median": 90.39999997615814,
+      "p95": 931.7999999523163,
+      "max": 1222.5,
+      "mean": 206.80972222321563
+    },
+    "gpu": {
+      "median": 41.212928,
+      "p95": 59.190272,
+      "max": 1085.927008,
+      "mean": 60.3537151111111
+    },
+    "draws": {
+      "median": 3097,
+      "p95": 3150,
+      "max": 3163,
+      "mean": 3098.027777777778
+    }
+  },
+  "samples": [
+    {
+      "index": 0,
+      "frameIntervalMs": null,
+      "cpuSubmitMs": 1222.5,
+      "draws": 3101
+    },
+    {
+      "index": 1,
+      "frameIntervalMs": 1233.3999999999942,
+      "cpuSubmitMs": 85.39999997615814,
+      "draws": 3102
+    },
+    {
+      "index": 2,
+      "frameIntervalMs": 83.30000000001746,
+      "cpuSubmitMs": 129.30000007152557,
+      "draws": 3101
+    },
+    {
+      "index": 3,
+      "frameIntervalMs": 133.29999999998836,
+      "cpuSubmitMs": 149.79999995231628,
+      "draws": 3099
+    },
+    {
+      "index": 4,
+      "frameIntervalMs": 150,
+      "cpuSubmitMs": 114.60000002384186,
+      "draws": 3100
+    },
+    {
+      "index": 5,
+      "frameIntervalMs": 116.79999999998836,
+      "cpuSubmitMs": 85.29999995231628,
+      "draws": 3101
+    },
+    {
+      "index": 6,
+      "frameIntervalMs": 83.30000000001746,
+      "cpuSubmitMs": 1019.7999999523163,
+      "draws": 3154
+    },
+    {
+      "index": 7,
+      "frameIntervalMs": 1016.6000000000058,
+      "cpuSubmitMs": 220.29999995231628,
+      "draws": 3099
+    },
+    {
+      "index": 8,
+      "frameIntervalMs": 216.69999999998254,
+      "cpuSubmitMs": 90.20000004768372,
+      "draws": 3100
+    },
+    {
+      "index": 9,
+      "frameIntervalMs": 99.89999999999418,
+      "cpuSubmitMs": 104.20000004768372,
+      "draws": 3101
+    },
+    {
+      "index": 10,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 80.5,
+      "draws": 3096
+    },
+    {
+      "index": 11,
+      "frameIntervalMs": 83.40000000002328,
+      "cpuSubmitMs": 78.30000007152557,
+      "draws": 3103
+    },
+    {
+      "index": 12,
+      "frameIntervalMs": 83.29999999998836,
+      "cpuSubmitMs": 129.60000002384186,
+      "draws": 3097
+    },
+    {
+      "index": 13,
+      "frameIntervalMs": 133.39999999999418,
+      "cpuSubmitMs": 84.70000004768372,
+      "draws": 3102
+    },
+    {
+      "index": 14,
+      "frameIntervalMs": 83.30000000001746,
+      "cpuSubmitMs": 859.7000000476837,
+      "draws": 3163
+    },
+    {
+      "index": 15,
+      "frameIntervalMs": 849.8999999999942,
+      "cpuSubmitMs": 83.79999995231628,
+      "draws": 3100
+    },
+    {
+      "index": 16,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 141.60000002384186,
+      "draws": 3096
+    },
+    {
+      "index": 17,
+      "frameIntervalMs": 150,
+      "cpuSubmitMs": 269.8000000715256,
+      "draws": 3105
+    },
+    {
+      "index": 18,
+      "frameIntervalMs": 283.29999999998836,
+      "cpuSubmitMs": 99.89999997615814,
+      "draws": 3096
+    },
+    {
+      "index": 19,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 84,
+      "draws": 3102
+    },
+    {
+      "index": 20,
+      "frameIntervalMs": 83.30000000001746,
+      "cpuSubmitMs": 121.39999997615814,
+      "draws": 3096
+    },
+    {
+      "index": 21,
+      "frameIntervalMs": 133.39999999999418,
+      "cpuSubmitMs": 1070.8000000715256,
+      "draws": 3155
+    },
+    {
+      "index": 22,
+      "frameIntervalMs": 1083.2999999999884,
+      "cpuSubmitMs": 87.70000004768372,
+      "draws": 3096
+    },
+    {
+      "index": 23,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 88.10000002384186,
+      "draws": 3099
+    },
+    {
+      "index": 24,
+      "frameIntervalMs": 83.30000000001746,
+      "cpuSubmitMs": 156.29999995231628,
+      "draws": 3100
+    },
+    {
+      "index": 25,
+      "frameIntervalMs": 166.69999999998254,
+      "cpuSubmitMs": 84.69999992847443,
+      "draws": 3100
+    },
+    {
+      "index": 26,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 80.70000004768372,
+      "draws": 3095
+    },
+    {
+      "index": 27,
+      "frameIntervalMs": 66.70000000001164,
+      "cpuSubmitMs": 92.80000007152557,
+      "draws": 3102
+    },
+    {
+      "index": 28,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 92.79999995231628,
+      "draws": 3095
+    },
+    {
+      "index": 29,
+      "frameIntervalMs": 99.89999999999418,
+      "cpuSubmitMs": 133.30000007152557,
+      "draws": 3100
+    },
+    {
+      "index": 30,
+      "frameIntervalMs": 133.39999999999418,
+      "cpuSubmitMs": 931.7999999523163,
+      "draws": 3138
+    },
+    {
+      "index": 31,
+      "frameIntervalMs": 933.5,
+      "cpuSubmitMs": 86.29999995231628,
+      "draws": 3098
+    },
+    {
+      "index": 32,
+      "frameIntervalMs": 83.10000000000582,
+      "cpuSubmitMs": 85.89999997615814,
+      "draws": 3095
+    },
+    {
+      "index": 33,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 147.5,
+      "draws": 3104
+    },
+    {
+      "index": 34,
+      "frameIntervalMs": 149.90000000002328,
+      "cpuSubmitMs": 86.29999995231628,
+      "draws": 3094
+    },
+    {
+      "index": 35,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 94.30000007152557,
+      "draws": 3097
+    },
+    {
+      "index": 36,
+      "frameIntervalMs": 99.89999999999418,
+      "cpuSubmitMs": 90.20000004768372,
+      "draws": 3098
+    },
+    {
+      "index": 37,
+      "frameIntervalMs": 83.5,
+      "cpuSubmitMs": 82.79999995231628,
+      "draws": 3098
+    },
+    {
+      "index": 38,
+      "frameIntervalMs": 83.20000000001164,
+      "cpuSubmitMs": 84.5,
+      "draws": 3093
+    },
+    {
+      "index": 39,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 133.29999995231628,
+      "draws": 3100
+    },
+    {
+      "index": 40,
+      "frameIntervalMs": 133.29999999998836,
+      "cpuSubmitMs": 823.0999999046326,
+      "draws": 3135
+    },
+    {
+      "index": 41,
+      "frameIntervalMs": 833.3000000000175,
+      "cpuSubmitMs": 89.59999990463257,
+      "draws": 3097
+    },
+    {
+      "index": 42,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 88.5,
+      "draws": 3091
+    },
+    {
+      "index": 43,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 149.19999992847443,
+      "draws": 3098
+    },
+    {
+      "index": 44,
+      "frameIntervalMs": 150,
+      "cpuSubmitMs": 84.5,
+      "draws": 3091
+    },
+    {
+      "index": 45,
+      "frameIntervalMs": 83.29999999998836,
+      "cpuSubmitMs": 88.5,
+      "draws": 3097
+    },
+    {
+      "index": 46,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 93.30000007152557,
+      "draws": 3096
+    },
+    {
+      "index": 47,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 82.60000002384186,
+      "draws": 3094
+    },
+    {
+      "index": 48,
+      "frameIntervalMs": 83.30000000001746,
+      "cpuSubmitMs": 90.60000002384186,
+      "draws": 3090
+    },
+    {
+      "index": 49,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 945.8000000715256,
+      "draws": 3153
+    },
+    {
+      "index": 50,
+      "frameIntervalMs": 949.8999999999942,
+      "cpuSubmitMs": 92.70000004768372,
+      "draws": 3088
+    },
+    {
+      "index": 51,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 90.30000007152557,
+      "draws": 3089
+    },
+    {
+      "index": 52,
+      "frameIntervalMs": 99.90000000002328,
+      "cpuSubmitMs": 90.39999997615814,
+      "draws": 3088
+    },
+    {
+      "index": 53,
+      "frameIntervalMs": 83.39999999999418,
+      "cpuSubmitMs": 143.10000002384186,
+      "draws": 3087
+    },
+    {
+      "index": 54,
+      "frameIntervalMs": 150,
+      "cpuSubmitMs": 82,
+      "draws": 3081
+    },
+    {
+      "index": 55,
+      "frameIntervalMs": 83.29999999998836,
+      "cpuSubmitMs": 84.70000004768372,
+      "draws": 3088
+    },
+    {
+      "index": 56,
+      "frameIntervalMs": 83.30000000001746,
+      "cpuSubmitMs": 98.5,
+      "draws": 3082
+    },
+    {
+      "index": 57,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 81.79999995231628,
+      "draws": 3087
+    },
+    {
+      "index": 58,
+      "frameIntervalMs": 83.29999999998836,
+      "cpuSubmitMs": 650.7999999523163,
+      "draws": 3149
+    },
+    {
+      "index": 59,
+      "frameIntervalMs": 650.1000000000058,
+      "cpuSubmitMs": 117.70000004768372,
+      "draws": 3083
+    },
+    {
+      "index": 60,
+      "frameIntervalMs": 116.5,
+      "cpuSubmitMs": 80.29999995231628,
+      "draws": 3079
+    },
+    {
+      "index": 61,
+      "frameIntervalMs": 83.5,
+      "cpuSubmitMs": 82,
+      "draws": 3088
+    },
+    {
+      "index": 62,
+      "frameIntervalMs": 83.29999999998836,
+      "cpuSubmitMs": 89.89999997615814,
+      "draws": 3078
+    },
+    {
+      "index": 63,
+      "frameIntervalMs": 83.30000000001746,
+      "cpuSubmitMs": 80.60000002384186,
+      "draws": 3081
+    },
+    {
+      "index": 64,
+      "frameIntervalMs": 83.29999999998836,
+      "cpuSubmitMs": 75.80000007152557,
+      "draws": 3078
+    },
+    {
+      "index": 65,
+      "frameIntervalMs": 83.29999999998836,
+      "cpuSubmitMs": 130.60000002384186,
+      "draws": 3087
+    },
+    {
+      "index": 66,
+      "frameIntervalMs": 133.40000000002328,
+      "cpuSubmitMs": 82,
+      "draws": 3078
+    },
+    {
+      "index": 67,
+      "frameIntervalMs": 83.29999999998836,
+      "cpuSubmitMs": 76.79999995231628,
+      "draws": 3082
+    },
+    {
+      "index": 68,
+      "frameIntervalMs": 66.70000000001164,
+      "cpuSubmitMs": 850.5999999046326,
+      "draws": 3150
+    },
+    {
+      "index": 69,
+      "frameIntervalMs": 849.8999999999942,
+      "cpuSubmitMs": 133.10000002384186,
+      "draws": 3035
+    },
+    {
+      "index": 70,
+      "frameIntervalMs": 133.39999999999418,
+      "cpuSubmitMs": 96.29999995231628,
+      "draws": 3034
+    },
+    {
+      "index": 71,
+      "frameIntervalMs": 100,
+      "cpuSubmitMs": 79.79999995231628,
+      "draws": 3053
+    }
+  ],
+  "gpu": [
+    {
+      "index": 0,
+      "milliseconds": 1085.927008
+    },
+    {
+      "index": 1,
+      "milliseconds": 42.72128
+    },
+    {
+      "index": 2,
+      "milliseconds": 42.159104
+    },
+    {
+      "index": 3,
+      "milliseconds": 57.650176
+    },
+    {
+      "index": 4,
+      "milliseconds": 50.80064
+    },
+    {
+      "index": 5,
+      "milliseconds": 37.164032
+    },
+    {
+      "index": 6,
+      "milliseconds": 55.764992
+    },
+    {
+      "index": 7,
+      "milliseconds": 44.227584
+    },
+    {
+      "index": 8,
+      "milliseconds": 42.446848
+    },
+    {
+      "index": 9,
+      "milliseconds": 36.699136
+    },
+    {
+      "index": 10,
+      "milliseconds": 38.233088
+    },
+    {
+      "index": 11,
+      "milliseconds": 41.075712
+    },
+    {
+      "index": 12,
+      "milliseconds": 38.616064
+    },
+    {
+      "index": 13,
+      "milliseconds": 38.171648
+    },
+    {
+      "index": 14,
+      "milliseconds": 58.5216
+    },
+    {
+      "index": 15,
+      "milliseconds": 38.827008
+    },
+    {
+      "index": 16,
+      "milliseconds": 42.12224
+    },
+    {
+      "index": 17,
+      "milliseconds": 217.167872
+    },
+    {
+      "index": 18,
+      "milliseconds": 38.515712
+    },
+    {
+      "index": 19,
+      "milliseconds": 45.535232
+    },
+    {
+      "index": 20,
+      "milliseconds": 36.955136
+    },
+    {
+      "index": 21,
+      "milliseconds": 60.109824
+    },
+    {
+      "index": 22,
+      "milliseconds": 40.629248
+    },
+    {
+      "index": 23,
+      "milliseconds": 40.593408
+    },
+    {
+      "index": 24,
+      "milliseconds": 42.541056
+    },
+    {
+      "index": 25,
+      "milliseconds": 40.05376
+    },
+    {
+      "index": 26,
+      "milliseconds": 40.936448
+    },
+    {
+      "index": 27,
+      "milliseconds": 43.964416
+    },
+    {
+      "index": 28,
+      "milliseconds": 39.448576
+    },
+    {
+      "index": 29,
+      "milliseconds": 38.74816
+    },
+    {
+      "index": 30,
+      "milliseconds": 54.525952
+    },
+    {
+      "index": 31,
+      "milliseconds": 41.166848
+    },
+    {
+      "index": 32,
+      "milliseconds": 41.56928
+    },
+    {
+      "index": 33,
+      "milliseconds": 44.606464
+    },
+    {
+      "index": 34,
+      "milliseconds": 38.825984
+    },
+    {
+      "index": 35,
+      "milliseconds": 41.212928
+    },
+    {
+      "index": 36,
+      "milliseconds": 44.89728
+    },
+    {
+      "index": 37,
+      "milliseconds": 40.327168
+    },
+    {
+      "index": 38,
+      "milliseconds": 39.45472
+    },
+    {
+      "index": 39,
+      "milliseconds": 42.788864
+    },
+    {
+      "index": 40,
+      "milliseconds": 55.273472
+    },
+    {
+      "index": 41,
+      "milliseconds": 40.799232
+    },
+    {
+      "index": 42,
+      "milliseconds": 41.024512
+    },
+    {
+      "index": 43,
+      "milliseconds": 45.546496
+    },
+    {
+      "index": 44,
+      "milliseconds": 40.833024
+    },
+    {
+      "index": 45,
+      "milliseconds": 41.944064
+    },
+    {
+      "index": 46,
+      "milliseconds": 44.577792
+    },
+    {
+      "index": 47,
+      "milliseconds": 41.40032
+    },
+    {
+      "index": 48,
+      "milliseconds": 41.315328
+    },
+    {
+      "index": 49,
+      "milliseconds": 58.683392
+    },
+    {
+      "index": 50,
+      "milliseconds": 41.892864
+    },
+    {
+      "index": 51,
+      "milliseconds": 40.687616
+    },
+    {
+      "index": 52,
+      "milliseconds": 49.345536
+    },
+    {
+      "index": 53,
+      "milliseconds": 38.6048
+    },
+    {
+      "index": 54,
+      "milliseconds": 37.632
+    },
+    {
+      "index": 55,
+      "milliseconds": 44.043264
+    },
+    {
+      "index": 56,
+      "milliseconds": 40.911872
+    },
+    {
+      "index": 57,
+      "milliseconds": 40.9088
+    },
+    {
+      "index": 58,
+      "milliseconds": 60.709888
+    },
+    {
+      "index": 59,
+      "milliseconds": 40.769536
+    },
+    {
+      "index": 60,
+      "milliseconds": 39.852032
+    },
+    {
+      "index": 61,
+      "milliseconds": 44.672
+    },
+    {
+      "index": 62,
+      "milliseconds": 39.791616
+    },
+    {
+      "index": 63,
+      "milliseconds": 40.48896
+    },
+    {
+      "index": 64,
+      "milliseconds": 39.894016
+    },
+    {
+      "index": 65,
+      "milliseconds": 44.977152
+    },
+    {
+      "index": 66,
+      "milliseconds": 38.771712
+    },
+    {
+      "index": 67,
+      "milliseconds": 38.434816
+    },
+    {
+      "index": 68,
+      "milliseconds": 59.190272
+    },
+    {
+      "index": 69,
+      "milliseconds": 40.445952
+    },
+    {
+      "index": 70,
+      "milliseconds": 41.801728
+    },
+    {
+      "index": 71,
+      "milliseconds": 44.540928
+    }
+  ]
+}

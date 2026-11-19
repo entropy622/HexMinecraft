@@ -60,7 +60,7 @@ export class SceneFramePass extends Pass {
       uniforms = fluids.waterUniforms;
     uniforms.waterSceneReady.value = 0;
     fluids.materials.water.depthWrite = false;
-    this.scene.updateMatrixWorld();
+    if (this.scene.matrixWorldAutoUpdate) this.scene.updateMatrixWorld();
     this.frustum.setFromProjectionMatrix(
       this.viewProjection.multiplyMatrices(
         this.camera.projectionMatrix,

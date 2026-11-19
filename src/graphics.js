@@ -750,10 +750,45 @@ export class Graphics {
     );
     this.offhandHand.add(this.offhandHeld);
   }
+  batchGeometry(update) {
+    const changed = new Set();
+    this.chunkBatch = changed;
+    try {
+      update();
+    } finally {
+      this.chunkBatch = null;
+      for (const k of changed) this.buildChunk(k);
+    }
+  }
   buildChunk(k) {
+    if (this.chunkBatch) {
+      this.chunkBatch.add(k);
+      return;
+    }
     const [cq, cr] = k.split(',').map(Number),
       world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
+    // The inner meshing/AO loops revisit the same neighbors many times.
+    // Snapshot the chunk plus one cell of halo; the world stays authoritative.
+    const q0 = cq * 8 - 1,
+      r0 = cr * 8 - 1,
+      stride = 10 * WORLD_HEIGHT,
+      blocks = new Array(100 * WORLD_HEIGHT);
+    for (let dq = 0; dq < 10; dq++)
+      for (let dr = 0; dr < 10; dr++)
+        for (
+          let y = 0, i = dq * stride + dr * WORLD_HEIGHT;
+          y < WORLD_HEIGHT;
+          y++, i++
+        )
+          blocks[i] = world.get(q0 + dq, y, r0 + dr);
+    const get = (q, y, r) => {
+      const a = q - q0,
+        b = r - r0;
+      if (a >= 0 && a < 10 && b >= 0 && b < 10 && y >= 0 && y < WORLD_HEIGHT)
+        return blocks[a * stride + b * WORLD_HEIGHT + y];
+      return world.get(q, y, r);
+    };
     const solid = {
         biome: [],
         biomeRanges: [],
@@ -807,7 +842,7 @@ export class Graphics {
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
         for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
-          const type = world.get(q, y, r);
+          const type = get(q, y, r);
           if (type && !BLOCKS[type].nonSolid) {
             rainRoofs.set(q + ',' + r, y);
             break;
@@ -851,7 +886,7 @@ export class Graphics {
       }
     };
     const opaque = (q, y, r) => {
-      const t = world.get(q, y, r);
+      const t = get(q, y, r);
       return (
         t &&
         !isGlass(t) &&
@@ -867,7 +902,7 @@ export class Graphics {
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++)
         for (let y = 0; y < WORLD_HEIGHT; y++) {
-          const type = world.get(q, y, r);
+          const type = get(q, y, r);
           if (!type) continue;
           biomeQ = q;
           biomeR = r;
@@ -1003,7 +1038,7 @@ export class Graphics {
             opticalClass = baseOptics;
           };
           const visible = (q, y, r) =>
-            !opaque(q, y, r) && (!isGlass(type) || world.get(q, y, r) !== type);
+            !opaque(q, y, r) && (!isGlass(type) || get(q, y, r) !== type);
           const tint = 0.94 + hash(q, y, r) * 0.06;
           const capUV = (i) => [
             (corners[i][0] + 1) / 2,
@@ -1064,18 +1099,10 @@ export class Graphics {
               v3 = [x + a[0], y + 1, z + a[1]];
             if (
               out === leaves &&
-              !world.get(q + dq, y, r + dr) &&
+              !get(q + dq, y, r + dr) &&
               !world.persistentLeaves.has(q + ',' + y + ',' + r)
             ) {
-              const fan = canopySprig(
-                q,
-                y,
-                r,
-                x,
-                z,
-                i,
-                !world.get(q, y + 1, r),
-              );
+              const fan = canopySprig(q, y, r, x, z, i, !get(q, y + 1, r));
               if (fan) sprigs.push({ q, y, r, type, fan });
             }
             const bottom = opaque(q + dq, y - 1, r + dr) ? 0.78 : 1;
@@ -1105,11 +1132,7 @@ export class Graphics {
           }
           if (out === leaves && leaves.p.length / 3 > leafStart)
             leaves.leafRanges.push(q, y, r, leafStart, leaves.p.length / 3);
-          if (
-            type === 'grass' &&
-            !world.get(q, y + 1, r) &&
-            hash(q, 71, r) > 0.65
-          ) {
+          if (type === 'grass' && !get(q, y + 1, r) && hash(q, 71, r) > 0.65) {
             out = plants;
             const plantStart = plants.p.length / 3;
             const tile = hash(q, 92, r) > 0.9 ? 'flower' : 'tuft';
@@ -1264,7 +1287,7 @@ export class Graphics {
     let vineVertices = 0,
       cutVertices = 0;
     for (const [q, y, r] of shaped) {
-      if (isCampfire(world.get(q, y, r)))
+      if (isCampfire(get(q, y, r)))
         mesh.add(this.campfireModels.create(world, q, y, r, origin));
       const building = buildingMesh(
         world,
@@ -1273,17 +1296,15 @@ export class Graphics {
         r,
         origin,
         this.textures,
-        ['flower', 'vine'].includes(BLOCKS[world.get(q, y, r)].shape)
+        ['flower', 'vine'].includes(BLOCKS[get(q, y, r)].shape)
           ? this.foliageMaterial
-          : isDoor(world.get(q, y, r)) ||
-              isTrapdoor(world.get(q, y, r)) ||
-              ['stonecutter', 'cobweb'].includes(
-                BLOCKS[world.get(q, y, r)].shape,
-              )
+          : isDoor(get(q, y, r)) ||
+              isTrapdoor(get(q, y, r)) ||
+              ['stonecutter', 'cobweb'].includes(BLOCKS[get(q, y, r)].shape)
             ? this.doorMaterial
             : this.material,
       );
-      if (world.get(q, y, r) === 'vine') {
+      if (get(q, y, r) === 'vine') {
         const count = building.geometry.attributes.position.count;
         vines.push(building.geometry);
         vineRanges.push(q, y, r, vineVertices, vineVertices + count);
@@ -1291,7 +1312,7 @@ export class Graphics {
         vineVertices += count;
         continue;
       }
-      if (BLOCKS[world.get(q, y, r)].shape === 'flower') {
+      if (BLOCKS[get(q, y, r)].shape === 'flower') {
         building.customDepthMaterial = this.plantMaterials.depth;
         setFoliageAmbient(building.geometry, [
           q,
@@ -1301,7 +1322,7 @@ export class Graphics {
           building.geometry.attributes.position.count,
         ]);
       }
-      if (['slab', 'stairs'].includes(BLOCKS[world.get(q, y, r)].shape)) {
+      if (['slab', 'stairs'].includes(BLOCKS[get(q, y, r)].shape)) {
         const count = building.geometry.attributes.position.count;
         cutRanges.push(q, y, r, cutVertices, cutVertices + count);
         cutVertices += count;
@@ -2204,10 +2225,15 @@ export class Graphics {
     } else if (this.avatar) this.avatar.root.visible = false;
     this.camera.position.y -= stepOffset;
     this.camera.updateMatrixWorld();
+    const matrixAutoUpdate = this.scene.matrixWorldAutoUpdate;
     let temporal,
       rendered = false;
     try {
       if (this.usePost) {
+        // Beauty, the water capture, foliage depth and protection masks
+        // all use this frame's poses. Only the camera projection is varied.
+        if (matrixAutoUpdate) this.scene.updateMatrixWorld();
+        this.scene.matrixWorldAutoUpdate = false;
         this.composer.effects.contact.enabled =
           this.postOptions.occlusion > 0 && !submerged;
         this.composer.effects.wet.enabled =
@@ -2235,6 +2261,7 @@ export class Graphics {
       } else this.renderer.render(this.scene, this.camera);
       rendered = true;
     } finally {
+      this.scene.matrixWorldAutoUpdate = matrixAutoUpdate;
       temporal?.endFrame(rendered);
       this.camera.position.y += stepOffset;
       restoreView?.();

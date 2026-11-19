@@ -110,6 +110,31 @@ test('actual vines spread up, sideways and down while the density cap permits ha
   assert.equal(clock.get(0, 38, 0), undefined);
 });
 
+test('cached vine support ignores unrelated edits but notices changed shapes and new fluids', () => {
+  const w = garden();
+  w.set(1, 40, 0, 'piston');
+  assert.ok(placeVine(w, 0, 40, 0, 0));
+  assert.ok(placeVine(w, 0, 39, 0, 0));
+  tickVines(w, 0);
+  assert.equal(w.validatedVines.size, 2);
+  w.set(5, 40, 5, 'stone');
+  assert.equal(w.validatedVines.size, 2);
+  assert.deepEqual(tickVines(w, 0).changed, []);
+  w.setState(1, 40, 0, { facing: 0, open: true });
+  assert.deepEqual(tickVines(w, 0).changed, [
+    { q: 0, y: 40, r: 0 },
+    { q: 0, y: 39, r: 0 },
+  ]);
+  wall(w, 0, 40, 0);
+  assert.ok(placeVine(w, 0, 39, 0, 0));
+  tickVines(w, 0);
+  assert.ok(w.fluids.source(0, 40, 0, 'water'));
+  assert.deepEqual(tickVines(w, 0).changed, [
+    { q: 0, y: 40, r: 0 },
+    { q: 0, y: 39, r: 0 },
+  ]);
+});
+
 test('only shears yield one vine; bare hands, silk touch and piston destruction do not duplicate attachments', () => {
   assert.equal(miningStats('vine', 'shears').speed, 2);
   assert.deepEqual(miningLoot('vine').stacks, []);

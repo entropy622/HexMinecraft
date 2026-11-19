@@ -28,6 +28,11 @@ const FACE_NORMALS = DIRECTIONS.map(([q, r]) => {
   return [p.x / Math.sqrt(3), p.z / Math.sqrt(3)];
 });
 
+const bakedLevel = Float32Array.from(
+  { length: 16 },
+  (_, level) => (level / 15) ** 2,
+);
+
 export class VoxelLight {
   constructor(world) {
     this.world = world;
@@ -361,14 +366,34 @@ export class VoxelLight {
         g.userData.lightSamples = cache;
       }
       const sky = g.attributes.skylight,
-        rgb = g.attributes.blocklight;
+        rgb = g.attributes.blocklight,
+        [red, green, blue] = this.rgb;
+      let skyChanged = false,
+        rgbChanged = false;
       for (let j = 0; j < p.count; j++) {
-        const i = cache.indices[j];
-        sky.array[j] = i < 0 ? 1 : (this.sky[i] / 15) ** 2;
-        for (let c = 0; c < 3; c++)
-          rgb.array[j * 3 + c] = i < 0 ? 0 : (this.rgb[c][i] / 15) ** 2;
+        const i = cache.indices[j],
+          base = j * 3;
+        const s = i < 0 ? 1 : bakedLevel[this.sky[i]],
+          r = i < 0 ? 0 : bakedLevel[red[i]],
+          g = i < 0 ? 0 : bakedLevel[green[i]],
+          b = i < 0 ? 0 : bakedLevel[blue[i]];
+        if (sky.array[j] !== s) {
+          sky.array[j] = s;
+          skyChanged = true;
+        }
+        if (
+          rgb.array[base] !== r ||
+          rgb.array[base + 1] !== g ||
+          rgb.array[base + 2] !== b
+        ) {
+          rgb.array[base] = r;
+          rgb.array[base + 1] = g;
+          rgb.array[base + 2] = b;
+          rgbChanged = true;
+        }
       }
-      sky.needsUpdate = rgb.needsUpdate = true;
+      if (skyChanged) sky.needsUpdate = true;
+      if (rgbChanged) rgb.needsUpdate = true;
       const ambient = g.attributes.leafAmbient,
         ranges = g.userData.leafRanges;
       if (

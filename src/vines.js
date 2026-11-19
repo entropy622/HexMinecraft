@@ -148,23 +148,37 @@ export function spreadVine(world, q, y, r, direction, random = Math.random) {
   return changed;
 }
 
+const vineOrder = new WeakMap();
 export function tickVines(world, dt, random = Math.random) {
   const changed = [],
-    cells = [...world.vineCells]
-      .map((k) => k.split(',').map(Number))
-      .sort((a, b) => b[1] - a[1]),
+    checked = world.validatedVines,
     chance = -Math.expm1((-Math.max(0, dt) * 15) / 4096);
-  for (const [q, y, r] of cells) {
-    if (world.get(q, y, r) !== 'vine') continue;
-    const old = vineFaces(world.state(q, y, r)),
-      next = supportedVineFaces(world, q, y, r, old);
-    if (!next) {
-      world.set(q, y, r, null);
-      changed.push({ q, y, r });
-      continue;
+  if (chance === 0 && checked.size === world.vineCells.size)
+    return { changed, drops: [] };
+  let order = vineOrder.get(world);
+  if (order?.revision !== world.vineRevision) {
+    order = {
+      revision: world.vineRevision,
+      cells: [...world.vineCells]
+        .map((k) => [k, ...k.split(',').map(Number)])
+        .sort((a, b) => b[2] - a[2]),
+    };
+    vineOrder.set(world, order);
+  }
+  for (const [k, q, y, r] of order.cells) {
+    if (!checked.has(k)) {
+      if (!world.vineCells.has(k)) continue;
+      const old = vineFaces(world.state(q, y, r)),
+        next = supportedVineFaces(world, q, y, r, old);
+      if (!next) {
+        world.set(q, y, r, null);
+        changed.push({ q, y, r });
+        continue;
+      }
+      if (next !== old && setVineFaces(world, q, y, r, next))
+        changed.push({ q, y, r });
+      checked.add(k);
     }
-    if (next !== old && setVineFaces(world, q, y, r, next))
-      changed.push({ q, y, r });
     if (chance > 0 && random() < chance)
       changed.push(
         ...spreadVine(world, q, y, r, Math.floor(random() * 8), random),

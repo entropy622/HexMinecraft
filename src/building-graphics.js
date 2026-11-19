@@ -1,3 +1,4 @@
+import { VINE_UP, vineFaces } from './vine-data.js';
 import * as THREE from 'three';
 import { BLOCKS, axialToWorld } from './core.js';
 import { buildingParts } from './building-shapes.js';
@@ -147,7 +148,9 @@ export function buildingMesh(world, q, y, r, origin, textures, material) {
     optics = [],
     sky = [],
     rain = [];
+  // Vertical vine planes never use rain exposure. Only the ceiling cap can.
   const exposed =
+    (type !== 'vine' || vineFaces(world.state(q, y, r)) & VINE_UP) &&
     world.dimension === 'overworld' &&
     world.surface(q, r) === y + 1 &&
     !['沙漠', '雪原'].includes(world.biome(q, r));

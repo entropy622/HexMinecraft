@@ -95,6 +95,8 @@ export class World {
     this.circuitCells = new Set();
     this.hangingPlants = new Set();
     this.vineCells = new Set();
+    this.vineRevision = 0;
+    this.validatedVines = new Set();
     this.dripstoneCells = new Set();
     this.amethystCells = new Set();
     this.portalCells = new Set();
@@ -316,6 +318,13 @@ export class World {
           ? { age: state.age }
           : {}),
       };
+    if (
+      previous.faces !== next.faces ||
+      !!previous.open !== next.open ||
+      !!previous.upper !== next.upper ||
+      !!previous.double !== next.double
+    )
+      this.invalidateVineFaces(q, y, r);
     this.blockStates.set(key(q, y, r), next);
     if (previousLight !== blockLight(this, q, y, r)) this.lightRevision++;
     this.shapeCache.clear();
@@ -446,6 +455,13 @@ export class World {
     }
     return false;
   }
+  invalidateVineFaces(q, y, r) {
+    if (!this.validatedVines.size) return;
+    this.validatedVines.delete(key(q, y, r));
+    this.validatedVines.delete(key(q, y - 1, r));
+    for (const [dq, dr] of DIRECTIONS)
+      this.validatedVines.delete(key(q + dq, y, r + dr));
+  }
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);
     const previous = this.get(q, y, r);
@@ -454,7 +470,10 @@ export class World {
       record && previous !== type
         ? pistonPartner(this, q, y, r, DIRECTIONS)
         : null;
-    if (previous !== type) this.blockRevision++;
+    if (previous !== type) {
+      this.blockRevision++;
+      this.invalidateVineFaces(q, y, r);
+    }
     if (
       previous !== type &&
       (BLOCKS[previous]?.foliage ||
@@ -484,8 +503,11 @@ export class World {
       else this.circuitCells.delete(k);
       if (isHangingPlant(type)) this.hangingPlants.add(k);
       else this.hangingPlants.delete(k);
-      if (type === 'vine') this.vineCells.add(k);
-      else this.vineCells.delete(k);
+      if (type === 'vine' && !this.vineCells.has(k)) {
+        this.vineCells.add(k);
+        this.vineRevision++;
+      } else if (type !== 'vine' && this.vineCells.delete(k))
+        this.vineRevision++;
       if (type === 'pointedDripstone') this.dripstoneCells.add(k);
       else this.dripstoneCells.delete(k);
       if (isAmethystBud(type)) this.amethystCells.add(k);
@@ -541,6 +563,9 @@ export class World {
     this.lightRevision++;
     this.blockRevision++;
     this.leafRevision++;
+    this.vineRevision++;
+    // The support on the far side of a chunk seam has just become known.
+    this.validatedVines.clear();
     this.chunks.set(ck, true);
     const put = (q, y, r, t) => {
       if (y >= 0 && y < WORLD_HEIGHT) this.blocks.set(key(q, y, r), t);
@@ -801,6 +826,8 @@ export class World {
     this.lightRevision++;
     this.blockRevision++;
     this.leafRevision++;
+    this.vineRevision++;
+    this.validatedVines.clear();
     this.fluids.unload(cq, cr);
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
@@ -838,7 +865,9 @@ export class World {
     this.buildings.clear();
     this.circuitCells.clear();
     this.hangingPlants.clear();
+    this.vineRevision++;
     this.vineCells.clear();
+    this.validatedVines.clear();
     this.dripstoneCells.clear();
     this.amethystCells.clear();
     for (const map of Object.values(this.redstone.signals)) map.clear();
