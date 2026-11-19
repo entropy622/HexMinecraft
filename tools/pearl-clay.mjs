@@ -3,12 +3,13 @@ import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { execFileSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
-const base = '08e9427',
+const base = '0b775e0',
   dir = 'test-results/pearl-clay';
-const previous = execFileSync('git', [
-  'show',
-  base + ':public/models/pearl-dragon.zip',
-]);
+const previous = execFileSync(
+  'git',
+  ['show', base + ':public/models/pearl-dragon.zip'],
+  { maxBuffer: 8 * 1024 * 1024 },
+);
 const s = await createServer({
   server: { host: '127.0.0.1', port: 5205, strictPort: true, hmr: false },
 });

@@ -2,11 +2,11 @@
 
 按 **E** 看她偏头打量背包，按 **F5** 切到正面观察。待机时嘴角带笑，挥镐时双眼收窄，受到伤害会短暂睁圆眼睛再放松。四种表情都有各自的眉形、视线和嘴形。
 
-![设定图与游戏模型正面对照，以及四种表情实渲](media/field-models/pearl-review.webp)
+![设定与实渲：眼下腮红、耳侧发束与尾鳞的近景](media/field-models/pearl-details.webp)
 
 刘海有齐切的厚度，后发分层垂到腰间。方角翼尖之间留出阶梯缺口，两层侧裙压在长裙上；转到侧面，可以看到翼膜的折面和尾巴向后弯出的弧度。
 
-[设定与实渲的同尺度三视图](media/field-models/pearl-ortho.webp) · [六秒转台与动作](media/field-models/turntable.mp4) · [素模](media/field-models/pearl-clay.webp) · [游戏实景](media/field-models/world.webp) · [背包预览](media/field-models/inventory.webp)
+[四种表情实渲](media/field-models/pearl-review.webp) · [设定与实渲的同尺度三视图](media/field-models/pearl-ortho.webp) · [六秒转台与动作](media/field-models/turntable.mp4) · [素模](media/field-models/pearl-clay.webp) · [游戏实景](media/field-models/world.webp) · [背包预览](media/field-models/inventory.webp)
 
 ## 使用同一个模型包
 
@@ -19,7 +19,7 @@
 
 ## 制作与验证
 
-[正面](../art/models/pearl-target-front.png)、[侧面](../art/models/pearl-target-side.png)和[背面](../art/models/pearl-target-back.png)共用一条脚底基线。`tools/pearl_form.py` 以图上的坐标定义每层发片、喇叭袖、裙摆与翼尖的宽度、深度和遮挡关系；脸颊和下巴单独塑形。图中可见的色块烘到对应网格的 UV 上，遮住的面使用[补充材质](../art/models/pearl-paint.png)。转动角色时，颜色跟随该表面。四种表情共用[设定图的眼睛](../art/models/pearl-eye.png)，由动作切换。
+[正面](../art/models/pearl-target-front.png)、[侧面](../art/models/pearl-target-side.png)和[背面](../art/models/pearl-target-back.png)共用一条脚底基线。`tools/pearl_form.py` 以图上的坐标定义每层发片、喇叭袖、裙摆与翼尖的宽度、深度和遮挡关系；脸颊和下巴单独塑形。图中可见的色块烘到对应网格的 UV 上，遮住的面使用[补充材质](../art/models/pearl-paint.png)。转动角色时，颜色跟随该表面。[设定图的四种表情](../art/models/pearl-expression-source.png)以眼角和下颌为基准校正到同一张脸。眨眼单独换眼睑，保留眼下的腮红。耳侧发片沿头骨前后分层，尾鳞在每段尾骨上错排，鳞片前端埋入尾身，后缘盖住下一排。
 
 修改后运行 `python tools/build-pearl-dragon.py`（需要 Pillow、NumPy）重新烘焙并生成 YSM 包，含人物、第一人称手臂、图集和动作。
 

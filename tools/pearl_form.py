@@ -30,15 +30,12 @@ def construct(tiles):
         return b
 
     def facet(b,name,points,normal,mat,view=None,uv=None,paintbox=None):
-        # Recess the temple, just above the outer eyebrow, into a chamfer. The
-        # single pin sits on this bevel and reads from both front and profile.
         shape=points
-        if name in ('fringe','crown','temple','back cap','back fringe','head','expression','cheek return','skin core'):
-            def temple(p):
-                x,y,z=p
-                w=np.clip((x-238)/48,0,1)*np.interp(y,[78,103,147,183],[0,1,1,0])
-                return (x,y,z+66*w*np.clip((202-z)/158,0,1))
-            shape=[temple(p) for p in points]
+        if name=='fringe':
+            # A continuous plan-view arc around the skull. The same corner
+            # radius at every height leaves the temple locks vertical in profile.
+            shape=[(x,y,z+61*np.clip((abs(x-CX)-34)/46,0,1)**2*np.clip((160-z)/118,0,1))
+                   for x,y,z in points]
         ring=np.array([world(p) for p in shape])
         across=ring[1]-ring[0]
         n=np.cross(across,ring[-1]-ring[0])
@@ -92,22 +89,25 @@ def construct(tiles):
     # The skin turns around the cheeks. The centre of the face below the mouth
     # has one unbroken side profile. Only its bottom edge dips at the chin.
     def cheek(b,mat,offset):
-        rows=[(112,63,53),(157,66,50),(181,67,49),(203,65,49),(217,62,49),(224,56,49)]
-        stations=(-1,-.82,-.52,0,.52,.82,1)
+        rows=[(111,61,54),(155,67,50),(179,68,48.2),(195,65,47.6),
+              (206,61,47.6),(216,56,47.6),(225,49,47.6)]
+        stations=(-1,-.87,-.67,-.39,0,.39,.67,.87,1)
         def point(row,t):
             y,r,z=row
-            return (CX+t*r,y-max(0,(y-201)/23)*5.4*abs(t)**1.7,z+15*abs(t)**3+offset)
+            lift=max(0,(y-198)/27)*6.0*abs(t)**1.8
+            return (CX+t*r,y-lift,z+20*abs(t)**3.2+offset)
         for hi,lo in zip(rows,rows[1:]):
             for u,v in zip(stations,stations[1:]):
                 seg=[(hi,u),(hi,v),(lo,v),(lo,u)]
                 facet(b,'expression' if offset else 'head',[point(r,t) for r,t in seg],
-                      (0,0,1),mat,uv=[((t+1)/2,(r[0]-112)/112) for r,t in seg])
+                      (0,0,1),mat,uv=[((point(r,t)[0]-139)/136,(point(r,t)[1]-111)/115) for r,t in seg])
         if not offset:
             for sign in (-1,1):
                 for hi,lo in zip(rows,rows[1:]):
                     p0,p1=point(hi,sign),point(lo,sign)
                     facet(b,'cheek return',[p0,(p0[0],p0[1],154),(p1[0],p1[1],154),p1],
-                          (sign,0,0),'skin')
+                          (sign,0,0),'cheek',uv=[(0,(p0[1]-111)/115),(1,(p0[1]-111)/115),
+                                                   (1,(p1[1]-111)/115),(0,(p1[1]-111)/115)])
         if not offset:
             for u,v in zip(stations,stations[1:]):
                 a,c=point(rows[-1],u),point(rows[-1],v)
@@ -115,23 +115,71 @@ def construct(tiles):
     cheek(head,'face',0)
     for name,mat in [('Blink','blink'),('CuriousEyes','curious'),('IntentEyes','focus'),('WideEyes','startle')]:
         cheek(bone(name,head,(0,25.66,-3.09)),mat,.85)
-    shell(head,'skin core',[(146,268,125,66,181),(151,263,217,66,181)],'skin',(None,None,None),4)
+    shell(head,'skin core',[(151,263,125,77,178),(158,256,215,77,171)],'skin',(None,None,None),4)
 
-    # Skull cap, five blunt fringe blocks and two temples are separate solids.
-    shell(head,'crown',[(142,273,84,70,188),(128,286,101,54,212),
-          (121,293,122,47,219),(123,292,153,55,218)],'hair',bevel=13)
-    for x0,x1,y0,y1,zf in [(126,155,123,209,43),(147,179,102,169,40),
-                              (174,192,104,152,44),(187,226,103,180,36),
-                              (222,241,105,153,44),(237,264,102,169,40),
-                              (258,282,121,210,46)]:
-        shell(head,'fringe',[(x0+1,x1-1,y0,zf+8,84),(x0,x1,y0+15,zf,83),
-                            (x0,x1,y1,zf,81)],'snow',('front',None,None),1.1)
+    # The short cap meets a stepped bob cut to the *side* drawing. The ear
+    # interrupts the outer layer. Behind it a thin underlock falls to the wing.
+    # Extra stations across the forehead are important: a lone corner-to-
+    # corner face would pull the whole forehead back at the pin's chamfer.
+    crown=[]
+    for y,w,front,back in [(84,68,61,205),(99,75,54,211),(118,79,48,215),(137,74,49,209)]:
+        curve=[(0,0),(.56,0),(.81,.035),(.94,.14),(1,.36),(1,.82),(.95,.96),(.72,1),(0,1)]
+        ring=curve+[(-x,z) for x,z in reversed(curve[1:-1])]
+        crown.append([(CX+x*w,y,front+z*(back-front)) for x,z in ring])
+    for a,b in zip(crown,crown[1:]):
+        for k in range(len(a)):
+            j=(k+1)%len(a);pts=[a[k],a[j],b[j],b[k]]
+            n=np.mean([world(p) for p in pts],axis=0)-world((CX,pts[0][1],137))
+            n[1]=0
+            facet(head,'crown',pts,n,'bob pearl' if abs(n[0])<abs(n[2]) else 'bob moon')
+    # Split the broad caps down the middle to keep the native face polygons convex.
+    for ring,n in [(crown[0],(0,1,0)),(crown[-1],(0,-1,0))]:
+        facet(head,'crown',ring[:9],n,'bob pearl')
+        facet(head,'crown',[ring[0],*ring[:7:-1]],n,'bob pearl')
+    for x0,x1,y0,y1,zf in [(146,180,102,169,40),(175,193,102,151,44),
+                              (187,226,103,180,36),(222,241,104,152,44),(236,266,101,169,40)]:
+        shell(head,'fringe',[(x0+1,x1-1,y0,zf+5,82),(x0,x1,y0+13,zf,83),
+                            (x0,x1,y1,zf,82)],'snow',('front',None,None),1.25)
+
+    def lockform(owner,name,sgn,rows,mat):
+        # Each section follows the skull round from the face toward the ear.
+        # The convex outside is one broad face; the back edge has its own return.
+        rings=[]
+        for y,near,far,fore,aft,thick in rows:
+            dz=far-near
+            steps=[(0,thick*.77),(.07,thick),(.93,thick),(1,thick*.76),
+                   (1,thick*.17),(.91,0),(.09,0),(0,thick*.15)]
+            rings.append([(CX+sgn*(fore+t*(aft-fore)-d-CX),y,near+t*dz) for t,d in steps])
+        low,high=rows[0][0],rows[-1][0]
+        for a,c in zip(rings,rings[1:]):
+            center=np.mean([world(p) for p in a+c],axis=0)
+            for i in range(8):
+                j=(i+1)%8
+                pts=[a[i],a[j],c[j],c[i]]
+                n=np.mean([world(p) for p in pts],axis=0)-center
+                m=mat if i in (5,7) else 'bob moon' if i in (4,6) else 'bob shade'
+                y0=(a[i][1]-low)/(high-low);y1=(c[i][1]-low)/(high-low)
+                facet(owner,name,pts,n,m,uv=[(.04,y0),(.96,y0),(.96,y1),(.04,y1)])
+        facet(owner,name,rings[0],(0,1,0),mat)
+        facet(owner,name,rings[-1],(0,-1,0),'hairshade')
+
     for sign,side in [(-1,'Right'),(1,'Left')]:
-        pair(head,'temple',[(272,291,122,70,166),(269,294,174,68,166),(266,289,224,69,159)],sign,mat='hair',bevel=1.5)
-        pair(head,'ear',[(288,308,172,127,158),(287,308,191,127,158)],sign,mat='skin',views=('front','side','back'),bevel=1)
+        lockform(head,'temple',sign,[(121,62,84,277,281,19),(139,62,83,278,282,20),
+                                     (204,62,80,278,282,20)],'bob pearl')
+        lockform(head,'temple',sign,[(107,72,108,276,287,16),(126,68,108,279,290,17),
+                                     (201,69,99,279,288,18)],'bob pearl')
+        lockform(head,'temple',sign,[(118,96,132,284,292,15),(141,94,130,286,293,16),
+                                     (223,95,128,285,291,16)],'bob moon')
+        lockform(head,'temple',sign,[(116,128,173,282,289,15),(145,127,174,284,292,17),
+                                     (219,128,167,283,291,17)],'bob shade')
+        lockform(head,'temple',sign,[(115,157,202,283,285,19),(134,156,205,288,287,19),
+                                     (211,159,205,289,284,19)],'bob moon')
+        pair(head,'ear',[(288,308,169,127,159),(287,308,189,127,159)],sign,mat='skin',views=('front','side','back'),bevel=1)
         lock=bone(side+'Lock',head,(sign*3.55,22.9,-1.25))
-        pair(lock,'sidelock',[(258,285,201,61,89),(258,286,244,64,92),(262,287,282,66,91)],sign,
-             mat='snow',views=('front',None,None),bevel=1.1)
+        lockform(lock,'shoulder lock',sign,[(202,83,103,280,279,21),(224,86,106,280,280,22),
+                  (245,93,107,275,271,19),(281,95,108,276,270,20)],'bob pearl')
+        lockform(lock,'nape ribbon',sign,[(205,149,184,277,278,17),(238,149,177,279,280,18),
+                  (251,153,176,277,280,16),(345,153,170,274,277,15)],'bob moon')
         # Square horn segments have distinct ledges and a turn in profile.
         for lower,upper in zip([(242,279,104,109,150),(242,271,83,111,147),(243,267,64,117,151),
                                 (242,263,48,124,153),(245,265,30,132,161)],
@@ -143,10 +191,10 @@ def construct(tiles):
     # The back has a blunt fan cut: centre and second course overlap on two
     # depth planes, with clear dark undersides instead of strands painted on a dome.
     shell(head,'back cap',[(130,285,103,130,207),(122,291,122,130,224),
-                          (124,289,211,131,226)],'hairshade',(None,'side','back'),2)
+                          (124,289,211,131,226)],'bob shade',(None,None,'back'),2)
     for i,(l,r,base,zend) in enumerate([(123,150,218,216),(142,169,272,211),(159,187,216,228),
             (181,221,226,231),(220,249,281,219),(245,273,218,225),(270,293,216,210)]):
-        shell(head,'back fringe',[(l,r,123,182,zend-4),(l,r,145,181,zend),(l,r,base,177,zend)],'hairshade',(None,'side','back'),1)
+        shell(head,'back fringe',[(l,r,123,182,zend-4),(l,r,145,181,zend),(l,r,base,177,zend)],'bob shade',(None,None,'back'),1)
     for i,(l,r,y1,z1) in enumerate([(132,156,368,188),(153,177,403,170),(165,192,357,199),
              (185,221,381,205),(222,247,368,197),(247,270,402,168),(264,286,331,189)]):
         shell(head,'back fall',[(l,r,196,150,z1),(l,r,282,150,z1+1),(l,r,y1,148,z1)],'hairshade',
@@ -201,9 +249,9 @@ def construct(tiles):
                   'rib',(None,None,None),1.7)
         pts=[(x-w/2,y-h/2,z-.9),(x+w/2,y-h/2,z-.9),(x+w/2,y+h/2,z-.9),(x-w/2,y+h/2,z-.9)]
         facet(b,'knot',pts,(0,0,1),'knot',uv=[[0,0],[1,0],[1,1],[0,1]])
-    pin=bone('TempleClasp',head,(world((282,127,85))*np.array([1,1,-1])).tolist())
-    pin['rotation']=[0,-36,0]
-    medal(pin,282,127,85,47,44)
+    pin=bone('TempleClasp',head,(world((296,126,92))*np.array([1,1,-1])).tolist())
+    pin['rotation']=[0,-44,0]
+    medal(pin,296,126,92,47,44)
     for sig in (-1,1):medal(body,CX+sig*35.5,352,65,42,43)
 
     # The wing is a ribbed relief. The gores follow the drawing's straight
@@ -253,13 +301,14 @@ def construct(tiles):
     parent=body
     centers=[world((CX+205-u,y,z)) for u,y,z,w in rear]
     def back_to_pixels(x):return (CX+x[0]*S,GROUND-x[1]*S,SIDE-x[2]*S)
-    sections=[]
+    sections=[]; frames=[]
     for i,center in enumerate(centers):
         axis=centers[min(i+1,len(centers)-1)]-centers[max(0,i-1)]
         axis/=np.linalg.norm(axis)
         tangent=np.cross(axis,np.array([0.,0.,1.]));tangent/=np.linalg.norm(tangent)
         radial=np.cross(axis,tangent);r=rear[i][3]/(2*S)
-        sections.append([center+r*(tangent*math.cos((k+.5)*math.pi/4)+radial*math.sin((k+.5)*math.pi/4)) for k in range(8)])
+        frames.append((tangent,radial,r))
+        sections.append([center+.90*r*(tangent*math.cos((k+.5)*math.pi/4)+radial*math.sin((k+.5)*math.pi/4)) for k in range(8)])
     for i,(a,c) in enumerate(zip(centers,centers[1:])):
         b=bone('Tail'+str(i),parent,(a*np.array([1,1,-1])).tolist());parent=b
         axis=c-a;axis/=np.linalg.norm(axis)
@@ -267,8 +316,45 @@ def construct(tiles):
         for k in range(8):
             j=(k+1)%8;pts=[rings[0][k],rings[0][j],rings[1][j],rings[1][k]]
             n=np.mean(pts,axis=0)-(a+c)/2
-            view='back' if n[2]<-.24 else None
-            facet(b,'tail scale',[back_to_pixels(p) for p in pts],n,'scute',view)
+            facet(b,'tail core',[back_to_pixels(p) for p in pts],n,'tail')
+        # A lower row emerges from under the lip of the preceding row.
+        # The skin tube is continuous under the independent, articulated scales.
+        count=6 if i<6 else 5 if i<8 else 4
+        ta,ra,r0=frames[i];tb,rb,r1=frames[i+1]
+        def surface(t,phi,relief):
+            v=(1-t)*(ta*math.cos(phi)+ra*math.sin(phi))+t*(tb*math.cos(phi)+rb*math.sin(phi))
+            return a+(c-a)*t+v/np.linalg.norm(v)*((1-t)*r0+t*r1)*relief
+        for k in range(count):
+            angle=2*math.pi*(k+.23*(i%2))/count
+            arc=2*math.pi/count
+            end=1.0 if i==len(centers)-2 else 1.11
+            boundary=[(-.32,-.13,.90),(.31,-.13,.90),(.49,.06,.91),(.49,.74,1.00),
+                      (.31,end,1.037),(-.29,end+.015,1.038),(-.49,.82,1.003),(-.49,.06,.91)]
+            outer=[surface(t,angle+s*arc,h) for s,t,h in boundary]
+            top=[surface(t,angle+s*arc,h) for s,t,h in
+                 [(-.31,.19,1.099),(.30,.19,1.099),(.32,.78,1.063),(-.30,.82,1.066)]]
+            n=np.mean(top,axis=0)-(a+c)/2
+            lit=n/np.linalg.norm(n)
+            family=(2 if (i+k)%3 else 1) if lit[2]<-.25 else (1 if (i+2*k)%4 else 0)
+            if lit[2]<-.58 and (i+k)%3!=0:family=3
+            tone=((i*3+k*5)%7)*.018
+            def paint(pts,base=tone,swatch=family):
+                left,right=(swatch+.1)/4,(swatch+.9)/4
+                uv=[(left,.08+base),(right,.08+base),(right,.65+base),(left,.65+base)]
+                facet(b,'plate',list(map(back_to_pixels,pts)),n,'scute',uv=uv[:len(pts)])
+            paint(top)
+            # Each shield has one broad table and four turned edges. The lip
+            # is thickest at its free end; it overlaps the following shield.
+            for j,(l,r) in enumerate([(0,1),(2,3),(4,5),(6,7)]):
+                t=(j+1)%4
+                paint([outer[l],outer[r],top[t],top[j]],0 if j==0 else min(tone+.08,.44),
+                      min(family+1,3) if j==0 else family)
+                paint([outer[r],outer[(r+1)%8],top[t]])
+            for j in (2,3,4,5,6):
+                nxt=(j+1)%8
+                s0,t0,h0=boundary[j];s1,t1,h1=boundary[nxt]
+                pts=[outer[j],surface(t0,angle+s0*arc,h0-.09),surface(t1,angle+s1*arc,h1-.09),outer[nxt]]
+                facet(b,'scale lip',list(map(back_to_pixels,pts)),np.mean(pts,axis=0)-np.mean(top,axis=0),'tail')
         # Endcaps stay inside the joint as the curved tail sways.
         for ring,n in [(rings[0],-axis),(rings[1],axis)]:
             facet(b,'tail cap',[back_to_pixels(p) for p in ring],n,'tail')

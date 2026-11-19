@@ -164,7 +164,13 @@ def bake(bones, source, art):
                     elif drawing=="side":
                         area=(sx>87/294)&(sx<148/294)&(pv>96/604)&(pv<155/604)
                         sx[area]=np.minimum(.74,sx[area]+.217)
-                photo=im[np.clip((pv*dh).astype(int),0,dh-1),np.clip((sx*dw).astype(int),0,dw-1)]
+                sy=pv.copy()
+                if drawing=='side' and part in ('temple','back fringe','back fall','back cap'):
+                    # The ear is a separate mesh. Continue the underlying lock
+                    # through the ear's painted footprint as the head turns.
+                    ear=(sx>122/294)&(sx<166/294)&(sy>160/604)&(sy<194/604)
+                    sy[ear]=155/604
+                photo=im[np.clip((sy*dh).astype(int),0,dh-1),np.clip((sx*dw).astype(int),0,dw-1)]
                 if part in ('wing web','finger') and drawing in wing_paint:
                     pigment=wing_paint[drawing]
                     photo=pigment[np.clip((pv*dh).astype(int),0,dh-1),np.clip((sx*dw).astype(int),0,dw-1)]
@@ -196,12 +202,13 @@ def bake(bones, source, art):
             # Broad violet bounce in the undercuts; a narrow turned edge on wool/silk.
             # Round the value slightly so each cluster remains crisp at game scale.
             tint=np.array([.48,.58,.40])
-            if part=='expression' or (part=='head' and face=='north'):tint*=.80
+            if part in ('expression','head'):tint*=.26
             if drawing:tint*=.22
+            elif part in ('crown','temple','shoulder lock','nape ribbon'):tint*=.34
             shade=1-ao[...,None]*tint
             shade*= .97 + .035*n[1]
             edge=np.minimum.reduce([fx*width,(1-fx)*width,fy*height,(1-fy)*height])
-            if not drawing and part not in ('expression','head','knot','sail','hand','leg','shin'):
+            if not drawing and part not in ('expression','head','knot','sail','hand','leg','shin','crown','temple','shoulder lock','nape ribbon'):
                 shade+=np.maximum(0,1-edge/.13)[...,None]*.046
             tex[:,:,:3]=np.clip(tex[:,:,:3]*shade,0,255).astype('uint8')
             vertices=None

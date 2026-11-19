@@ -14,6 +14,11 @@ const payload = {
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 try {
   const page = await browser.newPage();
+  page.on('requestfailed', (request) => {
+    if (request.resourceType() === 'script')
+      console.error(request.url(), request.failure()?.errorText);
+  });
+  page.on('pageerror', (error) => console.error(error.message));
   await page.goto('https://web.blockbench.net/', {
     waitUntil: 'commit',
     timeout: 60000,

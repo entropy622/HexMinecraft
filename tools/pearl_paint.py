@@ -1,5 +1,6 @@
 """Pack the artist's face & material sheet into per-surface Bedrock UV tiles."""
 from PIL import Image, ImageDraw, ImageOps
+from pearl_faces import portraits
 
 SIZE = 128
 LANCZOS = Image.Resampling.LANCZOS
@@ -25,39 +26,9 @@ def paint_atlas(path):
     def wash(im, color, t):
         return Image.blend(im, Image.new("RGBA", im.size, color), t)
 
-    # Use the approved turnaround's painted iris and lash. Each performance
-    # changes the opening, eye line and mouth on the same cheek surface.
-    eye = Image.open(path.with_name("pearl-eye.png")).convert("RGBA")
-    base = Image.new("RGBA", (SIZE, SIZE))
-    skin = base.load()
-    for y in range(SIZE):
-        for x in range(SIZE):
-            edge = abs((x - 63.5) / 64)
-            blush = max(0, 1 - abs(edge-.62)/.29) * max(0, 1 - abs(y-92)/9)
-            shadow = max(0, (edge-.64)/.36)*.2 + max(0, (39-y)/39)*.13
-            skin[x,y] = (int(255-29*shadow-5*blush), int(232-57*shadow-22*blush),
-                         int(221-23*shadow-11*blush), 255)
-    for name, w, h, y, skew in [("face",32,37,64,0),("curious",32,39,62,2),
-                               ("focus",32,29,68,-1),("startle",32,43,59,0),("blink",32,0,0,0)]:
-        f=base.copy(); d=ImageDraw.Draw(f)
-        for j,x in enumerate([14,82]):
-            offset = skew if j else -skew
-            if h:
-                patch=eye.resize((w,h), LANCZOS)
-                if j: patch=ImageOps.mirror(patch)
-                f.alpha_composite(patch,(x,y+offset))
-                brow=[(x+5,y-9+offset),(x+15,y-11+offset),(x+28,y-10+offset)]
-                if name=="focus":brow=[(x+3,y-12),(x+16,y-10),(x+29,y-6)] if not j else [(x+3,y-6),(x+16,y-10),(x+29,y-12)]
-                d.line(brow,fill="#997979",width=2)
-            else:
-                d.line([(x+2,78),(x+8,81),(x+18,82),(x+29,77)],fill="#624455",width=3)
-        if name in ("startle","curious"):
-            d.rounded_rectangle((60,105,67,112 if name=="startle" else 109),radius=2,fill="#a66979")
-            d.line((61,108,66,108),fill="#ecabb0")
-        else:
-            d.line([(58,106),(61,107),(66,107),(69,105 if name!="focus" else 107)], fill="#bb7a80",width=2)
-        add(name,f)
-    add("skin",base.crop((54,49,72,67)))
+    faces,skin=portraits(path.with_name('pearl-expression-source.png'),SIZE)
+    for name,face in faces.items():add(name,face)
+    add('skin',skin)
 
     hair, shade, bodice, drape = [source_tile(i,1) for i in range(4)]
     scales, web, keratin, knot = [source_tile(i,2) for i in range(4)]
@@ -69,6 +40,12 @@ def paint_atlas(path):
     shade=wash(shade,"#a89bb7",.74)
     add("snow",wash(hair,"#f3ecf4",.29)); add("hair",hair)
     add("hairshade",Image.blend(shade,hair,.48))
+    front=Image.open(path.with_name('pearl-target-front.png')).convert('RGBA').resize((420,604),LANCZOS)
+    side=Image.open(path.with_name('pearl-target-side.png')).convert('RGBA').resize((294,604),LANCZOS)
+    # Sample uninterrupted hair planes, away from any eye, ear or brooch.
+    add('bob pearl',front.crop((190,115,221,176)))
+    add('bob moon',side.crop((98,151,124,218)))
+    add('bob shade',side.crop((178,126,201,202)))
     shirt = wash(bodice,"#eee7ef",.89)
     stitch = ImageDraw.Draw(shirt)
     stitch.line((62,0,62,128),fill="#c9bbd2",width=2)
@@ -97,8 +74,17 @@ def paint_atlas(path):
             texture=ImageOps.colorize(ImageOps.autocontrast(texture.convert("L")),dark,light).convert("RGBA")
             col=light;t=.14
         add(name,wash(texture,col,t))
-    add("tail",wash(scales.crop((24,32,59,69)),"#ccbad6",.45))
-    add("scute",wash(scales.crop((36,46,76,84)),"#ded1e6",.57))
+    # One quiet enamel plane per scale; relief and the free edge are geometry.
+    plate=Image.new('RGBA',(SIZE,SIZE))
+    pigment=ImageDraw.Draw(plate)
+    for y in range(SIZE):
+        t=y/(SIZE-1)
+        for col,(light,shadow) in enumerate([((208,184,226),(160,133,181)),((229,204,241),(176,148,198)),
+                                              ((243,223,248),(190,160,207)),((255,244,255),(216,187,228))]):
+            color=tuple(round(a+(b-a)*t) for a,b in zip(light,shadow))
+            pigment.line((col*32,y,col*32+31,y),fill=color+(255,))
+    add('scute',plate)
+    add('tail',wash(plate.crop((34,58,59,123)),'#ac93bc',.68))
     add('gore',ImageOps.colorize(web.convert("L"),"#4b2c63","#dcb2f3",blackpoint=65,whitepoint=216).convert("RGBA"))
     add("knot",Image.open(path.with_name("pearl-clasp.png")).convert("RGBA"))
     return atlas, tiles

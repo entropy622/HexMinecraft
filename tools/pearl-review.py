@@ -59,6 +59,25 @@ for i,(source,game,label) in enumerate([('front','front','正面'),('side','prof
         board.paste(im,(x+(350-im.width)//2,y))
         draw.text((x+175,y+h+15),label+(' · 设定' if not j else ' · 实渲'),font=font(18),anchor='mt',fill=ink)
 board.save(media/'pearl-ortho.webp',quality=94)
+# Review the actual surfaces at portrait distance, including the side profile
+# that is hidden behind the cheek locks in the front view.
+board,draw=sheet((1120,795),'白龙娘   /   面部、侧发与尾鳞')
+for i,(ref,screen,view_size,refbox,screenbox,label) in enumerate([
+    ('front','front',(420,604),(108,105,310,238),(253,203,525,383),'脸形与腮红'),
+    ('side','profile',(294,604),(30,77,236,288),(251,163,525,445),'耳侧发束'),
+    ('back','back',(407,604),(132,362,287,586),(294,532,502,836),'尾鳞')]):
+    cx=214+354*i
+    draw.text((cx,98),label,font=font(23),anchor='mt',fill=ink)
+    target=Image.open(root/'art/models'/('pearl-target-'+ref+'.png')).resize(view_size,Image.Resampling.LANCZOS).crop(refbox)
+    actual=Image.open(media/(screen+'.png')).crop(screenbox)
+    for j,im in enumerate((target,actual)):
+        h=264
+        scale=min(329/im.width,h/im.height)
+        im=im.resize((round(scale*im.width),round(scale*im.height)),Image.Resampling.LANCZOS)
+        y=144+318*j
+        board.paste(im,(cx-im.width//2,y+(h-im.height)//2))
+        draw.text((cx,y+h+12),('设定' if not j else '游戏实渲'),font=font(18),anchor='mt',fill=ink)
+board.save(media/'pearl-details.webp',quality=95)
 board,draw=sheet((1200,660),'网格对照   /   素模')
 for i,(key,label) in enumerate([('previous','旧版 · 正侧面'),('current','新版 · 正侧面'),('current-back','新版 · 背侧面')]):
     im=Image.open(results/'pearl-clay'/(key+'.png'))
