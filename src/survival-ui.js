@@ -1,4 +1,4 @@
-import { ITEMS } from './core.js';
+import { avatarPortrait } from './avatar-portrait.js';
 import { inventorySlot } from './inventory-ui.js';
 const empty = ['头盔', '胸甲', '护腿', '靴子', '副手'];
 const outline = [
@@ -17,39 +17,7 @@ export function equipmentPreview(pack) {
         outline[i] +
         '"/></svg>',
     );
-  const cloth = (i, def) => ITEMS[g[i]?.item]?.color || def;
-  const rect = (x, y, w, h, color) =>
-    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${color}"/>`;
-  const skin = '#bb8868',
-    shirt = cloth(1, '#43847b'),
-    legs = cloth(2, '#424f66'),
-    shoes = cloth(3, '#423d36');
-  const body = [
-    [9, 2, 10, 10, skin],
-    [9, 2, 10, 3, cloth(0, '#4a382b')],
-    [9, 5, 2, 3, cloth(0, '#4a382b')],
-    [11, 7, 2, 1, '#393431'],
-    [16, 7, 2, 1, '#393431'],
-    [13, 10, 3, 1, '#955e48'],
-    [8, 12, 12, 12, shirt],
-    [4, 12, 4, 5, shirt],
-    [20, 12, 4, 5, shirt],
-    [4, 17, 4, 8, skin],
-    [20, 17, 4, 8, skin],
-    [9, 24, 5, 10, legs],
-    [15, 24, 5, 10, legs],
-    [9, 32, 5, 3, shoes],
-    [15, 32, 5, 3, shoes],
-  ];
-  if (g[0])
-    body.push(
-      [9, 5, 2, 4, cloth(0)],
-      [17, 5, 2, 4, cloth(0)],
-      [10, 3, 8, 1, '#ffffff77'],
-    );
-  if (g[1]) body.push([8, 13, 12, 2, '#ffffff55'], [10, 20, 8, 2, '#00000029']);
-  if (g[2]) body.push([9, 27, 5, 2, '#ffffff55'], [15, 27, 5, 2, '#ffffff55']);
-  return `<div class="armor-column">${[0, 1, 2, 3].map(slot).join('')}</div><div class="portrait"><svg aria-label="角色与当前装备" role="img" viewBox="0 0 28 37" shape-rendering="crispEdges">${body.map((r) => rect(...r)).join('')}</svg></div><div class="offhand-slot">${slot(4)}</div>`;
+  return `<div class="armor-column">${[0, 1, 2, 3].map(slot).join('')}</div><div class="portrait"><img src="${avatarPortrait(g)}" alt="当前角色与装备"></div><div class="offhand-slot">${slot(4)}</div>`;
 }
 const silhouettes = {
   heart: 'M1 1h3v1h1V1h3v1h1v3H8v1H7v1H6v1H5v1H4V8H3V7H2V6H1V5H0V2h1z',

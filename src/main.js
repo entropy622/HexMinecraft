@@ -73,6 +73,13 @@ import { Villagers } from './villagers.js';
 import { LIQUIDS, fluidHeight } from './fluids.js';
 import './style.css';
 import './survival-ui.css';
+import {
+  loadDragon,
+  avatarName,
+  importAvatar,
+  resetAvatar,
+  dragonURL,
+} from './dragon-avatar.js';
 import { equipmentPreview, meterIcons } from './survival-ui.js';
 import * as THREE from 'three';
 import { ARROW_ITEMS } from './arrow-data.js';
@@ -256,7 +263,7 @@ let graphics,
   villagers,
   villagerTarget = null,
   tradingWith = null;
-await loadTexturePack();
+await Promise.all([loadTexturePack(), loadDragon()]);
 await restoreMaterialPack();
 try {
   graphics = new Graphics($('#world'));
@@ -267,6 +274,44 @@ try {
   throw error;
 }
 const camera = graphics.camera;
+const avatarControls = document.createElement('fieldset');
+avatarControls.className = 'post-settings';
+avatarControls.innerHTML =
+  '<legend>角色模型</legend><div class="two-col"><button id="avatar-select">导入 YSM ZIP</button><button id="avatar-reset">恢复白龙娘</button></div><input id="avatar-file" type="file" accept=".zip" hidden><p id="avatar-status" class="panel-note" role="status"></p><a id="avatar-download" download="pearl-dragon.zip">下载白龙娘模型包</a>';
+$('#option-page .video-options').before(avatarControls);
+$('#avatar-download').href = dragonURL;
+const avatarStatus = $('#avatar-status'),
+  avatarFile = $('#avatar-file');
+function showAvatarName() {
+  avatarStatus.textContent = '当前角色：' + avatarName();
+}
+showAvatarName();
+async function changeAvatar(file) {
+  const select = $('#avatar-select'),
+    reset = $('#avatar-reset');
+  select.disabled = reset.disabled = true;
+  try {
+    if (file) await importAvatar(file);
+    else await resetAvatar();
+    graphics.refreshAvatar();
+    showAvatarName();
+  } catch (e) {
+    avatarStatus.textContent =
+      '保留当前角色「' +
+      avatarName() +
+      '」。' +
+      (e.message || '模型包读取失败。');
+  } finally {
+    select.disabled = reset.disabled = false;
+    avatarFile.value = '';
+  }
+}
+$('#avatar-select').onclick = () => avatarFile.click();
+$('#avatar-reset').onclick = () => changeAvatar(null);
+avatarFile.onchange = () => {
+  if (avatarFile.files[0]) void changeAvatar(avatarFile.files[0]);
+};
+
 configureMaterialIcons(graphics.textures);
 const materialControls = document.createElement('fieldset');
 materialControls.className = 'post-settings';
@@ -7190,6 +7235,14 @@ document.addEventListener('keydown', (e) => {
     openOverlay('#map-overlay');
     return;
   }
+  if (e.code === 'F5' && hasGame) {
+    e.preventDefault();
+    graphics.viewMode = (graphics.viewMode + 1) % 3;
+    toast(
+      ['第一人称', '第三人称 · 背面', '第三人称 · 正面'][graphics.viewMode],
+    );
+    return;
+  }
   if (e.code === 'F3') {
     e.preventDefault();
     $('#hud').classList.toggle('debug-open');
@@ -7342,6 +7395,7 @@ function frame(now) {
     camera.position.set(Math.cos(angle) * 47, 29, Math.sin(angle) * 47);
     camera.lookAt(-3, 5, -5);
     graphics.outline.visible = false;
+    graphics.playerPose = null;
     graphics.frame(dt, 105 + menuTime, false, false, false);
     return;
   }
@@ -7930,6 +7984,13 @@ function frame(now) {
   updateFlightHUD();
   graphics.gliding = glider.active;
   updateSpyglassUse();
+  graphics.playerPose = {
+    eye: playerEyeHeight(),
+    yaw,
+    pitch,
+    crouch: crouching,
+    gear: pack.gear,
+  };
   graphics.frame(
     playing ? dt : 0,
     time,

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MobRig, skinBox, skinTile, animateRig } from './mob-skins.js';
 
+import { villageDetails } from './field-models.js';
 export function createVillager(role) {
   const rig = new MobRig();
   const file = {
@@ -84,6 +85,7 @@ export function createVillager(role) {
     rig.part(0.76, 0.065, 0.65, skinTile(), straw, 0, 0.31, 0, head);
     rig.part(0.44, 0.16, 0.38, skinTile(), straw, 0, 0.395, 0, head, 0.9);
   }
+  villageDetails(role, rig, head);
   return rig.finish({ head, headY: 1.52, legs, folded });
 }
 export function animateVillager(resident, dt, time, camera, moved) {

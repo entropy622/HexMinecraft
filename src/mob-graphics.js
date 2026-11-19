@@ -6,6 +6,7 @@ import { createEnderman } from './enderman-graphics.js';
 import { createShulker } from './shulker-graphics.js';
 import { createBat } from './bat-graphics.js';
 
+import { pastureDetails } from './field-models.js';
 const full = skinTile();
 const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
 export function createMob(kind, textures) {
@@ -40,8 +41,7 @@ export function createMob(kind, textures) {
             ? '#6cb3cb'
             : '#ffffff',
   );
-  const plain = rig.material(null, '#39352e'),
-    cream = rig.material(null, '#d8c397');
+  const plain = rig.material(null, '#39352e');
   let head,
     wool = null,
     woolMaterials,
@@ -240,8 +240,25 @@ export function createMob(kind, textures) {
       -0.15,
       head,
     );
-    for (const x of [-0.12, 0.12])
-      legs.push(limb(x, 0.27, 0, 0.055, 0.25, 0.07, skinBox(26, 0, 3, 5, 3)));
+    for (const x of [-0.12, 0.12]) {
+      const leg = rig.pivot(x, 0.27, 0),
+        foot = rig.material(null, '#cc984e');
+      rig.solid(0.049, 0.249, 0.052, foot, 0, -0.122, 0, leg);
+      for (const toe of [-1, 0, 1]) {
+        const t = rig.solid(
+          0.032,
+          0.032,
+          0.13,
+          foot,
+          toe * 0.03,
+          -0.247,
+          -0.048,
+          leg,
+        );
+        t.rotation.y = -toe * 0.33;
+      }
+      legs.push(leg);
+    }
     for (const side of [-1, 1]) {
       const wing = rig.pivot(side * 0.25, 0.59, 0.04);
       rig.part(
@@ -271,16 +288,30 @@ export function createMob(kind, textures) {
       undercoat.userData.baseColor = undercoat.color.clone();
       rig.materials.set('sheep-undercoat', undercoat);
     }
-    rig.part(
+    const trunk = rig.part(
       cow ? 0.86 : 0.68,
       cow ? 0.74 : 0.6,
-      cow ? 1.18 : 1.0,
+      cow ? 1.18 : 1,
       bodyUV,
       undercoat,
       0,
       cow ? 0.85 : 0.68,
       0.06,
     );
+    // Taper the brisket and rump separately, retaining the original skin UVs.
+    const verts = trunk.geometry.attributes.position;
+    for (let i = 0; i < verts.count; i++) {
+      let z = verts.getZ(i),
+        y = verts.getY(i),
+        front = z < 0;
+      verts.setXYZ(
+        i,
+        verts.getX(i) * (front ? 0.9 : 1.02) * (y < 0 ? 0.86 : 1),
+        y + (front ? 0.038 : -0.008) + (y < 0 ? Math.abs(z) * 0.1 : 0),
+        z,
+      );
+    }
+    trunk.geometry.computeVertexNormals();
     headY = cow ? 1.12 : sheep ? 0.94 : 0.75;
     head = rig.pivot(0, headY, cow ? -0.62 : -0.49);
     const headUV = cow
@@ -299,32 +330,6 @@ export function createMob(kind, textures) {
       0,
       head,
     );
-    if (cow) {
-      for (const side of [-1, 1]) {
-        rig.part(
-          0.065,
-          0.19,
-          0.075,
-          skinTile([22, 0, 2, 4]),
-          cream,
-          side * 0.18,
-          0.29,
-          0.01,
-          head,
-        );
-        rig.part(
-          0.15,
-          0.05,
-          0.14,
-          skinTile([0, 6, 6, 8]),
-          skin,
-          side * 0.27,
-          0.1,
-          -0.02,
-          head,
-        );
-      }
-    }
     if (kind === 'pig')
       rig.part(
         0.22,
@@ -357,6 +362,7 @@ export function createMob(kind, textures) {
       rig.part(0.93, 0.78, 1.13, bodyUV, coat, 0, 0.72, 0.06, wool);
     }
   }
+  const tail = pastureDetails(kind, rig, head, legs, wings, wool);
   if (legs.length === 4)
     legs.forEach((leg, i) => {
       leg.userData.phase = i === 0 || i === 3 ? 0 : Math.PI;
@@ -368,6 +374,7 @@ export function createMob(kind, textures) {
     legs,
     arms,
     wings,
+    tail,
     wool,
     ...(wool ? { woolMaterials } : {}),
   });
@@ -419,6 +426,8 @@ export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
     mob.hit,
     mob.baby > 0,
   );
+  if (data.tail)
+    data.tail.rotation.z = Math.sin(time * 3 + mob.id) * (0.11 + weight * 0.1);
   data.body.rotation.z =
     mob.kind === 'skeleton' && mob.conversion >= 7
       ? Math.sin(time * 35) * 0.025

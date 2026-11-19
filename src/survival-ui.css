@@ -113,9 +113,10 @@
   place-items: center;
   width: calc(var(--gui-slot) * 1.9);
 }
-.portrait svg {
+.portrait img {
+  object-fit: contain;
   height: 90%;
-  max-height: calc(var(--gui-slot) * 3);
+  max-height: calc(var(--gui-slot) * 3.3);
   width: 90%;
 }
 .offhand-slot {
@@ -750,4 +751,9 @@
   .map-panel .close {
     min-height: 42px;
   }
+}
+
+#avatar-download {
+  color: inherit;
+  text-underline-offset: 3px;
 }

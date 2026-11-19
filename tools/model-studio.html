@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh">
+  <meta charset="utf-8" /><title>六野 · 角色原型室</title
+  ><style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: #282534;
+      color: #eee8f3;
+      font: 15px system-ui;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    aside {
+      position: absolute;
+      left: 22px;
+      top: 20px;
+      font-weight: 650;
+      letter-spacing: 0.1em;
+    }
+    nav {
+      position: absolute;
+      bottom: 18px;
+      left: 20px;
+      display: flex;
+      gap: 8px;
+    }
+    button,
+    select {
+      background: #332e42;
+      color: white;
+      padding: 8px 12px;
+      border: 1px solid #8f809b;
+      border-radius: 4px;
+    }</style
+  ><canvas></canvas>
+  <aside>六野　／　角色原型室</aside>
+  <nav>
+    <select id="subject">
+      <option value="dragon">白龙 · 主角</option>
+      <option>cow</option>
+      <option>sheep</option>
+      <option>pig</option>
+      <option>chicken</option>
+      <option>smith</option>
+      <option>merchant</option>
+      <option>farmer</option>
+      <option>fisher</option></select
+    ><button id="motion">行走</button><button id="save">导出 GLB</button>
+  </nav>
+  <script type="module" src="./model-studio.js"></script>
+</html>

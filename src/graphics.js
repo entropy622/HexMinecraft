@@ -57,6 +57,7 @@ import {
 } from './photon-cloud-noise.js';
 import { FluidRenderer } from './fluid-graphics.js';
 import * as THREE from 'three';
+import { dragonAvatar, firstPersonArm } from './dragon-avatar.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bowImage, effectImage } from './texture-pack.js';
 import { createTextures } from './textures.js';
@@ -304,20 +305,9 @@ export class Graphics {
     this.particles = [];
     this.cropMeshes = new Map();
     this.lights = new Map();
+    this.viewMode = 0;
     this.hand = new THREE.Group();
     this.hand.userData.skipOcclusion = true;
-    const sleeve = new THREE.Mesh(
-      new THREE.BoxGeometry(0.18, 0.22, 0.48),
-      new THREE.MeshLambertMaterial({ color: '#436e65' }),
-    );
-    sleeve.rotation.x = -0.25;
-    this.hand.add(sleeve);
-    const palm = new THREE.Mesh(
-      new THREE.BoxGeometry(0.17, 0.18, 0.18),
-      new THREE.MeshLambertMaterial({ color: '#d7b68d' }),
-    );
-    palm.position.set(0, 0.03, -0.3);
-    this.hand.add(palm);
     this.hand.scale.setScalar(0.64);
     this.hand.position.set(0.38, -0.32, -0.65);
     this.camera.add(this.hand);
@@ -325,6 +315,7 @@ export class Graphics {
     this.offhandHand.scale.x *= -1;
     this.offhandHand.position.x *= -1;
     this.camera.add(this.offhandHand);
+    this.refreshAvatar();
     this.shield = createShield(this.textures);
     this.shield.userData.skipOcclusion = true;
     this.camera.add(this.shield);
@@ -729,6 +720,24 @@ export class Graphics {
     this.held = createHeldItem(id === 'shield' ? null : id, this.textures);
     this.hand.add(this.held);
     this.fishingTip = this.held.fishingTip || null;
+  }
+  refreshAvatar() {
+    if (this.avatar) {
+      for (const grip of this.avatar.grips)
+        if (grip.userData.prop) disposeHeldItem(grip.userData.prop);
+      this.avatar.dispose();
+      this.avatar = null;
+    }
+    for (const [holder, side] of [
+      [this.hand, 'Right'],
+      [this.offhandHand, 'Left'],
+    ]) {
+      if (holder.userData.armMesh) holder.remove(holder.userData.armMesh);
+      const arm = firstPersonArm(side);
+      if (side === 'Left') arm.scale.x = -1;
+      holder.add(arm);
+      holder.userData.armMesh = arm;
+    }
   }
   setOffhand(id) {
     if (this.offhandKey === id) return;
@@ -2121,6 +2130,75 @@ export class Graphics {
     if (this.chestModels.frame(renderDt))
       this.renderer.shadowMap.needsUpdate = true;
     const stepOffset = this.stepOffset || 0;
+    let restoreView;
+    if (this.viewMode && this.playerPose) {
+      const a = (this.avatar ||= dragonAvatar());
+      if (!a.root.parent) this.scene.add(a.root);
+      const cam = this.camera,
+        pos = cam.position.clone(),
+        rot = cam.quaternion.clone(),
+        p = this.playerPose;
+      for (const [i, item] of [
+        [1, this.heldKey],
+        [0, this.offhandKey],
+      ]) {
+        const arm = a.grips[i];
+        if (arm.userData.item === item) continue;
+        const old = arm.userData.prop;
+        if (old) {
+          arm.remove(old);
+          disposeHeldItem(old);
+        }
+        arm.userData.item = item;
+        arm.userData.prop = null;
+        if (item) {
+          const prop =
+            item === 'shield'
+              ? createShield(this.textures)
+              : createHeldItem(item, this.textures);
+          prop.position.set(0, -0.015, -0.09);
+          prop.rotation.y = Math.PI;
+          prop.scale.setScalar(0.46);
+          arm.add(prop);
+          arm.userData.prop = prop;
+        }
+      }
+      a.root.position.set(pos.x, pos.y - p.eye, pos.z);
+      a.root.rotation.y = Math.PI + p.yaw;
+      a.update(renderDt, {
+        walk: playing && moving ? 1 : 0,
+        strike: digging
+          ? this.digPhase
+          : this.swingTime > 0
+            ? 1 - this.swingTime / 0.28
+            : 0,
+        pitch: p.pitch,
+        crouch: p.crouch,
+      });
+      a.dressGear(p.gear);
+      const dir = cam
+        .getWorldDirection(new THREE.Vector3())
+        .multiplyScalar(this.viewMode === 1 ? -1 : 1);
+      const focus = pos.clone();
+      focus.y -= this.viewMode === 2 ? 0.64 : 0.36;
+      let d = 0.08;
+      for (; d < (this.viewMode === 2 ? 2.8 : 3.45); d += 0.09) {
+        let pt = focus.clone().addScaledVector(dir, d);
+        let h = worldToAxial(pt.x, pt.z);
+        if (this.world.get(h.q, Math.floor(pt.y), h.r)) break;
+      }
+      cam.position.copy(focus).addScaledVector(dir, Math.max(0.08, d - 0.15));
+      cam.lookAt(focus);
+      a.root.visible = d > 0.76;
+      const items = [this.hand, this.offhandHand, this.shield, this.mainShield],
+        vis = items.map((o) => o.visible);
+      items.forEach((o) => (o.visible = false));
+      restoreView = () => {
+        cam.position.copy(pos);
+        cam.quaternion.copy(rot);
+        items.forEach((o, i) => (o.visible = vis[i]));
+      };
+    } else if (this.avatar) this.avatar.root.visible = false;
     this.camera.position.y -= stepOffset;
     this.camera.updateMatrixWorld();
     let temporal,
@@ -2156,6 +2234,7 @@ export class Graphics {
     } finally {
       temporal?.endFrame(rendered);
       this.camera.position.y += stepOffset;
+      restoreView?.();
       this.camera.updateMatrixWorld();
       this.stepOffset = stepOffset * Math.exp(-renderDt * 14);
     }
