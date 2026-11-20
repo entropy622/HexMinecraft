@@ -21,6 +21,8 @@ try {
     );
   }
   const errors = [];
+  const clay = process.argv.includes('--clay');
+  const legs = process.argv.includes('--legs');
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(
     'http://127.0.0.1:' +
@@ -33,16 +35,38 @@ try {
     ['three-quarter', 0.63, 'idle'],
     ['side', Math.PI / 2, 'idle'],
     ['back', Math.PI, 'idle'],
+    ['underside', 0.29, 'underside'],
+    ['sole', 0, 'sole'],
     ['walk', 0.63, 'walk'],
     ['swing', 0.5, 'swing_hand'],
     ['face', 0.12, 'portrait'],
     ['surprise', 0.12, 'attacked'],
   ]) {
     const png = await page.evaluate(
-      ([a, pose]) => {
+      ([a, pose, clay, legs]) => {
         const s = window.studio;
         s.freeze();
         s.select('dragon');
+        if (legs) {
+          s.root.traverse((o) => {
+            if (o.isMesh) o.visible = /Leg$/.test(o.parent.name);
+          });
+        }
+        if (clay) {
+          s.root.traverse((o) => {
+            if (!o.isMesh) return;
+            const m = o.material;
+            m.emissive?.set(0);
+            m.emissiveMap = null;
+            m.onBeforeCompile = (shader) => {
+              shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                '#include <map_fragment>\ndiffuseColor.rgb = vec3(0.46);',
+              );
+            };
+            m.needsUpdate = true;
+          });
+        }
         s.orient(a);
         s.walk(pose === 'walk');
         s.hurt(pose === 'attacked' ? 0.11 : Infinity);
@@ -57,11 +81,25 @@ try {
             innerHeight * 0.4,
           );
         s.step(pose === 'walk' ? 0.38 : 0.16);
+        if (pose === 'underside' || pose === 'sole') {
+          const scene = s.root.parent;
+          const floor = scene.children.filter((o) => o.isMesh && o !== s.root);
+          for (const o of floor) o.visible = false;
+          const oblique = pose === 'underside';
+          s.camera.position.set(oblique ? 0.7 : 0, -3, oblique ? 2.4 : 0.001);
+          s.camera.lookAt(0, 0.42, 0);
+          s.camera.zoom = 1.72;
+          s.camera.updateProjectionMatrix();
+          s.renderer.render(scene, s.camera);
+          s.camera.zoom = 1;
+          s.camera.updateProjectionMatrix();
+          for (const o of floor) o.visible = true;
+        }
         const img = s.renderer.domElement.toDataURL('image/png');
         s.camera.clearViewOffset();
         return img.split(',')[1];
       },
-      [a, pose],
+      [a, pose, clay, legs],
     );
     await writeFile(path.join(out, name + '.png'), Buffer.from(png, 'base64'));
   }

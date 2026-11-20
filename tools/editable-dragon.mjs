@@ -21,7 +21,7 @@ try {
       console.error(request.url(), request.failure()?.errorText);
   });
   page.on('pageerror', (error) => console.error(error.message));
-  await page.goto('https://web.blockbench.net/', {
+  await page.goto(process.env.BLOCKBENCH_URL || 'https://web.blockbench.net/', {
     waitUntil: 'commit',
     timeout: 60000,
   });
@@ -46,6 +46,23 @@ try {
     const native = JSON.parse(Codecs.bedrock.compile())[
       'minecraft:geometry'
     ][0];
+    Codecs.project.load(JSON.parse(JSON.stringify(doc)), {
+      path: 'Pearl Dragon.bbmodel',
+      no_file: true,
+    });
+    await Texture.all[0].img.decode();
+    const reopened = JSON.parse(Codecs.bedrock.compile())[
+      'minecraft:geometry'
+    ][0];
+    if (
+      JSON.stringify(reopened.bones) !== JSON.stringify(native.bones) ||
+      Animation.all.length !== doc.animations.length ||
+      Texture.all[0].img.naturalWidth !==
+        geo['minecraft:geometry'][0].description.texture_width
+    )
+      throw Error(
+        'Reopening the editable project changed its rig, animations or atlas.',
+      );
     return {
       version: Blockbench.version,
       doc,

@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from model import pieces
 from motion import main
+from optimize import optimize
 from paint import bake
 from scan import Scan
 
@@ -112,16 +113,17 @@ def build(src, out):
     png = io.BytesIO()
     atlas.save(png, "PNG")
     sources["textures/pearl.png"] = png.getvalue()
-    with ZipFile(out, "w") as z:
+    source_pack = io.BytesIO()
+    with ZipFile(source_pack, "w") as z:
         for name, data in sources.items():
             info = ZipInfo(name)
             info.compress_type = ZIP_DEFLATED
             z.writestr(info, data)
-    faces = sum(len(c["uv"]) for b in bones for c in b.get("cubes", []))
+    triangles = optimize(source_pack, out)
     print(
         scan.triangles,
         "source triangles ->",
-        faces * 2,
+        triangles,
         "native triangles;",
         len(bones),
         "bones;",

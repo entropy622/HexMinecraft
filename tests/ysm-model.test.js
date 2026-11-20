@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { MeshLambertMaterial, Vector3 } from 'three';
+import { decode } from 'fast-png';
+import { MeshLambertMaterial, Raycaster, Vector3 } from 'three';
 import {
   unzipSync,
   zipSync,
@@ -181,27 +182,37 @@ test('the HY playable pack uses native surfaces, real wing and tail joints and t
       .sort(),
     ['LeftWing', 'RightWing'],
   );
-  let triangles = 0;
-  rig.traverse((n) => {
-    if (n.isMesh) triangles += n.geometry.index.count / 3;
-  });
-  // The source-fitted hero retains the actual fringe, cuffs and scaled tail.
-  // Bound the submitted mesh, including eye variants, independently of the studio floor.
-  let vertices = 0,
+  // Include the pierced waist clasps, their sidewalls and all eye variants.
+  let triangles = 0,
+    vertices = 0,
     draws = 0;
   rig.traverse((o) => {
     if (o.isMesh) {
       draws++;
+      triangles += o.geometry.index.count / 3;
       vertices += o.geometry.attributes.position.count;
     }
   });
-  assert.ok(triangles > 0 && triangles <= 16000, 'native hero triangle budget');
+  assert.ok(triangles > 0 && triangles <= 12200, 'native hero triangle budget');
   assert.ok(
-    vertices <= 32000 && draws <= 32,
+    vertices <= 24400 && draws <= 32,
     'compact vertex and batch budget',
   );
   const w = g.description.texture_width,
     h = g.description.texture_height;
+  const skin = decode(data.png);
+  assert.deepEqual(
+    [skin.width, skin.height, skin.depth, skin.channels],
+    [w, h, 8, 4],
+  );
+  let opaque = 0;
+  for (let i = 3; i < skin.data.length; i += 4) {
+    const alpha = skin.data[i];
+    if (alpha === 255) opaque++;
+    else if (alpha !== 0)
+      assert.fail('feathered coverage on overlapping sheets');
+  }
+  assert.ok(opaque > 0 && opaque < w * h, 'visible skin and clear cutouts');
   for (const b of g.bones)
     for (const c of b.cubes || [])
       for (const {
@@ -226,6 +237,27 @@ test('the HY playable pack uses native surfaces, real wing and tail joints and t
     );
   }
   const ctl = animator(rig, data.animations);
+  rig.updateMatrixWorld(true);
+  const fromBelow = (x, z) =>
+    new Raycaster(new Vector3(x, -1, z), new Vector3(0, 1, 0), 0, 3);
+  for (const [side, x] of [
+    ['Left', 1.44],
+    ['Right', -1.38],
+  ]) {
+    const shoe = rig.getObjectByName(side + 'LowerLeg');
+    const sole = fromBelow(x, 3).intersectObject(shoe)[0];
+    assert.ok(
+      sole && sole.point.y < 0.2,
+      side + ' shoe has its own grounded sole',
+    );
+  }
+  for (const x of [-3.8, 3.8]) {
+    assert.equal(
+      fromBelow(x, 0).intersectObject(rig).length,
+      0,
+      'open skirt hem',
+    );
+  }
   const tail = rig.getObjectByName('Tail6');
   assert.equal(tail.parent.name, 'Tail5');
   ctl.play('idle', 1.1);
