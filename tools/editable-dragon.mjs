@@ -8,9 +8,10 @@ const files = unzipSync(await readFile(pack));
 const read = (path) => JSON.parse(strFromU8(files[path]));
 const manifest = read('ysm.json'),
   p = manifest.files.player;
+const rig = process.argv.includes('--arm') ? 'arm' : 'main';
 const payload = {
-  geo: read(p.model.main),
-  anim: read(p.animation.main),
+  geo: read(p.model[rig]),
+  anim: read(p.animation[rig]),
   skin: Buffer.from(files[p.texture[0]]).toString('base64'),
 };
 const browser = await chromium.launch({ channel: 'msedge', headless: true });

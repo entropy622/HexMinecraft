@@ -142,15 +142,21 @@ export function dragonAvatar({ portrait = false } = {}) {
     hy ||
     model.geometry.description.identifier === 'geometry.pearl_dragon.main'
   ) {
-    const crown = head.children.find((n) => n.isMesh).geometry;
-    crown.computeBoundingBox();
-    const width = crown.boundingBox.max.x - crown.boundingBox.min.x;
-    equip(
-      0,
-      head,
-      [width * (hy ? 1.01 : 0.95), 0.63, hy ? 10.8 : 7.07],
-      [0, hy ? 6.65 : 5.09, hy ? -0.18 : 0.02],
-    );
+    const skull = head?.getObjectByProperty('isMesh', true);
+    if (skull) {
+      skull.geometry.computeBoundingBox();
+      const bounds = skull.geometry.boundingBox;
+      const width = bounds.max.x - bounds.min.x;
+      const pivot = model.geometry.bones.find(
+        (b) => b.name === skull.parent.name,
+      )?.pivot ?? [0, 0, 0];
+      equip(
+        0,
+        skull.parent,
+        [width * (hy ? 1.01 : 0.95), 0.63, hy ? 10.8 : 7.07],
+        hy ? [-pivot[0], 27.75 - pivot[1], -0.28 + pivot[2]] : [0, 5.09, 0.02],
+      );
+    }
     equip(1, find('UpperBody'), hy ? [5.32, 3.48, 4.44] : [4.86, 3.33, 3.5], [
       0,
       4.94,

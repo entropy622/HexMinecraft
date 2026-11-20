@@ -50,16 +50,6 @@ def build(src, out):
                 b.pop("parent")
             arms.append(b)
     main_anim = main()
-    first = json.loads(
-        Path(__file__)
-        .with_name("cc0-arm.animation.json")
-        .read_text(encoding="utf-8-sig")
-    )
-    # The CC0 standard item poses reference only the arm, forearm and grip.
-    names = {b["name"] for b in arms}
-    for clip in first["animations"].values():
-        if "bones" in clip:
-            clip["bones"] = {k: v for k, v in clip["bones"].items() if k in names}
     manifest = {
         "spec": 2,
         "metadata": {
@@ -92,7 +82,6 @@ def build(src, out):
         "models/main.json": geo("main", bones, atlas),
         "models/arm.json": geo("arm", arms, atlas),
         "animations/main.animation.json": main_anim,
-        "animations/arm.animation.json": first,
     }
 
     def tidy(x):

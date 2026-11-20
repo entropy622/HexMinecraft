@@ -16,6 +16,7 @@ from hem import LEGS, SKIRTS, legs, lining, native_rotation, outer_skirt, shoe_r
 from waist import CUT, finish, pendant
 from clasp import relief
 import lapels
+from articulation import fit_arms, fit_head_pitch, trim_chin
 
 
 FLIP = np.array([1, 1, -1])
@@ -243,7 +244,6 @@ def optimize(src, dest):
     )
     geo = main["minecraft:geometry"][0]
     tiles = []
-    by_name = {}
     patches = {
         b["name"]: [Patch(c, atlas) for c in b["cubes"]]
         for b in geo["bones"]
@@ -260,7 +260,7 @@ def optimize(src, dest):
     inner, lining_radius = lining(patches)
     lower.update(inner)
     for bone in geo["bones"]:
-        if not bone.get("cubes"):
+        if not bone.get("cubes") or bone["name"].endswith("Arm"):
             continue
         name = bone["name"]
         parts = patches[name]
@@ -275,6 +275,7 @@ def optimize(src, dest):
             cube, tile = (
                 flatten(group) if len(group) > 1 else (group[0].cube, group[0].tile)
             )
+            trim_chin(name, cube, tile)
             finished = finish(name, cube, tile, lapels.replaced, lapels.belt_cut)
             if finished:
                 cube, tile = finished
@@ -294,11 +295,29 @@ def optimize(src, dest):
             tiles.append((cube["uv"]["north"], tile))
             result.append(cube)
         print(name, len(patches[name]), "->", len(result), flush=True)
-        bone["cubes"] = by_name[name] = result
+        bone["cubes"] = result
     arm_geo = arms["minecraft:geometry"][0]
-    for b in arm_geo["bones"]:
-        if b["name"] in by_name:
-            b["cubes"] = by_name[b["name"]]
+    fit_arms(geo["bones"], tiles)
+    fit_arms(arm_geo["bones"], tiles, first_person=True)
+    # Compile held-item tracks against the finished wrist and grip hierarchy.
+    # Older input packs omitted the wrist tracks when they only had locators.
+    held = json.loads(
+        Path(__file__)
+        .with_name("cc0-arm.animation.json")
+        .read_text(encoding="utf-8-sig")
+    )
+    names = {b["name"] for b in arm_geo["bones"]}
+    for clip in held["animations"].values():
+        if "bones" in clip:
+            clip["bones"] = {k: v for k, v in clip["bones"].items() if k in names}
+    files["animations/arm.animation.json"] = json.dumps(
+        held, separators=(",", ":")
+    ).encode()
+    clips = json.loads(files["animations/main.animation.json"])
+    fit_head_pitch(geo["bones"], clips["animations"], tiles)
+    files["animations/main.animation.json"] = json.dumps(
+        clips, separators=(",", ":")
+    ).encode()
     width = 2048
     x = y = row = 0
     places = []
@@ -327,7 +346,7 @@ def optimize(src, dest):
     with ZipFile(dest, "w") as z:
         for name, data in files.items():
             z.writestr(ZipInfo(name), data, compress_type=ZIP_DEFLATED)
-    return len(tiles) * 2
+    return sum(len(c["uv"]) * 2 for b in geo["bones"] for c in b.get("cubes", []))
 
 
 if __name__ == "__main__":

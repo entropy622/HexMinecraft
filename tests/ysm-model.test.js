@@ -227,13 +227,47 @@ test('the HY playable pack uses native surfaces, real wing and tail joints and t
       assert.ok(rig.getObjectByName(bone), name + ' / ' + bone);
   }
   for (const side of ['Left', 'Right']) {
-    assert.equal(
-      arm.getObjectByName(side + 'HandLocator').parent.name,
-      side + 'ForeArm',
-    );
-    assert.equal(
-      arm.getObjectByName(side + 'ForeArm').parent.name,
-      side + 'Arm',
+    for (const skeleton of [arm, rig]) {
+      const grip = skeleton.getObjectByName(side + 'HandLocator');
+      assert.equal(grip.parent.name, side + 'Hand');
+      assert.equal(grip.parent.parent.name, side + 'ForeArm');
+      assert.equal(grip.parent.parent.parent.name, side + 'Arm');
+      assert.ok(grip.position.length() < 1e-6, 'grip follows the wrist pivot');
+    }
+  }
+  for (const bone of data.arm.bones) {
+    for (const cube of bone.cubes || []) {
+      assert.deepEqual(Object.keys(cube.uv).sort(), [
+        'down',
+        'east',
+        'north',
+        'south',
+        'up',
+        'west',
+      ]);
+      for (const face of Object.values(cube.uv)) {
+        const [x, y] = face.uv;
+        const [width, height] = face.uv_size;
+        for (let j = y; j < y + height; j++)
+          for (let i = x; i < x + width; i++)
+            assert.equal(skin.data[(j * w + i) * 4 + 3], 255, 'solid arm face');
+      }
+    }
+  }
+  const boneNamed = (name) => g.bones.find((b) => b.name === name);
+  const joint = boneNamed('Head').pivot;
+  // A sphere around the pivot stays inside both closed solids at every head angle.
+  for (const name of ['AllHead', 'MHead']) {
+    assert.ok(
+      boneNamed(name).cubes.some(
+        (c) =>
+          Object.keys(c.uv).length === 6 &&
+          joint.every(
+            (p, i) =>
+              p - 0.1 > c.origin[i] && p + 0.1 < c.origin[i] + c.size[i],
+          ),
+      ),
+      'overlapping neck and jaw volumes',
     );
   }
   const ctl = animator(rig, data.animations);

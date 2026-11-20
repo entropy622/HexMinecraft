@@ -6,7 +6,7 @@
 
 ## 白龙娘 · 保留混元原模的 YSM 版
 
-白龙娘的第三人称模型使用 12,080 个三角面，比初版减少 22.7%。腰间的五瓣花扣保留镂孔和浮雕，两根垂带各自成形。龙角、侧发、翼尖和回弯的尾巴沿用原有轮廓。进游戏按两次 **F5** 看正面，按 **E** 看背包预览。[腰部近景修正](docs/media/pearl-hy/waist-review.webp) · [全身对照](docs/media/pearl-hy/surface-review.webp) · [裙底对照](docs/media/pearl-hy/hem-review.webp) · [下载 YSM 包和 Blockbench 工程](docs/pearl-dragon.md)
+白龙娘的第三人称模型使用 11,452 个三角面，比初版减少 26.7%。腰间的五瓣花扣保留镂孔和浮雕，两根垂带各自成形。龙角、侧发、翼尖和回弯的尾巴沿用原有轮廓。进游戏按两次 **F5** 看正面，按 **E** 看背包预览。[Minecraft 手臂与抬头实测](docs/media/pearl-hy/mc-articulation.webp) · [腰部近景修正](docs/media/pearl-hy/waist-review.webp) · [全身对照](docs/media/pearl-hy/surface-review.webp) · [裙底对照](docs/media/pearl-hy/hem-review.webp) · [下载 YSM 包和 Blockbench 工程](docs/pearl-dragon.md)
 
 ## 0.144：从第一把木镐到第一趟矿车
 
