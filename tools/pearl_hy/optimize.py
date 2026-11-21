@@ -9,7 +9,12 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import numpy as np
 from PIL import Image
-from scipy.ndimage import binary_erosion, distance_transform_edt, map_coordinates
+from scipy.ndimage import (
+    binary_closing,
+    binary_erosion,
+    distance_transform_edt,
+    map_coordinates,
+)
 from scipy.spatial import cKDTree
 from scipy.spatial.transform import Rotation
 from hem import LEGS, SKIRTS, legs, lining, native_rotation, outer_skirt, shoe_reference
@@ -17,6 +22,8 @@ from waist import CUT, finish, pendant
 from clasp import relief
 import lapels
 from articulation import fit_arms, fit_head_pitch, trim_chin
+from sections import HAIR_LEVELS, rebuild_hair
+from wing import wing
 
 
 FLIP = np.array([1, 1, -1])
@@ -147,16 +154,18 @@ def groups(parts, name):
             q = parts[i]
             if protected_face(q, name) or q.normal @ p.normal < cosine:
                 continue
+            cloth = plain_cloth(name, q) and all(plain_cloth(name, t) for t in group)
             # Parallel offset layers (fringe, feathers, scales) need separate depth.
-            if (
-                q.normal @ p.normal > 0.985
-                and abs((q.center - p.center) @ p.normal) > 0.022
+            if q.normal @ p.normal > 0.985 and abs((q.center - p.center) @ p.normal) > (
+                0.065 if cloth else 0.022
             ):
                 continue
             trial = group + [q]
             center, basis = fit(trial)
             if any(
-                np.max(abs((t.edge - center) @ basis[:, 2])) > height for t in trial
+                np.max(abs((t.edge - center) @ basis[:, 2]))
+                > (0.13 if cloth else height)
+                for t in trial
             ):
                 continue
             used.add(i)
@@ -165,7 +174,7 @@ def groups(parts, name):
         yield group
 
 
-def flatten(group):
+def flatten(group, seal_cloth=False):
     """Reproject original RGBA islands into the same plane validated during grouping."""
     origin, basis = fit(group)
     axes, normal = basis[:, :2], basis[:, 2]
@@ -222,6 +231,19 @@ def flatten(group):
             empty, return_distances=False, return_indices=True
         )
         tile[empty, :3] = tile[tuple(nearest[:, empty])][:, :3]
+    if seal_cloth:
+        # Close narrow splits between neighbouring pieces of plain cloth.
+        # The colours outside each island above already extend from its own edge.
+        mask = tile[..., 3] >= CUT
+        radius = max(1, round(0.10 * density))
+        dy, dx = np.ogrid[-radius : radius + 1, -radius : radius + 1]
+        closed = binary_closing(mask, structure=dx * dx + dy * dy <= radius * radius)
+        repair = closed & ~mask
+        if repair.any():
+            near = distance_transform_edt(
+                ~mask, return_distances=False, return_indices=True
+            )
+            tile[repair] = tile[tuple(near[:, repair])]
     extent = np.r_[hi - lo, 0.02]
     center = (origin + axes @ ((hi + lo) / 2) - 0.01 * normal) * FLIP
     cube = dict(
@@ -232,6 +254,15 @@ def flatten(group):
         uv={"north": {}},
     )
     return cube, tile
+
+
+def plain_cloth(name, part):
+    if name not in SKIRTS | {"UpperBody"} or part.cap:
+        return False
+    x, y, z = part.center
+    # The clasp, dangling ties, slit, embroidered hem and their relief keep their
+    # original boundaries. Work on the broad outer folds behind or beside them.
+    return (z < 0 or abs(x) > 3.65) and y > 2.35 and part.weight > 0.035
 
 
 def optimize(src, dest):
@@ -264,6 +295,18 @@ def optimize(src, dest):
             continue
         name = bone["name"]
         parts = patches[name]
+        if name in HAIR_LEVELS or name.endswith("Wing"):
+            if name in HAIR_LEVELS:
+                surface = rebuild_hair(name, parts)
+            else:
+                retained = (
+                    flatten(g) if len(g) > 1 else (g[0].cube, g[0].tile)
+                    for g in groups(parts, name)
+                )
+                surface = wing(parts, retained)
+            bone["cubes"] = [cube for cube, tile in surface]
+            tiles.extend((cube["uv"]["north"], tile) for cube, tile in surface)
+            continue
         if name in LEGS:
             parts = []
         if name in SKIRTS:
@@ -273,7 +316,9 @@ def optimize(src, dest):
         result = []
         for group in groups(parts, name):
             cube, tile = (
-                flatten(group) if len(group) > 1 else (group[0].cube, group[0].tile)
+                flatten(group, all(plain_cloth(name, p) for p in group))
+                if len(group) > 1
+                else (group[0].cube, group[0].tile)
             )
             trim_chin(name, cube, tile)
             finished = finish(name, cube, tile, lapels.replaced, lapels.belt_cut)

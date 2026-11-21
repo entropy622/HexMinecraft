@@ -270,6 +270,34 @@ test('the HY playable pack uses native surfaces, real wing and tail joints and t
       'overlapping neck and jaw volumes',
     );
   }
+  // A lengthwise wall of a hanging lock must reach its native edges. A
+  // transparent border here exposes the adjacent layer as the camera turns.
+  for (const name of ['LongHair', 'LeftLock', 'RightLock']) {
+    const cubes = boneNamed(name).cubes;
+    const mesh = rig
+      .getObjectByName(name)
+      .children.find((child) => child.isMesh);
+    const normals = mesh.geometry.getAttribute('normal');
+    let walls = 0;
+    for (const [i, cube] of cubes.entries()) {
+      if (Math.abs(normals.getY(i * 4)) > 0.0001) continue;
+      walls++;
+      const {
+        uv: [x, y],
+        uv_size: [width, height],
+      } = cube.uv.north;
+      for (let row = y; row < y + height; row++) {
+        for (let col = x; col < x + width; col++) {
+          assert.equal(
+            skin.data[(row * w + col) * 4 + 3],
+            255,
+            name + ' wall coverage',
+          );
+        }
+      }
+    }
+    assert.ok(walls >= 4, name + ' has a closed strand section');
+  }
   const ctl = animator(rig, data.animations);
   rig.updateMatrixWorld(true);
   const fromBelow = (x, z) =>
