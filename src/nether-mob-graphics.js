@@ -1,160 +1,56 @@
-import * as THREE from 'three';
-import { mobImage } from './texture-pack.js';
+import { MobRig, skinBox, skinTile, mobSkin } from './mob-skins.js';
 
-const skinCache = new Map();
-// Runtime UV views retain the upstream image and license; source PNGs are
-// supplied unmodified. Models and hexagonal body proportions are original.
-function ghastTile(name, x, y, size = 20) {
-  const key = name + ':' + x + ',' + y;
-  if (skinCache.has(key)) return skinCache.get(key);
-  const source = mobImage(name);
-  if (!source) return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  canvas.getContext('2d').drawImage(source, x, y, size, size, 0, 0, size, size);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.magFilter = texture.minFilter = THREE.NearestFilter;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.generateMipmaps = false;
-  skinCache.set(key, texture);
-  return texture;
-}
-export function createNetherMob(kind, textures) {
-  const group = new THREE.Group();
-  group.userData.legs = [];
-  const piece = (geometry, material, x, y, z, parent = group) => {
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(x, y, z);
-    parent.add(mesh);
-    return mesh;
-  };
+export function createNetherMob(kind) {
+  const rig = new MobRig();
   if (kind === 'blaze') {
-    const gold = new THREE.MeshLambertMaterial({
-      map: textures.single('glowstone:top'),
-      color: '#ffe4a1',
-      emissive: '#e17b16',
-      emissiveIntensity: 0.55,
-    });
-    const dark = new THREE.MeshLambertMaterial({ color: '#392c1b' });
-    const head = piece(
-      new THREE.CylinderGeometry(0.28, 0.28, 0.43, 6),
-      gold,
-      0,
-      1.55,
-      0,
-    );
-    head.rotation.y = Math.PI / 6;
-    for (const x of [-0.11, 0.11])
-      piece(new THREE.BoxGeometry(0.075, 0.075, 0.03), dark, x, 1.62, -0.245);
-    piece(new THREE.BoxGeometry(0.14, 0.045, 0.03), dark, 0, 1.43, -0.245);
-    piece(
-      new THREE.CylinderGeometry(0.13, 0.2, 1.15, 6),
-      new THREE.MeshBasicMaterial({ color: '#f88423' }),
-      0,
-      0.77,
-      0,
-    );
+    const brass = rig.material('mcl_raw_ores_raw_gold_block', '#ffce77'),
+      shade = rig.material(null, '#a56322');
+    brass.emissive.set('#c57913');
+    const gaze = rig.material(null, '#452717');
+    const head = rig.joint(0, 24, 0);
+    rig.box([8, 8, 8], [0, 0, 0], brass, skinTile([2, 2, 8, 8]), head);
+    for (const side of [-1, 1])
+      rig.box([2, 1, 0.25], [side * 2, 0, -4], gaze, [0, 0], head);
+    rig.box([2, 1, 0.25], [0, -2, -4], shade, [0, 0], head);
     const rings = [];
-    for (let row = 0; row < 3; row++) {
-      const ring = new THREE.Group(),
-        matrix = new THREE.Object3D();
-      const rods = new THREE.InstancedMesh(
-        new THREE.CylinderGeometry(0.065, 0.065, 0.42, 6),
-        gold,
-        6,
-      );
-      for (let i = 0; i < 6; i++) {
-        const angle = (i * Math.PI) / 3,
-          radius = [0.45, 0.58, 0.37][row];
-        matrix.position.set(
-          Math.sin(angle) * radius,
-          0,
-          Math.cos(angle) * radius,
-        );
-        matrix.rotation.set(0.12 * Math.sin(angle), 0, 0.12 * Math.cos(angle));
-        matrix.updateMatrix();
-        rods.setMatrixAt(i, matrix.matrix);
+    for (const [row, radius] of [7.5, 9, 5].entries()) {
+      const ring = rig.joint(0, 5.6 + row * 7.2, 0);
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * Math.PI) / 2 + row * 0.35;
+        const x = Math.sin(angle) * radius,
+          z = Math.cos(angle) * radius;
+        const y = Math.sin(angle + row) * 1.5;
+        rig.box([2, 8, 2], [x, y, z], brass, skinTile([6, 4, 2, 8]), ring);
+        rig.box([2.1, 1.1, 2.1], [x, y - 2.65, z], shade, [0, 0], ring);
       }
-      ring.position.y = 0.35 + row * 0.45;
-      ring.add(rods);
-      group.add(ring);
       rings.push(ring);
     }
-    group.userData.rings = rings;
-    group.userData.gold = gold;
-  } else {
-    const base = 'mobs_mc_ghast';
-    const side = new THREE.MeshLambertMaterial({
-      map: ghastTile(base, 0, 20),
-      color: '#efeee6',
-    });
-    const top = new THREE.MeshLambertMaterial({
-      map: ghastTile(base, 20, 0),
-      color: '#efeee6',
-    });
-    const bottom = new THREE.MeshLambertMaterial({
-      map: ghastTile(base, 40, 0),
-      color: '#dedbd0',
-    });
-    const body = new THREE.CylinderGeometry(1.35, 1.35, 1.7, 6);
-    const uv = body.getAttribute('uv'),
-      index = body.getIndex();
-    // Each of six side panels gets one skin tile rather than one stretched strip.
-    // Cylinder vertices share columns, so duplicate triangles before remapping.
-    const expanded = body.toNonIndexed(),
-      euv = expanded.getAttribute('uv');
-    for (let i = 0; i < expanded.groups[0].count; i++) {
-      const original = uv.getX(index.getX(i));
-      const triangle = Math.floor(i / 6),
-        local = original * 6 - triangle;
-      euv.setX(i, local);
-    }
-    body.dispose();
-    expanded.rotateY(Math.PI / 6);
-    piece(expanded, [side, top, bottom], 0, 2.45, 0);
-    const face = new THREE.MeshLambertMaterial({
-      map: ghastTile(base, 20, 20),
-      color: '#fffdf4',
-      transparent: true,
-      alphaTest: 0.1,
-    });
-    const panel = piece(
-      new THREE.PlaneGeometry(1.32, 1.55),
-      face,
-      0,
-      2.45,
-      -1.18,
-    );
-    panel.rotation.y = Math.PI;
-    group.userData.face = face;
-    group.userData.idleFace = face.map;
-    group.userData.firingFace = ghastTile('mobs_mc_ghast_firing', 20, 20);
-    const tentacles = [];
-    for (let i = 0; i < 7; i++) {
-      const angle = ((i - 1) * Math.PI) / 3,
-        radius = i ? 0.82 : 0;
-      const pivot = new THREE.Group(),
-        length = 0.75 + (i % 3) * 0.22;
-      pivot.position.set(
-        Math.sin(angle) * radius,
-        1.65,
-        Math.cos(angle) * radius,
-      );
-      const leg = new THREE.CylinderGeometry(0.12, 0.08, length, 6);
-      leg.translate(0, -length / 2, 0);
-      piece(leg, side, 0, 0, 0, pivot);
-      group.add(pivot);
-      tentacles.push(pivot);
-    }
-    group.userData.tentacles = tentacles;
+    return rig.finish({ kind, head, rings, gold: brass });
   }
-  group.traverse((o) => {
-    if (o.isMesh) {
-      o.castShadow = true;
-      o.receiveShadow = true;
-    }
+  const body = rig.material('mobs_mc_ghast');
+  rig.box([40, 40, 40], [0, 36, 0], body, skinBox(0, 0, 20, 20, 20));
+  const tentacles = [];
+  for (let i = 0; i < 9; i++) {
+    const x = ((i % 3) - 1) * 12 + (Math.floor(i / 3) % 2 ? 2 : -2);
+    const length = [13, 18, 14, 20, 15, 17, 12, 19, 14][i];
+    tentacles.push(
+      rig.limb(
+        x,
+        18,
+        (Math.floor(i / 3) - 1) * 12,
+        [4, length, 4],
+        body,
+        skinBox(0, 56, 2, 14, 2),
+      ),
+    );
+  }
+  return rig.finish({
+    kind,
+    tentacles,
+    face: body,
+    idleFace: body.map,
+    firingFace: mobSkin('mobs_mc_ghast_firing'),
   });
-  return group;
 }
 export function animateNetherMob(mob, time) {
   const data = mob.mesh.userData,

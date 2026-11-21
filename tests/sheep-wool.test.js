@@ -181,6 +181,31 @@ test('real sheep interactions dye all colors, shear three matching wool, reject 
   assert.equal(f.interact(cow, 'redDye').consume, undefined);
   assert.equal(cow.color, undefined);
 });
+test('shearing hides the fleece on every joint while the face and legs keep their own skin', () => {
+  const { f } = animals();
+  const sheep = f.spawn('sheep', [0, 40, 0]);
+  const { body, head, legs, wool } = sheep.mesh.userData;
+  for (const joint of [body, head, ...legs])
+    assert.ok(joint.children.some((part) => part.material === wool));
+  const skin = head.children.find(
+    (part) => part.material && part.material !== wool,
+  ).material;
+  const skinColor = skin.color.clone();
+  f.interact(sheep, 'redDye');
+  assert.equal(
+    wool.color.getHexString(),
+    new THREE.Color(DYES.red.color).getHexString(),
+  );
+  f.interact(sheep, 'shears');
+  assert.equal(wool.visible, false);
+  for (const joint of [head, ...legs])
+    assert.ok(
+      joint.children.some(
+        (part) => part.material === skin && part.material.visible,
+      ),
+    );
+  assert.ok(skin.color.equals(skinColor));
+});
 test('parent colors use the existing nine dye combinations symmetrically and otherwise inherit only an actual parent', () => {
   for (const [a, b, child] of [
     ['red', 'yellow', 'orange'],

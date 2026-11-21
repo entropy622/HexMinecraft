@@ -21,7 +21,9 @@ test.afterEach(async ({ page }, info) => {
       if (!g) return { developmentFixture: false };
       const { worldToAxial } = await import('/src/core.js');
       g.save();
-      const s = JSON.parse(localStorage.getItem('hexwild-save-v17'));
+      const s = JSON.parse(
+        localStorage.getItem(localStorage.getItem('hexwild-selected-world')),
+      );
       return {
         fauna: s.dimensions.overworld.fauna,
         inventory: s.inventory,
@@ -48,33 +50,56 @@ test.afterEach(async ({ page }, info) => {
   );
   await page.screenshot({ path: info.outputPath('failure.png') });
 });
-async function use(page) {
-  await page.evaluate(() => {
+// Run the aim and the click in one browser turn so a walking sheep cannot
+// move out of the ray during a Playwright round trip.
+function sheepInput({ id, side, click }) {
+  if (id !== undefined) {
+    const g = window.__hexwild;
+    g.save();
+    const slot = localStorage.getItem('hexwild-selected-world');
+    const saved = JSON.parse(localStorage.getItem(slot));
+    const [x, y, z] = saved.dimensions.overworld.fauna.mobs.find(
+      (m) => m.id === id,
+    ).position;
+    const r = z / 1.5,
+      q = x / Math.sqrt(3) - r / 2;
+    if (side !== undefined) g.teleport(q + side * 1.5, y, r);
+    g.lookAt(q, y + 0.85, r);
+    g.graphics.camera.updateMatrixWorld();
+  }
+  if (click)
     for (const type of ['mousedown', 'mouseup'])
       document
         .querySelector('#world')
         .dispatchEvent(new MouseEvent(type, { button: 2, bubbles: true }));
-  });
 }
+const use = (page, id) => page.evaluate(sheepInput, { id, click: true });
 async function snapshot(page) {
   return page.evaluate(() => {
     window.__hexwild.save();
-    return JSON.parse(localStorage.getItem('hexwild-save-v17'));
+    return JSON.parse(
+      localStorage.getItem(localStorage.getItem('hexwild-selected-world')),
+    );
   });
 }
 async function load(page, saved) {
-  saved.time += 2;
+  const previousSlot = await page.evaluate(() =>
+    localStorage.getItem('hexwild-selected-world'),
+  );
   await page.locator('#save-file').setInputFiles({
     name: 'sheep-pasture.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(saved)),
   });
-  await expect
-    .poll(() => page.evaluate(() => window.__hexwild.state.time))
-    .toBeGreaterThanOrEqual(saved.time);
+  await page.waitForFunction(
+    (slot) => localStorage.getItem('hexwild-selected-world') !== slot,
+    previousSlot,
+    { timeout: 90000 },
+  );
 }
 async function pasture(page) {
   await page.goto('/');
+  await page.waitForFunction(() => window.__hexwild, null, { timeout: 150000 });
   await page.locator('#start').click();
   await page.locator('#new-world').click();
   await page.evaluate(() => {
@@ -119,21 +144,7 @@ async function equip(page, item, count = 1) {
   );
 }
 async function aimSheep(page, id, side = -1) {
-  await page.evaluate(
-    ({ id, side }) => {
-      const g = window.__hexwild;
-      g.save();
-      const m = JSON.parse(
-        localStorage.getItem('hexwild-save-v17'),
-      ).dimensions.overworld.fauna.mobs.find((m) => m.id === id);
-      const [x, y, z] = m.position,
-        r = z / 1.5,
-        q = x / Math.sqrt(3) - r / 2;
-      g.teleport(q + side * 1.5, y, r);
-      g.lookAt(q, y + 0.75, r);
-    },
-    { id, side },
-  );
+  await page.evaluate(sheepInput, { id, side });
   await frames(page, 3);
   await expect(page.locator('#target')).toContainText('绵羊');
 }
@@ -145,7 +156,7 @@ test('a player dyes a real sheep, shears colored wool, places it and continues w
   const id = await pasture(page);
   await equip(page, 'redDye', 2);
   await aimSheep(page, id);
-  await use(page);
+  await use(page, id);
   const dyed = await snapshot(page);
   expect(
     dyed.dimensions.overworld.fauna.mobs.find((m) => m.id === id).color,
@@ -155,26 +166,31 @@ test('a player dyes a real sheep, shears colored wool, places it and continues w
   ).toBe(1);
   await page.screenshot({ path: info.outputPath('red-sheep.png') });
   await aimSheep(page, id);
-  await use(page);
+  await use(page, id);
   expect(
     await page.evaluate(() => window.__hexwild.state.inventory.redDye),
   ).toBe(1);
   await equip(page, 'shears');
   await aimSheep(page, id);
-  await use(page);
+  await use(page, id);
   expect(
     await page.evaluate(() => window.__hexwild.state.inventory.redWool),
   ).toBe(3);
   await page.evaluate(() => {
     const g = window.__hexwild;
-    g.teleport(-1, 40, 2);
+    g.teleport(-2, 40, 2);
     g.selectItem('redWool');
-    g.lookAt(0, 39.9, 2);
+    g.lookAt(0, 40, 2);
   });
   await frames(page, 3);
   await expect
-    .poll(() => page.evaluate(() => window.__hexwild.state.target?.type))
-    .toBe('stone');
+    .poll(() =>
+      page.evaluate(() => {
+        const cell = window.__hexwild.state.target?.place;
+        return cell?.q === 0 && cell.y === 40 && cell.r === 2;
+      }),
+    )
+    .toBe(true);
   await use(page);
   await expect
     .poll(() => page.evaluate(() => window.__hexwild.state.world.get(0, 40, 2)))
@@ -272,7 +288,7 @@ async function bodyRGB(page, id) {
       g = api.graphics;
     api.save();
     const record = JSON.parse(
-      localStorage.getItem('hexwild-save-v17'),
+      localStorage.getItem(localStorage.getItem('hexwild-selected-world')),
     ).dimensions.overworld.fauna.mobs.find((m) => m.id === id);
     const point = g.camera.position.clone().fromArray(record.position);
     const roots = g.scene.children.filter((m) => m.userData.kind === 'sheep');
@@ -639,7 +655,7 @@ test('a sheared sheep waits on stone and in a paused menu, eats real grass and r
       { worldToAxial } = await import('/src/core.js');
     g.save();
     const sheep = JSON.parse(
-      localStorage.getItem('hexwild-save-v17'),
+      localStorage.getItem(localStorage.getItem('hexwild-selected-world')),
     ).dimensions.overworld.fauna.mobs.find((m) => m.id === id);
     const [x, y, z] = sheep.position,
       a = worldToAxial(x, z);

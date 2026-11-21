@@ -1,261 +1,96 @@
-import * as T from 'three';
-// Anatomical details share the existing articulated head, leg and wool joints.
-function workshop(r) {
-  function mesh(p, g, c, xyz) {
-    let m = new T.Mesh(g, r.material(null, c));
-    m.position.set(...xyz);
-    p.add(m);
-    return m;
-  }
-  function oval(p, c, at, size) {
-    let o = mesh(p, new T.SphereGeometry(1, 10, 7), c, at);
-    o.scale.set(...size);
-    return o;
-  }
-  function stem(p, c, pts, rr) {
-    for (let i = 1; i < pts.length; i++) {
-      let a = new T.Vector3(...pts[i - 1]),
-        b = new T.Vector3(...pts[i]),
-        delta = b.clone().sub(a);
-      let o = mesh(
-        p,
-        new T.CylinderGeometry(rr[i], rr[i - 1], delta.length(), 8),
-        c,
-        a.lerp(b, 0.5).toArray(),
-      );
-      o.quaternion.setFromUnitVectors(
-        new T.Vector3(0, 1, 0),
-        delta.normalize(),
-      );
+import { skinBox, skinTile } from './mob-skins.js';
+
+export function pastureAnimal(kind, rig, skin) {
+  const legs = [],
+    wings = [];
+  if (kind === 'chicken') {
+    const head = rig.joint(0, 10, -4);
+    rig.box([4, 6, 3], [0, 1, -1.5], skin, [0, 0], head);
+    rig.box([4, 2, 2], [0, 0, -4], skin, [14, 0], head);
+    rig.box([2, 2, 2], [0, -2, -3.5], skin, [14, 4], head);
+    rig.box([6, 8, 6], [0, 6.5, 0], skin, [0, 9]).rotation.x = -Math.PI / 2;
+    const foot = rig.material(null, '#c7984c');
+    for (const side of [-1, 1]) {
+      const leg = rig.limb(side * 2, 4.5, 0, [1, 4, 1], foot);
+      rig.box([3, 0.75, 2], [0, -4.125, -0.5], foot, [0, 0], leg);
+      legs.push(leg);
+      const wing = rig.joint(side * 3, 9.5, 0);
+      rig.box([1, 4, 6], [side * 0.5, -2, 0], skin, [24, 13], wing);
+      wing.userData.side = side;
+      wings.push(wing);
     }
+    return { head, legs, wings };
   }
-  return { oval, stem };
-}
-export function pastureDetails(kind, r, head, legs, wings, wool) {
-  const { oval, stem } = workshop(r),
-    brown = '#634739',
-    pink = '#d89587';
+  const cow = kind === 'cow',
+    sheep = kind === 'sheep';
+  const legHeight = cow || sheep ? 12 : 6;
+  const head = rig.joint(0, cow ? 19 : sheep ? 17 : 12, cow ? -8 : -7);
+  const headSize = cow ? [8, 8, 6] : sheep ? [6, 6, 8] : [8, 8, 8];
+  rig.box(headSize, [0, 0, sheep ? -3 : -2], skin, [0, 0], head);
   let tail;
-  if (['cow', 'sheep', 'pig'].includes(kind))
-    for (let s of [-1, 1]) {
-      let x = kind === 'cow' ? 0.177 : 0.144;
-      oval(head, '#342d32', [s * x, 0.053, -0.211], [0.035, 0.043, 0.017]);
-      oval(
-        head,
-        '#faf7e5',
-        [s * (x + 0.008), 0.071, -0.225],
-        [0.01, 0.01, 0.006],
-      );
-    }
-  if (kind === 'cow') {
-    for (let s of [-1, 1]) {
-      stem(
-        head,
-        '#decca8',
-        [
-          [s * 0.17, 0.22, 0],
-          [s * 0.23, 0.33, 0.01],
-          [s * 0.294, 0.368, -0.01],
-          [s * 0.303, 0.414, -0.02],
-        ],
-        [0.054, 0.043, 0.023, 0.003],
-      );
-      oval(
-        head,
-        brown,
-        [s * 0.295, 0.08, 0.005],
-        [0.115, 0.059, 0.07],
-      ).rotation.z = s * 0.18;
-      oval(head, pink, [s * 0.31, 0.081, -0.043], [0.077, 0.034, 0.027]);
-    }
-    oval(head, '#bd8d80', [0, -0.101, -0.215], [0.195, 0.104, 0.094]);
-    for (let s of [-1, 1])
-      oval(head, '#564349', [s * 0.105, -0.09, -0.291], [0.032, 0.022, 0.012]);
-    tail = r.pivot(0, 0.98, 0.627);
-    stem(
-      tail,
-      brown,
-      [
-        [0, 0, 0],
-        [0.023, -0.26, 0.097],
-        [0.049, -0.43, 0.074],
-      ],
-      [0.032, 0.024, 0.017],
-    );
-    oval(tail, '#3d312c', [0.051, -0.456, 0.074], [0.05, 0.1, 0.043]);
-  } else if (kind === 'pig') {
-    for (let s of [-1, 1]) {
-      let e = oval(
-        head,
-        '#cf8d85',
-        [s * 0.19, 0.169, 0.003],
-        [0.068, 0.106, 0.052],
-      );
-      e.rotation.z = -s * 0.5;
-      oval(
-        head,
-        '#da9a95',
-        [s * 0.193, 0.182, -0.032],
-        [0.041, 0.066, 0.022],
-      ).rotation.z = -s * 0.5;
-      oval(head, '#854f55', [s * 0.058, -0.055, -0.319], [0.021, 0.025, 0.01]);
-    }
-    tail = r.pivot(0, 0.765, 0.542);
-    let pts = Array.from({ length: 14 }, (_, i) => {
-      let a = i * 0.47;
-      return [0.058 * Math.sin(a), 0.047 * (1 - Math.cos(a)), 0.009 * i];
-    });
-    stem(
-      tail,
-      '#d89891',
-      pts,
-      pts.map((_, i) => 0.021 - i * 0.0009),
-    );
-  } else if (kind === 'sheep') {
-    const mat = r.material('mobs_mc_sheep_fur');
-    for (let s of [-1, 1]) {
-      oval(head, '#b39c8b', [s * 0.224, 0.022, -0.01], [0.082, 0.049, 0.043]);
-      for (let j = 0; j < 4; j++) {
-        let tuft = oval(
-          wool,
-          '#ffffff',
-          [s * 0.393, 0.7, 0.4 - j * 0.263],
-          [0.102, 0.21, 0.175],
-        );
-        tuft.material = mat;
-      }
-    }
-    for (let j = 0; j < 3; j++) {
-      let tuft = oval(
-        wool,
-        '#ffffff',
-        [(j - 1) * 0.21, 1.035, -0.31],
-        [0.171, 0.108, 0.19],
-      );
-      tuft.material = mat;
-    }
-  } else if (kind === 'chicken') {
-    for (let j = 0; j < 4; j++)
-      oval(
-        head,
-        '#ac4545',
-        [0, 0.163 + (j % 2) * 0.011, 0.075 - j * 0.055],
-        [0.037, 0.066 - j * 0.004, 0.039],
-      );
-    for (let j = -2; j <= 2; j++) {
-      let o = oval(
-        r.body,
-        j % 2 ? '#d5d0bd' : '#eeeada',
-        [j * 0.046, 0.55, 0.39],
-        [0.07, 0.225, 0.057],
-      );
-      o.rotation.x = 0.72;
-      o.rotation.z = -j * 0.18;
-    }
-    for (const w of wings)
-      for (let j = 0; j < 3; j++) {
-        let o = oval(
-          w,
-          '#e9e3d6',
-          [w.userData.side * 0.048, -0.19, 0.11 - j * 0.104],
-          [0.039, 0.115, 0.069],
-        );
-        o.rotation.x = 0.26;
-      }
+  if (cow) {
+    for (const side of [-1, 1])
+      rig.box([1, 3, 1], [side * 4.5, 3.5, -1], skin, [22, 0], head);
+    rig.box([4, 3, 3], [0, 11, 5], skin, [52, 0]);
+    tail = rig.joint(0, 19, 10);
+    const tuft = rig.material(null, '#40302b');
+    rig.box([1, 7, 1], [0, -3, 0.6], tuft, [0, 0], tail);
+    rig.box([2, 3, 2], [0, -7, 0.6], tuft, [0, 0], tail);
+  } else if (!sheep) {
+    rig.box([4, 3, 1], [0, -1.5, -6.5], skin, [16, 16], head);
+    tail = rig.joint(0, 12, 9);
+    const pink = rig.material(null, '#d2938d');
+    rig.box([1, 2, 1], [0, -0.5, 0.5], pink, [0, 0], tail);
+    rig.box([2, 1, 1], [0.5, -1, 1.25], pink, [0, 0], tail);
   }
-  if (['cow', 'pig', 'sheep'].includes(kind))
-    for (let l of legs)
-      oval(
-        l,
-        kind === 'pig' ? '#ab7978' : '#554e49',
-        [0, kind === 'cow' ? -0.482 : -0.387, -0.012],
-        [0.083, 0.045, 0.085],
+  const bodySize = cow ? [12, 18, 10] : sheep ? [8, 16, 6] : [10, 16, 8];
+  const bodyY = cow ? 15.5 : sheep ? 14 : 9.5;
+  const undercoat = sheep
+    ? rig.material('mobs_mc_sheep', '#ffffff', false, 'fleece')
+    : skin;
+  const coat = sheep ? rig.material('mobs_mc_sheep_fur') : null;
+  const trunk = rig.box(
+    bodySize,
+    [0, bodyY, 1],
+    undercoat,
+    cow ? [18, 4] : [28, 8],
+  );
+  trunk.rotation.x = -Math.PI / 2;
+  let neck;
+  if (sheep) {
+    neck = rig.joint(0, bodyY, -6);
+    rig.box([4, 8, 4], [0, -4, 0], undercoat, skinTile([4, 20, 4, 4]), neck);
+    neck.scale.y = 0.1;
+    rig.box(
+      [12, 20, 10],
+      [0, bodyY, 1],
+      coat,
+      skinBox(28, 8, 8, 16, 6),
+    ).rotation.x = trunk.rotation.x;
+    rig.box([7, 7, 6], [0, 0.5, -1.5], coat, skinBox(0, 0, 6, 6, 6), head);
+  }
+  for (const z of [-5, 7]) {
+    for (const side of [-1, 1]) {
+      const leg = rig.limb(
+        side * (cow ? 4 : 3),
+        legHeight,
+        z,
+        [4, legHeight, 4],
+        skin,
+        [0, 16],
       );
-  return tail;
-}
-export function villageDetails(role, r, head) {
-  const { oval, stem } = workshop(r),
-    cloth = r.material(
-      null,
-      role === 'smith'
-        ? '#513e3c'
-        : role === 'merchant'
-          ? '#7d5664'
-          : '#8b7351',
-    );
-  r.solid(0.62, 0.073, 0.411, cloth, 0, 0.79, 0);
-  r.solid(0.095, 0.077, 0.035, r.material(null, '#c5ab70'), 0, 0.787, -0.219);
-  if (role === 'merchant') {
-    for (let s of [-1, 1]) {
-      let rim = new T.Mesh(
-        new T.TorusGeometry(0.07, 0.008, 5, 14),
-        r.material(null, '#c4ae75'),
-      );
-      rim.position.set(s * 0.119, 0.046, -0.229);
-      head.add(rim);
+      if (sheep)
+        rig.box([5, 6, 5], [0, -2.5, 0], coat, skinBox(0, 16, 4, 6, 4), leg);
+      legs.push(leg);
     }
-    stem(
-      head,
-      '#c4ae75',
-      [
-        [-0.056, 0.058, -0.23],
-        [0, 0.076, -0.247],
-        [0.056, 0.058, -0.23],
-      ],
-      [0.009, 0.009, 0.009],
-    );
   }
-  if (role === 'smith') {
-    r.solid(0.38, 0.38, 0.041, cloth, 0, 0.99, -0.209);
-    for (let s of [-1, 1])
-      stem(
-        r.body,
-        '#bd936d',
-        [
-          [s * 0.21, 1.28, -0.15],
-          [s * 0.135, 1.15, -0.233],
-        ],
-        [0.031, 0.025],
-      );
-    stem(
-      r.body,
-      '#9b7454',
-      [
-        [0.242, 0.87, -0.15],
-        [0.3, 0.55, -0.17],
-      ],
-      [0.027, 0.025],
-    );
-    r.solid(0.17, 0.078, 0.08, r.material(null, '#69737a'), 0.29, 0.59, -0.165);
-  }
-  if (role === 'farmer' || role === 'fisher') {
-    r.solid(
-      0.46,
-      0.034,
-      0.4,
-      r.material(null, role === 'fisher' ? '#4c696d' : '#886743'),
-      0,
-      0.354,
-      0,
-      head,
-    );
-    if (role === 'farmer')
-      for (let j = 0; j < 3; j++) {
-        stem(
-          head,
-          '#be9858',
-          [
-            [0.188, 0.35, 0],
-            [0.242 + j * 0.019, 0.5 + j * 0.025, 0.018],
-          ],
-          [0.009, 0.003],
-        );
-        oval(
-          head,
-          '#e1c582',
-          [0.235 + j * 0.019, 0.47 + j * 0.025, 0.018],
-          [0.019, 0.049, 0.012],
-        ).rotation.z = -0.31;
-      }
-  }
+  return {
+    head,
+    legs,
+    wings,
+    tail,
+    neck,
+    wool: coat,
+    ...(sheep ? { woolMaterials: [coat, undercoat] } : {}),
+  };
 }

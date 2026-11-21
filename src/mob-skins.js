@@ -16,8 +16,7 @@ export function mobSkin(name) {
   textures.set(name, map);
   return map;
 }
-// Standard cuboid unwrap coordinates describe the artwork. The mesh itself
-// has a broad front/back and four bevelled sides: a six-sided horizontal base.
+// The artwork is unfolded right, front, left, back with both caps above it.
 export function skinBox(x, y, w, h, d) {
   return {
     front: [x + d, y + d, w, h],
@@ -135,8 +134,8 @@ export class MobRig {
     this.root.add(this.body);
     this.materials = new Map();
   }
-  material(name, color = '#ffffff', basic = false) {
-    const key = name + ':' + color + ':' + basic;
+  material(name, color = '#ffffff', basic = false, slot = '') {
+    const key = [name, color, basic, slot].join(':');
     if (!this.materials.has(key)) {
       const Material = basic
         ? THREE.MeshBasicMaterial
@@ -159,6 +158,39 @@ export class MobRig {
     pivot.position.set(x, y, z);
     parent.add(pivot);
     return pivot;
+  }
+  // Models are authored in texels, with sixteen units to one world block.
+  joint(x, y, z, parent = this.body) {
+    return this.pivot(x / 16, y / 16, z / 16, parent);
+  }
+  box(size, center, material, unwrap = [0, 0], parent = this.body) {
+    const geometry = new THREE.BoxGeometry(...size.map((n) => n / 16));
+    const regions = Array.isArray(unwrap)
+      ? skinBox(...unwrap, ...size)
+      : unwrap;
+    const width = material.map?.image.width || 64,
+      height = material.map?.image.height || 64;
+    const uv = geometry.getAttribute('uv');
+    // In model space the nose points towards -Z. The top row of the net
+    // meets the forehead along the bottom edge of the top rectangle.
+    ['right', 'left', 'top', 'bottom', 'back', 'front'].forEach((face, i) => {
+      const [x, y, w, h] = regions[face];
+      for (let k = 4 * i; k < 4 * i + 4; k++) {
+        const cap = face === 'top' || face === 'bottom';
+        const u = cap ? 1 - uv.getX(k) : uv.getX(k);
+        const v = face === 'top' ? uv.getY(k) : 1 - uv.getY(k);
+        uv.setXY(k, (x + u * w) / width, 1 - (y + v * h) / height);
+      }
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.fromArray(center).multiplyScalar(1 / 16);
+    parent.add(mesh);
+    return mesh;
+  }
+  limb(x, y, z, size, material, unwrap, parent = this.body) {
+    const joint = this.joint(x, y, z, parent);
+    this.box(size, [0, -size[1] / 2, 0], material, unwrap, joint);
+    return joint;
   }
   part(w, h, d, regions, material, x, y, z, parent = this.body, taper = 1) {
     const mesh = new THREE.Mesh(

@@ -8,24 +8,17 @@ export function createEnderman(textures) {
     eyes = rig.material('mobs_mc_enderman_eyes', '#deb6ff', true),
     dark = rig.material(null, '#130f19');
   eyes.color.multiplyScalar(1.8);
-  rig.part(0.5, 0.72, 0.28, skinBox(16, 16, 8, 12, 4), skin, 0, 2.04, 0);
+  rig.box([8, 12, 4], [0, 33, 0], skin, [32, 16]);
   const head = rig.pivot(0, ENDERMAN_EYES, 0);
-  const headUV = skinBox(0, 0, 8, 8, 8);
-  rig.part(0.58, 0.55, 0.5, headUV, skin, 0, 0, 0, head);
-  rig.part(0.586, 0.556, 0.506, headUV, eyes, 0, 0, 0, head);
-  const jaw = rig.pivot(0, -0.25, -0.253, head);
-  rig.solid(0.3, 0.115, 0.018, dark, 0, 0, 0, jaw);
-  const legs = [],
-    arms = [];
-  const limb = (x, y, length, uv, into) => {
-    const pivot = rig.pivot(x, y, 0);
-    rig.part(0.12, length, 0.13, uv, skin, 0, -length / 2, 0, pivot);
-    into.push(pivot);
-  };
-  for (const x of [-0.14, 0.14])
-    limb(x, 1.7, 1.68, skinBox(0, 16, 2, 12, 2), legs);
-  for (const x of [-0.35, 0.35])
-    limb(x, 2.35, 1.75, skinBox(40, 16, 2, 12, 2), arms);
+  const face = skinBox(0, 0, 8, 8, 8);
+  face.bottom = face.top;
+  rig.box([8, 8, 8], [0, 0, 0], skin, face, head);
+  rig.box([8.05, 8.05, 8.05], [0, 0, 0], eyes, face, head);
+  const jaw = rig.joint(0, -4, 0, head);
+  rig.box([7, 2, 7], [0, 0, 0], dark, [0, 0], jaw);
+  const limbUv = skinBox(56, 0, 2, 30, 2);
+  const legs = [-2, 2].map((x) => rig.limb(x, 27, 0, [2, 27, 2], skin, limbUv));
+  const arms = [-5, 5].map((x) => rig.limb(x, 39, 0, [2, 27, 2], skin, limbUv));
   const carried = rig.pivot(0, 1.21, -0.66);
   return rig.finish({
     kind: 'enderman',

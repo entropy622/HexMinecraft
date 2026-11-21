@@ -6,379 +6,180 @@ import { createEnderman } from './enderman-graphics.js';
 import { createShulker } from './shulker-graphics.js';
 import { createBat } from './bat-graphics.js';
 
-import { pastureDetails } from './field-models.js';
+import { pastureAnimal } from './field-models.js';
 const full = skinTile();
 const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
+
+function biped(kind, rig, skin) {
+  const bone = !!MOBS[kind].arrow,
+    crawler = kind === 'crawler';
+  const width = bone ? 2 : 4;
+  const head = rig.joint(0, crawler ? 20 : 24, crawler ? -2 : 0);
+  const reach = crawler ? 10 : 12;
+  rig.box([8, 8, 8], [0, 4, 0], skin, crawler ? full : [0, 0], head);
+  if (kind === 'zombie')
+    rig.box([8.5, 8.5, 8.5], [0, 4, 0], skin, skinBox(32, 0, 8, 8, 8), head);
+  rig.box(
+    [8, crawler ? 10 : 12, 4],
+    [0, crawler ? 15 : 18, 0],
+    skin,
+    crawler ? full : [16, 16],
+  );
+  const legs = [],
+    arms = [];
+  for (const side of [-1, 1]) {
+    legs.push(
+      rig.limb(
+        side * (crawler ? 2.5 : 2),
+        reach,
+        0,
+        [width, reach, width],
+        skin,
+        crawler ? full : [0, 16],
+      ),
+    );
+    arms.push(
+      rig.limb(
+        side * (4 + width / 2),
+        crawler ? 19 : 23,
+        0,
+        [width, crawler ? 15 : 12, width],
+        skin,
+        crawler ? full : [40, 16],
+      ),
+    );
+  }
+  if (crawler) {
+    const light = rig.material(null, '#98ece4', true);
+    for (const side of [-1, 1]) {
+      rig.box([2, 1, 0.5], [side * 2, 4, -4], light, [0, 0], head);
+      rig.box([2, 3, 2], [side * 3, 8.5, 0.5], skin, full, head);
+      rig.box([1, 2, 1], [side * 3.5, 10.5, 0.5], light, [0, 0], head);
+      rig.box([2, 1, 0.5], [side * 2, 14.5, -2], light);
+    }
+    rig.box([5, 1, 1], [0, 17, -2], light);
+  }
+  if (kind === 'stray') {
+    const cloth = rig.material('stray_cloth', '#d2dce0');
+    rig.box([9, 1, 9], [0, 8, 0], cloth, full, head);
+    for (const side of [-1, 1])
+      rig.box([1, 7, 8.5], [side * 4, 4, 0.25], cloth, full, head);
+    rig.box([8, 7, 1], [0, 4, 4], cloth, full, head);
+    rig.box([9, 3, 5], [0, 22, 0], cloth, full);
+    for (const [x, h] of [
+      [-2.5, 8],
+      [0, 6],
+      [2.5, 9],
+    ])
+      rig.box([2.5, h, 1], [x, 21 - h / 2, 2.5], cloth, full);
+  }
+  let bow;
+  if (bone) {
+    bow = rig.joint(0, -11, 0, arms[0]);
+    const wood = rig.material(null, '#795331'),
+      string = rig.material(null, '#d7cfaf');
+    rig.box([1.5, 5, 1.5], [0, 0, 0], wood, [0, 0], bow);
+    for (const sign of [-1, 1]) {
+      rig.box([1, 3, 1], [0, sign * 3.5, 1], wood, [0, 0], bow).rotation.x =
+        sign * 0.52;
+      rig.box([1, 2, 1], [0, sign * 5.4, 2.4], wood, [0, 0], bow).rotation.x =
+        sign * 0.82;
+    }
+    rig.box([0.38, 11.5, 0.38], [0, 0, 3.05], string, [0, 0], bow);
+  }
+  return { head, legs, arms, bow };
+}
+
+function spider(rig, skin) {
+  const head = rig.joint(0, 6, -6);
+  const headUv = skinBox(32, 4, 8, 8, 8);
+  rig.box([8, 8, 8], [0, 0, -2], skin, headUv, head);
+  rig.box(
+    [8.08, 8.08, 8.08],
+    [0, 0, -2],
+    rig.material('mobs_mc_spider_eyes', '#fff4df', true),
+    headUv,
+    head,
+  );
+  rig.box([6, 6, 6], [0, 6, 0], skin, [0, 0]);
+  rig.box([10, 8, 12], [0, 6, 8], skin, [0, 12]);
+  const legs = [];
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const leg = rig.joint(side * 2.5, 6, (i - 1.5) * 1.75);
+      const legUv = skinBox(18, 0, 16, 2, 2);
+      rig.box([8, 2, 2], [side * 4, 0, 0], skin, legUv, leg);
+      const knee = rig.joint(side * 7.5, 0, 0, leg);
+      knee.rotation.z = -side * 0.9;
+      rig.box([9, 2, 2], [side * 4.25, 0, 0], skin, legUv, knee);
+      leg.rotation.order = 'YXZ';
+      leg.rotation.y = leg.userData.restY = side * (1.5 - i) * 0.45;
+      leg.rotation.z = leg.userData.restZ = side * 0.13;
+      legs.push(leg);
+    }
+  }
+  return { head, legs };
+}
+
+function creeper(rig, skin) {
+  const head = rig.joint(0, 18, 0);
+  rig.box([8, 8, 8], [0, 4, 0], skin, full, head);
+  rig.box([8, 12, 4], [0, 12, 0], skin, full);
+  const ink = rig.material(null, '#203225');
+  for (const side of [-1, 1]) {
+    rig.box([2, 2, 0.15], [side * 2, 5, -4], ink, [0, 0], head);
+    rig.box([1, 3, 0.15], [side * 1.5, 1.5, -4], ink, [0, 0], head);
+  }
+  rig.box([2, 3, 0.15], [0, 2.5, -4], ink, [0, 0], head);
+  const legs = [];
+  for (const z of [-3, 3])
+    for (const x of [-2, 2])
+      legs.push(rig.limb(x, 6, z, [4, 6, 4], skin, full));
+  return { head, legs };
+}
+
 export function createMob(kind, textures) {
   if (kind === 'bat') return createBat();
   if (kind === 'shulker') return createShulker();
   if (kind === 'enderman') return createEnderman(textures);
   if (MOBS[kind].flying) return createNetherMob(kind, textures);
-  const rig = new MobRig(),
-    legs = [],
-    arms = [],
-    wings = [];
-  const file =
-    kind === 'creeper'
-      ? 'vl_stalker_default'
-      : kind === 'crawler'
-        ? null
-        : 'mobs_mc_' +
-          (kind === 'caveSpider'
-            ? 'spider'
-            : kind === 'stray'
-              ? 'skeleton'
-              : kind);
-  const skin = rig.material(
-    file,
-    kind === 'creeper'
-      ? '#b7e780'
-      : kind === 'crawler'
-        ? '#334852'
-        : kind === 'stray'
-          ? '#b1cddc'
-          : kind === 'caveSpider'
-            ? '#6cb3cb'
-            : '#ffffff',
-  );
-  const plain = rig.material(null, '#39352e');
-  let head,
-    wool = null,
-    woolMaterials,
-    headY = 1;
-  const limb = (
-    x,
-    y,
-    z,
-    w,
-    length,
-    d,
-    uv,
-    parent = rig.body,
-    material = skin,
-  ) => {
-    const pivot = rig.pivot(x, y, z, parent);
-    rig.part(w, length, d, uv, material, 0, -length / 2, 0, pivot);
-    return pivot;
-  };
-  if (['zombie', 'skeleton', 'stray', 'crawler'].includes(kind)) {
-    const bone = MOBS[kind].arrow,
-      alien = kind === 'crawler',
-      scale = alien ? 0.78 : 1;
-    const uv = (x, y, w, h, d) => (alien ? full : skinBox(x, y, w, h, d));
-    rig.part(
-      (bone ? 0.33 : 0.53) * scale,
-      0.72 * scale,
-      0.29 * scale,
-      uv(16, 16, 8, 12, 4),
-      skin,
-      0,
-      1.1 * scale,
-      0,
+  const rig = new MobRig();
+  let parts;
+  if (kind === 'spider' || kind === 'caveSpider') {
+    parts = spider(
+      rig,
+      rig.material(
+        'mobs_mc_spider',
+        kind === 'caveSpider' ? '#65b5bf' : '#ffffff',
+      ),
     );
-    headY = 1.67 * scale;
-    head = rig.pivot(0, headY, 0);
-    rig.part(
-      0.56 * scale,
-      0.48 * scale,
-      0.48 * scale,
-      uv(0, 0, 8, 8, 8),
-      skin,
-      0,
-      0,
-      0,
-      head,
-    );
-    for (const x of [-0.14, 0.14])
-      legs.push(
-        limb(
-          x * scale,
-          0.76 * scale,
-          0,
-          (bone ? 0.075 : 0.19) * scale,
-          0.74 * scale,
-          0.22 * scale,
-          uv(0, 16, bone ? 2 : 4, 12, bone ? 2 : 4),
-        ),
-      );
-    for (const x of bone ? [-0.22, 0.22] : [-0.36, 0.36])
-      arms.push(
-        limb(
-          x * scale,
-          1.43 * scale,
-          0,
-          (bone ? 0.07 : 0.17) * scale,
-          0.67 * scale,
-          0.2 * scale,
-          uv(40, 16, bone ? 2 : 4, 12, bone ? 2 : 4),
-        ),
-      );
-    if (kind === 'stray') {
-      const cloth = rig.material('stray_cloth', '#ffffff');
-      rig.part(0.62, 0.08, 0.54, full, cloth, 0, 0.27, 0, head);
-      for (const x of [-0.285, 0.285])
-        rig.part(0.07, 0.5, 0.54, full, cloth, x, 0, 0, head);
-      rig.part(0.53, 0.6, 0.08, full, cloth, 0, 1.16, 0.19);
-      for (const [x, h] of [
-        [-0.19, 0.48],
-        [0.02, 0.34],
-        [0.19, 0.57],
-      ])
-        rig.part(0.15, h, 0.07, full, cloth, x, 0.9 - h / 2, 0.19);
-      rig.part(0.48, 0.16, 0.35, full, cloth, 0, 1.46, 0);
-      const eyes = rig.material(null, '#bddbe4', true);
-      for (const x of [-0.12, 0.12])
-        rig.solid(0.09, 0.06, 0.02, eyes, x, 0.02, -0.25, head);
-    }
-    if (alien) {
-      const glow = rig.material(null, '#b4e9e3', true);
-      glow.color.multiplyScalar(1.6);
-      for (const x of [-0.11, 0.11])
-        rig.solid(
-          0.11,
-          0.035,
-          0.025,
-          glow,
-          x * scale,
-          0.06 * scale,
-          -0.25 * scale,
-          head,
-        );
-    }
-    if (bone) {
-      const bow = rig.pivot(0, -0.6, -0.08, arms[0]);
-      const wood = rig.material(null, '#987047');
-      const arc = new THREE.Mesh(
-        new THREE.TorusGeometry(0.25, 0.025, 4, 8, Math.PI),
-        wood,
-      );
-      arc.rotation.z = -Math.PI / 2;
-      bow.add(arc);
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(0, -0.25, 0),
-          new THREE.Vector3(0, 0.25, 0),
-        ]),
-        new THREE.LineBasicMaterial({ color: '#d8d0ae' }),
-      );
-      bow.add(line);
-    }
-  } else if (kind === 'spider' || kind === 'caveSpider') {
-    rig.part(0.82, 0.4, 0.93, skinBox(0, 12, 16, 8, 12), skin, 0, 0.42, 0.3);
-    rig.part(0.51, 0.3, 0.45, skinBox(0, 0, 10, 8, 12), skin, 0, 0.42, -0.17);
-    headY = 0.45;
-    head = rig.pivot(0, headY, -0.52);
-    const headUV = skinBox(32, 4, 8, 8, 8);
-    rig.part(0.52, 0.34, 0.45, headUV, skin, 0, 0, 0, head);
-    const eyes = rig.material('mobs_mc_spider_eyes', '#ffffff', true);
-    eyes.color.multiplyScalar(1.8);
-    rig.part(0.527, 0.347, 0.457, headUV, eyes, 0, 0, 0, head);
-    for (const side of [-1, 1])
-      for (let i = 0; i < 4; i++) {
-        const leg = limb(
-          side * 0.28,
-          0.4,
-          (i - 1.5) * 0.22,
-          0.065,
-          0.4,
-          0.07,
-          skinBox(18, 0, 2, 16, 2),
-        );
-        leg.rotation.z = side * 1.3;
-        leg.userData.restZ = leg.rotation.z;
-        const knee = limb(
-          0,
-          -0.4,
-          0,
-          0.055,
-          0.32,
-          0.06,
-          skinBox(18, 0, 2, 16, 2),
-          leg,
-        );
-        knee.rotation.z = -side * 0.65;
-        legs.push(leg);
-      }
   } else if (kind === 'creeper') {
-    rig.part(0.45, 0.8, 0.35, full, skin, 0, 0.82, 0);
-    headY = 1.42;
-    head = rig.pivot(0, headY, 0);
-    rig.part(0.62, 0.47, 0.48, full, skin, 0, 0, 0, head);
-    for (const x of [-0.13, 0.13])
-      rig.solid(0.11, 0.11, 0.025, plain, x, 0.085, -0.25, head);
-    rig.solid(0.09, 0.13, 0.025, plain, 0, -0.025, -0.25, head);
-    rig.solid(0.25, 0.07, 0.025, plain, 0, -0.09, -0.25, head);
-    for (const x of [-0.09, 0.09])
-      rig.solid(0.07, 0.11, 0.025, plain, x, -0.145, -0.25, head);
-    for (const z of [-0.17, 0.17])
-      for (const x of [-0.18, 0.18])
-        legs.push(limb(x, 0.35, z, 0.21, 0.33, 0.25, full));
-  } else if (kind === 'chicken') {
-    rig.part(0.48, 0.43, 0.58, skinBox(0, 9, 6, 8, 6), skin, 0, 0.46, 0.04);
-    headY = 0.72;
-    head = rig.pivot(0, headY, -0.24);
-    rig.part(0.26, 0.34, 0.25, skinBox(0, 0, 4, 6, 3), skin, 0, 0, 0, head);
-    rig.part(
-      0.21,
-      0.1,
-      0.16,
-      skinBox(14, 0, 4, 2, 2),
-      skin,
-      0,
-      -0.035,
-      -0.18,
-      head,
-    );
-    rig.part(
-      0.1,
-      0.12,
-      0.08,
-      skinBox(14, 4, 2, 2, 2),
-      skin,
-      0,
-      -0.15,
-      -0.15,
-      head,
-    );
-    for (const x of [-0.12, 0.12]) {
-      const leg = rig.pivot(x, 0.27, 0),
-        foot = rig.material(null, '#cc984e');
-      rig.solid(0.049, 0.249, 0.052, foot, 0, -0.122, 0, leg);
-      for (const toe of [-1, 0, 1]) {
-        const t = rig.solid(
-          0.032,
-          0.032,
-          0.13,
-          foot,
-          toe * 0.03,
-          -0.247,
-          -0.048,
-          leg,
-        );
-        t.rotation.y = -toe * 0.33;
-      }
-      legs.push(leg);
-    }
-    for (const side of [-1, 1]) {
-      const wing = rig.pivot(side * 0.25, 0.59, 0.04);
-      rig.part(
-        0.07,
-        0.28,
-        0.42,
-        skinBox(24, 13, 1, 4, 6),
-        skin,
-        side * 0.02,
-        -0.14,
-        0,
-        wing,
-      );
-      wing.userData.side = side;
-      wings.push(wing);
-    }
+    parts = creeper(rig, rig.material('vl_stalker_default', '#90bf63'));
+  } else if (['zombie', 'skeleton', 'stray', 'crawler'].includes(kind)) {
+    const skin =
+      kind === 'crawler'
+        ? rig.material('mcl_blackstone_basalt_smooth', '#8ba8b3')
+        : rig.material(
+            'mobs_mc_' + (kind === 'stray' ? 'skeleton' : kind),
+            kind === 'stray' ? '#b2cfdf' : '#ffffff',
+          );
+    parts = biped(kind, rig, skin);
   } else {
-    const cow = kind === 'cow',
-      sheep = kind === 'sheep';
-    const bodyUV = cow
-      ? skinBox(18, 4, 12, 18, 10)
-      : sheep
-        ? skinBox(28, 8, 8, 16, 6)
-        : skinBox(28, 8, 10, 16, 8);
-    const undercoat = sheep ? skin.clone() : skin;
-    if (sheep) {
-      undercoat.userData.baseColor = undercoat.color.clone();
-      rig.materials.set('sheep-undercoat', undercoat);
-    }
-    const trunk = rig.part(
-      cow ? 0.86 : 0.68,
-      cow ? 0.74 : 0.6,
-      cow ? 1.18 : 1,
-      bodyUV,
-      undercoat,
-      0,
-      cow ? 0.85 : 0.68,
-      0.06,
-    );
-    // Taper the brisket and rump separately, retaining the original skin UVs.
-    const verts = trunk.geometry.attributes.position;
-    for (let i = 0; i < verts.count; i++) {
-      let z = verts.getZ(i),
-        y = verts.getY(i),
-        front = z < 0;
-      verts.setXYZ(
-        i,
-        verts.getX(i) * (front ? 0.9 : 1.02) * (y < 0 ? 0.86 : 1),
-        y + (front ? 0.038 : -0.008) + (y < 0 ? Math.abs(z) * 0.1 : 0),
-        z,
-      );
-    }
-    trunk.geometry.computeVertexNormals();
-    headY = cow ? 1.12 : sheep ? 0.94 : 0.75;
-    head = rig.pivot(0, headY, cow ? -0.62 : -0.49);
-    const headUV = cow
-      ? skinBox(0, 0, 8, 8, 6)
-      : sheep
-        ? skinBox(0, 0, 6, 6, 8)
-        : skinBox(0, 0, 8, 8, 8);
-    rig.part(
-      cow ? 0.46 : 0.38,
-      cow ? 0.47 : 0.38,
-      0.42,
-      headUV,
-      skin,
-      0,
-      0,
-      0,
-      head,
-    );
-    if (kind === 'pig')
-      rig.part(
-        0.22,
-        0.15,
-        0.13,
-        skinBox(16, 16, 4, 3, 1),
-        skin,
-        0,
-        -0.06,
-        -0.25,
-        head,
-      );
-    for (const z of [-0.29, 0.32])
-      for (const x of [-0.22, 0.22])
-        legs.push(
-          limb(
-            x,
-            cow ? 0.53 : 0.43,
-            z,
-            0.13,
-            cow ? 0.51 : 0.41,
-            0.15,
-            skinBox(0, 16, 4, kind === 'pig' ? 6 : 12, 4),
-          ),
-        );
-    if (sheep) {
-      wool = rig.pivot(0, 0, 0);
-      const coat = rig.material('mobs_mc_sheep_fur');
-      woolMaterials = [coat, undercoat];
-      rig.part(0.93, 0.78, 1.13, bodyUV, coat, 0, 0.72, 0.06, wool);
-    }
+    parts = pastureAnimal(kind, rig, rig.material('mobs_mc_' + kind));
   }
-  const tail = pastureDetails(kind, rig, head, legs, wings, wool);
-  if (legs.length === 4)
-    legs.forEach((leg, i) => {
+  if (parts.legs.length === 4)
+    parts.legs.forEach((leg, i) => {
       leg.userData.phase = i === 0 || i === 3 ? 0 : Math.PI;
     });
+  const scale = MOBS[kind].scale || 1;
   const mesh = rig.finish({
     kind,
-    head,
-    headY: headY * (MOBS[kind].scale || 1),
-    legs,
-    arms,
-    wings,
-    tail,
-    wool,
-    ...(wool ? { woolMaterials } : {}),
+    headY: parts.head.position.y * scale,
+    arms: [],
+    wings: [],
+    ...parts,
   });
-  mesh.scale.setScalar(MOBS[kind].scale || 1);
+  mesh.scale.setScalar(scale);
   return mesh;
 }
 export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
@@ -387,13 +188,17 @@ export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
   const dx = camera.position.x - p.x,
     dz = camera.position.z - p.z,
     distance = Math.hypot(dx, dz);
-  if (mob.kind === 'sheep')
+  if (data.neck) {
     data.head.position.y = THREE.MathUtils.damp(
       data.head.position.y,
       (data.headY / (MOBS[mob.kind].scale || 1)) * (mob.grazing ? 0.35 : 1),
       9,
       dt,
     );
+    // Extend the narrow neck from the chest to the moving head while grazing.
+    const drop = data.neck.position.y - data.head.position.y;
+    data.neck.scale.y = Math.max(0.1, (drop + 0.06) / 0.5);
+  }
   const look = mob.grazing
     ? { yaw: 0, pitch: -0.9 + Math.sin(time * 13) * 0.08 }
     : distance < 7 || aggressive
@@ -440,6 +245,7 @@ export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
         : Math.sin(phase + i * Math.PI) * 0.2 * weight;
     arm.rotation.x = THREE.MathUtils.damp(arm.rotation.x, target, 8, dt);
   });
+  if (data.bow) data.bow.rotation.x = -data.arms[0].rotation.x;
   data.wings.forEach((wing) => {
     wing.rotation.z =
       wing.userData.side *
@@ -448,7 +254,11 @@ export function animateMob(mob, dt, time, camera, aggressive, distanceMoved) {
   });
   if (mob.kind === 'spider' || mob.kind === 'caveSpider')
     data.legs.forEach((leg, i) => {
-      leg.rotation.x *= 0.35;
+      const side = i < 4 ? -1 : 1;
+      leg.rotation.x = 0;
+      leg.rotation.y =
+        leg.userData.restY +
+        side * Math.sin(phase + ((i % 4) * Math.PI) / 2) * weight * 0.27;
       leg.rotation.z =
         leg.userData.restZ +
         Math.cos(phase + i * Math.PI * 0.5) * weight * 0.12;

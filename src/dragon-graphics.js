@@ -1,111 +1,136 @@
 import * as THREE from 'three';
-import { MobRig, skinTile } from './mob-skins.js';
+import { MobRig, skinBox, skinTile } from './mob-skins.js';
 
-export function createDragon() {
-  const rig = new MobRig(),
-    skin = rig.material('mobs_mc_dragon'),
-    glow = rig.material(null, '#e799ff', true),
-    dark = rig.material(null, '#211a2a');
-  glow.color.multiplyScalar(2);
-  const tile = skinTile([0, 0, 80, 64]);
-  rig.part(2.1, 1.6, 3.3, tile, skin, 0, 0, 0);
-  const neck = rig.pivot(0, 0.2, -1.8);
-  rig.part(0.8, 0.85, 1.6, tile, skin, 0, 0, -0.5, neck);
-  const head = rig.pivot(0, 0.1, -1.3, neck);
-  head.userData.dragonPart = 'head';
-  rig.part(1.15, 0.85, 1.2, tile, skin, 0, 0, -0.15, head);
-  rig.part(0.85, 0.45, 1.0, tile, skin, 0, -0.15, -1, head);
-  const jaw = rig.pivot(0, -0.4, -0.25, head);
-  rig.part(0.85, 0.17, 1.55, tile, skin, 0, 0, -0.5, jaw);
-  for (const side of [-1, 1]) {
-    rig.solid(0.08, 0.17, 0.24, glow, side * 0.56, 0.16, -0.42, head);
-    rig.part(0.17, 0.6, 0.2, tile, dark, side * 0.38, 0.65, 0.15, head);
-  }
-  for (const z of [-1, 0, 1]) rig.part(0.18, 0.5, 0.24, tile, dark, 0, 0.93, z);
-  const tails = [];
-  let parent = rig.pivot(0, -0.1, 1.6);
-  for (let i = 0; i < 6; i++) {
-    const joint = rig.pivot(0, 0, i ? 0.9 : 0, parent);
-    rig.part(
-      0.72 - i * 0.085,
-      0.6 - i * 0.06,
-      1.05,
-      tile,
-      skin,
-      0,
-      0,
-      0.45,
-      joint,
-    );
-    tails.push(joint);
-    parent = joint;
-  }
-  const wings = [];
-  for (const side of [-1, 1]) {
-    const wing = rig.pivot(side * 0.9, 0.55, -0.55);
-    wing.scale.x = side;
-    const vertices = [
-      [0, 0, 0],
-      [5.7, 0.15, 0.5],
-      [4.3, 0, 2.9],
-      [1.5, 0, 2.2],
-      [0, 0, 1.2],
-    ];
-    const positions = [],
+// Each wing panel meets the next one on its hinge. The fingers and leading
+// spar have square cross-sections, with a double-sided pixel membrane between.
+function dragonWing(rig, side, membrane, spar) {
+  const wing = rig.pivot(side * 0.9, 0.55, -0.55);
+  wing.scale.x = side;
+  const tip = rig.pivot(2.7, 0.18, -0.65, wing);
+  function fan(parent, vertices, fingers) {
+    const pos = [],
       uv = [];
-    for (let i = 1; i < vertices.length - 1; i++)
-      for (const v of [vertices[0], vertices[i], vertices[i + 1]]) {
-        positions.push(...v);
-        uv.push(
-          ((v[0] / 5.7) * 108) / 256,
-          1 - (100 + (v[2] / 2.9) * 88) / 256,
-        );
+    for (let i = 1; i < vertices.length - 1; i++) {
+      for (const point of [vertices[0], vertices[i + 1], vertices[i]]) {
+        pos.push(...point);
+        uv.push((4 + point[0] * 3) / 256, 1 - (112 + point[2] * 2) / 256);
       }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(positions, 3),
-    );
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    geometry.computeVertexNormals();
-    const membrane = rig.material('mobs_mc_dragon', '#cfb2da');
-    membrane.side = THREE.DoubleSide;
-    wing.add(new THREE.Mesh(geometry, membrane));
-    for (const end of [vertices[1], vertices[2], vertices[3]]) {
-      const length = Math.hypot(...end),
-        bone = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.07, 0.11, length, 6),
-          dark,
-        );
-      bone.position.fromArray(end).multiplyScalar(0.5);
-      bone.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        new THREE.Vector3(...end).normalize(),
-      );
-      wing.add(bone);
     }
-    wing.userData.side = side;
-    wings.push(wing);
-    for (const z of [-0.8, 0.9]) {
-      const leg = rig.pivot(side * 0.85, -0.55, z);
-      rig.part(0.35, 1.0, 0.4, tile, skin, 0, -0.5, 0.1, leg);
-      rig.part(0.45, 0.23, 0.7, tile, skin, 0, -1.03, -0.1, leg);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    parent.add(new THREE.Mesh(g, membrane));
+    for (const i of fingers) {
+      const end = new THREE.Vector3(...vertices[i]);
+      const width = i === 1 ? 0.16 : 0.085;
+      const beam = rig.solid(
+        width,
+        end.length(),
+        width,
+        spar,
+        end.x / 2,
+        end.y / 2,
+        end.z / 2,
+        parent,
+      );
+      beam.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        end.normalize(),
+      );
     }
   }
+  fan(
+    wing,
+    [
+      [0, 0, 0],
+      [2.7, 0.18, -0.65],
+      [2.7, 0.18, 2.45],
+      [1.1, -0.08, 2],
+      [0, -0.1, 1.7],
+    ],
+    [1, 3],
+  );
+  fan(
+    tip,
+    [
+      [0, 0, 0],
+      [3.05, -0.06, 1.25],
+      [2.45, -0.08, 1.75],
+      [2.1, 0, 1.65],
+      [1.35, -0.13, 3.2],
+      [0.85, -0.04, 2.85],
+      [0, 0, 3.1],
+    ],
+    [1, 4, 6],
+  );
+  wing.userData.side = side;
+  wing.userData.tip = tip;
+  return wing;
+}
+export function createDragon() {
+  const rig = new MobRig();
+  const skin = rig.material('mobs_mc_dragon'),
+    spar = rig.material(null, '#302632'),
+    membrane = rig.material('mobs_mc_dragon', '#b79fbf');
+  membrane.side = THREE.DoubleSide;
+  const hide = skinTile([30, 25, 12, 12]),
+    plate = rig.material(null, '#554354');
+  rig.box([34, 25, 52], [0, 0, 0], skin, skinBox(0, 0, 24, 24, 64));
+  const neck = rig.pivot(0, 0.2, -1.7);
+  rig.box([14, 13, 15], [0, 0, -5], skin, hide, neck);
+  rig.box([12, 12, 15], [0, 1, -17], skin, hide, neck);
+  const head = rig.joint(0, 1, -24, neck);
+  head.userData.dragonPart = 'head';
+  rig.box([18, 15, 20], [0, 2, -1], skin, hide, head);
+  rig.box([14, 7, 16], [0, -1, -16], skin, hide, head);
+  const jaw = rig.joint(0, -4, -6, head);
+  rig.box([14, 3, 18], [0, -2, -9], skin, hide, jaw);
+  const eyes = rig.material(null, '#cf76ed', true);
+  const ivory = rig.material(null, '#c7b7a4');
+  for (const sign of [-1, 1]) {
+    for (const z of [-21, -15])
+      rig.box([1, 2, 1], [sign * 5.8, -5, z], ivory, [0, 0], head);
+    rig.box([0.5, 2, 5], [sign * 9, 4, -8.5], eyes, [0, 0], head);
+    rig.box([3, 2, 0.5], [sign * 7.5, 4, -11], eyes, [0, 0], head);
+    rig.box([2, 2, 3], [sign * 4.5, 3, -21], plate, [0, 0], head);
+    rig.box([3, 7, 3], [sign * 6, 12, 3], plate, [0, 0], head).rotation.x = 0.3;
+    for (const z of [-13, 16]) {
+      const leg = rig.joint(sign * 13, -8, z);
+      rig.box([6, 13, 7], [0, -5, 0], skin, hide, leg).rotation.x = -0.28;
+      rig.box([5, 8, 5], [0, -13, 2], skin, hide, leg);
+      rig.box([6, 3, 10], [0, -17, 0], skin, hide, leg);
+    }
+  }
+  for (const z of [-19, -5, 9, 23]) rig.box([3, 6, 5], [0, 14, z], plate);
+  const tails = [];
+  let base = rig.pivot(0, -0.1, 1.6);
+  for (let i = 0; i < 6; i++) {
+    const joint = rig.joint(0, 0, i ? 14 : 0, base);
+    rig.box([12 - i * 1.5, 10 - i * 1.3, 15], [0, 0, 7], skin, hide, joint);
+    rig.box([2, 3, 3], [0, 5.5 - i * 0.65, 6], plate, [0, 0], joint);
+    tails.push(joint);
+    base = joint;
+  }
+  const wings = [-1, 1].map((side) => dragonWing(rig, side, membrane, spar));
   return rig.finish({ head, jaw, neck, tails, wings });
 }
 export function animateDragon(mesh, clock, perched, breathing, hit) {
   const data = mesh.userData;
-  for (const wing of data.wings)
+  for (const wing of data.wings) {
+    const beat = clock * (perched ? 2 : 6);
     wing.rotation.z =
-      wing.userData.side *
-      (0.14 + Math.sin(clock * (perched ? 2 : 6)) * (perched ? 0.18 : 0.58));
+      wing.userData.side * (0.14 + Math.sin(beat) * (perched ? 0.18 : 0.58));
+    wing.userData.tip.rotation.z =
+      (perched ? -0.28 : -0.08) +
+      Math.sin(beat - 0.7) * (perched ? 0.12 : 0.24);
+  }
   data.tails.forEach((tail, i) => {
     tail.rotation.y = Math.sin(clock * 2 - i * 0.55) * 0.12;
     tail.rotation.x = Math.sin(clock * 1.5 - i * 0.4) * 0.05;
   });
   data.body.position.y = Math.sin(clock * 4) * (perched ? 0.035 : 0.12);
-  data.jaw.rotation.x = breathing ? 0.32 : 0.05 + Math.sin(clock * 2) * 0.035;
+  data.jaw.rotation.x = breathing ? -0.32 : -0.05 + Math.sin(clock * 2) * 0.035;
   for (const material of data.materials)
     if (material.isMeshLambertMaterial)
       material.color

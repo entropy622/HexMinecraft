@@ -8,6 +8,10 @@
 
 白龙娘的第三人称模型使用 11,120 个三角面，比初版减少 28.8%。腰间的五瓣花扣保留镂孔和浮雕，两根垂带各自成形。龙角、侧发、翼尖和回弯的尾巴沿用原有轮廓。进游戏按两次 **F5** 看正面，按 **E** 看背包预览。[翼膜与发束实机对照](docs/media/pearl-hy/mc-folds.webp) · [Minecraft 手臂与抬头实测](docs/media/pearl-hy/mc-articulation.webp) · [腰部近景修正](docs/media/pearl-hy/waist-review.webp) · [全身对照](docs/media/pearl-hy/surface-review.webp) · [裙底对照](docs/media/pearl-hy/hem-review.webp) · [下载 YSM 包和 Blockbench 工程](docs/pearl-dragon.md)
 
+## 生物模型
+
+奶牛和猪会摆尾，绵羊的羊毛随头和四腿一起运动，剪毛后能看见底下的皮毛。蜘蛛的八条腿分节迈步，潜影贝张开咬合的方壳，末影龙的外翼能随拍翼折动。16 种生物、4 种村民职业和末影龙均使用手工搭建的游戏原生模型。[生物图鉴](docs/media/field-models/mob-lineup.webp) · [林间牧场实机截图](docs/media/field-models/mob-pasture.webp)
+
 ## 0.144：从第一把木镐到第一趟矿车
 
 空手出生，按 **E** 打开四格随身蜂巢。把一根原木做成四块木板，铺满菱形做工作台。右键工作台，中央格与外围六格一起用于进阶配方。配方册默认收起；每次制作在每个占用格取一件，Shift 点击产物可连续制作。
