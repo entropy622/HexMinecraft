@@ -122,7 +122,9 @@ export class Fluids {
       if (removed === 'cobweb' && f.type === 'water') this.washedWebs.add(k);
     }
     // The packed optical medium includes the liquid's physical height.
-    this.world.lightRevision++;
+    this.checkSupports = true;
+    if (removed === 'vine') this.world.vineChecks.add(k);
+    this.world.markLight(q, r);
     this.world.blockRevision++;
     if (f) cells.set(k, { ...f });
     else cells.delete(k);
@@ -182,6 +184,7 @@ export class Fluids {
       else cells.delete(k);
       this.wake(q, y, r);
     }
+    if (cells.size) this.checkSupports = true;
     // Reconnect only wet border cells; a distant pristine sea needs no updates.
     for (const [k] of cells) {
       const [q, y, r] = k.split(',').map(Number);
@@ -211,10 +214,10 @@ export class Fluids {
     const ck = `${cq},${cr}`;
     this.chunks.delete(ck);
     this.dirty.delete(ck);
-    for (const k of this.active) {
-      const [q, , r] = k.split(',').map(Number);
-      if (chunk(q, r) === ck) this.active.delete(k);
-    }
+    if (this.active.size)
+      for (let q = cq * 8; q < cq * 8 + 8; q++)
+        for (let r = cr * 8; r < cr * 8 + 8; r++)
+          for (let y = 1; y < 64; y++) this.active.delete(key(q, y, r));
   }
   changedBlock(q, y, r) {
     const type = this.world.get(q, y, r),

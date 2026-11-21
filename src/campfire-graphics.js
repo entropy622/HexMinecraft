@@ -1,3 +1,4 @@
+import { setSceneMaterial } from './scene-materials.js';
 import * as THREE from 'three';
 import { axialToWorld } from './core.js';
 import { effectImage, itemImage } from './texture-pack.js';
@@ -145,7 +146,7 @@ export class CampfireModels {
               side: THREE.DoubleSide,
             }),
           );
-        mesh.material = this.foodMaterials.get(id);
+        setSceneMaterial(mesh, this.foodMaterials.get(id));
       });
       if (fire?.lit) {
         const distance =

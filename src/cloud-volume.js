@@ -204,6 +204,7 @@ export class CloudVolumePass {
       magFilter: NearestFilter,
       depthBuffer: false,
     });
+    this.waterTarget = this.target.clone();
     const shared = { sceneDepth: { value: null } };
     this.histories = new Map();
     this.light = new Color();
@@ -275,12 +276,16 @@ export class CloudVolumePass {
   }
   setSize(width, height) {
     this.target.setSize(
-      Math.max(1, Math.ceil(width / 2)),
-      Math.max(1, Math.ceil(height / 2)),
+      Math.max(1, Math.ceil(width / (this.integrationDivisor ?? 2))),
+      Math.max(1, Math.ceil(height / (this.integrationDivisor ?? 2))),
+    );
+    this.waterTarget.setSize(
+      Math.ceil(this.target.width / 2),
+      Math.ceil(this.target.height / 2),
     );
     for (const state of this.histories.values()) {
       state.history.forEach((t) =>
-        t.setSize(this.target.width, this.target.height),
+        t.setSize(state.target.width, state.target.height),
       );
       state.frames = 0;
     }
@@ -289,7 +294,8 @@ export class CloudVolumePass {
       this.target.height,
     );
   }
-  render(renderer, source, work) {
+  render(renderer, source, work, water = false) {
+    const integral = water ? this.waterTarget : this.target;
     if (this.cloudUniforms.cloudVolumetric.value < 0.5) {
       this.reset();
       return;
@@ -297,7 +303,8 @@ export class CloudVolumePass {
     let state = this.histories.get(source);
     if (!state) {
       state = {
-        history: [this.target.clone(), this.target.clone()],
+        target: integral,
+        history: [integral.clone(), integral.clone()],
         frames: 0,
         viewProjection: new Matrix4(),
         position: new Vector3(),
@@ -372,6 +379,12 @@ export class CloudVolumePass {
       state.frames = 0;
     const [previous, next] = state.history;
     const h = this.resolve.uniforms;
+    h.currentCloud.value = integral.texture;
+    h.currentData.value = integral.textures[1];
+    this.composite.uniforms.cloudResolution.value.set(
+      integral.width,
+      integral.height,
+    );
     h.previousCloud.value = previous.texture;
     h.previousData.value = previous.textures[1];
     h.cloudPreviousViewProjection.value = state.viewProjection;
@@ -391,7 +404,7 @@ export class CloudVolumePass {
     try {
       renderer.autoClear = false;
       this.quad.material = this.volume;
-      renderer.setRenderTarget(this.target);
+      renderer.setRenderTarget(integral);
       this.quad.render(renderer);
       this.quad.material = this.resolve;
       renderer.setRenderTarget(next);
@@ -431,6 +444,7 @@ export class CloudVolumePass {
   }
   dispose() {
     this.coverage.dispose();
+    this.waterTarget.dispose();
     this.target.dispose();
     for (const state of this.histories.values())
       state.history.forEach((t) => t.dispose());

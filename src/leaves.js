@@ -41,6 +41,116 @@ export class LeafDecay {
     this.uncertain = new Map();
   }
 
+  stream() {
+    this.tiles = new Set(this.world.chunks.keys());
+  }
+  invalidate(cq, cr) {
+    if (!this.tiles) return;
+    for (let x = cq - 1; x <= cq + 1; x++)
+      for (let z = cr - 1; z <= cr + 1; z++) {
+        const k = x + ',' + z;
+        if (this.world.chunks.has(k)) this.tiles.add(k);
+      }
+  }
+  // A trunk can support leaves at most six faces away. A six-cell halo
+  // therefore gives the exact same result for the middle tile as a world BFS.
+  step() {
+    if (!this.tiles?.size) return false;
+    const tile = this.tiles.values().next().value;
+    this.tiles.delete(tile);
+    const world = this.world,
+      dense = world.columns.get(tile);
+    if (!dense) return true;
+    const [cq, cr] = tile.split(',').map(Number),
+      side = 8 + 2 * REACH,
+      height = world.maxY,
+      size = side * side * height,
+      minQ = cq * 8 - REACH,
+      minR = cr * 8 - REACH;
+    const kind = new Uint8Array(size),
+      boundary = new Uint8Array(side * side);
+    for (let x = 0; x < side; x++)
+      for (let z = 0; z < side; z++) {
+        const q = minQ + x,
+          r = minR + z,
+          data = world.columns.get((q >> 3) + ',' + (r >> 3));
+        if (!data) continue;
+        const col = x * side + z,
+          offset = ((q & 7) * 8 + (r & 7)) * height;
+        boundary[col] = Number(
+          DIRECTIONS.some(([a, b]) => !world.loaded(q + a, r + b)),
+        );
+        for (let y = 0; y < height; y++) {
+          const b = BLOCKS[data[offset + y]];
+          if (b?.log || b?.foliage) kind[col * height + y] = b.log ? 2 : 1;
+        }
+      }
+    const queue = new Int32Array(size);
+    const propagate = (unknown) => {
+      const distance = new Uint8Array(size).fill(255);
+      let end = 0;
+      for (let i = 0; i < size; i++) {
+        if (
+          unknown
+            ? kind[i] === 1 && boundary[Math.floor(i / height)]
+            : kind[i] === 2
+        ) {
+          queue[end++] = i;
+          distance[i] = unknown ? 1 : 0;
+        }
+      }
+      for (let at = 0; at < end; at++) {
+        const i = queue[at],
+          n = distance[i] + 1;
+        if (n > REACH) continue;
+        const col = Math.floor(i / height),
+          x = Math.floor(col / side),
+          z = col % side,
+          y = i % height;
+        for (let d = 0; d < 8; d++) {
+          let j;
+          if (d < 6) {
+            const [a, b] = DIRECTIONS[d];
+            if (x + a < 0 || x + a >= side || z + b < 0 || z + b >= side)
+              continue;
+            j = i + (a * side + b) * height;
+          } else {
+            if (d === 6 ? y === 0 : y === height - 1) continue;
+            j = i + (d === 6 ? -1 : 1);
+          }
+          if (kind[j] === 1 && distance[j] === 255) {
+            distance[j] = n;
+            queue[end++] = j;
+          }
+        }
+      }
+      return distance;
+    };
+    const supported = propagate(false),
+      uncertain = propagate(true);
+    for (let x = 0; x < 8; x++)
+      for (let z = 0; z < 8; z++)
+        for (let y = 0; y < height; y++) {
+          const i = ((x + REACH) * side + z + REACH) * height + y;
+          if (kind[i] !== 1) continue;
+          const q = cq * 8 + x,
+            r = cr * 8 + z,
+            k = key(q, y, r);
+          if (supported[i] <= REACH) this.distance.set(k, supported[i]);
+          else this.distance.delete(k);
+          if (uncertain[i] <= REACH) this.uncertain.set(k, uncertain[i]);
+          else this.uncertain.delete(k);
+          if (
+            world.persistentLeaves.has(k) ||
+            supported[i] <= REACH ||
+            uncertain[i] <= REACH
+          )
+            this.pending.delete(k);
+          else if (!this.pending.has(k))
+            this.pending.set(k, 6 + hash(q, y + 131, r, world.seed) * 14);
+        }
+    return true;
+  }
   spread(seeds) {
     const distance = new Map(),
       queue = [];
@@ -91,11 +201,12 @@ export class LeafDecay {
 
   update(dt) {
     const world = this.world;
-    if (this.revision !== world.leafRevision) this.rebuild(dt);
+    if (!this.tiles && this.revision !== world.leafRevision) this.rebuild(dt);
     const removed = [];
     for (const [k, remaining] of this.pending) {
       const [q, y, r] = k.split(',').map(Number);
-      if (!world.loaded(q, r)) continue;
+      if (!world.loaded(q, r) || this.tiles?.has((q >> 3) + ',' + (r >> 3)))
+        continue;
       const type = world.get(q, y, r);
       if (!BLOCKS[type]?.foliage || world.persistentLeaves.has(k)) {
         this.pending.delete(k);

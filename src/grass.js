@@ -38,7 +38,7 @@ export function tickGrass(world, dt, light, time, weather) {
     !(dt > 0) ||
     !Number.isFinite(dt) ||
     light.world !== world ||
-    light.revision !== world.lightRevision ||
+    (light.revision !== world.lightRevision && !world.opticalRevisions) ||
     !light.baseRGB
   )
     return changed;
@@ -55,6 +55,18 @@ export function tickGrass(world, dt, light, time, weather) {
         : 0;
   for (const ck of world.chunks.keys()) {
     const [cq, cr] = ck.split(',').map(Number);
+    // Static light reaches at most 15 cells from a changed column. Other
+    // chunks can keep ticking while a new optical snapshot is in flight.
+    if (world.opticalRevisions?.size) {
+      let pending = false;
+      for (let x = cq - 2; x <= cq + 2 && !pending; x++)
+        for (let z = cr - 2; z <= cr + 2; z++)
+          if (world.opticalRevisions.has(x + ',' + z)) {
+            pending = true;
+            break;
+          }
+      if (pending || light.index(cq * 8, 0, cr * 8) < 0) continue;
+    }
     // Each 8*8*64 chunk has the same 4096-cell volume as a Java section.
     for (let n = 0; n < attempts; n++) {
       const q = cq * 8 + Math.floor(Math.random() * 8),

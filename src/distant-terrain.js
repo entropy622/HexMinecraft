@@ -1,5 +1,10 @@
 import {
   Color,
+  BufferGeometry,
+  BufferAttribute,
+  Mesh,
+  Sphere,
+  Vector3,
   DepthTexture,
   DirectionalLight,
   DoubleSide,
@@ -22,6 +27,7 @@ import {
 import { distantMesh } from './distant-mesh.js';
 import { applyDistantFoliage } from './distant-foliage.js';
 import { createSurfaceMaterial } from './surface-material.js';
+import { BIOME_COLORS } from './biome-colors.js';
 import { DistantCache } from './distant-cache.js';
 
 let epoch = 0;
@@ -41,6 +47,7 @@ export class DistantTerrain {
     });
     this.atmosphere = atmosphere;
     this.frameId = 0;
+    this.atlasVersion = 0;
     this.captureKey = null;
     const previous = scene.onBeforeRender;
     scene.onBeforeRender = (renderer, renderScene, camera, ...args) => {
@@ -80,6 +87,13 @@ export class DistantTerrain {
       generationMs: 0,
       cacheHits: 0,
     };
+  }
+  atlas() {
+    const colors = new Map();
+    for (const biome of Object.keys(BIOME_COLORS))
+      for (const type of ['grass', 'foliage'])
+        colors.set(biome + ':' + type, this.textures.biomes.color(biome, type));
+    return { bounds: this.textures.materials.uvBounds(), colors };
   }
   reset(world) {
     this.captureKey = null;
@@ -150,6 +164,7 @@ export class DistantTerrain {
     };
     worker.postMessage({
       type: 'init',
+      atlas: this.atlas(),
       epoch: this.epoch,
       snapshot: {
         seed: world.seed,
@@ -272,7 +287,25 @@ export class DistantTerrain {
         this.group.remove(old.mesh);
         old.mesh.geometry.dispose();
       }
-      const mesh = this.mesh(data.tile);
+      const packet = data.mesh;
+      if (!packet || data.atlasVersion !== this.atlasVersion) {
+        if (this.job || !this.workerReady) {
+          this.completed.unshift(data);
+          break;
+        }
+        this.job = data.id;
+        this.worker.postMessage({
+          type: 'tile',
+          epoch: this.epoch,
+          id: data.id,
+          generation: data.generation,
+          atlasVersion: this.atlasVersion,
+          cached: data.tile,
+        });
+        continue;
+      }
+      const mesh = this.mesh(data.tile, packet);
+      delete data.mesh;
       this.group.add(mesh);
       this.tiles.set(data.id, { ...data, mesh });
     }
@@ -320,6 +353,7 @@ export class DistantTerrain {
     this.job = id;
     this.worker.postMessage({
       type: 'tile',
+      atlasVersion: this.atlasVersion,
       epoch: this.epoch,
       id,
       generation: this.generations.get(id) || 0,
@@ -341,9 +375,9 @@ export class DistantTerrain {
     const u = this.atmosphere.uniforms;
     if (!this.ready || u.airDistantBlend.value <= 0 || !this.sourceSun) return;
     const previous = renderer.getRenderTarget(),
-      size = previous
-        ? new Vector2(previous.width, previous.height)
-        : renderer.getDrawingBufferSize(new Vector2()),
+      // The same background is sampled in normalized UVs by both near views.
+      // Keep its allocation stable across the smaller water and main targets.
+      size = renderer.getDrawingBufferSize(new Vector2()),
       key = [
         this.frameId,
         size.x,
@@ -351,13 +385,18 @@ export class DistantTerrain {
         ...camera.matrixWorld.elements,
         ...camera.projectionMatrix.elements,
       ].join(',');
+    // gl_FragCoord belongs to the consumer, even when both cameras can reuse
+    // the same distant HDR/depth texture.
+    u.airDistantResolution.value.set(
+      previous?.width ?? size.x,
+      previous?.height ?? size.y,
+    );
     if (key === this.captureKey) return;
     this.captureKey = key;
     if (this.target.width !== size.x || this.target.height !== size.y)
       this.target.setSize(size.x, size.y);
     u.airDistantColor.value = this.target.texture;
     u.airDistantDepth.value = this.target.depthTexture;
-    u.airDistantResolution.value.copy(size);
     u.airProjectionMatrix.value.copy(camera.projectionMatrix);
     // Skip whole meshes only when every fragment would be discarded by the
     // fog band. Other camera transforms keep the usual per-fragment decision.
@@ -399,12 +438,36 @@ export class DistantTerrain {
       renderer.shadowMap.needsUpdate = shadow;
     }
   }
-  mesh(tile) {
-    const mesh = distantMesh(tile, this.textures, this.world, this.materials);
+  mesh(tile, packet) {
+    let mesh;
+    if (packet) {
+      const geometry = new BufferGeometry();
+      for (const [name, array, size, normalized] of packet.attributes)
+        geometry.setAttribute(
+          name,
+          new BufferAttribute(array, size, normalized),
+        );
+      geometry.setIndex(new BufferAttribute(packet.index, 1));
+      geometry.groups = packet.groups;
+      geometry.boundingSphere = new Sphere(
+        new Vector3(...packet.center),
+        packet.radius,
+      );
+      mesh = new Mesh(geometry, this.materials);
+      mesh.position.fromArray(packet.position);
+      mesh.raycast = () => {};
+      mesh.userData.distantTerrain = true;
+    } else mesh = distantMesh(tile, this.textures, this.world, this.materials);
     this.clouds?.attach(mesh);
     return mesh;
   }
   refreshColors() {
+    this.atlasVersion++;
+    this.worker?.postMessage({
+      type: 'atlas',
+      epoch: this.epoch,
+      atlas: this.atlas(),
+    });
     this.captureKey = null;
     for (const entry of this.tiles.values()) {
       this.group.remove(entry.mesh);

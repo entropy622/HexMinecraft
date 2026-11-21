@@ -10,7 +10,8 @@ export function setCampfireLit(world, k, lit) {
   const fire = world.campfires.get(k);
   if (!fire || fire.lit === lit) return false;
   fire.lit = lit;
-  world.lightRevision++;
+  const [q, , r] = k.split(',').map(Number);
+  world.markLight(q, r);
   world.blockRevision++;
   return true;
 }

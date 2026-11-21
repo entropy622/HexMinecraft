@@ -43,7 +43,7 @@ export class FluidRenderer {
     this.medium = null;
     this.world = null;
   }
-  sync(world, wanted, immediate = false) {
+  sync(world, wanted, immediate = false, limit = 3) {
     if (this.world !== world) {
       this.clear();
       this.world = world;
@@ -56,12 +56,15 @@ export class FluidRenderer {
       }
     for (const k of world.fluids.dirty)
       if (!world.chunks.has(k)) world.fluids.dirty.delete(k);
-    let budget = immediate ? Infinity : 3;
-    for (const k of wanted)
-      if ((!this.meshes.has(k) || world.fluids.dirty.has(k)) && budget-- > 0) {
-        this.build(k);
-        world.fluids.dirty.delete(k);
-      }
+    let built = 0;
+    for (const k of wanted.keys()) {
+      if (this.meshes.has(k) && !world.fluids.dirty.has(k)) continue;
+      this.build(k);
+      world.fluids.dirty.delete(k);
+      built++;
+      if (!immediate && built >= limit) break;
+    }
+    return built > 0;
   }
   build(k) {
     const old = this.meshes.get(k);

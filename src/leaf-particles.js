@@ -1,3 +1,4 @@
+import { setSceneMaterial } from './scene-materials.js';
 import {
   DoubleSide,
   Group,
@@ -40,7 +41,7 @@ export class LeafParticles {
         particle = { mesh };
         this.pool[index] = particle;
       }
-      particle.mesh.material = this.materials.get(type);
+      setSceneMaterial(particle.mesh, this.materials.get(type));
       particle.mesh.visible = true;
       particle.mesh.position.set(
         p.x + Math.random() - 0.5,

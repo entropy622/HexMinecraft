@@ -91,7 +91,7 @@ export class SoftShadows {
       softShadowAngle: { value: 0 },
     };
   }
-  attach(scene, disk) {
+  update(disk) {
     const c = this.light.shadow.camera;
     this.uniforms.softShadowFrustum.value.set(
       (c.right - c.left) / c.zoom,
@@ -101,50 +101,54 @@ export class SoftShadows {
     this.uniforms.softShadowAngle.value = disk.visible
       ? disk.geometry.parameters.radius / disk.position.length()
       : 0;
+  }
+  attach(scene, disk) {
+    this.update(disk);
     scene.traverseVisible((object) => {
       const materials = Array.isArray(object.material)
         ? object.material
         : [object.material];
-      for (const material of materials) {
-        if (!material?.userData.voxelLighting || material.userData.softShadows)
-          continue;
-        material.userData.softShadows = true;
-        if (
-          addSurfaceFeature(material, {
-            id: 'soft-shadow-glass',
-            version: 7,
-            order: 20,
-            uniforms: () => ({ ...this.lightUniforms, ...this.uniforms }),
-            stages: {
-              shadow_pars: shadowChunk + glassTransmissionGLSL,
-              directional_filter:
-                'directLight.color *= glassTransmittance(vLightPosition + inverseTransformDirection(normal, viewMatrix) * 0.045, inverseTransformDirection(directLight.direction, viewMatrix));',
-            },
-          })
-        )
-          continue;
-        const previous = material.onBeforeCompile,
-          key = material.customProgramCacheKey;
-        material.onBeforeCompile = (shader, renderer) => {
-          previous.call(material, shader, renderer);
-          // Bind from the producer when compiling: Graphics finishes wiring
-          // shared water-time uniforms after this shadow owner is constructed.
-          Object.assign(shader.uniforms, this.lightUniforms, this.uniforms);
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              '#include <shadowmap_pars_fragment>',
-              shadowChunk + glassTransmissionGLSL,
-            )
-            .replace(
-              'getDirectionalLightInfo( directionalLight, directLight );',
-              `getDirectionalLightInfo( directionalLight, directLight );
-            directLight.color *= glassTransmittance(vLightPosition + inverseTransformDirection(normal, viewMatrix) * 0.045, inverseTransformDirection(directLight.direction, viewMatrix));`,
-            );
-        };
-        material.customProgramCacheKey = () =>
-          key.call(material) + '-contact-shadows-glass-v7';
-        material.needsUpdate = true;
-      }
+      for (const material of materials) this.applyMaterial(material);
     });
+  }
+  applyMaterial(material) {
+    if (!material?.userData.voxelLighting || material.userData.softShadows)
+      return;
+    material.userData.softShadows = true;
+    if (
+      addSurfaceFeature(material, {
+        id: 'soft-shadow-glass',
+        version: 7,
+        order: 20,
+        uniforms: () => ({ ...this.lightUniforms, ...this.uniforms }),
+        stages: {
+          shadow_pars: shadowChunk + glassTransmissionGLSL,
+          directional_filter:
+            'directLight.color *= glassTransmittance(vLightPosition + inverseTransformDirection(normal, viewMatrix) * 0.045, inverseTransformDirection(directLight.direction, viewMatrix));',
+        },
+      })
+    )
+      return;
+    const previous = material.onBeforeCompile,
+      key = material.customProgramCacheKey;
+    material.onBeforeCompile = (shader, renderer) => {
+      previous.call(material, shader, renderer);
+      // Bind from the producer when compiling: Graphics finishes wiring
+      // shared water-time uniforms after this shadow owner is constructed.
+      Object.assign(shader.uniforms, this.lightUniforms, this.uniforms);
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <shadowmap_pars_fragment>',
+          shadowChunk + glassTransmissionGLSL,
+        )
+        .replace(
+          'getDirectionalLightInfo( directionalLight, directLight );',
+          `getDirectionalLightInfo( directionalLight, directLight );
+            directLight.color *= glassTransmittance(vLightPosition + inverseTransformDirection(normal, viewMatrix) * 0.045, inverseTransformDirection(directLight.direction, viewMatrix));`,
+        );
+    };
+    material.customProgramCacheKey = () =>
+      key.call(material) + '-contact-shadows-glass-v7';
+    material.needsUpdate = true;
   }
 }

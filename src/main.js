@@ -254,7 +254,7 @@ $('#app').innerHTML = `
  <section class="overlay hidden" id="death-overlay"><div class="panel world-menu death-panel"><h2>你倒下了</h2><p id="death-location"></p><button id="revive">重生</button></div></section>
  ${worldMenu}
  ${workshopPanel()}
- <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><button id="show-options">选项</button><button id="home">保存并返回标题</button></div><div id="option-page" hidden><button id="back-options">‹ 返回</button><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><details class="video-options"><summary>视频设置</summary><div class="settings-row"><label for="gui-scale">界面缩放</label><select id="gui-scale"><option value="0">自动</option><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option></select></div><div class="settings-row"><label for="fov">基础视野</label><input id="fov" type="range" min="60" max="110" step="1" value="72"><output id="fov-value" for="fov">72°</output></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 体积云与晨雾</option></select></div><div class="settings-row"><label for="clouds-toggle">云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="exposure-toggle">明暗适应</label><input id="exposure-toggle" type="checkbox" title="进入洞穴后缓慢适应，走入日光时更快收敛；关闭使用固定曝光"></div><div class="settings-row"><label for="antialias-toggle">时域抗锯齿</label><input id="antialias-toggle" type="checkbox" checked title="积累多帧细节，减轻远处轮廓闪烁；移动物体和手持物优先使用当前画面"></div><div class="settings-row"><label for="sharpening-toggle">自适应锐化</label><input id="sharpening-toggle" type="checkbox" checked title="根据局部对比度保留细节；取消勾选可完全关闭"></div><div class="settings-row"><label for="sharpness-strength">锐化强度</label><input id="sharpness-strength" type="range" min="0" max="1" step="0.01" value="0.5"><output id="sharpness-value" for="sharpness-strength">50%</output></div><div class="settings-row"><label for="environment-reflections-toggle">场景反射</label><input id="environment-reflections-toggle" type="checkbox" checked title="金属、宝石与水洼周围的场景倒影；大面积反射会增加显卡开销"></div><div class="settings-row"><label for="sky-reflections-toggle">天空反射</label><input id="sky-reflections-toggle" type="checkbox" checked title="物体反射天空；室内随天光减弱"></div><div class="settings-row"><label for="reflection-rays">反射采样</label><select id="reflection-rays"><option value="1">快速</option><option value="2">轻量</option><option value="4" selected>标准</option><option value="8">精细</option></select></div><div class="settings-row"><label for="reflection-steps">反射细节</label><select id="reflection-steps"><option value="4">低</option><option value="8" selected>标准</option><option value="16">高</option><option value="32">极高</option></select></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset>${photonColorControls()}<p class="panel-note">光影档增加体积云、近景柔影、玻璃滤色体积光束、雨后水洼与建筑倒影、明暗适应与抗锯齿，显卡开销较高；细节可单独调整。光影云层可透光并遮蔽日月；均衡保留几何云与移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p></details><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或右键穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Ctrl 或双击 W 冲刺 / Shift 蹲伏防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>右键</kbd>交互 / 耕种 / 收获</span><span><kbd>E / B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 停住</span><span><kbd>门 / 栅栏门</kbd>右键开关 · Shift 旁建</span><span><kbd>地毯</kbd>两块同色羊毛合成三张 · 右键铺设</span><span><kbd>侦测器</kbd>双眼检测正面变化 · 相反红点输出短脉冲</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>细雪</kbd>皮靴站立 / Shift 下沉 / 空格攀出 · 皮甲保温</span><span><kbd>创造模式</kbd>双击空格切换飞行 · 空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div></div></div></section>
+ <section id="pause-overlay" class="overlay hidden"><div class="panel pause-panel"><div class="eyebrow">TAKE A BREATH</div><h2 id="pause-title">旷野会等你。</h2><p id="pause-description">旅途已暂歇。世界会记住你留下的每一块砖。</p><div class="pause-actions"><button class="primary" id="resume">回到旷野</button><button id="show-options">选项</button><button id="home">保存并返回标题</button></div><div id="option-page" hidden><button id="back-options">‹ 返回</button><div class="two-col"><button id="mode-toggle">切换自由建造</button><button id="respawn">返回出生点</button></div><div class="settings-row"><label for="sensitivity">视角灵敏度</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"></div><div class="settings-row"><span>游戏音效</span><button id="sound-toggle">开启</button></div><div class="settings-row"><label for="volume">音效音量</label><input id="volume" type="range" min="0" max="1" step="0.05" value="0.45"></div><details class="video-options"><summary>视频设置</summary><div class="settings-row"><label for="gui-scale">界面缩放</label><select id="gui-scale"><option value="0">自动</option><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option></select></div><div class="settings-row"><label for="fov">基础视野</label><input id="fov" type="range" min="60" max="110" step="1" value="72"><output id="fov-value" for="fov">72°</output></div><div class="settings-row"><label for="lightning-toggle">雷电闪光</label><input id="lightning-toggle" type="checkbox" checked></div><div class="settings-row"><label for="quality">画质</label><select id="quality"><option value="1">均衡</option><option value="0.65">流畅</option><option value="1.7">光影 · 体积云与晨雾</option></select></div><div class="settings-row"><label for="render-scale">3D 渲染比例上限</label><select id="render-scale"><option value="1">100%</option><option value="0.85">85%</option><option value="0.75">75%</option><option value="0.625">62.5%</option></select></div><div class="settings-row"><label for="target60-toggle">目标 60 FPS · 自动调整 3D 分辨率</label><input id="target60-toggle" type="checkbox" checked></div><div class="settings-row"><label for="clouds-toggle">云层与云影</label><input id="clouds-toggle" type="checkbox" checked></div><fieldset id="post-settings" class="post-settings"><legend>光影细节</legend><div class="settings-row"><label for="occlusion-strength">接触阴影</label><input id="occlusion-strength" type="range" min="0" max="1" step="0.1" value="0.6" title="加强墙角与物体接缝的阴影；设为 0 关闭"><output id="occlusion-value" for="occlusion-strength">60%</output></div><div class="settings-row"><label for="exposure-toggle">明暗适应</label><input id="exposure-toggle" type="checkbox" title="进入洞穴后缓慢适应，走入日光时更快收敛；关闭使用固定曝光"></div><div class="settings-row"><label for="antialias-toggle">时域抗锯齿</label><input id="antialias-toggle" type="checkbox" checked title="积累多帧细节，减轻远处轮廓闪烁；移动物体和手持物优先使用当前画面"></div><div class="settings-row"><label for="sharpening-toggle">自适应锐化</label><input id="sharpening-toggle" type="checkbox" checked title="根据局部对比度保留细节；取消勾选可完全关闭"></div><div class="settings-row"><label for="sharpness-strength">锐化强度</label><input id="sharpness-strength" type="range" min="0" max="1" step="0.01" value="0.5"><output id="sharpness-value" for="sharpness-strength">50%</output></div><div class="settings-row"><label for="environment-reflections-toggle">场景反射</label><input id="environment-reflections-toggle" type="checkbox" checked title="金属、宝石与水洼周围的场景倒影；大面积反射会增加显卡开销"></div><div class="settings-row"><label for="sky-reflections-toggle">天空反射</label><input id="sky-reflections-toggle" type="checkbox" checked title="物体反射天空；室内随天光减弱"></div><div class="settings-row"><label for="reflection-rays">反射采样</label><select id="reflection-rays"><option value="1">快速</option><option value="2">轻量</option><option value="4" selected>标准</option><option value="8">精细</option></select></div><div class="settings-row"><label for="reflection-steps">反射细节</label><select id="reflection-steps"><option value="4">低</option><option value="8" selected>标准</option><option value="16">高</option><option value="32">极高</option></select></div><div class="settings-row"><label for="bloom-strength">柔光强度</label><input id="bloom-strength" type="range" min="0" max="0.5" step="0.01" value="0.24"><output id="bloom-value" for="bloom-strength">24%</output></div></fieldset>${photonColorControls()}<p class="panel-note">光影档增加体积云、近景柔影、玻璃滤色体积光束、雨后水洼与建筑倒影、明暗适应与抗锯齿，显卡开销较高；细节可单独调整。光影云层可透光并遮蔽日月；均衡保留几何云与移动云影，流畅保留简化云层与高度雾。云层可单独关闭，画质和细节会保存在本浏览器。</p></details><div class="dimension-controls" id="dimension-controls"><span>创造模式 · 维度旅行</span><div><button data-dimension="overworld">主世界</button><button data-dimension="nether">下界</button><button data-dimension="end">末地</button></div><p class="panel-note">生存模式中，搭黑曜石门框并用打火石点燃；站入四秒或右键穿越。末地门可合成，返回门自动生成。</p></div><div class="help-grid"><span><kbd>W A S D</kbd>移动 / Ctrl 或双击 W 冲刺 / Shift 蹲伏防坠</span><span><kbd>空格</kbd>跳跃 / 水中上浮</span><span><kbd>左键长按</kbd>采集 / 攻击</span><span><kbd>右键</kbd>使用物品 / 放置 / 拉弓</span><span><kbd>右键</kbd>交互 / 耕种 / 收获</span><span><kbd>E / B / Tab</kbd>背包与蜂巢合成</span><span><kbd>F / M</kbd>主副手换位 / 查看地图</span><span><kbd>Q / Ctrl+Q</kbd>丢出一件 / 一组</span><span><kbd>梯子</kbd>W / 空格上爬 · Shift 停住</span><span><kbd>门 / 栅栏门</kbd>右键开关 · Shift 旁建</span><span><kbd>地毯</kbd>两块同色羊毛合成三张 · 右键铺设</span><span><kbd>侦测器</kbd>双眼检测正面变化 · 相反红点输出短脉冲</span><span><kbd>右键 / R</kbd>主手或副手举盾</span><span><kbd>随身照明</kbd>主手或副手持火把、萤灯或发光液体桶</span><span><kbd>细雪</kbd>皮靴站立 / Shift 下沉 / 空格攀出 · 皮甲保温</span><span><kbd>创造模式</kbd>双击空格切换飞行 · 空格上升 / Shift 下降</span></div><div id="weather-controls" class="hidden"><span>创造模式 · 天气</span><div class="weather-buttons"><button data-weather="clear">晴朗</button><button data-weather="rain">雨 / 雪</button><button data-weather="storm">雷暴</button></div><p class="panel-note">天气会逐渐过渡，之后继续自动轮换。雪原降雪，沙漠只有阴云；雷电闪光可单独关闭。</p></div></div></div></section>
  <section id="map-overlay" class="overlay hidden"><div class="panel map-panel"><div class="panel-head"><div><div class="eyebrow">FIELD NOTES / 无限旷野</div><h2>六野图志</h2></div><button class="close" data-close aria-label="关闭地图">×</button></div><canvas id="world-map" width="700" height="700"></canvas><p class="panel-note">▲ 你的位置　 ◈ 传送门　 ⌂ 村庄　 ◌ 洞穴入口　 ◆ 已发现遗迹　 × 上次死亡地点<br>死亡物资在附近加载期间保留 10 分钟；普通掉落 5 分钟，岩浆和虚空会销毁。地图跟随玩家，显示周围已加载区域。不同维度分别保存地形与建筑。</p></div></section>
  <section id="station-overlay" class="overlay hidden"><div class="panel station-panel"><div class="eyebrow">A LITTLE PLACE OF YOUR OWN</div><button class="close" data-close style="float:right" aria-label="关闭交互">×</button><h2 id="station-title"></h2><div id="station-content"></div></div></section>
 `;
@@ -2454,7 +2454,7 @@ function useBucket() {
   flushFluidChanges();
   updateCampfires(0);
   refreshNetherPortals();
-  graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
+  graphics.fluidRenderer.sync(world, graphics.chunks, true);
   soundFX.play('splash');
   useSwing();
   updateHUD();
@@ -2462,7 +2462,10 @@ function useBucket() {
   return true;
 }
 function flushFluidChanges() {
-  if (world.fluids.dirty.size) maintainBuildings();
+  if (world.fluids.checkSupports) {
+    world.fluids.checkSupports = false;
+    maintainBuildings();
+  }
   for (const k of world.fluids.washedWebs)
     dropAt('string', 1, ...k.split(',').map(Number));
   world.fluids.washedWebs.clear();
@@ -2482,7 +2485,7 @@ function flushFluidChanges() {
     graphics.updateLight(q, y, r);
   }
   world.fluids.blockChanges.clear();
-  for (const k of chunks) if (graphics.chunks.has(k)) graphics.buildChunk(k);
+  for (const k of chunks) if (graphics.chunks.has(k)) graphics.requestChunk(k);
 }
 function leaveBoat() {
   const b = boats.riding;
@@ -3934,7 +3937,7 @@ function fireDispenser(q, y, r) {
     flushFluidChanges();
     updateCampfires(0);
     refreshNetherPortals();
-    graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
+    graphics.fluidRenderer.sync(world, graphics.chunks, true);
     soundFX.play('splash');
     return true;
   };
@@ -4330,17 +4333,13 @@ function growTree(k) {
     ))
       for (const [dq, dr] of [[0, 0], ...DIRECTIONS])
         chunks.add(graphics.chunkKey(a + dq, c + dr));
-  for (const ck of chunks) if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
+  for (const ck of chunks)
+    if (graphics.chunks.has(ck)) graphics.requestChunk(ck);
   weatherColumns.update(1, world);
   graphics.renderer.shadowMap.needsUpdate = true;
   return true;
 }
 function updatePlants(dt) {
-  if (
-    graphics.voxelLight.dirty ||
-    graphics.voxelLight.revision !== world.lightRevision
-  )
-    graphics.updateVoxelLight(0, true);
   const grass = tickGrass(world, dt, graphics.voxelLight, time, weather);
   if (grass.length) graphics.updateCells(grass);
   const cactus = tickCactus(world, dt);
@@ -4366,7 +4365,7 @@ function updatePlants(dt) {
           dropAt(stack.item, stack.count, q, y, r);
     }
     for (const ck of chunks)
-      if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
+      if (graphics.chunks.has(ck)) graphics.requestChunk(ck);
     weatherColumns.update(1, world);
   }
   applyPlantChanges(growChorus(world, dt, growthOccupied), !creative);
@@ -4415,7 +4414,8 @@ function applyPlantChanges(output, drop = true) {
     for (const [dq, dr] of [[0, 0], ...DIRECTIONS])
       chunks.add(graphics.chunkKey(q + dq, r + dr));
   }
-  for (const ck of chunks) if (graphics.chunks.has(ck)) graphics.buildChunk(ck);
+  for (const ck of chunks)
+    if (graphics.chunks.has(ck)) graphics.requestChunk(ck);
   if (drop)
     for (const p of output.drops) dropAt(p.item, p.count, p.q, p.y, p.r);
   weatherColumns.update(1, world);
@@ -6051,7 +6051,7 @@ function explode(center, settings = {}) {
         }
       }
     }
-  for (const k of changed) if (graphics.chunks.has(k)) graphics.buildChunk(k);
+  for (const k of changed) if (graphics.chunks.has(k)) graphics.requestChunk(k);
   graphics.burst(origin.q, center.y, origin.r, '#e3b567');
   soundFX.play('break', 'stone');
   if (settings.notice !== false) toast('轰！苦力怕炸开了周围的方块。');
@@ -7020,6 +7020,8 @@ function updatePostControls() {
   $('#reflection-rays').disabled =
     !options.environmentReflections && !options.skyReflections;
   $('#reflection-steps').disabled = !options.environmentReflections;
+  $('#render-scale').value = String(options.renderScale);
+  $('#target60-toggle').checked = options.target60;
   $('#clouds-toggle').checked = options.clouds;
   $('#bloom-strength').value = options.bloom;
   $('#bloom-value').value = Math.round(options.bloom * 100) + '%';
@@ -7038,6 +7040,8 @@ function changePostControls() {
     sharpness: Number($('#sharpness-strength').value),
     exposure: $('#exposure-toggle').checked,
     bloom: Number($('#bloom-strength').value),
+    target60: $('#target60-toggle').checked,
+    renderScale: Number($('#render-scale').value),
     clouds: $('#clouds-toggle').checked,
     environmentReflections: $('#environment-reflections-toggle').checked,
     skyReflections: $('#sky-reflections-toggle').checked,
@@ -7065,6 +7069,8 @@ $('#color-reset').onclick = () => {
 };
 for (const id of [
   'antialias-toggle',
+  'target60-toggle',
+  'render-scale',
   'clouds-toggle',
   'exposure-toggle',
   'sharpening-toggle',
@@ -7403,7 +7409,7 @@ function frame(now) {
   if (playing && !overlay) {
     time += dt;
     const cell = worldToAxial(camera.position.x, camera.position.z);
-    world.ensureAround(cell.q, cell.r);
+    graphics.nearStream.move(cell.q, cell.r);
     graphics.sync(cell.q, cell.r);
     updateWeather(dt);
     ambienceTimer += dt;
@@ -8069,7 +8075,7 @@ if (import.meta.env.DEV)
     fluidStep: (ticks = 1) => {
       for (let i = 0; i < ticks; i++) world.fluids.step(0.12);
       flushFluidChanges();
-      graphics.fluidRenderer.sync(world, new Set(graphics.chunks.keys()), true);
+      graphics.fluidRenderer.sync(world, graphics.chunks, true);
     },
     selectItem: (id) => {
       if (canEquip(id)) {

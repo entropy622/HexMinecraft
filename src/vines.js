@@ -150,26 +150,37 @@ export function spreadVine(world, q, y, r, direction, random = Math.random) {
 
 export function tickVines(world, dt, random = Math.random) {
   const changed = [],
-    cells = [...world.vineCells]
-      .map((k) => k.split(',').map(Number))
-      .sort((a, b) => b[1] - a[1]),
     chance = -Math.expm1((-Math.max(0, dt) * 15) / 4096);
-  for (const [q, y, r] of cells) {
-    if (world.get(q, y, r) !== 'vine') continue;
-    const old = vineFaces(world.state(q, y, r)),
-      next = supportedVineFaces(world, q, y, r, old);
-    if (!next) {
-      world.set(q, y, r, null);
-      changed.push({ q, y, r });
-      continue;
+  // Draw a growth chance for each existing vine. Only selected cells need
+  // coordinates. A new vine cannot grow twice during the same simulation tick.
+  const growth =
+    chance > 0
+      ? [...world.vineCells]
+          .filter(() => random() < chance)
+          .map((k) => k.split(',').map(Number))
+          .sort((a, b) => b[1] - a[1])
+      : [];
+  const checks = world.vineChecks;
+  while (checks.size) {
+    const cells = [...checks]
+      .map((k) => k.split(',').map(Number))
+      .sort((a, b) => b[1] - a[1]);
+    checks.clear();
+    for (const [q, y, r] of cells) {
+      if (world.get(q, y, r) !== 'vine') continue;
+      const old = vineFaces(world.state(q, y, r)),
+        next = supportedVineFaces(world, q, y, r, old);
+      if (!next) {
+        world.set(q, y, r, null);
+        changed.push({ q, y, r });
+      } else if (next !== old && setVineFaces(world, q, y, r, next))
+        changed.push({ q, y, r });
     }
-    if (next !== old && setVineFaces(world, q, y, r, next))
-      changed.push({ q, y, r });
-    if (chance > 0 && random() < chance)
-      changed.push(
-        ...spreadVine(world, q, y, r, Math.floor(random() * 8), random),
-      );
   }
+  for (const [q, y, r] of growth)
+    changed.push(
+      ...spreadVine(world, q, y, r, Math.floor(random() * 8), random),
+    );
   return { changed, drops: [] };
 }
 

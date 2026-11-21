@@ -1,3 +1,4 @@
+import { setSceneMaterial } from './scene-materials.js';
 import * as THREE from 'three';
 import { ARROW_ITEMS } from './arrow-data.js';
 import { MOBS } from './mob-data.js';
@@ -116,8 +117,10 @@ export class Projectiles {
           arrow.groundLife - arrow.life >= 30
         ) {
           arrow.item = 'arrow';
-          arrow.mesh.children.find((m) => m.geometry === this.tip).material =
-            this.metal;
+          setSceneMaterial(
+            arrow.mesh.children.find((m) => m.geometry === this.tip),
+            this.metal,
+          );
         }
         if (
           arrow.recoverable &&

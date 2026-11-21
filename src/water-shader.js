@@ -211,7 +211,8 @@ export function shadeWater(material) {
             float thickness = clamp(length(waterView(uv, depth)) - length(origin), 0.0, 24.0);
             vec2 ripple = (viewMatrix * vec4(wave.x, 0.0, wave.y, 0.0)).xy;
             vec2 bend = ripple * vec2(waterProjection[0][0], waterProjection[1][1]) * min(thickness, 6.0) / max(length(origin), 1.0);
-            vec2 refractedUV = clamp(uv + bend, 0.5 / waterResolution, 1.0 - 0.5 / waterResolution);
+            vec2 edge = 0.5 / vec2(textureSize(waterSceneDepth, 0));
+            vec2 refractedUV = clamp(uv + bend, edge, 1.0 - edge);
             // A refracted sample must stay behind the visible water surface.
             if (texture2D(waterSceneDepth, refractedUV).r <= gl_FragCoord.z) refractedUV = uv;
             float backDepth = texture2D(waterSceneDepth, refractedUV).r;

@@ -1,3 +1,4 @@
+import { setSceneMaterial } from './scene-materials.js';
 import * as THREE from 'three';
 import { BLOCKS, axialToWorld } from './core.js';
 
@@ -47,7 +48,7 @@ export class BlockParticles {
       size = strong
         ? 0.08 + Math.random() * 0.09
         : 0.055 + Math.random() * 0.055;
-    mesh.material = this.material(type, normal.y > 0.5);
+    setSceneMaterial(mesh, this.material(type, normal.y > 0.5));
     mesh.position.copy(point).addScaledVector(normal, 0.025);
     mesh.scale.setScalar(size);
     mesh.visible = true;

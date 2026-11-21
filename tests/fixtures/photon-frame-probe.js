@@ -8,6 +8,7 @@ export function installFrameProbe() {
     draws = 0;
   let active = false,
     target = 0,
+    stride = 1,
     lastTimestamp = null;
   let samples = [],
     gpu = [],
@@ -82,7 +83,12 @@ export function installFrameProbe() {
         window.__hexwild.setPlaying(false);
       poll();
       let query = null;
-      if (active && extension && counterBits) {
+      if (
+        active &&
+        extension &&
+        counterBits &&
+        rendered % stride === 1 % stride
+      ) {
         if (
           pending.length < 8 &&
           !gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY)
@@ -122,7 +128,7 @@ export function installFrameProbe() {
     get rendered() {
       return rendered;
     },
-    start(count) {
+    start(count, gpuStride = 1) {
       if (active || pending.length)
         throw Error('A frame measurement is already pending');
       if (extension) gl.getParameter(extension.GPU_DISJOINT_EXT);
@@ -132,6 +138,7 @@ export function installFrameProbe() {
       busy = 0;
       lastTimestamp = null;
       target = count;
+      stride = gpuStride;
       active = true;
     },
     stop() {

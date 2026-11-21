@@ -411,6 +411,11 @@ export function installMaterialAtlas(textures, tiles, names) {
       reflectiveCache.set(geometry, { revision, value });
       return value;
     },
+    uvBounds() {
+      return new Map(
+        names.map((n) => [n, [...manager.uv(n, 0, 0), ...manager.uv(n, 1, 1)]]),
+      );
+    },
     has(name) {
       return index.has(name);
     },

@@ -13,6 +13,8 @@ import { LeafAmbient } from './leaf-ambient.js';
 // Independent hex-grid light transport, inspired by Photon LPV's colored
 // emitters and normal-offset sampling. No upstream shader code is included.
 const HEIGHT = 64;
+const radiance = Array.from({ length: 16 }, (_, level) => (level / 15) ** 2);
+const radianceBytes = radiance.map((v) => Math.round(v * 255));
 export const HELD_LIGHTS = {
   redstoneTorch: 'redstoneTorch',
   endRod: 'endRod',
@@ -78,6 +80,15 @@ export class VoxelLight {
       this.rebuild();
       this.baseRGB = this.rgb;
     }
+    this.applyHeld();
+    this.timer = 0.25;
+    this.dirty = false;
+    this.heldDirty = false;
+    this.revision = this.world.lightRevision;
+    return true;
+  }
+
+  applyHeld() {
     this.rgb = this.baseRGB;
     if (this.heldSource) {
       const { q, y, r, levels } = this.heldSource;
@@ -96,11 +107,6 @@ export class VoxelLight {
         }
       }
     }
-    this.timer = 0.25;
-    this.dirty = false;
-    this.heldDirty = false;
-    this.revision = this.world.lightRevision;
-    return true;
   }
 
   index(q, y, r) {
@@ -202,6 +208,10 @@ export class VoxelLight {
         if (EMISSION[fluid.type]) emitters.push([i, EMISSION[fluid.type]]);
       }
     this.cost = cost;
+    this.finishTransport(emitters, leafCells);
+  }
+  finishTransport(emitters, leafCells) {
+    const size = this.cost.length;
     this.leafAmbientField.update(this, leafCells);
     this.leafAmbient = this.leafAmbientField.values;
     this.leafAmbientCells = this.leafAmbientField.cells;
@@ -362,11 +372,13 @@ export class VoxelLight {
       }
       const sky = g.attributes.skylight,
         rgb = g.attributes.blocklight;
+      const skyTable = sky.normalized ? radianceBytes : radiance,
+        rgbTable = rgb.normalized ? radianceBytes : radiance;
       for (let j = 0; j < p.count; j++) {
         const i = cache.indices[j];
-        sky.array[j] = i < 0 ? 1 : (this.sky[i] / 15) ** 2;
+        sky.array[j] = skyTable[i < 0 ? 15 : this.sky[i]];
         for (let c = 0; c < 3; c++)
-          rgb.array[j * 3 + c] = i < 0 ? 0 : (this.rgb[c][i] / 15) ** 2;
+          rgb.array[j * 3 + c] = i < 0 ? 0 : rgbTable[this.rgb[c][i]];
       }
       sky.needsUpdate = rgb.needsUpdate = true;
       const ambient = g.attributes.leafAmbient,

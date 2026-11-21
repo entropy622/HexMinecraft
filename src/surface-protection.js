@@ -190,7 +190,7 @@ export class SurfaceProtectionPass extends Pass {
       ),
     );
     try {
-      scene.traverse((object) => {
+      const visit = (object) => {
         if (
           !object.isMesh &&
           !object.isPoints &&
@@ -202,6 +202,14 @@ export class SurfaceProtectionPass extends Pass {
         if (!object.isMesh) {
           object.layers.mask = 0;
           if (compiling) object.material = null;
+          return;
+        }
+        if (
+          !compiling &&
+          object.frustumCulled &&
+          !this.frustum.intersectsObject(object)
+        ) {
+          object.layers.mask = 0;
           return;
         }
         let overlay = false,
@@ -279,7 +287,9 @@ export class SurfaceProtectionPass extends Pass {
             visible &&= parent.visible;
           this.reflectiveVisible ||= visible;
         }
-      });
+      };
+      if (compiling) scene.traverse(visit);
+      else scene.traverseVisible(visit);
       camera.layers.set(31);
       scene.background = null;
       scene.overrideMaterial = null;

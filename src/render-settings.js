@@ -2,6 +2,8 @@ import { COLOR_SETTINGS, DEFAULT_COLOR_SETTINGS } from './photon-grading.js';
 
 export const DEFAULT_POST_SETTINGS = {
   ...DEFAULT_COLOR_SETTINGS,
+  target60: true,
+  renderScale: 1,
   occlusion: 0.6,
   antialias: true,
   bloom: 0.24,
@@ -22,6 +24,9 @@ export function postSettings(raw) {
   if (Number.isFinite(raw.occlusion))
     settings.occlusion = Math.max(0, Math.min(1, raw.occlusion));
   if (typeof raw.antialias === 'boolean') settings.antialias = raw.antialias;
+  if ([1, 0.85, 0.75, 0.625].includes(raw.renderScale))
+    settings.renderScale = raw.renderScale;
+  if (typeof raw.target60 === 'boolean') settings.target60 = raw.target60;
   if (typeof raw.clouds === 'boolean') settings.clouds = raw.clouds;
   if (typeof raw.exposure === 'boolean') settings.exposure = raw.exposure;
   if (typeof raw.sharpening === 'boolean') settings.sharpening = raw.sharpening;

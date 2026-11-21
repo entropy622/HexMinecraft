@@ -97,18 +97,10 @@ export class DynamicLight {
   upload(field) {
     const size = field.sky.length;
     const texture = this.uniforms.entityLightVolume.value;
-    if (
-      !texture ||
-      texture.image.height !== field.depth ||
-      texture.image.depth !== field.width
-    ) {
-      texture?.dispose();
-      this.data = new Uint8Array(size * 4);
-      const next = new Data3DTexture(this.data, 64, field.depth, field.width);
-      next.magFilter = next.minFilter = NearestFilter;
-      next.unpackAlignment = 1;
-      this.uniforms.entityLightVolume.value = next;
-    }
+    this.data =
+      texture?.image.data.length === size * 4
+        ? texture.image.data
+        : new Uint8Array(size * 4);
     const glassMin = this.uniforms.glassBoundsMin.value.set(
         Infinity,
         Infinity,
@@ -179,6 +171,24 @@ export class DynamicLight {
       glassMin.set(0, 1, 0);
       glassMax.set(0, 0, 0);
     }
+    this.install(field, this.data, glassMin, glassMax);
+  }
+  install(field, data, min, max) {
+    const texture = this.uniforms.entityLightVolume.value;
+    if (
+      !texture ||
+      texture.image.height !== field.depth ||
+      texture.image.depth !== field.width
+    ) {
+      texture?.dispose();
+      const next = new Data3DTexture(data, 64, field.depth, field.width);
+      next.magFilter = next.minFilter = NearestFilter;
+      next.unpackAlignment = 1;
+      this.uniforms.entityLightVolume.value = next;
+    } else texture.image.data = data;
+    this.data = data;
+    this.uniforms.glassBoundsMin.value.copy(min);
+    this.uniforms.glassBoundsMax.value.copy(max);
     const origin = axialToWorld(field.minQ, field.minR);
     this.uniforms.entityLightOrigin.value.set(origin.x, 0, origin.z);
     this.uniforms.entityLightSize.value.set(64, field.depth, field.width);

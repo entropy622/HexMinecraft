@@ -1,3 +1,7 @@
+import { NearStream } from './near-stream.js';
+import { LightStream } from './light-stream.js';
+import { FrameResolution } from './frame-resolution.js';
+import { SceneMaterials, setSceneMaterial } from './scene-materials.js';
 import { wetPorosity } from './wet-surfaces.js';
 import { applySkylight, visionUniforms } from './skylight.js';
 import { createSurfaceMaterial } from './surface-material.js';
@@ -109,6 +113,7 @@ export class Graphics {
       antialias: true,
       powerPreference: 'high-performance',
     });
+    this.resolution = new FrameResolution(this.renderer.getContext());
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -315,6 +320,22 @@ export class Graphics {
     this.offhandHand.scale.x *= -1;
     this.offhandHand.position.x *= -1;
     this.camera.add(this.offhandHand);
+    this.sceneMaterials = new SceneMaterials((material) => {
+      if (
+        (material.isMeshLambertMaterial || material.isMeshPhongMaterial) &&
+        !material.userData.voxelLighting
+      )
+        this.dynamicLight.apply(material);
+      this.cloudSystem.applyMaterial(material);
+      if (
+        material.fog &&
+        !material.isShaderMaterial &&
+        !material.userData.airFog
+      )
+        this.atmosphere.apply(material);
+      this.softShadows.applyMaterial(material);
+    });
+    this.sceneMaterials.watch(this.scene);
     this.refreshAvatar();
     this.shield = createShield(this.textures);
     this.shield.userData.skipOcclusion = true;
@@ -368,6 +389,7 @@ export class Graphics {
       this.sun.shadow.map = null;
     });
     canvas.addEventListener('webglcontextrestored', () => {
+      this.sceneMaterials.watch(this.scene);
       this.setQuality(this.quality);
     });
     addEventListener('resize', () => {
@@ -406,6 +428,7 @@ export class Graphics {
   }
   setQuality(value) {
     value = [0.65, 1, 1.7].includes(value) ? value : 1;
+    this.resolution.reset();
     this.quality = value;
     this.weatherEffects.quality = value;
     this.usePost = value >= 1.7;
@@ -462,17 +485,29 @@ export class Graphics {
   }
   resizeRendering() {
     // Keep the canvas and every post-process buffer at the same pixel density.
-    const ratio = Math.min(
-      devicePixelRatio,
-      this.usePost ? 1.25 : this.quality,
-    );
+    const ratio =
+      Math.min(devicePixelRatio, this.usePost ? 1.25 : this.quality) *
+      (this.postOptions.target60
+        ? Math.min(this.postOptions.renderScale, this.resolution.scale)
+        : this.postOptions.renderScale);
+    if (this.composer)
+      this.composer.passes[0].clouds.integrationDivisor =
+        this.postOptions.target60 && this.resolution.scale === 0.625 ? 3 : 2;
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(innerWidth, innerHeight);
     this.composer?.setPixelRatio(ratio);
     this.composer?.setSize(innerWidth, innerHeight);
   }
   setPostOptions(settings) {
+    const previous = this.postOptions;
     this.postOptions = postSettings(settings);
+    if (
+      previous.target60 !== this.postOptions.target60 ||
+      previous.renderScale !== this.postOptions.renderScale
+    ) {
+      this.resolution.reset();
+      this.resizeRendering();
+    }
     if (this.composer)
       setPostprocessingOptions(this.composer, this.postOptions);
     if (this.recovering && !this.renderer.getContext().isContextLost())
@@ -524,21 +559,20 @@ export class Graphics {
     this.miningEffects.clear();
     this.stepOffset = 0;
     this.shapeOutline.visible = false;
+    this.nearStream?.dispose();
+    this.lightStream?.dispose();
+    this.nearStream = new NearStream(world, (q, r) => {
+      for (const [a, b] of DIRECTIONS) {
+        const k = q + a + ',' + (r + b);
+        if (this.chunks.has(k)) this.requestChunk(k);
+      }
+    });
     this.world = world;
     this.distantTerrain.reset(world);
     this.atmosphere.uniforms.airDistantBlend.value = 0;
     this.camera.far =
       world.dimension === 'overworld' ? DISTANT_CAMERA_FAR : 220;
     this.camera.updateProjectionMatrix();
-    this.voxelLight = new VoxelLight(world);
-    this.voxelLight.update(0, true);
-    this.dynamicLight.upload(this.voxelLight);
-    this.fluidRenderer.voxelLight = this.voxelLight;
-    this.relightQueue = new Set();
-    this.caveSky = null;
-    this.composer?.effects.exposure.reset();
-    this.composer?.effects.temporal.reset();
-    this.composer?.passes[0].clouds.reset();
     this.fluidRenderer.clear();
     this.chestModels.openKey = null;
     for (const mesh of this.chunks.values()) {
@@ -551,6 +585,44 @@ export class Graphics {
       this.terrain.remove(mesh);
     }
     this.chunks.clear();
+    this.voxelLight = new VoxelLight(world);
+    this.voxelLight.update(0, true);
+    this.dynamicLight.upload(this.voxelLight);
+    this.fluidRenderer.voxelLight = this.voxelLight;
+    this.relightQueue = new Set();
+    this.dirtyMeshes = new Set();
+    this.meshTask = null;
+    this.urgentMeshes = new Set();
+    world.leafDecay.stream();
+    this.workTurn = 0;
+    this.workSteps = [
+      () => this.nearStream.step(),
+      () => this.meshStep(),
+      () => this.lightStream.step(),
+      () => this.relightStep(),
+      () => this.evictMesh(),
+      () => this.world.leafDecay.step(),
+      () => this.fluidRenderer.sync(this.world, this.chunks, false, 1),
+    ];
+    this.evictions = new Set();
+    this.nextMeshIsNew = false;
+    this.lightStream = new LightStream(
+      this.voxelLight,
+      (field, data, min, max, changed) => {
+        this.dynamicLight.install(
+          field,
+          data,
+          new THREE.Vector3(...min),
+          new THREE.Vector3(...max),
+        );
+        for (const k of changed)
+          if (this.chunks.has(k)) this.relightQueue.add(k);
+      },
+    );
+    this.caveSky = null;
+    this.composer?.effects.exposure.reset();
+    this.composer?.effects.temporal.reset();
+    this.composer?.passes[0].clouds.reset();
     this.queue = [];
     this.streamCenter = null;
     for (const child of [...this.decor.children]) {
@@ -588,21 +660,18 @@ export class Graphics {
       center = cq + ',' + cr;
     if (center !== this.streamCenter) {
       this.streamCenter = center;
+      if (this.meshTask) this.dirtyMeshes.add(this.meshTask.k);
+      this.meshTask = null;
       const wanted = new Set();
       for (let dq = -VIEW_RADIUS; dq <= VIEW_RADIUS; dq++)
         for (let dr = -VIEW_RADIUS; dr <= VIEW_RADIUS; dr++)
           wanted.add(cq + dq + ',' + (cr + dr));
-      for (const [k, mesh] of this.chunks)
-        if (!wanted.has(k)) {
-          this.chestModels.release(mesh);
-          this.enchantingModels.release(mesh);
-          this.smithingModels.release(mesh);
-          this.brewingModels.release(mesh);
-          this.campfireModels.release(mesh);
-          mesh.traverse((o) => o.geometry?.dispose());
-          this.terrain.remove(mesh);
-          this.chunks.delete(k);
-        }
+      this.wanted = wanted;
+      this.evictions.clear();
+      for (const [k, mesh] of this.chunks) {
+        mesh.visible = wanted.has(k);
+        if (!mesh.visible) this.evictions.add(k);
+      }
       this.queue = [...wanted]
         .filter((k) => !this.chunks.has(k))
         .sort((a, b) => {
@@ -640,9 +709,73 @@ export class Graphics {
           if (t === 'portal' || t === 'endportal') this.portal(x, y, z, t);
         }
     }
-    const count = immediate ? this.queue.length : 2;
-    for (let n = 0; n < count && this.queue.length; n++)
-      this.buildChunk(this.queue.shift());
+    if (immediate) {
+      this.meshTask = null;
+      while (this.evictMesh()) {}
+      for (const k of new Set([...this.queue, ...this.dirtyMeshes]))
+        if (this.wanted.has(k)) this.buildChunk(k);
+      this.queue = [];
+      this.dirtyMeshes.clear();
+    }
+  }
+  evictMesh() {
+    const k = this.evictions.values().next().value;
+    if (!k) return false;
+    this.evictions.delete(k);
+    const mesh = this.chunks.get(k);
+    this.chestModels.release(mesh);
+    this.enchantingModels.release(mesh);
+    this.smithingModels.release(mesh);
+    this.brewingModels.release(mesh);
+    this.campfireModels.release(mesh);
+    mesh.traverse((o) => o.geometry?.dispose());
+    this.terrain.remove(mesh);
+    this.chunks.delete(k);
+
+    return true;
+  }
+  requestChunk(k, urgent = false) {
+    if (!this.wanted?.has(k)) return;
+    this.dirtyMeshes.add(k);
+    if (urgent) this.urgentMeshes.add(k);
+    // Keep an in-progress build; a later edit schedules one follow-up swap.
+  }
+  meshStep() {
+    if (!this.meshTask) {
+      let k = this.urgentMeshes.values().next().value;
+      if (k) this.urgentMeshes.delete(k);
+      if (!k && (this.nextMeshIsNew || !this.dirtyMeshes.size)) {
+        const i = this.queue.findIndex((key) => this.world.chunks.has(key));
+        if (i >= 0) k = this.queue.splice(i, 1)[0];
+      }
+      if (!k) k = this.dirtyMeshes.values().next().value;
+      if (!k) return false;
+      this.dirtyMeshes.delete(k);
+      this.nextMeshIsNew = !this.nextMeshIsNew;
+      if (!this.wanted.has(k) || !this.world.chunks.has(k)) return true;
+      this.meshTask = { k, steps: this.chunkSteps(k) };
+    }
+    if (this.meshTask.steps.next().done) this.meshTask = null;
+    return true;
+  }
+  relightStep() {
+    const k = this.relightQueue.values().next().value;
+    if (!k) return false;
+    this.relightQueue.delete(k);
+    const mesh = this.chunks.get(k),
+      fluid = this.fluidRenderer.meshes.get(k);
+    if (mesh) this.voxelLight.relight(mesh);
+    if (fluid) this.voxelLight.relight(fluid);
+    return true;
+  }
+  streamFrame() {
+    const end = performance.now() + 2;
+    let idle = 0;
+    do {
+      const task = this.workSteps[this.workTurn++ % this.workSteps.length];
+      const worked = task();
+      idle = worked ? 0 : idle + 1;
+    } while (idle < this.workSteps.length && performance.now() < end);
   }
   portal(q, y, r, type) {
     const k = q + ',' + y + ',' + r;
@@ -751,6 +884,11 @@ export class Graphics {
     this.offhandHand.add(this.offhandHeld);
   }
   buildChunk(k) {
+    for (const _ of this.chunkSteps(k)) {
+      /* Initial load requires complete geometry. */
+    }
+  }
+  *chunkSteps(k) {
     const [cq, cr] = k.split(',').map(Number),
       world = this.world,
       origin = axialToWorld(cq * 8, cr * 8);
@@ -865,7 +1003,8 @@ export class Graphics {
       );
     };
     for (let q = cq * 8; q < cq * 8 + 8; q++)
-      for (let r = cr * 8; r < cr * 8 + 8; r++)
+      for (let r = cr * 8; r < cr * 8 + 8; r++) {
+        yield;
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const type = world.get(q, y, r);
           if (!type) continue;
@@ -1150,6 +1289,7 @@ export class Graphics {
             );
           }
         }
+      }
     const pickableLeaves = leaves.p.length / 3;
     out = leaves;
     for (const {
@@ -1188,7 +1328,15 @@ export class Graphics {
     const geometry = (data) => {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(data.p, 3));
-      g.setAttribute('color', new THREE.Float32BufferAttribute(data.c, 3));
+      // These attributes are sampled as normalized values, just like the far
+      // terrain. Positions keep full precision for outlines and ray hits.
+      const bytes = (values, size) =>
+        new THREE.BufferAttribute(
+          Uint8Array.from(values, (v) => Math.round(v * 255)),
+          size,
+          true,
+        );
+      g.setAttribute('color', bytes(data.c, 3));
       if (data.biome) {
         g.setAttribute(
           'biomeTint',
@@ -1201,25 +1349,34 @@ export class Graphics {
           'surfaceOptics',
           new THREE.Uint8BufferAttribute(data.optics, 1),
         );
-      if (data.ao)
-        g.setAttribute(
-          'ambientOcclusion',
-          new THREE.Float32BufferAttribute(data.ao, 1),
-        );
+      if (data.ao) g.setAttribute('ambientOcclusion', bytes(data.ao, 1));
       if (data.leafRanges) {
         setFoliageAmbient(g, data.leafRanges);
       }
-      g.setAttribute('uv', new THREE.Float32BufferAttribute(data.uv, 2));
-      g.setAttribute('skylight', new THREE.Float32BufferAttribute(data.sky, 1));
       g.setAttribute(
-        'rainExposure',
-        new THREE.Float32BufferAttribute(data.rain, 1),
+        'uv',
+        new THREE.BufferAttribute(
+          Uint16Array.from(data.uv, (v) => Math.round(v * 65535)),
+          2,
+          true,
+        ),
       );
-      g.setAttribute(
-        'surfacePorosity',
-        new THREE.Float32BufferAttribute(data.porosity, 1),
-      );
+      g.setAttribute('skylight', bytes(data.sky, 1));
+      g.setAttribute('rainExposure', bytes(data.rain, 1));
+      g.setAttribute('surfacePorosity', bytes(data.porosity, 1));
       g.computeVertexNormals();
+      g.setAttribute(
+        'normal',
+        new THREE.BufferAttribute(
+          Int8Array.from(g.attributes.normal.array, (v) => Math.round(v * 127)),
+          3,
+          true,
+        ),
+      );
+      g.setAttribute(
+        'blocklight',
+        new THREE.BufferAttribute(new Uint8Array(data.p.length), 3, true),
+      );
       g.computeBoundingSphere();
       return g;
     };
@@ -1241,7 +1398,7 @@ export class Graphics {
       this.chunks.set(k, mesh);
     }
     mesh.geometry = geometry(solid);
-    mesh.material = this.material;
+    setSceneMaterial(mesh, this.material);
     mesh.userData.baseSurfaceReflection = !!solid.reflections;
     mesh.userData.surfaceReflection =
       !!solid.reflections || this.textures.materials.reflective(mesh.geometry);
@@ -1264,6 +1421,7 @@ export class Graphics {
     let vineVertices = 0,
       cutVertices = 0;
     for (const [q, y, r] of shaped) {
+      if (!BLOCKS[world.get(q, y, r)]?.shape) continue;
       if (isCampfire(world.get(q, y, r)))
         mesh.add(this.campfireModels.create(world, q, y, r, origin));
       const building = buildingMesh(
@@ -1369,9 +1527,9 @@ export class Graphics {
     this.renderer.shadowMap.needsUpdate = true;
   }
   updateBlock(q, y, r) {
-    this.updateCells([[q, y, r]]);
+    this.updateCells([[q, y, r]], true);
   }
-  updateCells(cells) {
+  updateCells(cells, urgent = false) {
     const chunks = new Set();
     for (const [q, y, r] of cells) {
       chunks.add(this.chunkKey(q, r));
@@ -1379,7 +1537,8 @@ export class Graphics {
         chunks.add(this.chunkKey(q + dq, r + dr));
       this.updatePortal(q, y, r);
     }
-    for (const k of chunks) if (this.chunks.has(k)) this.buildChunk(k);
+    for (const k of chunks)
+      if (this.chunks.has(k)) this.requestChunk(k, urgent);
     // A switch should refresh its surroundings before distant resident chunks.
     this.relightQueue = new Set([...chunks, ...this.relightQueue]);
   }
@@ -1411,7 +1570,10 @@ export class Graphics {
           : isFurnace(type) && this.world.furnaces.get(k)?.burn > 0
             ? '#ff9d47'
             : BLOCKS[type]?.light;
-    if (this.lights.get(k)?.color !== color) this.voxelLight.dirty = true;
+    if (this.lights.get(k)?.color !== color) {
+      this.world.opticalChanges?.add(this.chunkKey(q, r));
+      this.voxelLight.dirty = true;
+    }
     if (!color) {
       this.lights.delete(k);
       return;
@@ -1426,15 +1588,40 @@ export class Graphics {
   target(includeLiquids = false) {
     this.shapeOutline.visible = false;
     this.ray.setFromCamera(new THREE.Vector2(), this.camera);
-    const hit = this.ray.intersectObjects(
-      [
-        ...this.terrain.children,
-        ...this.portalMeshes.values(),
-        ...this.cropMeshes.values(),
-        ...(includeLiquids ? this.fluidRenderer.group.children : []),
-      ],
-      true,
-    )[0];
+    const { q, r } = worldToAxial(
+      this.camera.position.x,
+      this.camera.position.z,
+    );
+    // Inverse axial projection changes each coordinate by at most 2/3 per world
+    // unit. Include an extra cell for overhanging silhouettes and prism edges.
+    const reach = Math.ceil((this.ray.far * 2) / 3) + 2;
+    const candidates = [];
+    for (
+      let cq = Math.floor((q - reach) / 8);
+      cq <= Math.floor((q + reach) / 8);
+      cq++
+    )
+      for (
+        let cr = Math.floor((r - reach) / 8);
+        cr <= Math.floor((r + reach) / 8);
+        cr++
+      ) {
+        const k = cq + ',' + cr,
+          terrain = this.chunks.get(k),
+          fluid = includeLiquids && this.fluidRenderer.meshes.get(k);
+        if (terrain) candidates.push(terrain);
+        if (fluid) candidates.push(fluid);
+      }
+    for (const group of [this.portalMeshes, this.cropMeshes])
+      for (const object of group.values())
+        if (
+          Math.abs(object.position.x - this.camera.position.x) <=
+            this.ray.far + 2 &&
+          Math.abs(object.position.z - this.camera.position.z) <=
+            this.ray.far + 2
+        )
+          candidates.push(object);
+    const hit = this.ray.intersectObjects(candidates, true)[0];
     if (!hit) {
       this.outline.visible = false;
       return null;
@@ -1745,16 +1932,8 @@ export class Graphics {
     if (distantBlend.value > 0.999) distantBlend.value = 1;
     sawClock.value = time;
     this.voxelLight.setHeld([heldLight, offhandLight], this.camera.position);
-    this.updateVoxelLight(renderDt);
-    let relit = 0;
-    for (const k of this.relightQueue) {
-      this.relightQueue.delete(k);
-      const mesh = this.chunks.get(k);
-      if (mesh) this.voxelLight.relight(mesh);
-      const fluid = this.fluidRenderer.meshes.get(k);
-      if (fluid) this.voxelLight.relight(fluid);
-      if (++relit >= 6) break;
-    }
+    if (this.lightStream.failed) this.updateVoxelLight(renderDt);
+    this.streamFrame();
     this.weatherEffects.frame(
       dt,
       time,
@@ -1767,7 +1946,6 @@ export class Graphics {
     const storm =
       this.world.dimension === 'overworld' ? weather?.storm || 0 : 0;
     const flash = this.weatherEffects.flashes ? this.weatherEffects.flash : 0;
-    this.fluidRenderer.sync(this.world, new Set(this.chunks.keys()));
     const phase = (time % 600) / 600,
       sky = new THREE.Color(DIMENSIONS[this.world.dimension].fog),
       horizon = sky.clone();
@@ -2080,8 +2258,7 @@ export class Graphics {
     this.brewingModels.frame(renderDt, this.world);
     this.campfireModels.frame(dt, this.world, this.camera);
     this.fallingModels.frame(this.world);
-    this.dynamicLight.attach(this.scene);
-    this.cloudSystem.attach(this.scene);
+
     const cameraHex = worldToAxial(
       this.camera.position.x,
       this.camera.position.z,
@@ -2119,9 +2296,7 @@ export class Graphics {
       flight: this.gliding,
       sky: this.skyEnvironment.uniforms,
     });
-    this.atmosphere.attach(this.scene);
-    this.softShadows.attach(
-      this.scene,
+    this.softShadows.update(
       this.sunDisk.position.y >= 0 ? this.sunDisk : this.moonDisk,
     );
     this.enchantingModels.frame(time);
@@ -2204,6 +2379,10 @@ export class Graphics {
     } else if (this.avatar) this.avatar.root.visible = false;
     this.camera.position.y -= stepOffset;
     this.camera.updateMatrixWorld();
+    const timed =
+      playing &&
+      this.postOptions.target60 &&
+      this.resolution.begin(performance.now(), () => this.resizeRendering());
     let temporal,
       rendered = false;
     try {
@@ -2231,10 +2410,19 @@ export class Graphics {
           temporal.enabled ||
           this.composer.effects.wet.enabled;
         temporal.beginFrame();
-        this.composer.render(renderDt);
+        // All post passes use the same world transforms for this rendered frame.
+        const auto = this.scene.matrixWorldAutoUpdate;
+        if (auto) this.scene.updateMatrixWorld();
+        this.scene.matrixWorldAutoUpdate = false;
+        try {
+          this.composer.render(renderDt);
+        } finally {
+          this.scene.matrixWorldAutoUpdate = auto;
+        }
       } else this.renderer.render(this.scene, this.camera);
       rendered = true;
     } finally {
+      if (timed) this.resolution.end();
       temporal?.endFrame(rendered);
       this.camera.position.y += stepOffset;
       restoreView?.();

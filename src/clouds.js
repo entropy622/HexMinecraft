@@ -329,23 +329,26 @@ export class HexClouds {
       const materials = Array.isArray(object.material)
         ? object.material
         : [object.material];
-      for (const material of materials) {
-        if (
-          !material ||
-          material.userData.hexCloudShadow ||
-          !(material.isMeshLambertMaterial || material.isMeshPhongMaterial)
-        )
-          continue;
-        material.userData.hexCloudShadow = true;
-        if (
-          addSurfaceFeature(material, {
-            id: 'cloud-shadow',
-            version: 8,
-            order: 10,
-            uniforms: this.uniforms,
-            stages: {
-              vertex_pars: 'varying vec3 vCloudShadowPoint;',
-              vertex_project: `vec4 cloudPoint=vec4(transformed,1.0);
+      for (const material of materials) this.applyMaterial(material);
+    });
+  }
+  applyMaterial(material) {
+    if (
+      !material ||
+      material.userData.hexCloudShadow ||
+      !(material.isMeshLambertMaterial || material.isMeshPhongMaterial)
+    )
+      return;
+    material.userData.hexCloudShadow = true;
+    if (
+      addSurfaceFeature(material, {
+        id: 'cloud-shadow',
+        version: 8,
+        order: 10,
+        uniforms: this.uniforms,
+        stages: {
+          vertex_pars: 'varying vec3 vCloudShadowPoint;',
+          vertex_project: `vec4 cloudPoint=vec4(transformed,1.0);
               #ifdef USE_BATCHING
                 cloudPoint=batchingMatrix*cloudPoint;
               #endif
@@ -353,24 +356,23 @@ export class HexClouds {
                 cloudPoint=instanceMatrix*cloudPoint;
               #endif
               vCloudShadowPoint=(modelMatrix*cloudPoint).xyz;`,
-              fragment_pars:
-                cloudShadowGLSL + '\nvarying vec3 vCloudShadowPoint;',
-              directional_filter:
-                'directLight.color *= hexCloudShadow(vCloudShadowPoint);',
-            },
-          })
-        )
-          continue;
-        const previous = material.onBeforeCompile,
-          cache = material.customProgramCacheKey;
-        material.onBeforeCompile = (shader, renderer) => {
-          previous.call(material, shader, renderer);
-          Object.assign(shader.uniforms, this.uniforms);
-          shader.vertexShader =
-            'varying vec3 vCloudShadowPoint;\n' +
-            shader.vertexShader.replace(
-              '#include <project_vertex>',
-              `
+          fragment_pars: cloudShadowGLSL + '\nvarying vec3 vCloudShadowPoint;',
+          directional_filter:
+            'directLight.color *= hexCloudShadow(vCloudShadowPoint);',
+        },
+      })
+    )
+      return;
+    const previous = material.onBeforeCompile,
+      cache = material.customProgramCacheKey;
+    material.onBeforeCompile = (shader, renderer) => {
+      previous.call(material, shader, renderer);
+      Object.assign(shader.uniforms, this.uniforms);
+      shader.vertexShader =
+        'varying vec3 vCloudShadowPoint;\n' +
+        shader.vertexShader.replace(
+          '#include <project_vertex>',
+          `
             #include <project_vertex>
             vec4 cloudPoint = vec4(transformed, 1.0);
             #ifdef USE_BATCHING
@@ -381,24 +383,22 @@ export class HexClouds {
             #endif
             vCloudShadowPoint = (modelMatrix * cloudPoint).xyz;
           `,
-            );
-          shader.fragmentShader =
-            cloudShadowGLSL +
-            '\nvarying vec3 vCloudShadowPoint;\n' +
-            shader.fragmentShader
-              .replace(
-                '#include <lights_fragment_begin>',
-                THREE.ShaderChunk.lights_fragment_begin,
-              )
-              .replace(
-                'getDirectionalLightInfo( directionalLight, directLight );',
-                'getDirectionalLightInfo( directionalLight, directLight ); directLight.color *= hexCloudShadow(vCloudShadowPoint);',
-              );
-        };
-        material.customProgramCacheKey = () =>
-          cache.call(material) + '-hex-cloud-shadow-v8';
-        material.needsUpdate = true;
-      }
-    });
+        );
+      shader.fragmentShader =
+        cloudShadowGLSL +
+        '\nvarying vec3 vCloudShadowPoint;\n' +
+        shader.fragmentShader
+          .replace(
+            '#include <lights_fragment_begin>',
+            THREE.ShaderChunk.lights_fragment_begin,
+          )
+          .replace(
+            'getDirectionalLightInfo( directionalLight, directLight );',
+            'getDirectionalLightInfo( directionalLight, directLight ); directLight.color *= hexCloudShadow(vCloudShadowPoint);',
+          );
+    };
+    material.customProgramCacheKey = () =>
+      cache.call(material) + '-hex-cloud-shadow-v8';
+    material.needsUpdate = true;
   }
 }

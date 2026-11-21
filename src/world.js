@@ -72,11 +72,40 @@ export const DIMENSIONS = {
 };
 export const chunkKey = (q, r) =>
   `${Math.floor(q / CHUNK_SIZE)},${Math.floor(r / CHUNK_SIZE)}`;
+// Some generators and world editors write the sparse map directly. Keep resident
+// columns coherent through the Map API as well as World.set.
+class BlockMap extends Map {
+  constructor(columns) {
+    super();
+    this.columns = columns;
+  }
+  mirror(k, type) {
+    if (!this.columns.size) return;
+    const [q, y, r] = k.split(',').map(Number),
+      dense = this.columns.get(chunkKey(q, r));
+    if (dense && y >= 0 && y < WORLD_HEIGHT)
+      dense[((q & 7) * 8 + (r & 7)) * WORLD_HEIGHT + y] = type;
+  }
+  set(k, t) {
+    this.mirror(k, t);
+    return super.set(k, t);
+  }
+  delete(k) {
+    if (!super.delete(k)) return false;
+    this.mirror(k, undefined);
+    return true;
+  }
+  clear() {
+    super.clear();
+    for (const dense of this.columns.values()) dense.fill(undefined);
+  }
+}
 export class World {
   constructor(seed = 624, dimension = 'overworld', options = {}) {
     this.seed = seed;
     this.dimension = dimension;
-    this.blocks = new Map();
+    this.columns = new Map();
+    this.blocks = new BlockMap(this.columns);
     // Circuits observe all block changes; transport only observes optical ones.
     this.lightRevision = 0;
     this.blockRevision = 0;
@@ -95,6 +124,7 @@ export class World {
     this.circuitCells = new Set();
     this.hangingPlants = new Set();
     this.vineCells = new Set();
+    this.vineChecks = new Set();
     this.dripstoneCells = new Set();
     this.amethystCells = new Set();
     this.portalCells = new Set();
@@ -266,6 +296,16 @@ export class World {
           : 'oak';
   }
   get(q, y, r) {
+    if (y < 0 || y >= WORLD_HEIGHT) return undefined;
+    const cq = Math.floor(q / 8),
+      cr = Math.floor(r / 8);
+    if (this.lastChunkQ !== cq || this.lastChunkR !== cr) {
+      this.lastChunkQ = cq;
+      this.lastChunkR = cr;
+      this.lastColumn = this.columns.get(cq + ',' + cr);
+    }
+    if (this.lastColumn)
+      return this.lastColumn[((q - cq * 8) * 8 + (r - cr * 8)) * 64 + y];
     return this.blocks.get(key(q, y, r));
   }
   loaded(q, r) {
@@ -317,7 +357,8 @@ export class World {
           : {}),
       };
     this.blockStates.set(key(q, y, r), next);
-    if (previousLight !== blockLight(this, q, y, r)) this.lightRevision++;
+    this.checkVineNeighbors(q, y, r);
+    if (previousLight !== blockLight(this, q, y, r)) this.markLight(q, r);
     this.shapeCache.clear();
     const defaults = {
       facing: BLOCKS[this.get(q, y, r)]?.defaultFacing ?? 0,
@@ -446,6 +487,16 @@ export class World {
     }
     return false;
   }
+  checkVineNeighbors(q, y, r) {
+    if (!this.vineCells.size) return;
+    const check = (a, h, c) => {
+      const k = key(a, h, c);
+      if (this.vineCells.has(k)) this.vineChecks.add(k);
+    };
+    check(q, y, r);
+    check(q, y - 1, r);
+    for (const [a, b] of DIRECTIONS) check(q + a, y, r + b);
+  }
   set(q, y, r, type, record = true) {
     const k = key(q, y, r);
     const previous = this.get(q, y, r);
@@ -454,7 +505,10 @@ export class World {
       record && previous !== type
         ? pistonPartner(this, q, y, r, DIRECTIONS)
         : null;
-    if (previous !== type) this.blockRevision++;
+    if (previous !== type) {
+      this.blockRevision++;
+      this.checkVineNeighbors(q, y, r);
+    }
     if (
       previous !== type &&
       (BLOCKS[previous]?.foliage ||
@@ -463,6 +517,9 @@ export class World {
         BLOCKS[type]?.log)
     ) {
       this.leafRevision++;
+      this.leafDecay?.invalidate(q >> 3, r >> 3);
+      this.leafDecay?.distance.delete(k);
+      this.leafDecay?.uncertain.delete(k);
       if (record) this.persistentLeaves.delete(k);
     }
     if (record && !BLOCKS[type]?.foliage) this.leafDecay?.pending.delete(k);
@@ -484,8 +541,10 @@ export class World {
       else this.circuitCells.delete(k);
       if (isHangingPlant(type)) this.hangingPlants.add(k);
       else this.hangingPlants.delete(k);
-      if (type === 'vine') this.vineCells.add(k);
-      else this.vineCells.delete(k);
+      if (type === 'vine') {
+        this.vineCells.add(k);
+        this.vineChecks.add(k);
+      } else this.vineCells.delete(k);
       if (type === 'pointedDripstone') this.dripstoneCells.add(k);
       else this.dripstoneCells.delete(k);
       if (isAmethystBud(type)) this.amethystCells.add(k);
@@ -518,7 +577,7 @@ export class World {
       if (!this.editChunks.has(ck)) this.editChunks.set(ck, new Map());
       this.editChunks.get(ck).set(k, type || null);
     }
-    if (previousLight !== blockLight(this, q, y, r)) this.lightRevision++;
+    if (previousLight !== blockLight(this, q, y, r)) this.markLight(q, r);
     // Current cell is already gone, so deleting its partner cannot recurse back.
     if (partner) this.set(...partner, null);
     if (record && (previous || null) !== (type || null))
@@ -533,9 +592,18 @@ export class World {
   keepLeaf(q, y, r) {
     if (!BLOCKS[this.get(q, y, r)]?.foliage) return;
     this.persistentLeaves.add(key(q, y, r));
+    this.leafDecay.invalidate(q >> 3, r >> 3);
     this.leafRevision++;
   }
-  generateChunk(cq, cr) {
+  markLight(q, r) {
+    this.lightRevision++;
+    this.markOpticalChunk(chunkKey(q, r));
+  }
+  markOpticalChunk(k) {
+    this.opticalChanges?.add(k);
+    this.opticalRevisions?.set(k, this.lightRevision);
+  }
+  generateChunk(cq, cr, baseOnly = false) {
     const ck = `${cq},${cr}`;
     if (this.chunks.has(ck)) return;
     this.lightRevision++;
@@ -751,6 +819,11 @@ export class World {
     for (const s of structures) stampStructure(this, s, cq, cr);
     stampEndArena(this, cq, cr);
     stampPigments(this, cq, cr, trees);
+    if (!baseOnly) this.finishChunk(cq, cr);
+  }
+  finishChunk(cq, cr) {
+    const ck = cq + ',' + cr;
+    const dense = new Array(8 * 8 * WORLD_HEIGHT);
     for (const [k, t] of this.editChunks.get(ck) || []) {
       if (this.blocks.get(k) !== t) this.naturalStates.delete(k);
       if (isChorus(t)) this.chorusPending.add(k);
@@ -765,19 +838,40 @@ export class World {
       for (let r = cr * 8; r < cr * 8 + 8; r++)
         for (let y = 0; y < WORLD_HEIGHT; y++) {
           const k = key(q, y, r);
-          this.indexTreeCell(k, this.blocks.get(k));
-          if (isCircuit(this.blocks.get(k))) this.circuitCells.add(k);
-          if (isHangingPlant(this.blocks.get(k))) this.hangingPlants.add(k);
-          if (this.blocks.get(k) === 'vine') this.vineCells.add(k);
-          if (this.blocks.get(k) === 'pointedDripstone')
-            this.dripstoneCells.add(k);
-          if (isAmethystBud(this.blocks.get(k))) this.amethystCells.add(k);
+          const type = this.blocks.get(k);
+          dense[((q & 7) * 8 + (r & 7)) * 64 + y] = type;
+          if (!type) continue;
+          this.indexTreeCell(k, type);
+          if (isCircuit(type)) this.circuitCells.add(k);
+          if (isHangingPlant(type)) this.hangingPlants.add(k);
+          if (type === 'vine') {
+            this.vineCells.add(k);
+            this.vineChecks.add(k);
+          }
+          if (type === 'pointedDripstone') this.dripstoneCells.add(k);
+          if (isAmethystBud(type)) this.amethystCells.add(k);
           else this.amethystCells.delete(k);
-          this.gravity.index(q, y, r, this.blocks.get(k));
-          if (this.blocks.get(k) === 'portal') this.portalCells.add(k);
-          if (isCampfire(this.blocks.get(k)) && !this.campfires.has(k))
+          this.gravity.index(q, y, r, type);
+          if (type === 'portal') this.portalCells.add(k);
+          if (isCampfire(type) && !this.campfires.has(k))
             this.campfires.set(k, newCampfire());
         }
+    this.lastChunkQ = null;
+    this.columns.set(ck, dense);
+    // A previously unknown adjacent column can now confirm or remove support.
+    for (let x = -1; x <= 8; x++)
+      for (let z = -1; z <= 8; z++) {
+        if (x >= 0 && x < 8 && z >= 0 && z < 8) continue;
+        const q = cq * 8 + x,
+          r = cr * 8 + z,
+          other = this.columns.get(chunkKey(q, r));
+        if (!other) continue;
+        const offset = ((q & 7) * 8 + (r & 7)) * 64;
+        for (let y = 0; y < 64; y++)
+          if (other[offset + y] === 'vine') this.vineChecks.add(key(q, y, r));
+      }
+    this.leafDecay?.invalidate(cq, cr);
+    this.markOpticalChunk(ck);
     this.fluids.load(cq, cr);
     this.shapeCache.clear();
   }
@@ -785,7 +879,8 @@ export class World {
     const cq = Math.floor(q / 8),
       cr = Math.floor(r / 8),
       next = `${cq},${cr},${radius}`;
-    if (this.center === next) return false;
+    if (this.center === next && !this.streaming) return false;
+    this.streaming = false;
     this.center = next;
     for (let dq = -radius; dq <= radius; dq++)
       for (let dr = -radius; dr <= radius; dr++)
@@ -801,14 +896,29 @@ export class World {
     this.lightRevision++;
     this.blockRevision++;
     this.leafRevision++;
+    this.markOpticalChunk(cq + ',' + cr);
+    this.leafDecay?.invalidate(cq, cr);
+    const dense = this.columns.get(cq + ',' + cr);
+    this.columns.delete(cq + ',' + cr);
+    this.lastChunkQ = null;
     this.fluids.unload(cq, cr);
     for (let q = cq * 8; q < cq * 8 + 8; q++)
       for (let r = cr * 8; r < cr * 8 + 8; r++) {
         this.heights.delete(`${q},${r}`);
         for (let y = 0; y < 64; y++) {
           const k = key(q, y, r);
+          if (
+            !dense?.[((q & 7) * 8 + (r & 7)) * 64 + y] &&
+            !this.featureBlocks?.has(k) &&
+            !this.naturalStates.has(k) &&
+            !this.chorusPending.has(k)
+          )
+            continue;
           this.blocks.delete(k);
-          this.treeLeaves.delete(k);
+          if (this.treeLeaves.delete(k)) {
+            this.leafDecay?.distance.delete(k);
+            this.leafDecay?.uncertain.delete(k);
+          }
           this.treeLogs.delete(k);
           this.spawners.delete(k);
           this.buildings.delete(k);
@@ -839,6 +949,7 @@ export class World {
     this.circuitCells.clear();
     this.hangingPlants.clear();
     this.vineCells.clear();
+    this.vineChecks.clear();
     this.dripstoneCells.clear();
     this.amethystCells.clear();
     for (const map of Object.values(this.redstone.signals)) map.clear();
@@ -849,6 +960,11 @@ export class World {
     this.shapeCache.clear();
     this.heights.clear();
     this.chorusPending.clear();
+    this.leafDecay?.tiles?.clear();
+    this.leafDecay?.distance.clear();
+    this.leafDecay?.uncertain.clear();
+    this.columns.clear();
+    this.lastChunkQ = null;
     this.chunks.clear();
     this.center = null;
   }

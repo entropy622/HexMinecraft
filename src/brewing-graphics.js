@@ -1,3 +1,4 @@
+import { setSceneMaterial } from './scene-materials.js';
 import * as THREE from 'three';
 import { axialToWorld } from './core.js';
 import { facingAngle } from './building-shapes.js';
@@ -152,7 +153,7 @@ export class BrewingModels {
             id,
             new THREE.MeshLambertMaterial({ color: POTIONS[id].color }),
           );
-        bottle.userData.liquid.material = this.colors.get(id);
+        setSceneMaterial(bottle.userData.liquid, this.colors.get(id));
       });
       root.userData.bubbles.forEach((bubble, i) => {
         bubble.visible = active;
